@@ -1,8 +1,8 @@
 # Research: frontend stack for Phase 2 gesture work
 
-Resolves [#8](https://github.com/ewanhardingham/table-top-pocker/issues/8).
-Feeds [#14](https://github.com/ewanhardingham/table-top-pocker/issues/14) (framework and client architecture) and [#3](https://github.com/ewanhardingham/table-top-pocker/issues/3) (repo structure and build tooling).
-Touches [#7](https://github.com/ewanhardingham/table-top-pocker/issues/7) (hosting on a Pi — see the HTTPS finding in §7), [#9](https://github.com/ewanhardingham/table-top-pocker/issues/9)/[#11](https://github.com/ewanhardingham/table-top-pocker/issues/11) (wire contract — see the "reveal is a client-side act" finding in §8).
+Resolves [#8](https://github.com/ewanhardingham/table-top-poker/issues/8).
+Feeds [#14](https://github.com/ewanhardingham/table-top-poker/issues/14) (framework and client architecture) and [#3](https://github.com/ewanhardingham/table-top-poker/issues/3) (repo structure and build tooling).
+Touches [#7](https://github.com/ewanhardingham/table-top-poker/issues/7) (hosting on a Pi — see the HTTPS finding in §7), [#9](https://github.com/ewanhardingham/table-top-poker/issues/9)/[#11](https://github.com/ewanhardingham/table-top-poker/issues/11) (wire contract — see the "reveal is a client-side act" finding in §8).
 
 **Question.** Which frontend stack best serves a gesture-driven, animated playing-card UI in a phone browser, and what must Phase 1 avoid doing to keep that door open?
 
@@ -307,7 +307,7 @@ The Fullscreen API is not an alternative on iPhone: `requestFullscreen()` on arb
 
 **A LAN origin like `http://192.168.1.50` is not a secure context.** MDN's list of "potentially trustworthy origins" covers `http://localhost`, `http://127.0.0.1`, `http://*.localhost`, `file://` and `wss://` — a private LAN IP over plain HTTP is not among them ([MDN, Secure Contexts](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts)). Service workers require a secure context, and manifest-driven installation is gated behind the same requirement on most platforms.
 
-So: **if Phase 2 wants the standalone-mode feel, the Pi must serve a trusted HTTPS origin with a real hostname**, not a bare `http://` IP. That is a hosting decision made in [#7](https://github.com/ewanhardingham/table-top-pocker/issues/7), in Phase 1, and it is not trivial on a LAN (self-signed certificates are not trusted; the usual answers are a real domain with DNS-01 ACME pointing at a private IP, or `.local` mDNS plus a locally-installed CA, both of which have consequences for how guests join). Also note `getCoalescedEvents()` — the API for smoothing fast drags — requires a secure context.
+So: **if Phase 2 wants the standalone-mode feel, the Pi must serve a trusted HTTPS origin with a real hostname**, not a bare `http://` IP. That is a hosting decision made in [#7](https://github.com/ewanhardingham/table-top-poker/issues/7), in Phase 1, and it is not trivial on a LAN (self-signed certificates are not trusted; the usual answers are a real domain with DNS-01 ACME pointing at a private IP, or `.local` mDNS plus a locally-installed CA, both of which have consequences for how guests join). Also note `getCoalescedEvents()` — the API for smoothing fast drags — requires a secure context.
 
 **Recommendation: Phase 1 should treat "the app is served over HTTPS from a stable hostname" as a requirement, not a nice-to-have.** Retrofitting it means changing the join URL that everyone has bookmarked, re-adding home-screen icons, and possibly re-provisioning trust on every guest's phone.
 
@@ -323,7 +323,7 @@ Reversing means rewriting the entire client. Every library in §2 is DOM-based. 
 
 ### 8.2 The framework itself — **very expensive**
 
-Every component is written twice. Pick now, informed by this document, in [#14](https://github.com/ewanhardingham/table-top-pocker/issues/14). There is no cheap migration path between React, Svelte, Solid and Vue.
+Every component is written twice. Pick now, informed by this document, in [#14](https://github.com/ewanhardingham/table-top-poker/issues/14). There is no cheap migration path between React, Svelte, Solid and Vue.
 
 Sub-decision with the same weight: **don't adopt a heavy opinionated component library** (MUI, Vuetify, Ionic, Quasar) for the card surface. Those libraries own their own DOM, their own event handling, their own animations, and their own stacking and overflow contexts — all four of which a custom gesture layer has to fight. A poker table has maybe ten distinct UI elements. Write them. If you want help, prefer copy-into-your-repo approaches (shadcn-style) or a headless/unstyled library over one that renders DOM you don't control. Reversing a component-library commitment is a re-skin of the whole app.
 
@@ -339,7 +339,7 @@ The fix is cheap now and invasive later, because it isn't only a client concern 
 - Each **seat** and each **hole-card slot** needs a stable id independent of array position.
 - Board cards need stable identity across the flop/turn/river as the array grows.
 
-That is a wire-contract requirement, so it belongs in [#9](https://github.com/ewanhardingham/table-top-pocker/issues/9)/[#11](https://github.com/ewanhardingham/table-top-pocker/issues/11) now, not later. **Concretely: never render a list of cards keyed by index.**
+That is a wire-contract requirement, so it belongs in [#9](https://github.com/ewanhardingham/table-top-poker/issues/9)/[#11](https://github.com/ewanhardingham/table-top-poker/issues/11) now, not later. **Concretely: never render a list of cards keyed by index.**
 
 ### 8.4 Making the phone screen a scrolling page — **expensive**
 
@@ -371,23 +371,23 @@ The peel is a *client-side* reveal of information the client already holds. If P
 
 **Phase 1's contract must deliver a player their own hole cards as soon as they're dealt**, in the same push as everything else. Concealment from *that player* is a rendering concern, not a transport concern. (Concealment from *other* players remains the engine's `view(state, seatId)` projection — that's a map constraint and it's unaffected. This is only about the owning player's own cards.)
 
-This belongs in [#9](https://github.com/ewanhardingham/table-top-pocker/issues/9)/[#11](https://github.com/ewanhardingham/table-top-pocker/issues/11) now. It also means the card component must be able to render its face and its back simultaneously (stacked layers, §4.2), rather than rendering nothing when face-down — so define `<Card>` from the start as taking rank, suit and a face-down flag, never as an `<img>` swapped between two sources.
+This belongs in [#9](https://github.com/ewanhardingham/table-top-poker/issues/9)/[#11](https://github.com/ewanhardingham/table-top-poker/issues/11) now. It also means the card component must be able to render its face and its back simultaneously (stacked layers, §4.2), rather than rendering nothing when face-down — so define `<Card>` from the start as taking rank, suit and a face-down flag, never as an `<img>` swapped between two sources.
 
 ### 8.8 No optimistic / pending local state — **moderate**
 
 Phase 2's swipe-to-fold must animate the moment your thumb releases, not when the server acknowledges. If Phase 1's model is strictly "disable buttons, wait for the server event, then update," Phase 2 needs a "locally pending intent" concept added to client state, and every screen has to learn about it.
 
-Cheap version to do now: represent an action as `pending` locally between send and acknowledgement, and render the button state from that. Phase 2's animation then hangs off a concept that already exists. This overlaps with [#14](https://github.com/ewanhardingham/table-top-pocker/issues/14)'s "how client state relates to server state" question.
+Cheap version to do now: represent an action as `pending` locally between send and acknowledgement, and render the button state from that. Phase 2's animation then hangs off a concept that already exists. This overlaps with [#14](https://github.com/ewanhardingham/table-top-poker/issues/14)'s "how client state relates to server state" question.
 
 ### 8.9 SSR / a full-stack meta-framework — **moderate**
 
 Next.js, Nuxt and SvelteKit-with-SSR add server rendering and hydration. A gesture layer is client-only by nature, and this app is a LAN SPA served off a Pi to a handful of phones — there is no SEO, no cold-start latency problem, and no first-paint budget worth optimising. SSR adds hydration complexity that fights client-only interactive code for zero benefit here.
 
-**Recommend: a plain Vite SPA**, static files served by whatever serves the API. This is a [#3](https://github.com/ewanhardingham/table-top-pocker/issues/3) decision. Unwinding SSR later is a build and routing rewrite.
+**Recommend: a plain Vite SPA**, static files served by whatever serves the API. This is a [#3](https://github.com/ewanhardingham/table-top-poker/issues/3) decision. Unwinding SSR later is a build and routing rewrite.
 
 ### 8.10 HTTPS and the join URL — **expensive, and it's really a #7 item**
 
-Per §7.3: a plain-HTTP LAN IP origin is not a secure context, blocking service workers, gating PWA install, and blocking `getCoalescedEvents()`. If Phase 2 wants standalone mode, Phase 1's hosting must produce a trusted HTTPS origin at a stable hostname. Changing the origin later invalidates bookmarks, home-screen icons and any stored client state. **Flag this on [#7](https://github.com/ewanhardingham/table-top-pocker/issues/7).**
+Per §7.3: a plain-HTTP LAN IP origin is not a secure context, blocking service workers, gating PWA install, and blocking `getCoalescedEvents()`. If Phase 2 wants standalone mode, Phase 1's hosting must produce a trusted HTTPS origin at a stable hostname. Changing the origin later invalidates bookmarks, home-screen icons and any stored client state. **Flag this on [#7](https://github.com/ewanhardingham/table-top-poker/issues/7).**
 
 ### 8.11 Cheap to reverse — explicitly do not agonise over these
 

@@ -492,7 +492,7 @@ If you stay on plain HTTP, honestly: **just use port 80** via ambient capabiliti
 ```ini
 [Unit]
 Description=Table Top Poker server
-Documentation=https://github.com/ewanhardingham/table-top-pocker
+Documentation=https://github.com/ewanhardingham/table-top-poker
 # See §5 for why network-online.target is a weaker promise than it looks
 After=network-online.target
 Wants=network-online.target

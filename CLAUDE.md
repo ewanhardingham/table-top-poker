@@ -1,4 +1,4 @@
-# table-top-pocker
+# table-top-poker
 
 ## Commit convention
 
@@ -14,17 +14,17 @@ Types in use: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`,
 - Scope is optional and names the area touched — e.g. `engine`, `server`, `table`, `player`, `research`.
 - Breaking changes take a `!` before the colon (`feat(engine)!: …`) and a `BREAKING CHANGE:` footer.
 
-Whether this is enforced by tooling, and whether it drives versioning or a changelog, is still open — see [Development workflow, CI and testing strategy](https://github.com/ewanhardingham/table-top-pocker/issues/4).
+Whether this is enforced by tooling, and whether it drives versioning or a changelog, is still open — see [Development workflow, CI and testing strategy](https://github.com/ewanhardingham/table-top-poker/issues/4).
 
 ## Planning
 
-Foundational decisions live on the wayfinder map, [issue #1](https://github.com/ewanhardingham/table-top-pocker/issues/1). Read its Notes for the standing constraints before proposing architecture; its open child issues are the decisions still to make.
+Foundational decisions live on the wayfinder map, [issue #1](https://github.com/ewanhardingham/table-top-poker/issues/1). Read its Notes for the standing constraints before proposing architecture; its open child issues are the decisions still to make.
 
 ## Agent skills
 
 ### Issue tracker
 
-Issues and PRDs live as GitHub issues in `ewanhardingham/table-top-pocker`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+Issues and PRDs live as GitHub issues in `ewanhardingham/table-top-poker`, managed with the `gh` CLI. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
