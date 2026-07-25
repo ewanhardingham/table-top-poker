@@ -1,5 +1,7 @@
 export { apply } from "./apply.js";
 export { decide } from "./decide.js";
+export { evaluate } from "./evaluate.js";
+export type { HandEvaluation } from "./evaluate.js";
 export { createInitialState } from "./room.js";
 export type {
   ActionType,
