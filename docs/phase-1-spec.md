@@ -9,15 +9,6 @@ ticket that made it — this document states *what*, the ticket holds *why*.
 Vocabulary is defined once, in [`CONTEXT.md`](../CONTEXT.md), and used
 without redefinition here.
 
-## Status
-
-**This spec is not yet complete.** One question is still open —
-[Rejection surfacing — how a failed command reaches the room](https://github.com/ewanhardingham/table-top-poker/issues/17) —
-and [Assemble the Phase 1 specification](https://github.com/ewanhardingham/table-top-poker/issues/15)
-stays open until it resolves, because the answer may add a message shape to
-the wire contract (§6) and change what the "failure path" bullet in §7 says.
-Everything else below is decided and build-ready.
-
 ## 1. Scope
 
 **Phase 1 destination**: a playable, correct Texas hold'em table across one
@@ -269,9 +260,17 @@ network round trip.
   they're trusted by construction.
 - **Command delivery**: explicit ack/reject per command, reusing the
   engine's `Rejection` type — never inferred from an absent state change.
-  *(Whether a rejection is visible only to the sender or also surfaced to
-  the room is the open question in
-  [issue #17](https://github.com/ewanhardingham/table-top-poker/issues/17).)*
+  Delivery is per-connection, so a rejection is only ever visible to the
+  player whose command it rejects — the table device and other players see
+  nothing; no separate broadcast message shape is needed
+  ([Rejection surfacing](https://github.com/ewanhardingham/table-top-poker/issues/17)).
+- **Rejection reason**: `Rejection.reason` is a closed, engine-defined set
+  of reason codes, not a free-text string — keeps display copy out of the
+  engine and makes client handling exhaustively checkable by the
+  switch-exhaustiveness lint (§10). Phase 1 starter set, extensible:
+  `not-your-turn`, `action-not-legal`, `hand-not-in-progress`,
+  `hand-already-in-progress`, `stale-next-hand`
+  ([Rejection surfacing](https://github.com/ewanhardingham/table-top-poker/issues/17)).
 - **Reconnect / catch-up**: one fresh view snapshot, not event replay —
   consistent with the view being source of truth.
 - **Connection identity**: room and player travel as query-string params on
@@ -372,7 +371,11 @@ research in `docs/research/frontend-gesture-stack.md`)
   module exposing `fold()`, `check()`, `call()`, `raise()`, plus a derived
   `legalActions`. Buttons are the **permanent** base layer — Phase 3's
   gestures supplement, never replace them. A sent-but-unacknowledged action
-  renders as `pending` locally until the server's ack/reject lands.
+  renders as `pending` locally until the server's ack/reject lands. On
+  reject, the control that triggered the command shows the failure
+  **inline**, reverting `pending` to idle, and clears on the player's next
+  legal action or the next `view` snapshot — no toast, no persistent banner
+  ([Rejection surfacing](https://github.com/ewanhardingham/table-top-poker/issues/17)).
 - **App shell**: non-scrolling, fixed, sized in `svh` (`overflow: hidden`,
   `viewport-fit=cover`, `env(safe-area-inset-*)`) — page scroll under a
   drag can't be prevented after the fact, so it's designed out from the
@@ -395,9 +398,9 @@ research in `docs/research/frontend-gesture-stack.md`)
 - A **"Next hand"** button, appearing only once `HAND_COMPLETE` is reached.
 - A **"Create room" / "End session"** control and the join QR code /
   room code, shown before a hand is running or between hands.
-- *(The failure-path rendering here — whether a rejected command from any
-  player is ever visible on the table device — is the open question in
-  [issue #17](https://github.com/ewanhardingham/table-top-poker/issues/17).)*
+- **No rejection rendering** — a rejected command is only ever visible to
+  the player who sent it (§6), so the table device shows nothing for it
+  ([Rejection surfacing](https://github.com/ewanhardingham/table-top-poker/issues/17)).
 
 **Player device** (`player-client`)
 
@@ -411,9 +414,8 @@ research in `docs/research/frontend-gesture-stack.md`)
   and not yet dealt in.
 - A small, non-blocking connection-status indicator (§9, disconnected
   rendering).
-- *(How a rejected action renders here — inline near the buttons vs. a
-  toast — is also part of the open question in
-  [issue #17](https://github.com/ewanhardingham/table-top-poker/issues/17).)*
+- Inline rejection feedback on the control that triggered a failed action
+  ([Rejection surfacing](https://github.com/ewanhardingham/table-top-poker/issues/17)).
 
 ### Players are identified to each other by seat position only
 
