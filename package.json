@@ -8,6 +8,7 @@
   },
   "workspaces": [
     "packages/engine",
+    "packages/harness",
     "packages/protocol",
     "packages/server",
     "packages/table-client",
@@ -23,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.1",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",

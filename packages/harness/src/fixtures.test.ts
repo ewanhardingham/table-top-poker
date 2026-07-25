@@ -1,0 +1,37 @@
+import { createReadStream } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { Writable } from "node:stream";
+import { describe, expect, it } from "vitest";
+import { createInitialState } from "@table-top-poker/engine";
+import { runHarness } from "./harness.js";
+
+const fixturesDir = fileURLToPath(new URL("../fixtures/", import.meta.url));
+
+function collectingWritable(): { writable: Writable; text: () => string } {
+  const chunks: string[] = [];
+  const writable = new Writable({
+    write(chunk: Buffer, _encoding, callback) {
+      chunks.push(chunk.toString("utf8"));
+      callback();
+    },
+  });
+  return { writable, text: () => chunks.join("") };
+}
+
+describe("hand-1 fixture", () => {
+  it("produces the previously captured event stream, byte-for-byte", async () => {
+    const expected = await readFile(`${fixturesDir}hand-1.expected.jsonl`, {
+      encoding: "utf8",
+    });
+    const { writable, text } = collectingWritable();
+
+    await runHarness({
+      state: createInitialState([0, 1, 2]),
+      input: createReadStream(`${fixturesDir}hand-1.commands.jsonl`),
+      output: writable,
+    });
+
+    expect(text()).toBe(expected);
+  });
+});

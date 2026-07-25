@@ -1,0 +1,18 @@
+{
+  "name": "@table-top-poker/harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "harness": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@table-top-poker/engine": "*"
+  }
+}
