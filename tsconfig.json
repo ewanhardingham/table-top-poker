@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/engine" },
+    { "path": "packages/protocol" },
+    { "path": "packages/server" },
+    { "path": "packages/table-client" },
+    { "path": "packages/player-client" },
+    { "path": "packages/ui-shared" }
+  ]
+}
