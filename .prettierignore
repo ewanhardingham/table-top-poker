@@ -1,0 +1,9 @@
+dist
+node_modules
+coverage
+package-lock.json
+
+# Markdown is deliberately outside Prettier's scope for now: this repo's
+# docs weren't written with Prettier's prose-wrap in mind, and reformatting
+# them is unrelated churn for whichever change first adds this config.
+*.md
