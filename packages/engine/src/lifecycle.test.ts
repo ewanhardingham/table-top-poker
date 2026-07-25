@@ -16,9 +16,10 @@ describe("a full hand, 3 seats, start to showdown", () => {
     ]);
     expect(state.hand?.status).toBe("betting");
 
-    // Preflop: 1 checks, 2 (BB) raises, 0 calls, 1 calls (closes back to raiser).
+    // Preflop: 1 calls the BB (not free to check — only the BB itself is),
+    // 2 (BB) raises, 0 calls, 1 calls (closes back to raiser).
     state = playAll(state, [
-      { type: "check", playerId: 1 },
+      { type: "call", playerId: 1 },
       { type: "raise", playerId: 2 },
       { type: "call", playerId: 0 },
       { type: "call", playerId: 1 },

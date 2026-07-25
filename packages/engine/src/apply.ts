@@ -94,7 +94,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
         toAct = requeueAfterRaise(hand.ring, players, event.seatId);
         bbOptionPending = false;
       } else if (toAct.length === 0 && bbOptionPending) {
-        const bigBlind = bigBlindSeat(hand.ring);
+        const bigBlind = bigBlindSeat(hand.ring, hand.button);
         // The BB may have already folded earlier in this same lap (at their
         // normal turn) — a folded seat never gets a turn, option or not.
         if (!must(players.get(bigBlind)).folded) {
