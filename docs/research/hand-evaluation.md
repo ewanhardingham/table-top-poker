@@ -1,6 +1,6 @@
 # Research: hand evaluation — build or take a library
 
-Resolves [#6](https://github.com/ewanhardingham/table-top-pocker/issues/6). Part of [#1](https://github.com/ewanhardingham/table-top-pocker/issues/1). Unblocks [#15](https://github.com/ewanhardingham/table-top-pocker/issues/15).
+Resolves [#6](https://github.com/ewanhardingham/table-top-poker/issues/6). Part of [#1](https://github.com/ewanhardingham/table-top-poker/issues/1). Unblocks [#15](https://github.com/ewanhardingham/table-top-poker/issues/15).
 
 **Question.** For Texas hold'em showdown evaluation in TypeScript — build it or take a library?
 
@@ -183,7 +183,7 @@ The reasoning, in order of weight:
 
 5. **Raspberry Pi and TypeScript-end-to-end both favour zero dependencies.** Nothing to compile, nothing architecture-specific, no untyped surface to shim.
 
-### Suggested test strategy for [#15](https://github.com/ewanhardingham/table-top-pocker/issues/15)
+### Suggested test strategy for [#15](https://github.com/ewanhardingham/table-top-poker/issues/15)
 
 - **Exhaustive 5-card**: enumerate all 2,598,960, assert exactly 7,462 distinct classes and the nine canonical category frequencies. ~1 s.
 - **Exhaustive 7-card**: enumerate all 133,784,560, assert the nine canonical 7-card frequencies and that exactly 4,824 classes are reachable. ~20–60 s — CI-nightly rather than per-commit if it drags.

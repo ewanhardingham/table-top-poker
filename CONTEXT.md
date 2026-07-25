@@ -1,4 +1,4 @@
-# Table-top Pocker
+# Table-top Poker
 
 A Texas hold'em table played across one central device (the table) and each
 player's phone. This context defines the vocabulary shared by the engine,
