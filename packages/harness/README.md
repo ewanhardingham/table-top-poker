@@ -42,6 +42,18 @@ Each line of `commands.jsonl` is a JSON-encoded `Command`, e.g.:
 Output is one JSON `HandEvent` or `Rejection` per line — a `Rejection` is
 distinguishable by `"type":"Rejection"`.
 
+## Play turn by turn
+
+Run it with no input redirected and it reads your terminal directly —
+type one JSON command per line, and that line's events (or rejection)
+print immediately, before you type the next one:
+
+```sh
+npx harness
+```
+
+Ctrl-D (EOF) ends the session.
+
 ## Replay
 
 A recorded hand *is* its input command stream, not the output. To check a
