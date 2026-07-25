@@ -10,7 +10,7 @@ a hand moves through.
 **Room**:
 The persistent host for a poker night. Created when the table device starts
 it; holds the current seating and button position across hands; ends when
-the table device closes it. A Room hosts exactly one Table and up to 9
+the table device closes it. A Room hosts exactly one Table and up to 8
 seated Players.
 _Avoid_: Game, Session — both mean Room.
 
@@ -28,7 +28,7 @@ Room — across hands, and across a Device disconnecting and reconnecting.
 A position at the table (tracked positionally for the Button and blinds),
 occupied by a Player for as long as they remain seated. Persists across
 hands within a Room; a Player keeps their Seat through a Device disconnect.
-A Room has at most 9 Seats.
+A Room has at most 8 Seats.
 
 **Device**:
 A Player's current live connection (their phone's socket). Ephemeral — can
@@ -93,7 +93,7 @@ entirely when a Hand ends early by fold-out — no reveal in that case.
 The physical chips in the middle of the table — a spoken/table term only.
 Phase 1 tracks no value, no state; the engine never references a Pot.
 _Avoid_: Treating Pot, Stack, Chips, or Side pot as engine concepts —
-they're Phase 3 scope.
+they're Phase 4 scope, and conditional even then.
 
 ## Hand lifecycle
 
