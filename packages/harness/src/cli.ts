@@ -20,6 +20,14 @@ function parseSeats(argv: readonly string[]): SeatId[] {
   });
 }
 
+// A downstream reader (`| head`, `| less`) closing early is normal Unix
+// pipeline usage, not a harness failure — exit quietly instead of crashing
+// on the resulting EPIPE.
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EPIPE") process.exit(0);
+  throw error;
+});
+
 try {
   await runHarness({
     state: createInitialState(parseSeats(process.argv.slice(2))),
