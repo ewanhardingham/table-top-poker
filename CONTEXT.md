@@ -76,8 +76,12 @@ holds independent of their Seat.
 **Small Blind / Big Blind**:
 The Seats immediately clockwise of the Button (SB = Button+1, BB =
 Button+2), fixing action order and the BB's option to check/raise if
-everyone limps preflop. Purely positional in Phase 1 — no value is posted,
-since chips aren't tracked.
+everyone limps preflop. No chip *amount* is tracked or stored by the engine
+— players post real physical blinds at the table, outside the program — but
+preflop *legality* still mirrors that post: every Seat except the BB faces
+a bet (must call/fold/raise, may not check) until someone raises or the BB
+gets its option, exactly as if the BB's post were a bet already on the
+table, because physically it is (see ADR-0001).
 
 **Heads-up**:
 The two-live-player case. The Button acts as Small Blind, acting first

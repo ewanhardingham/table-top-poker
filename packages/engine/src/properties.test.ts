@@ -3,7 +3,13 @@ import { describe, expect, it } from "vitest";
 import { apply } from "./apply.js";
 import { decide } from "./decide.js";
 import { createInitialState } from "./room.js";
-import type { ActionType, BettingHandState, EngineState } from "./types.js";
+import { facingBet } from "./table.js";
+import type {
+  ActionType,
+  BettingHandState,
+  EngineState,
+  SeatId,
+} from "./types.js";
 import { must } from "./util.js";
 
 const seatsArb = fc
@@ -110,8 +116,11 @@ describe("property: a rejected command never mutates state", () => {
   });
 });
 
-function legalActionsFor(hand: BettingHandState): ActionType[] {
-  return hand.raiseOccurred
+function legalActionsFor(
+  hand: BettingHandState,
+  actorSeat: SeatId,
+): ActionType[] {
+  return facingBet(hand, actorSeat)
     ? ["fold", "call", "raise"]
     : ["fold", "check", "raise"];
 }
@@ -154,7 +163,7 @@ describe("property: decide/apply keep the betting invariants across a random han
             if (state.hand?.status !== "betting") break;
             const hand = state.hand;
             const actor = must(hand.toAct[0]);
-            const options = legalActionsFor(hand);
+            const options = legalActionsFor(hand, actor);
             const action = must(options[choice % options.length]);
 
             const result = decide(state, { type: action, playerId: actor });

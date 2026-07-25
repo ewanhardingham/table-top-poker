@@ -56,9 +56,40 @@ export function initialToAct(
   return { toAct, bbOptionPending: street === "preflop" && !isHeadsUp };
 }
 
-/** The big blind's seat — `ring[1]`, valid whenever preflop isn't heads-up. */
-export function bigBlindSeat(ring: readonly SeatId[]): SeatId {
+/**
+ * The big blind's seat for the whole hand: `ring[1]` (button+2) with 3+
+ * seats; in heads-up (`ring` has exactly 2 seats, `[other, button]`) the
+ * non-button seat is the big blind instead.
+ */
+export function bigBlindSeat(ring: readonly SeatId[], button: SeatId): SeatId {
+  if (ring.length === 2) {
+    return must(
+      ring.find((seat) => seat !== button),
+      "heads-up needs a non-button seat",
+    );
+  }
   return must(ring[1], "the big blind needs at least 3 seated players");
+}
+
+/**
+ * Whether `actorSeat` still owes a call/fold/raise this street, absent a
+ * value-tracked pot: no chip amount is ever stored (CONTEXT.md, §1 of the
+ * Phase 1 spec still hold — the engine never tracks a Pot), but the blinds'
+ * *legality* still has to mirror physical chips already in the middle. Every
+ * seat faces a bet once someone has actually raised; preflop, before that,
+ * every seat except the big blind also faces a bet — the big blind's own
+ * post already matches it, which is exactly why the big blind alone may
+ * check on an unraised preflop (their normal turn, or their later option).
+ */
+export function facingBet(
+  hand: Pick<BettingHandState, "street" | "ring" | "button" | "raiseOccurred">,
+  actorSeat: SeatId,
+): boolean {
+  if (hand.raiseOccurred) return true;
+  return (
+    hand.street === "preflop" &&
+    actorSeat !== bigBlindSeat(hand.ring, hand.button)
+  );
 }
 
 /**

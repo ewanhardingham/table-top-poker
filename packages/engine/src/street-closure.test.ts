@@ -13,9 +13,10 @@ describe("street closure — limped-around preflop", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", playerId: 0, seed: "limp" }]);
 
-    // 1 checks, 2 (BB) hasn't acted yet even though it's technically their
-    // normal turn next — confirm the street is still open after seat 1.
-    state = playAll(state, [{ type: "check", playerId: 1 }]);
+    // 1 calls the BB's post (only the BB may check an unraised preflop) —
+    // 2 (BB) hasn't acted yet even though it's technically their normal turn
+    // next — confirm the street is still open after seat 1.
+    state = playAll(state, [{ type: "call", playerId: 1 }]);
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct[0]).toBe(2);
 
@@ -25,9 +26,9 @@ describe("street closure — limped-around preflop", () => {
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct[0]).toBe(0);
 
-    // Button checks — completes the first lap. Nobody raised, so the BB's
+    // Button calls — completes the first lap. Nobody raised, so the BB's
     // option is still outstanding: the street must NOT close here.
-    state = playAll(state, [{ type: "check", playerId: 0 }]);
+    state = playAll(state, [{ type: "call", playerId: 0 }]);
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct).toEqual([2]);
 
@@ -44,10 +45,10 @@ describe("street closure — raised and called", () => {
       { type: "startHand", playerId: 0, seed: "raised" },
     ]);
 
-    // 1 checks, 2 (BB) raises — action must return to 2 to close, skipping
+    // 1 calls, 2 (BB) raises — action must return to 2 to close, skipping
     // the BB-option mechanic entirely since a real raise already happened.
     state = playAll(state, [
-      { type: "check", playerId: 1 },
+      { type: "call", playerId: 1 },
       { type: "raise", playerId: 2 },
     ]);
     expect(street(state).toAct).toEqual([0, 1]);
@@ -67,7 +68,7 @@ describe("street closure — raised and called", () => {
     ]);
 
     state = playAll(state, [
-      { type: "check", playerId: 1 },
+      { type: "call", playerId: 1 },
       { type: "raise", playerId: 2 },
       { type: "raise", playerId: 0 },
     ]);

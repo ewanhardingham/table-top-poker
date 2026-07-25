@@ -73,8 +73,11 @@ Summary of the nouns a build session needs on first read:
 - **Action / Actor / Command** — a completed decision, the player whose turn
   it is, and the proposed input before validation, respectively. Matches
   `decide(state, command) -> Event[] | Rejection`.
-- **Button / Small Blind / Big Blind** — purely positional Seat labels, no
-  values posted (Phase 1 tracks no chip values at all).
+- **Button / Small Blind / Big Blind** — positional Seat labels; the engine
+  never tracks a chip *amount* (players post real blinds at the physical
+  table). Preflop *legality* still mirrors that post: every Seat but the BB
+  faces a bet (call/fold/raise, not check) until a raise or the BB's option
+  (ADR-0001).
 - **Heads-up** (2 live players) is in scope: Button acts as Small Blind,
   first preflop, last on every later street.
 

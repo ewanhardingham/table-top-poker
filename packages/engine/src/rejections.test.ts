@@ -31,7 +31,7 @@ describe("rejections", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", playerId: 0, seed: "s" }]);
     state = playAll(state, [
-      { type: "check", playerId: 1 },
+      { type: "call", playerId: 1 },
       { type: "raise", playerId: 2 },
     ]);
     const outcome = play(state, { type: "check", playerId: 0 });
@@ -39,10 +39,23 @@ describe("rejections", () => {
     expect(outcome.rejection.reason).toBe("action-not-legal");
   });
 
+  it("action-not-legal: checking preflop when you're not the big blind", () => {
+    // Seat 1 (SB) faces the BB's post and must call/fold/raise, not check.
+    const state = createInitialState([0, 1, 2]);
+    const started = playAll(state, [
+      { type: "startHand", playerId: 0, seed: "s" },
+    ]);
+    const outcome = play(started, { type: "check", playerId: 1 });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("action-not-legal");
+  });
+
   it("action-not-legal: calling when there's nothing to call", () => {
+    // The BB has nothing to call on an unraised preflop — only check/raise.
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", playerId: 0, seed: "s" }]);
-    const outcome = play(state, { type: "call", playerId: 1 });
+    state = playAll(state, [{ type: "call", playerId: 1 }]);
+    const outcome = play(state, { type: "call", playerId: 2 });
     if (!("rejection" in outcome)) throw new Error("expected a rejection");
     expect(outcome.rejection.reason).toBe("action-not-legal");
   });

@@ -2,6 +2,7 @@ import { apply } from "./apply.js";
 import {
   dealCommunityCards,
   dealHoleCards,
+  facingBet,
   initialToAct,
   liveSeats,
   nextStreetOf,
@@ -16,6 +17,7 @@ import type {
   HandEvent,
   Rejection,
   RejectionReason,
+  SeatId,
 } from "./types.js";
 import { must } from "./util.js";
 
@@ -23,9 +25,13 @@ function reject(reason: RejectionReason, command: Command): Rejection {
   return { type: "Rejection", reason, command };
 }
 
-function isLegal(action: ActionType, raiseOccurred: boolean): boolean {
-  if (action === "check") return !raiseOccurred;
-  if (action === "call") return raiseOccurred;
+function isLegal(
+  hand: BettingHandState,
+  actorSeat: SeatId,
+  action: ActionType,
+): boolean {
+  if (action === "check") return !facingBet(hand, actorSeat);
+  if (action === "call") return facingBet(hand, actorSeat);
   return true;
 }
 
@@ -99,7 +105,7 @@ function decideAction(
   if (command.playerId !== currentActor) {
     return reject("not-your-turn", command);
   }
-  if (!isLegal(command.type, hand.raiseOccurred)) {
+  if (!isLegal(hand, currentActor, command.type)) {
     return reject("action-not-legal", command);
   }
 
