@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { usePlayerStore } from "./store.js";
 
 describe("usePlayerStore", () => {
+  beforeEach(() => {
+    usePlayerStore.setState(usePlayerStore.getInitialState());
+  });
+
   it("starts disconnected with no seat claimed", () => {
     const state = usePlayerStore.getState();
     expect(state.connectionStatus).toBe("disconnected");
