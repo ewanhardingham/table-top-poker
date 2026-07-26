@@ -4,6 +4,7 @@ import { JoinForm } from "./JoinForm.js";
 import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
 import { SeatPanel } from "./SeatPanel.js";
 import { SeatPicker } from "./SeatPicker.js";
+import { StatusBar } from "./StatusBar.js";
 import { saveSeatToken } from "./storage/seatToken.js";
 import { usePlayerStore } from "./store/store.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
@@ -87,12 +88,10 @@ export function App() {
 
   return (
     <div className="app-shell" data-testid="player-client-shell">
-      <header className="status-bar">
-        <span>Table Top Poker — Player</span>
-        <span data-testid="connection-status" data-status={connectionStatus}>
-          {connectionStatus}
-        </span>
-      </header>
+      <StatusBar
+        showBadge={wsParams !== null}
+        connectionStatus={connectionStatus}
+      />
       <main className="hand">{content}</main>
     </div>
   );
