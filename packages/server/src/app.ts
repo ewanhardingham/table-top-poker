@@ -38,9 +38,11 @@ export async function buildApp(
   await app.register(fastifyStatic, { root: publicDir });
   await app.register(fastifyWebsocket);
 
-  app.post("/rooms", () => {
+  app.post("/rooms", async (request) => {
     const room = rooms.create();
-    return { code: room.code };
+    const url = joinUrl(request.headers.host ?? "localhost", room.code);
+    const qrCodeDataUrl = await roomQrCodeDataUrl(url);
+    return { code: room.code, joinUrl: url, qrCodeDataUrl };
   });
 
   app.post<RoomCodeRoute>("/rooms/:code/join", (request, reply) => {

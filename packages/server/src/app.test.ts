@@ -7,6 +7,12 @@ interface RoomCodeBody {
   readonly code: string;
 }
 
+interface RoomCreatedBody {
+  readonly code: string;
+  readonly joinUrl: string;
+  readonly qrCodeDataUrl: string;
+}
+
 interface RoomQrBody {
   readonly url: string;
   readonly dataUrl: string;
@@ -23,11 +29,17 @@ describe("rooms HTTP routes", () => {
     await app.close();
   });
 
-  it("creates a room and returns a valid 4-char code", async () => {
-    const response = await app.inject({ method: "POST", url: "/rooms" });
+  it("creates a room and returns a valid 4-char code with its QR code", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      headers: { host: "192.168.1.50:3000" },
+    });
     expect(response.statusCode).toBe(200);
-    const body = response.json<RoomCodeBody>();
+    const body = response.json<RoomCreatedBody>();
     expect(body.code).toMatch(/^[A-Z0-9]{4}$/);
+    expect(body.joinUrl).toBe(`http://192.168.1.50:3000/join/${body.code}`);
+    expect(body.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
   it("joining a known room code succeeds", async () => {
