@@ -102,11 +102,11 @@ describe("HandLog crash durability", () => {
     // no torn write from the kill landing mid-append.
     const loggedCommands = readJsonLines(commandsPath) as {
       v: number;
-      command: { type: string };
+      type: string;
     }[];
     const loggedEvents = readJsonLines(eventsPath) as {
       v: number;
-      event: { type: string };
+      type: string;
     }[];
 
     expect(loggedCommands.length).toBeGreaterThan(0);
@@ -115,7 +115,7 @@ describe("HandLog crash durability", () => {
     // The logged commands are a prefix of what was actually sent — nothing
     // sent-and-acknowledged is missing, and nothing beyond what was sent
     // could have leaked in.
-    expect(loggedCommands.map((r) => r.command.type)).toEqual(
+    expect(loggedCommands.map((r) => r.type)).toEqual(
       commands.slice(0, loggedCommands.length).map((c) => c.type),
     );
   }, 20_000);

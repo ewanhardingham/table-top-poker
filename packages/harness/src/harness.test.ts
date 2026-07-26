@@ -136,11 +136,13 @@ describe("runHarness", () => {
     ).rejects.toThrow(/unrecognized command/);
   });
 
-  it("accepts a versioned-command line ({v, command}) the same as a bare command", async () => {
+  it("accepts a logged command line (bare Command plus an extra v field) the same as a plain command", async () => {
     const input = Readable.from([
       JSON.stringify({
+        type: "startHand",
+        playerId: 0,
+        seed: "seed-1",
         v: ENGINE_LOG_VERSION,
-        command: { type: "startHand", playerId: 0, seed: "seed-1" },
       }) + "\n",
     ]);
     const { writable, lines } = collectingWritable();
@@ -194,27 +196,31 @@ describe("runHarness", () => {
       })
         .trim()
         .split("\n")
-        .map((line) => JSON.parse(line) as { command: { type: string } });
-      expect(loggedCommands.map((r) => r.command.type)).toEqual([
-        "startHand",
-        "call",
-      ]);
+        .map((line) => JSON.parse(line) as { type: string; v: number });
+      expect(loggedCommands.map((r) => r.type)).toEqual(["startHand", "call"]);
+      expect(loggedCommands.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(
+        true,
+      );
 
       const loggedEvents = readFileSync(hand1.eventsPath, { encoding: "utf8" })
         .trim()
         .split("\n")
-        .map((line) => JSON.parse(line) as { event: { type: string } });
-      expect(loggedEvents.map((r) => r.event.type)).toEqual(
+        .map((line) => JSON.parse(line) as { type: string; v: number });
+      expect(loggedEvents.map((r) => r.type)).toEqual(
         lines().map((line) => (JSON.parse(line) as { type: string }).type),
       );
+      expect(loggedEvents.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(true);
     });
 
-    it("logs a Rejection to the event log too", async () => {
+    it("logs a Rejection raised mid-hand to that hand's event log", async () => {
       const logDir = tempLogDir();
       const log = new HandLog(logDir, "game-1", [0, 1, 2]);
-      const input = Readable.from([
-        JSON.stringify({ type: "call", playerId: 1 }) + "\n",
-      ]);
+      const input = Readable.from(
+        [
+          { type: "startHand", playerId: 0, seed: "seed-1" },
+          { type: "check", playerId: 1 },
+        ].map((command) => JSON.stringify(command) + "\n"),
+      );
       const { writable } = collectingWritable();
 
       await runHarness({
@@ -224,17 +230,14 @@ describe("runHarness", () => {
         log,
       });
 
-      const hand0 = handLogPaths(path.join(logDir, "game-1"), 0);
-      const loggedEvents = readFileSync(hand0.eventsPath, { encoding: "utf8" })
+      const hand1 = handLogPaths(path.join(logDir, "game-1"), 1);
+      const loggedEvents = readFileSync(hand1.eventsPath, { encoding: "utf8" })
         .trim()
         .split("\n")
-        .map(
-          (line) =>
-            JSON.parse(line) as { event: { type: string; reason?: string } },
-        );
-      expect(loggedEvents).toHaveLength(1);
-      expect(loggedEvents[0]?.event.type).toBe("Rejection");
-      expect(loggedEvents[0]?.event.reason).toBe("hand-not-in-progress");
+        .map((line) => JSON.parse(line) as { type: string; reason?: string });
+      const rejection = loggedEvents.at(-1);
+      expect(rejection?.type).toBe("Rejection");
+      expect(rejection?.reason).toBe("action-not-legal");
     });
   });
 });

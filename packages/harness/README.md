@@ -79,15 +79,16 @@ This produces, per hand, `./logs/friday-game/hand-0001.commands.jsonl` and
 `./logs/friday-game/hand-0001.events.jsonl`, plus a `game.jsonl` manifest
 recording the seating once. `--game-id` defaults to a sortable UTC
 timestamp if omitted, and must be a safe path segment
-(`[A-Za-z0-9._-]+`). Every record is wrapped with the schema version tag
-(`ENGINE_LOG_VERSION` from `@table-top-poker/engine`), so old logs stay
-interpretable against the build they were written by even after a later
-schema change.
+(`[A-Za-z0-9._-]+`).
 
-A persisted `*.commands.jsonl` file re-pipes through the harness exactly
-like a plain command file — the versioned wrapper is transparently
-unwrapped on read — so the replay procedure above works unmodified on a
-logged file:
+Each logged line is exactly the `Command`/`HandEvent`/`Rejection` JSON the
+harness reads or writes on stdin/stdout, plus one extra field: `v`, the
+schema version tag (`ENGINE_LOG_VERSION` from `@table-top-poker/engine`).
+Old logs stay interpretable against the build they were written by even
+after a later schema change bumps the tag for new ones. Because the extra
+field is additive, a persisted `*.commands.jsonl` file re-pipes through
+the harness exactly like a plain command file — the replay procedure
+above works unmodified on a logged file:
 
 ```sh
 cat logs/friday-game/hand-0001.commands.jsonl | npx harness --seats 0,1,2
@@ -95,7 +96,9 @@ cat logs/friday-game/hand-0001.commands.jsonl | npx harness --seats 0,1,2
 
 Seating isn't recorded in the command stream itself (it's fixed for a
 game's whole life, set by `--seats` at startup) — replaying a logged game
-requires passing the same `--seats` it was originally run with.
+requires passing the same `--seats` it was originally run with. The
+`game.jsonl` manifest records the seating for a human or later replay
+tooling to read back; the harness CLI itself doesn't consume it.
 
 ## Failure modes
 

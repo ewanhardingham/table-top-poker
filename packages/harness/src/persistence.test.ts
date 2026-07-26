@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -66,17 +66,27 @@ describe("HandLog", () => {
     const hand2 = handLogPaths(path.join(logDir, "game-1"), 2);
 
     expect(readLines(hand1.commandsPath)).toEqual([
-      { v: ENGINE_LOG_VERSION, command: startHand1 },
+      { ...startHand1, v: ENGINE_LOG_VERSION },
     ]);
     expect(readLines(hand1.eventsPath)).toEqual([
-      { v: ENGINE_LOG_VERSION, event: handStarted1 },
+      { ...handStarted1, v: ENGINE_LOG_VERSION },
     ]);
     expect(readLines(hand2.commandsPath)).toEqual([
-      { v: ENGINE_LOG_VERSION, command: nextHand },
+      { ...nextHand, v: ENGINE_LOG_VERSION },
     ]);
     expect(readLines(hand2.eventsPath)).toEqual([
-      { v: ENGINE_LOG_VERSION, event: handStarted2 },
+      { ...handStarted2, v: ENGINE_LOG_VERSION },
     ]);
+  });
+
+  it("does not log a command received before any hand has started — there's no hand to partition it into", () => {
+    const logDir = tempLogDir();
+    const log = new HandLog(logDir, "game-1", [0, 1, 2]);
+
+    log.logCommand({ type: "call", playerId: 1 });
+
+    const hand0 = handLogPaths(path.join(logDir, "game-1"), 0);
+    expect(existsSync(hand0.commandsPath)).toBe(false);
   });
 
   it("appends rather than overwriting across multiple commands in the same hand", async () => {
