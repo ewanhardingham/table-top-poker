@@ -61,7 +61,7 @@ function findRoomOrReject(
 
 /** Seat ids arrive as route/query strings — reject anything that isn't a bare integer. */
 function parseSeatId(raw: string): number | undefined {
-  return /^-?\d+$/.test(raw) ? Number(raw) : undefined;
+  return /^\d+$/.test(raw) ? Number(raw) : undefined;
 }
 
 export async function buildApp(
@@ -195,6 +195,7 @@ export async function buildApp(
             seatObj.token !== token
           ) {
             await reply.code(403).send({ error: "invalid-seat-token" });
+            return;
           }
         },
       },
