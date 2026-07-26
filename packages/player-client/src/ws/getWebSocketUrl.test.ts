@@ -13,4 +13,13 @@ describe("getWebSocketUrl", () => {
       "ws://localhost:3000/ws",
     );
   });
+
+  it("appends query params for a seat-scoped connection", () => {
+    expect(
+      getWebSocketUrl(
+        { protocol: "http:", host: "localhost:3000" },
+        { room: "ABCD", seat: "2", token: "tok" },
+      ),
+    ).toBe("ws://localhost:3000/ws?room=ABCD&seat=2&token=tok");
+  });
 });
