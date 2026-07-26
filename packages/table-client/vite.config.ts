@@ -13,6 +13,7 @@ export default defineConfig({
         target: "ws://localhost:3000",
         ws: true,
       },
+      "/rooms": "http://localhost:3000",
     },
   },
 });
