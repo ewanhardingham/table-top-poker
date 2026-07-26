@@ -104,10 +104,7 @@ describe("view: table view", () => {
 describe("view: post-showdown", () => {
   it("all live seats' cards are visible to every viewer, including the table", () => {
     const state = headsUpToRiver("s0");
-    if (
-      state.hand?.status !== "complete" ||
-      state.hand.reason !== "showdown"
-    ) {
+    if (state.hand?.status !== "complete" || state.hand.reason !== "showdown") {
       throw new Error("expected a showdown completion");
     }
     const expectedSeats = state.hand.results.map((r) => r.seatId).sort();
@@ -141,10 +138,7 @@ describe("view: post-showdown", () => {
       { type: "raise", playerId: 0 },
       { type: "call", playerId: 2 },
     ]);
-    if (
-      state.hand?.status !== "complete" ||
-      state.hand.reason !== "showdown"
-    ) {
+    if (state.hand?.status !== "complete" || state.hand.reason !== "showdown") {
       throw new Error("expected a showdown completion");
     }
 
