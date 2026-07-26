@@ -1,14 +1,32 @@
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { fileURLToPath } from "node:url";
 import { joinUrl, roomQrCodeDataUrl } from "./qr.js";
-import { RoomStore } from "./rooms.js";
+import { type Room, RoomStore } from "./rooms.js";
 
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 
 export interface BuildAppOptions {
   readonly rooms?: RoomStore;
+}
+
+interface RoomCodeRoute {
+  Params: { code: string };
+}
+
+/** Looks up a room, replying 404 and returning undefined when it's not live. */
+function findRoomOrReject(
+  rooms: RoomStore,
+  code: string,
+  reply: FastifyReply,
+): Room | undefined {
+  const room = rooms.get(code);
+  if (!room) {
+    void reply.code(404).send({ error: "room-not-found" });
+    return undefined;
+  }
+  return room;
 }
 
 export async function buildApp(
@@ -25,41 +43,26 @@ export async function buildApp(
     return { code: room.code };
   });
 
-  app.post<{ Params: { code: string } }>(
-    "/rooms/:code/join",
-    async (request, reply) => {
-      const room = rooms.get(request.params.code);
-      if (!room) {
-        return reply.code(404).send({ error: "room-not-found" });
-      }
-      return { code: room.code };
-    },
-  );
+  app.post<RoomCodeRoute>("/rooms/:code/join", (request, reply) => {
+    const room = findRoomOrReject(rooms, request.params.code, reply);
+    if (!room) return;
+    return { code: room.code };
+  });
 
-  app.get<{ Params: { code: string } }>(
-    "/rooms/:code/qr",
-    async (request, reply) => {
-      const room = rooms.get(request.params.code);
-      if (!room) {
-        return reply.code(404).send({ error: "room-not-found" });
-      }
-      const url = joinUrl(request.headers.host ?? "localhost", room.code);
-      const dataUrl = await roomQrCodeDataUrl(url);
-      return { url, dataUrl };
-    },
-  );
+  app.get<RoomCodeRoute>("/rooms/:code/qr", async (request, reply) => {
+    const room = findRoomOrReject(rooms, request.params.code, reply);
+    if (!room) return;
+    const url = joinUrl(request.headers.host ?? "localhost", room.code);
+    const dataUrl = await roomQrCodeDataUrl(url);
+    return { url, dataUrl };
+  });
 
-  app.post<{ Params: { code: string } }>(
-    "/rooms/:code/end",
-    async (request, reply) => {
-      const room = rooms.get(request.params.code);
-      if (!room) {
-        return reply.code(404).send({ error: "room-not-found" });
-      }
-      rooms.end(request.params.code);
-      return reply.code(204).send();
-    },
-  );
+  app.post<RoomCodeRoute>("/rooms/:code/end", (request, reply) => {
+    const room = findRoomOrReject(rooms, request.params.code, reply);
+    if (!room) return;
+    rooms.end(room.code);
+    return reply.code(204).send();
+  });
 
   app.register((wsApp, _opts, done) => {
     wsApp.get("/ws", { websocket: true }, (socket) => {
