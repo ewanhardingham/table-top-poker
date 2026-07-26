@@ -3,6 +3,7 @@ export { decide } from "./decide.js";
 export { evaluate } from "./evaluate.js";
 export type { HandEvaluation } from "./evaluate.js";
 export { createInitialState } from "./room.js";
+export { ENGINE_LOG_VERSION } from "./version.js";
 export type {
   ActionType,
   BettingHandState,
