@@ -1,24 +1,8 @@
 #!/usr/bin/env node
 import { createInitialState } from "@table-top-poker/engine";
-import type { SeatId } from "@table-top-poker/engine";
+import { parseLogOptions, parseSeats } from "./cli-args.js";
 import { runHarness } from "./harness.js";
-
-function parseSeats(argv: readonly string[]): SeatId[] {
-  const flagIndex = argv.indexOf("--seats");
-  if (flagIndex === -1) return [0, 1, 2];
-
-  const value = argv[flagIndex + 1];
-  if (value === undefined) {
-    throw new Error("--seats requires a comma-separated list of seat ids");
-  }
-  return value.split(",").map((seat) => {
-    const trimmed = seat.trim();
-    if (!/^\d+$/.test(trimmed)) {
-      throw new Error(`--seats: "${seat}" is not a non-negative integer`);
-    }
-    return Number.parseInt(trimmed, 10);
-  });
-}
+import { HandLog } from "./persistence.js";
 
 // A downstream reader (`| head`, `| less`) closing early is normal Unix
 // pipeline usage, not a harness failure — exit quietly instead of crashing
@@ -29,10 +13,17 @@ process.stdout.on("error", (error: NodeJS.ErrnoException) => {
 });
 
 try {
+  const argv = process.argv.slice(2);
+  const seats = parseSeats(argv);
+  const logOptions = parseLogOptions(argv);
+
   await runHarness({
-    state: createInitialState(parseSeats(process.argv.slice(2))),
+    state: createInitialState(seats),
     input: process.stdin,
     output: process.stdout,
+    ...(logOptions
+      ? { log: new HandLog(logOptions.logDir, logOptions.gameId, seats) }
+      : {}),
   });
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
