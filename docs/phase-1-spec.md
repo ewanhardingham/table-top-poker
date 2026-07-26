@@ -286,8 +286,9 @@ network round trip.
 ([Rooms, identity, seat claiming and reconnection](https://github.com/ewanhardingham/table-top-poker/issues/13))
 
 - **Room codes**: 4 characters, confusable-excluded alphabet (digits +
-  uppercase, excluding `0/O`, `1/I/L`, `2/Z`, `5/S`, `8/B`) — 32⁴ ≈ 1M
-  combinations, re-rolled on collision against live in-memory rooms. No
+  uppercase, excluding `0/O`, `1/I/L`, `2/Z`, `5/S`, `8/B`) — 25 characters,
+  25⁴ ≈ 390K combinations, re-rolled on collision against live in-memory
+  rooms. No
   independent expiry; a code lives as long as its room.
 - **Joining**: by QR code generated live from the current address, plus the
   room code as fallback for anyone who can't scan.
