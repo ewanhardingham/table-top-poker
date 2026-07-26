@@ -33,7 +33,11 @@ function parseCommand(line: string): Command {
   } catch (cause) {
     throw new Error(`invalid JSON on harness input: ${line}`, { cause });
   }
-  if (parsed !== null && typeof parsed === "object" && isVersionedCommand(parsed)) {
+  if (
+    parsed !== null &&
+    typeof parsed === "object" &&
+    isVersionedCommand(parsed)
+  ) {
     return parsed.command;
   }
   return parsed as Command;

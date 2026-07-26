@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable, Writable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
-import { createInitialState, ENGINE_LOG_VERSION } from "@table-top-poker/engine";
+import {
+  createInitialState,
+  ENGINE_LOG_VERSION,
+} from "@table-top-poker/engine";
 import { runHarness } from "./harness.js";
 import { HandLog, handLogPaths } from "./persistence.js";
 
@@ -148,7 +151,9 @@ describe("runHarness", () => {
       output: writable,
     });
 
-    const events = lines().map((line: string) => JSON.parse(line) as { type: string });
+    const events = lines().map(
+      (line: string) => JSON.parse(line) as { type: string },
+    );
     expect(events[0]?.type).toBe("HandStarted");
   });
 
@@ -162,7 +167,8 @@ describe("runHarness", () => {
     }
 
     afterEach(() => {
-      for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+      for (const dir of dirs.splice(0))
+        rmSync(dir, { recursive: true, force: true });
     });
 
     it("writes every command and event to the log without changing stdout", async () => {
@@ -183,11 +189,16 @@ describe("runHarness", () => {
       });
 
       const hand1 = handLogPaths(path.join(logDir, "game-1"), 1);
-      const loggedCommands = readFileSync(hand1.commandsPath, { encoding: "utf8" })
+      const loggedCommands = readFileSync(hand1.commandsPath, {
+        encoding: "utf8",
+      })
         .trim()
         .split("\n")
         .map((line) => JSON.parse(line) as { command: { type: string } });
-      expect(loggedCommands.map((r) => r.command.type)).toEqual(["startHand", "call"]);
+      expect(loggedCommands.map((r) => r.command.type)).toEqual([
+        "startHand",
+        "call",
+      ]);
 
       const loggedEvents = readFileSync(hand1.eventsPath, { encoding: "utf8" })
         .trim()
@@ -217,7 +228,10 @@ describe("runHarness", () => {
       const loggedEvents = readFileSync(hand0.eventsPath, { encoding: "utf8" })
         .trim()
         .split("\n")
-        .map((line) => JSON.parse(line) as { event: { type: string; reason?: string } });
+        .map(
+          (line) =>
+            JSON.parse(line) as { event: { type: string; reason?: string } },
+        );
       expect(loggedEvents).toHaveLength(1);
       expect(loggedEvents[0]?.event.type).toBe("Rejection");
       expect(loggedEvents[0]?.event.reason).toBe("hand-not-in-progress");
