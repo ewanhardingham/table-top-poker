@@ -124,29 +124,46 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
       const hand = asBetting(state);
       return {
         ...state,
-        hand: { status: "complete", seed: hand.seed, button: hand.button },
+        hand: {
+          status: "complete",
+          reason: "folded-out",
+          seed: hand.seed,
+          button: hand.button,
+          winner: event.winner,
+        },
       };
     }
 
-    case "ShowdownReached":
-      return state;
+    case "ShowdownReached": {
+      const hand = asBetting(state);
+      const results = event.results.map((result) => ({
+        ...result,
+        holeCards: must(
+          seatState(hand, result.seatId).holeCards,
+          "a live seat at showdown always has hole cards",
+        ),
+      }));
+      return {
+        ...state,
+        hand: {
+          status: "complete",
+          reason: "showdown",
+          seed: hand.seed,
+          button: hand.button,
+          results,
+          winners: event.winners,
+        },
+      };
+    }
 
     case "HandComplete": {
-      if (state.hand === null) {
-        throw new Error("expected an in-progress hand");
+      if (state.hand?.status !== "complete") {
+        throw new Error("expected the hand to already be complete");
       }
-      const completedHand =
-        state.hand.status === "complete"
-          ? state.hand
-          : {
-              status: "complete" as const,
-              seed: state.hand.seed,
-              button: state.hand.button,
-            };
       return {
         ...state,
         button: nextButtonAfter(state.seats, state.button),
-        hand: completedHand,
+        hand: state.hand,
       };
     }
   }

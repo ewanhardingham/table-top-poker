@@ -66,7 +66,7 @@ export interface Rejection {
   readonly command: Command;
 }
 
-interface SeatHandState {
+export interface SeatHandState {
   readonly holeCards: readonly [Card, Card] | null;
   readonly folded: boolean;
 }
@@ -90,11 +90,44 @@ export interface BettingHandState {
   readonly raiseOccurred: boolean;
 }
 
-export interface CompleteHandState {
+export interface ShowdownResult {
+  readonly seatId: SeatId;
+  readonly rank: HandRank;
+  readonly bestHand: readonly [Card, Card, Card, Card, Card];
+  readonly description: string;
+}
+
+/**
+ * A live seat's showdown result with its hole cards attached — the only
+ * place another seat's hole cards are structurally reachable, and only
+ * ever for a seat that actually reached showdown live (see
+ * docs/phase-1-spec.md §4, Visibility). Built once, in `apply`, from the
+ * betting hand's players map; nothing downstream needs that map again.
+ */
+export interface RevealedResult extends ShowdownResult {
+  readonly holeCards: readonly [Card, Card];
+}
+
+export interface FoldedOutCompleteHandState {
   readonly status: "complete";
+  readonly reason: "folded-out";
   readonly seed: string;
   readonly button: SeatId;
+  readonly winner: SeatId;
 }
+
+export interface ShowdownCompleteHandState {
+  readonly status: "complete";
+  readonly reason: "showdown";
+  readonly seed: string;
+  readonly button: SeatId;
+  readonly results: readonly RevealedResult[];
+  readonly winners: readonly SeatId[];
+}
+
+export type CompleteHandState =
+  | FoldedOutCompleteHandState
+  | ShowdownCompleteHandState;
 
 export type HandState = BettingHandState | CompleteHandState;
 
