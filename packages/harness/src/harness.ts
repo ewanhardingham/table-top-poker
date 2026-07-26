@@ -7,19 +7,36 @@ import type {
   HandEvent,
   Rejection,
 } from "@table-top-poker/engine";
+import type { HandLog, VersionedCommand } from "./persistence.js";
 
 export interface RunHarnessOptions {
   readonly state: EngineState;
   readonly input: Readable;
   readonly output: Writable;
+  /** Optional append-as-you-go persistence — see docs/phase-1-spec.md §5. */
+  readonly log?: HandLog;
 }
 
+function isVersionedCommand(value: object): value is VersionedCommand {
+  return "v" in value && "command" in value;
+}
+
+/**
+ * Accepts a bare `Command` line (normal harness input) or a `{v, command}`
+ * line as persisted by `HandLog` — so re-piping a persisted command log
+ * through the harness (the replay guarantee) needs no separate unwrapping.
+ */
 function parseCommand(line: string): Command {
+  let parsed: unknown;
   try {
-    return JSON.parse(line) as Command;
+    parsed = JSON.parse(line);
   } catch (cause) {
     throw new Error(`invalid JSON on harness input: ${line}`, { cause });
   }
+  if (parsed !== null && typeof parsed === "object" && isVersionedCommand(parsed)) {
+    return parsed.command;
+  }
+  return parsed as Command;
 }
 
 /**
@@ -44,6 +61,7 @@ export async function runHarness(options: RunHarnessOptions): Promise<void> {
     if (line.trim() === "") continue;
 
     const command = parseCommand(line);
+    options.log?.logCommand(command);
     // decide()'s Command union is exhaustive only at compile time; this
     // input is untrusted JSON, so an unrecognized `type` falls off the
     // engine's switch at runtime and returns undefined, not a type error.
@@ -54,12 +72,14 @@ export async function runHarness(options: RunHarnessOptions): Promise<void> {
     }
 
     if (!Array.isArray(result)) {
+      options.log?.logEvent(result);
       options.output.write(JSON.stringify(result) + "\n");
       continue;
     }
 
     for (const event of result) {
       state = apply(state, event);
+      options.log?.logEvent(event);
       options.output.write(JSON.stringify(event) + "\n");
     }
   }
