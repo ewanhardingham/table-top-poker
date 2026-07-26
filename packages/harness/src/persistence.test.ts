@@ -25,7 +25,9 @@ describe("HandLog", () => {
 
   afterEach(async () => {
     const { rm } = await import("node:fs/promises");
-    await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+    await Promise.all(
+      dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+    );
   });
 
   it("writes a game manifest carrying the seats and version tag, once", () => {
@@ -44,12 +46,20 @@ describe("HandLog", () => {
 
     const startHand1: Command = { type: "startHand", playerId: 0, seed: "s1" };
     log.logCommand(startHand1);
-    const handStarted1: HandEvent = { type: "HandStarted", seed: "s1", button: 0 };
+    const handStarted1: HandEvent = {
+      type: "HandStarted",
+      seed: "s1",
+      button: 0,
+    };
     log.logEvent(handStarted1);
 
     const nextHand: Command = { type: "nextHand", playerId: 1, seed: "s2" };
     log.logCommand(nextHand);
-    const handStarted2: HandEvent = { type: "HandStarted", seed: "s2", button: 1 };
+    const handStarted2: HandEvent = {
+      type: "HandStarted",
+      seed: "s2",
+      button: 1,
+    };
     log.logEvent(handStarted2);
 
     const hand1 = handLogPaths(path.join(logDir, "game-1"), 1);

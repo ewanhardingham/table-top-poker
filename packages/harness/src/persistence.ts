@@ -1,14 +1,19 @@
 import { appendFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { ENGINE_LOG_VERSION } from "@table-top-poker/engine";
-import type { Command, HandEvent, Rejection, SeatId } from "@table-top-poker/engine";
+import type {
+  Command,
+  HandEvent,
+  Rejection,
+  SeatId,
+} from "@table-top-poker/engine";
 
 const GAME_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 
 export function assertValidGameId(gameId: string): void {
   if (!GAME_ID_PATTERN.test(gameId)) {
     throw new Error(
-      `--game-id: "${gameId}" must match ${GAME_ID_PATTERN} (it becomes a directory name)`,
+      `--game-id: "${gameId}" must match ${GAME_ID_PATTERN.source} (it becomes a directory name)`,
     );
   }
 }
