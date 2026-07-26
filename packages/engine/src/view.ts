@@ -66,6 +66,10 @@ export function view(
   state: EngineState,
   seatId: SeatId | "table",
 ): PlayerView | TableView {
+  if (seatId !== "table" && !state.seats.includes(seatId)) {
+    throw new Error(`unknown seat ${String(seatId)}`);
+  }
+
   const hand = state.hand;
 
   if (hand === null) {
