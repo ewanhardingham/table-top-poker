@@ -44,6 +44,18 @@ function onTheFlopThreeWay(): EngineState {
   return state;
 }
 
+describe("view: unknown seat", () => {
+  it("rejects a seat id that isn't seated at the table", () => {
+    const state = onTheFlopThreeWay();
+    expect(() => view(state, 999)).toThrow(/unknown seat/);
+  });
+
+  it("rejects an unknown seat id even before any hand has started", () => {
+    const state = createInitialState([0, 1, 2]);
+    expect(() => view(state, 999)).toThrow(/unknown seat/);
+  });
+});
+
 describe("view: own hole cards mid-hand", () => {
   it("a seat sees its own hole cards", () => {
     const state = onTheFlopThreeWay();
@@ -211,7 +223,9 @@ function assertNoLeak(
           // Post-showdown, every viewer — including the table — sees
           // every live seat's cards, not just the owner.
           expect(present).toBe(true);
-        } else if (!isLiveOwner) {
+        } else if (isLiveOwner) {
+          expect(present).toBe(true);
+        } else {
           expect(present).toBe(false);
         }
       }
