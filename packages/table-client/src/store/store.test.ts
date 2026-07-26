@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { useTableStore } from "./store.js";
 
 describe("useTableStore", () => {
+  beforeEach(() => {
+    useTableStore.setState(useTableStore.getInitialState());
+  });
+
   it("starts disconnected with no room code", () => {
     const state = useTableStore.getState();
     expect(state.connectionStatus).toBe("disconnected");
