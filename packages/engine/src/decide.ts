@@ -1,4 +1,5 @@
 import { apply } from "./apply.js";
+import { evaluate, winnersOf } from "./evaluate.js";
 import {
   dealCommunityCards,
   dealHoleCards,
@@ -147,22 +148,26 @@ function decideAction(
   scratch = apply(scratch, streetClosed);
 
   if (hand.street === "river") {
-    const stubBestHand: [Card, Card, Card, Card, Card] = [
-      { rank: "2", suit: "clubs" },
-      { rank: "2", suit: "clubs" },
-      { rank: "2", suit: "clubs" },
-      { rank: "2", suit: "clubs" },
-      { rank: "2", suit: "clubs" },
-    ];
+    const results = live.map((seatId) => {
+      const holeCards = must(
+        handAfterAction.players.get(seatId)?.holeCards,
+        "a live seat at showdown always has hole cards",
+      );
+      const { rank, bestHand, description } = evaluate([
+        ...holeCards,
+        ...handAfterAction.board,
+      ]);
+      return {
+        seatId,
+        rank,
+        bestHand: [...bestHand] as [Card, Card, Card, Card, Card],
+        description,
+      };
+    });
     const showdownReached: HandEvent = {
       type: "ShowdownReached",
-      results: live.map((seatId) => ({
-        seatId,
-        rank: 0,
-        bestHand: stubBestHand,
-        description: "stubbed pending the hand evaluator (issue #22)",
-      })),
-      winners: live,
+      results,
+      winners: winnersOf(results),
     };
     events.push(showdownReached);
     scratch = apply(scratch, showdownReached);
