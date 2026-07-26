@@ -1,6 +1,13 @@
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
-import type { ServerMessage } from "@table-top-poker/protocol";
+import {
+  ClientCommandSchema,
+  view,
+  type CommandRejectedMessage,
+  type HandEvent,
+  type SeatId,
+  type ServerMessage,
+} from "@table-top-poker/protocol";
 import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -8,6 +15,7 @@ import type { WebSocket } from "ws";
 import { joinUrl, roomQrCodeDataUrl } from "./qr.js";
 import {
   type ClaimSeatError,
+  type DispatchStep,
   type Room,
   RoomStore,
   toRoomView,
@@ -59,6 +67,28 @@ function findRoomOrReject(
   return room;
 }
 
+/**
+ * `HandEvent` is the engine's full, unredacted truth by design (secrecy
+ * lives solely in `view` — docs/phase-1-spec.md §3/§4). The *wire* event
+ * carried alongside that view is a transport-level exception: `HoleCardsDealt`
+ * must be redacted per recipient before it ever leaves the server, or the
+ * "raw event for audit/animation" bullet in §6 would leak every seat's cards
+ * to every socket regardless of what `view` shows.
+ */
+function redactEventFor(
+  event: HandEvent,
+  identity: SeatId | "table",
+): HandEvent {
+  if (event.type !== "HoleCardsDealt") return event;
+  return {
+    ...event,
+    deals:
+      identity === "table"
+        ? []
+        : event.deals.filter((deal) => deal.seatId === identity),
+  };
+}
+
 /** Seat ids arrive as route/query strings — reject anything that isn't a bare integer. */
 function parseSeatId(raw: string): number | undefined {
   return /^\d+$/.test(raw) ? Number(raw) : undefined;
@@ -69,7 +99,19 @@ export async function buildApp(
 ): Promise<FastifyInstance> {
   const rooms = options.rooms ?? new RoomStore();
   const roomSockets = new Map<string, Set<WebSocket>>();
+  const socketIdentity = new Map<WebSocket, SeatId | "table">();
   const app = Fastify();
+
+  function send(socket: WebSocket, message: ServerMessage): void {
+    socket.send(JSON.stringify(message));
+  }
+
+  function sendRejection(
+    socket: WebSocket,
+    reason: CommandRejectedMessage["reason"],
+  ): void {
+    send(socket, { type: "command-rejected", reason });
+  }
 
   function broadcastRoomView(code: string): void {
     const room = rooms.get(code);
@@ -79,9 +121,37 @@ export async function buildApp(
       type: "room-view",
       view: toRoomView(room),
     };
-    const payload = JSON.stringify(message);
     for (const socket of sockets) {
-      socket.send(payload);
+      send(socket, message);
+    }
+  }
+
+  /**
+   * Fans one event out to every socket in the room, per-recipient: the
+   * table gets `view(state, 'table')`, a seat gets `view(state, seatId)`
+   * only if it was actually dealt into the hand that produced this state —
+   * a sitting-out seat's socket gets nothing, never another seat's cards
+   * (docs/phase-1-spec.md §4, §6).
+   */
+  function fanOutHandUpdate(code: string, step: DispatchStep): void {
+    const sockets = roomSockets.get(code);
+    if (!sockets) return;
+    for (const socket of sockets) {
+      const identity = socketIdentity.get(socket);
+      if (identity === undefined) continue;
+      if (identity === "table") {
+        send(socket, {
+          type: "hand-update",
+          event: redactEventFor(step.event, "table"),
+          view: view(step.state, "table"),
+        });
+      } else if (step.state.seats.includes(identity)) {
+        send(socket, {
+          type: "hand-update",
+          event: redactEventFor(step.event, identity),
+          view: view(step.state, identity),
+        });
+      }
     }
   }
 
@@ -203,6 +273,17 @@ export async function buildApp(
         const code = request.query.room;
         if (code === undefined) return;
 
+        const { role, seat } = request.query;
+        let identity: SeatId | "table";
+        if (role === "table") {
+          identity = "table";
+        } else {
+          const seatId = seat === undefined ? undefined : parseSeatId(seat);
+          if (seatId === undefined) return;
+          identity = seatId;
+        }
+        socketIdentity.set(socket, identity);
+
         let sockets = roomSockets.get(code);
         if (!sockets) {
           sockets = new Set();
@@ -212,15 +293,49 @@ export async function buildApp(
 
         const room = rooms.get(code);
         if (room) {
-          const message: ServerMessage = {
-            type: "room-view",
-            view: toRoomView(room),
-          };
-          socket.send(JSON.stringify(message));
+          send(socket, { type: "room-view", view: toRoomView(room) });
         }
+
+        socket.on("message", (data: Buffer) => {
+          let parsed: unknown;
+          try {
+            parsed = JSON.parse(data.toString());
+          } catch {
+            sendRejection(socket, "invalid-command");
+            return;
+          }
+
+          const parseResult = ClientCommandSchema.safeParse(parsed);
+          if (!parseResult.success) {
+            sendRejection(socket, "invalid-command");
+            return;
+          }
+
+          const dispatchResult = rooms.dispatch(
+            code,
+            identity,
+            parseResult.data.type,
+          );
+          if ("error" in dispatchResult) {
+            sendRejection(socket, dispatchResult.error);
+            return;
+          }
+          if ("reason" in dispatchResult) {
+            sendRejection(socket, dispatchResult.reason);
+            return;
+          }
+
+          for (const step of dispatchResult.steps) {
+            fanOutHandUpdate(code, step);
+          }
+          if (parseResult.data.type === "startHand") {
+            broadcastRoomView(code);
+          }
+        });
 
         socket.on("close", () => {
           sockets.delete(socket);
+          socketIdentity.delete(socket);
         });
       },
     );

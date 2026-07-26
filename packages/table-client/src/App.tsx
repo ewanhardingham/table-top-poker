@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { createRoom, endSession } from "./api/rooms.js";
+import { Board } from "./Board.js";
 import { RoomPanel } from "./RoomPanel.js";
 import { StatusBar } from "./StatusBar.js";
 import { useTableStore } from "./store/store.js";
@@ -11,10 +12,11 @@ export function App() {
   const qrCodeDataUrl = useTableStore((state) => state.qrCodeDataUrl);
   const seats = useTableStore((state) => state.seats);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
+  const handView = useTableStore((state) => state.handView);
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
   const clearRoom = useTableStore((state) => state.clearRoom);
 
-  useWebSocket(roomCode);
+  const { send } = useWebSocket(roomCode);
 
   const handleCreateRoom = useCallback(() => {
     createRoom()
@@ -33,6 +35,13 @@ export function App() {
       });
   }, [roomCode, clearRoom]);
 
+  const handleStartHand = useCallback(() => {
+    send({ type: "startHand" });
+  }, [send]);
+
+  const claimedSeatCount = seats.filter((seat) => seat.claimed).length;
+  const canStartHand = handView === null && claimedSeatCount >= 2;
+
   return (
     <div className="app-shell" data-testid="table-client-shell">
       <StatusBar roomCode={roomCode} connectionStatus={connectionStatus} />
@@ -46,13 +55,25 @@ export function App() {
             Create room
           </button>
         ) : (
-          <RoomPanel
-            roomCode={roomCode}
-            joinUrl={joinUrl}
-            qrCodeDataUrl={qrCodeDataUrl}
-            seats={seats}
-            onEndSession={handleEndSession}
-          />
+          <>
+            <RoomPanel
+              roomCode={roomCode}
+              joinUrl={joinUrl}
+              qrCodeDataUrl={qrCodeDataUrl}
+              seats={seats}
+              onEndSession={handleEndSession}
+            />
+            {canStartHand && (
+              <button
+                type="button"
+                data-testid="start-hand-button"
+                onClick={handleStartHand}
+              >
+                Start hand
+              </button>
+            )}
+            {handView !== null && <Board view={handView} seats={seats} />}
+          </>
         )}
       </main>
     </div>

@@ -1,4 +1,5 @@
 import type { SeatId } from "@table-top-poker/engine";
+import type { CommandRejectedMessage, HandUpdateMessage } from "./hand.js";
 
 /** A seat's public state — never carries its claim token. */
 export interface SeatView {
@@ -13,7 +14,10 @@ export interface RoomView {
 }
 
 /** Pushed over the room's WebSocket whenever seat state changes. */
-export interface ServerMessage {
+export interface RoomViewMessage {
   readonly type: "room-view";
   readonly view: RoomView;
 }
+
+export type ServerMessage =
+  RoomViewMessage | HandUpdateMessage | CommandRejectedMessage;
