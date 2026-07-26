@@ -3,11 +3,13 @@ import {
   type ConnectionSlice,
   createConnectionSlice,
 } from "./connectionSlice.js";
+import { createRoomSlice, type RoomSlice } from "./roomSlice.js";
 import { createSeatSlice, type SeatSlice } from "./seatSlice.js";
 
-export type PlayerStore = ConnectionSlice & SeatSlice;
+export type PlayerStore = ConnectionSlice & RoomSlice & SeatSlice;
 
 export const usePlayerStore = create<PlayerStore>()((...args) => ({
   ...createConnectionSlice(...args),
+  ...createRoomSlice(...args),
   ...createSeatSlice(...args),
 }));

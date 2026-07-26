@@ -3,13 +3,18 @@ import type { StateCreator } from "zustand";
 
 export interface SeatSlice {
   readonly seatId: SeatId | null;
-  readonly setSeatId: (seatId: SeatId | null) => void;
+  readonly sittingOut: boolean;
+  readonly setSeat: (seat: { seatId: SeatId; sittingOut: boolean }) => void;
+  readonly clearSeat: () => void;
 }
 
-/** Placeholder slice — replaced by the real seat-claim flow once ticket 13 lands. */
 export const createSeatSlice: StateCreator<SeatSlice> = (set) => ({
   seatId: null,
-  setSeatId: (seatId) => {
-    set({ seatId });
+  sittingOut: false,
+  setSeat: ({ seatId, sittingOut }) => {
+    set({ seatId, sittingOut });
+  },
+  clearSeat: () => {
+    set({ seatId: null, sittingOut: false });
   },
 });

@@ -13,4 +13,13 @@ describe("getWebSocketUrl", () => {
       "ws://localhost:3000/ws",
     );
   });
+
+  it("appends query params for room-scoped connections", () => {
+    expect(
+      getWebSocketUrl(
+        { protocol: "http:", host: "localhost:3000" },
+        { room: "ABCD", role: "table" },
+      ),
+    ).toBe("ws://localhost:3000/ws?room=ABCD&role=table");
+  });
 });

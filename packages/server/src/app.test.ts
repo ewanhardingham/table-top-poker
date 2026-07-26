@@ -1,11 +1,9 @@
+import type { RoomView, ServerMessage } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildApp } from "./app.js";
-
-interface RoomCodeBody {
-  readonly code: string;
-}
+import { RoomStore, SEAT_COUNT } from "./rooms.js";
 
 interface RoomCreatedBody {
   readonly code: string;
@@ -16,6 +14,20 @@ interface RoomCreatedBody {
 interface RoomQrBody {
   readonly url: string;
   readonly dataUrl: string;
+}
+
+interface SeatClaimBody {
+  readonly seatId: number;
+  readonly token: string;
+  readonly sittingOut: boolean;
+}
+
+function unclaimedSeats(): RoomView["seats"] {
+  return Array.from({ length: SEAT_COUNT }, (_, id) => ({
+    id,
+    claimed: false,
+    sittingOut: false,
+  }));
 }
 
 describe("rooms HTTP routes", () => {
@@ -42,16 +54,19 @@ describe("rooms HTTP routes", () => {
     expect(body.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
-  it("joining a known room code succeeds", async () => {
+  it("joining a known room code returns its room view", async () => {
     const created = await app.inject({ method: "POST", url: "/rooms" });
-    const { code } = created.json<RoomCodeBody>();
+    const { code } = created.json<RoomCreatedBody>();
 
     const joined = await app.inject({
       method: "POST",
       url: `/rooms/${code}/join`,
     });
     expect(joined.statusCode).toBe(200);
-    expect(joined.json<RoomCodeBody>()).toEqual({ code });
+    expect(joined.json<RoomView>()).toEqual({
+      code,
+      seats: unclaimedSeats(),
+    });
   });
 
   it("joining an unknown room code is rejected", async () => {
@@ -64,7 +79,7 @@ describe("rooms HTTP routes", () => {
 
   it("produces a QR code for a created room, derived from the request host", async () => {
     const created = await app.inject({ method: "POST", url: "/rooms" });
-    const { code } = created.json<RoomCodeBody>();
+    const { code } = created.json<RoomCreatedBody>();
 
     const response = await app.inject({
       method: "GET",
@@ -80,7 +95,7 @@ describe("rooms HTTP routes", () => {
 
   it("ending a session discards the room's in-memory state", async () => {
     const created = await app.inject({ method: "POST", url: "/rooms" });
-    const { code } = created.json<RoomCodeBody>();
+    const { code } = created.json<RoomCreatedBody>();
 
     const ended = await app.inject({
       method: "POST",
@@ -96,12 +111,155 @@ describe("rooms HTTP routes", () => {
   });
 });
 
+describe("GET /join/:code", () => {
+  let app: FastifyInstance;
+
+  afterEach(async () => {
+    await app.close();
+    delete process.env.PLAYER_CLIENT_ORIGIN;
+  });
+
+  it("404s for an unknown room code", async () => {
+    app = await buildApp();
+    const response = await app.inject({ method: "GET", url: "/join/ZZZZ" });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("serves the same-origin placeholder when no player origin is configured", async () => {
+    app = await buildApp();
+    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const { code } = created.json<RoomCreatedBody>();
+
+    const response = await app.inject({ method: "GET", url: `/join/${code}` });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/^text\/html/);
+  });
+
+  it("redirects to PLAYER_CLIENT_ORIGIN when configured", async () => {
+    process.env.PLAYER_CLIENT_ORIGIN = "http://192.168.1.50:5174";
+    app = await buildApp();
+    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const { code } = created.json<RoomCreatedBody>();
+
+    const response = await app.inject({ method: "GET", url: `/join/${code}` });
+
+    expect(response.statusCode).toBe(302);
+    expect(response.headers.location).toBe(
+      `http://192.168.1.50:5174/join/${code}`,
+    );
+  });
+});
+
+describe("seat claim/clear routes", () => {
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms });
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function createRoom(): Promise<string> {
+    const created = await app.inject({ method: "POST", url: "/rooms" });
+    return created.json<RoomCreatedBody>().code;
+  }
+
+  it("claims a free seat, issuing a token", async () => {
+    const code = await createRoom();
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<SeatClaimBody>();
+    expect(typeof body.token).toBe("string");
+    expect(body).toMatchObject({ seatId: 0, sittingOut: false });
+  });
+
+  it("rejects claiming an already-claimed seat", async () => {
+    const code = await createRoom();
+    await app.inject({ method: "POST", url: `/rooms/${code}/seats/0/claim` });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ error: "seat-already-claimed" });
+  });
+
+  it("rejects claiming a seat in an unknown room", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms/ZZZZ/seats/0/claim",
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("rejects an out-of-range seat id", async () => {
+    const code = await createRoom();
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/${String(SEAT_COUNT)}/claim`,
+    });
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("rejects a malformed seat id", async () => {
+    const code = await createRoom();
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/not-a-number/claim`,
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("marks a seat claimed mid-hand as sitting out", async () => {
+    const code = await createRoom();
+    rooms.markHandInProgress(code, true);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+    });
+
+    expect(response.json<SeatClaimBody>().sittingOut).toBe(true);
+  });
+
+  it("force-clears a seat so it can be reclaimed", async () => {
+    const code = await createRoom();
+    await app.inject({ method: "POST", url: `/rooms/${code}/seats/0/claim` });
+
+    const cleared = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/clear`,
+    });
+    expect(cleared.statusCode).toBe(204);
+
+    const reclaimed = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+    });
+    expect(reclaimed.statusCode).toBe(200);
+  });
+});
+
 describe("WebSocket upgrade", () => {
   let app: FastifyInstance;
+  let rooms: RoomStore;
   let port: number;
 
   beforeEach(async () => {
-    app = await buildApp();
+    rooms = new RoomStore();
+    app = await buildApp({ rooms });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
     if (address === null || typeof address === "string") {
@@ -114,8 +272,104 @@ describe("WebSocket upgrade", () => {
     await app.close();
   });
 
-  it("accepts a bare WebSocket connection on the same port as HTTP", async () => {
+  it("rejects a connection with no room param", async () => {
     const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/ws`);
+    const closeCode = await new Promise<number>((resolve) => {
+      socket.on("unexpected-response", (_req, res) => {
+        resolve(res.statusCode ?? 0);
+      });
+      socket.on("close", (code) => {
+        resolve(code);
+      });
+    });
+    expect(closeCode).toBe(400);
+  });
+
+  it("rejects a connection for an unknown room", async () => {
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=ZZZZ&role=table`,
+    );
+    const closeCode = await new Promise<number>((resolve) => {
+      socket.on("unexpected-response", (_req, res) => {
+        resolve(res.statusCode ?? 0);
+      });
+    });
+    expect(closeCode).toBe(404);
+  });
+
+  it("accepts a table-device connection scoped to a live room", async () => {
+    const room = rooms.create();
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&role=table`,
+    );
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    socket.close();
+  });
+
+  it("pushes a fresh room view on connect and on every seat claim", async () => {
+    const room = rooms.create();
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&role=table`,
+    );
+
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toEqual({
+      type: "room-view",
+      view: { code: room.code, seats: unclaimedSeats() },
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/0/claim`,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(messages).toHaveLength(2);
+    expect(messages[1]?.type).toBe("room-view");
+    expect((messages[1] as { view: RoomView }).view.seats[0]).toEqual({
+      id: 0,
+      claimed: true,
+      sittingOut: false,
+    });
+
+    socket.close();
+  });
+
+  it("rejects a player connection with an unknown seat token", async () => {
+    const room = rooms.create();
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&seat=0&token=bogus`,
+    );
+    const closeCode = await new Promise<number>((resolve) => {
+      socket.on("unexpected-response", (_req, res) => {
+        resolve(res.statusCode ?? 0);
+      });
+    });
+    expect(closeCode).toBe(403);
+  });
+
+  it("accepts a player connection with a valid seat token", async () => {
+    const room = rooms.create();
+    const claim = rooms.claimSeat(room.code, 0);
+    if (!("seat" in claim)) throw new Error("expected a claimed seat");
+
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&seat=0&token=${claim.seat.token ?? ""}`,
+    );
     await new Promise<void>((resolve, reject) => {
       socket.on("open", resolve);
       socket.on("error", reject);

@@ -4,7 +4,11 @@ export interface WsLocation {
 }
 
 /** Derives the WebSocket scheme from `location.protocol` — never hard-coded. */
-export function getWebSocketUrl(location: WsLocation): string {
+export function getWebSocketUrl(
+  location: WsLocation,
+  params: Record<string, string> = {},
+): string {
   const scheme = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${scheme}//${location.host}/ws`;
+  const query = new URLSearchParams(params).toString();
+  return `${scheme}//${location.host}/ws${query ? `?${query}` : ""}`;
 }
