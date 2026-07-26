@@ -65,6 +65,38 @@ cat commands.jsonl | npx harness > run2.jsonl
 diff run1.jsonl run2.jsonl && echo "identical"
 ```
 
+## Persistence
+
+Pass `--log-dir` to have the harness write both the command stream (ground
+truth for replay) and the event stream (audit trail) to disk as it plays,
+append-as-you-go — see `docs/phase-1-spec.md` §5:
+
+```sh
+cat commands.jsonl | npx harness --log-dir ./logs --game-id friday-game
+```
+
+This produces, per hand, `./logs/friday-game/hand-0001.commands.jsonl` and
+`./logs/friday-game/hand-0001.events.jsonl`, plus a `game.jsonl` manifest
+recording the seating once. `--game-id` defaults to a sortable UTC
+timestamp if omitted, and must be a safe path segment
+(`[A-Za-z0-9._-]+`). Every record is wrapped with the schema version tag
+(`ENGINE_LOG_VERSION` from `@table-top-poker/engine`), so old logs stay
+interpretable against the build they were written by even after a later
+schema change.
+
+A persisted `*.commands.jsonl` file re-pipes through the harness exactly
+like a plain command file — the versioned wrapper is transparently
+unwrapped on read — so the replay procedure above works unmodified on a
+logged file:
+
+```sh
+cat logs/friday-game/hand-0001.commands.jsonl | npx harness --seats 0,1,2
+```
+
+Seating isn't recorded in the command stream itself (it's fixed for a
+game's whole life, set by `--seats` at startup) — replaying a logged game
+requires passing the same `--seats` it was originally run with.
+
 ## Failure modes
 
 The harness fails fast on malformed input rather than risk writing a
