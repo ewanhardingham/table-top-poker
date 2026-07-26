@@ -18,15 +18,11 @@ export function assertValidGameId(gameId: string): void {
   }
 }
 
-export interface VersionedCommand {
-  readonly v: number;
-  readonly command: Command;
-}
+/** A logged command line is the bare `Command` plus a version tag — the exact shape the harness reads on stdin, so a logged file re-pipes through it unmodified. */
+export type LoggedCommand = Command & { readonly v: number };
 
-export interface VersionedEvent {
-  readonly v: number;
-  readonly event: HandEvent | Rejection;
-}
+/** A logged event line is the bare `HandEvent`/`Rejection` plus a version tag — the exact shape the harness writes on stdout. */
+export type LoggedEvent = (HandEvent | Rejection) & { readonly v: number };
 
 export interface GameManifest {
   readonly v: number;
@@ -42,7 +38,6 @@ function handBase(handIndex: number): string {
   return `hand-${String(handIndex).padStart(4, "0")}`;
 }
 
-/** `handIndex` 0 is the pre-game bucket for anything received before the first `startHand`/`nextHand`. */
 export function handLogPaths(gameDir: string, handIndex: number): HandLogPaths {
   const base = handBase(handIndex);
   return {
@@ -57,17 +52,20 @@ export function handLogPaths(gameDir: string, handIndex: number): HandLogPaths {
  * hand as required by docs/phase-1-spec.md §5. Every write is a single
  * synchronous fs call — no in-process buffering — so a killed process loses
  * at most the record it was mid-write on, never a batch of completed ones.
+ *
+ * A command/event received before the first `startHand`/`nextHand` belongs
+ * to no hand yet, so it isn't logged — there's nothing to partition it
+ * into.
  */
 export class HandLog {
   readonly gameDir: string;
   #handIndex = 0;
-  #paths: HandLogPaths;
+  #paths: HandLogPaths | null = null;
 
   constructor(logDir: string, gameId: string, seats: readonly SeatId[]) {
     assertValidGameId(gameId);
     this.gameDir = path.join(logDir, gameId);
     mkdirSync(this.gameDir, { recursive: true });
-    this.#paths = handLogPaths(this.gameDir, this.#handIndex);
 
     const manifestPath = path.join(this.gameDir, "game.jsonl");
     if (!existsSync(manifestPath)) {
@@ -81,12 +79,16 @@ export class HandLog {
       this.#handIndex += 1;
       this.#paths = handLogPaths(this.gameDir, this.#handIndex);
     }
-    const record: VersionedCommand = { v: ENGINE_LOG_VERSION, command };
+    if (this.#paths === null) return;
+
+    const record: LoggedCommand = { ...command, v: ENGINE_LOG_VERSION };
     appendFileSync(this.#paths.commandsPath, JSON.stringify(record) + "\n");
   }
 
   logEvent(event: HandEvent | Rejection): void {
-    const record: VersionedEvent = { v: ENGINE_LOG_VERSION, event };
+    if (this.#paths === null) return;
+
+    const record: LoggedEvent = { ...event, v: ENGINE_LOG_VERSION };
     appendFileSync(this.#paths.eventsPath, JSON.stringify(record) + "\n");
   }
 }

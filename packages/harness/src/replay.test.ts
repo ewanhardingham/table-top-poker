@@ -29,6 +29,12 @@ function readJsonLines(filePath: string): unknown[] {
     .map((line) => JSON.parse(line) as unknown);
 }
 
+function withoutVersion<T extends { v: number }>(record: T): Omit<T, "v"> {
+  const { v, ...rest } = record;
+  void v;
+  return rest;
+}
+
 describe("replay guarantee", () => {
   const dirs: string[] = [];
 
@@ -78,13 +84,12 @@ describe("replay guarantee", () => {
       .lines()
       .map((line) => JSON.parse(line) as HandEvent | Rejection);
 
-    const persisted = readJsonLines(hand1.eventsPath) as {
-      v: number;
-      event: HandEvent | Rejection;
-    }[];
+    const persisted = readJsonLines(hand1.eventsPath) as ((
+      HandEvent | Rejection
+    ) & { v: number })[];
 
     expect(persisted.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(true);
-    expect(replayedEvents).toEqual(persisted.map((r) => r.event));
+    expect(replayedEvents).toEqual(persisted.map(withoutVersion));
     expect(replayed.lines()).toEqual(original.lines());
   });
 });

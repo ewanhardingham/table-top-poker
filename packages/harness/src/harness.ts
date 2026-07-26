@@ -7,7 +7,7 @@ import type {
   HandEvent,
   Rejection,
 } from "@table-top-poker/engine";
-import type { HandLog, VersionedCommand } from "./persistence.js";
+import type { HandLog } from "./persistence.js";
 
 export interface RunHarnessOptions {
   readonly state: EngineState;
@@ -17,30 +17,16 @@ export interface RunHarnessOptions {
   readonly log?: HandLog;
 }
 
-function isVersionedCommand(value: object): value is VersionedCommand {
-  return "v" in value && "command" in value;
-}
-
-/**
- * Accepts a bare `Command` line (normal harness input) or a `{v, command}`
- * line as persisted by `HandLog` — so re-piping a persisted command log
- * through the harness (the replay guarantee) needs no separate unwrapping.
- */
+// A logged command line carries an extra `v` field (see persistence.ts's
+// `LoggedCommand`) but is otherwise a bare `Command` — decide() only reads
+// the fields it knows about, so the extra field is silently ignored and a
+// persisted command log re-pipes through the harness unmodified.
 function parseCommand(line: string): Command {
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(line);
+    return JSON.parse(line) as Command;
   } catch (cause) {
     throw new Error(`invalid JSON on harness input: ${line}`, { cause });
   }
-  if (
-    parsed !== null &&
-    typeof parsed === "object" &&
-    isVersionedCommand(parsed)
-  ) {
-    return parsed.command;
-  }
-  return parsed as Command;
 }
 
 /**
