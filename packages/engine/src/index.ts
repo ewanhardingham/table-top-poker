@@ -11,13 +11,20 @@ export type {
   Command,
   CompleteHandState,
   EngineState,
+  FoldedOutCompleteHandState,
   HandEvent,
   HandRank,
   HandState,
   Rank,
   Rejection,
   RejectionReason,
+  RevealedResult,
+  SeatHandState,
   SeatId,
+  ShowdownCompleteHandState,
+  ShowdownResult,
   Street,
   Suit,
 } from "./types.js";
+export { view } from "./view.js";
+export type { PlayerView, TableView } from "./view.js";
