@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { createRoom, endSession } from "./api/rooms.js";
 import { RoomPanel } from "./RoomPanel.js";
+import { StatusBar } from "./StatusBar.js";
 import { useTableStore } from "./store/store.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
@@ -34,12 +35,7 @@ export function App() {
 
   return (
     <div className="app-shell" data-testid="table-client-shell">
-      <header className="status-bar">
-        <span>Table Top Poker — Table</span>
-        <span data-testid="connection-status" data-status={connectionStatus}>
-          {connectionStatus}
-        </span>
-      </header>
+      <StatusBar roomCode={roomCode} connectionStatus={connectionStatus} />
       <main className="felt">
         {roomCode === null ? (
           <button
