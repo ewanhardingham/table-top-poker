@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { claimSeat, joinRoom } from "./api/rooms.js";
+import { Hand } from "./Hand.js";
 import { JoinForm } from "./JoinForm.js";
 import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
 import { SeatPanel } from "./SeatPanel.js";
@@ -16,6 +17,7 @@ export function App() {
   const seatId = usePlayerStore((state) => state.seatId);
   const sittingOut = usePlayerStore((state) => state.sittingOut);
   const connectionStatus = usePlayerStore((state) => state.connectionStatus);
+  const handView = usePlayerStore((state) => state.handView);
   const setRoomView = usePlayerStore((state) => state.setRoomView);
   const setJoinError = usePlayerStore((state) => state.setJoinError);
   const setSeat = usePlayerStore((state) => state.setSeat);
@@ -83,7 +85,12 @@ export function App() {
       <SeatPicker seats={seats} error={claimError} onClaim={handleClaim} />
     );
   } else {
-    content = <SeatPanel seatId={seatId} sittingOut={sittingOut} />;
+    content = (
+      <>
+        <SeatPanel seatId={seatId} sittingOut={sittingOut} />
+        {handView !== null && <Hand view={handView} />}
+      </>
+    );
   }
 
   return (

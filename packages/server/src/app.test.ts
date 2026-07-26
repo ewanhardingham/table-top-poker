@@ -224,11 +224,13 @@ describe("seat claim/clear routes", () => {
 
   it("marks a seat claimed mid-hand as sitting out", async () => {
     const code = await createRoom();
-    rooms.markHandInProgress(code, true);
+    rooms.claimSeat(code, 0);
+    rooms.claimSeat(code, 1);
+    rooms.dispatch(code, "table", "startHand");
 
     const response = await app.inject({
       method: "POST",
-      url: `/rooms/${code}/seats/0/claim`,
+      url: `/rooms/${code}/seats/2/claim`,
     });
 
     expect(response.json<SeatClaimBody>().sittingOut).toBe(true);
@@ -376,5 +378,169 @@ describe("WebSocket upgrade", () => {
     });
     expect(socket.readyState).toBe(WebSocket.OPEN);
     socket.close();
+  });
+});
+
+describe("hand command dispatch over WebSocket", () => {
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function connect(query: string): {
+    socket: WebSocket;
+    messages: ServerMessage[];
+  } {
+    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/ws?${query}`);
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    return { socket, messages };
+  }
+
+  async function opened(socket: WebSocket): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+  }
+
+  async function settle(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  async function claimAndConnect(
+    code: string,
+    seatId: number,
+  ): Promise<{ socket: WebSocket; messages: ServerMessage[] }> {
+    const claim = rooms.claimSeat(code, seatId);
+    if (!("seat" in claim)) throw new Error("expected a claimed seat");
+    const conn = connect(
+      `room=${code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
+    );
+    await opened(conn.socket);
+    return conn;
+  }
+
+  it("deals hole cards on startHand, each seat only ever seeing its own cards", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    const seat2 = await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    const holeCardsFor = (messages: ServerMessage[], seatId: number) => {
+      for (const message of messages) {
+        if (message.type !== "hand-update") continue;
+        const v = message.view;
+        if (
+          "yourSeatId" in v &&
+          v.yourSeatId === seatId &&
+          v.yourHoleCards !== null
+        ) {
+          return v.yourHoleCards;
+        }
+      }
+      return undefined;
+    };
+
+    const cards0 = holeCardsFor(seat0.messages, 0);
+    const cards1 = holeCardsFor(seat1.messages, 1);
+    const cards2 = holeCardsFor(seat2.messages, 2);
+    expect(cards0).toBeDefined();
+    expect(cards1).toBeDefined();
+    expect(cards2).toBeDefined();
+
+    const raw = (messages: ServerMessage[]) => JSON.stringify(messages);
+    for (const [mine, others] of [
+      [cards0, [seat1, seat2]],
+      [cards1, [seat0, seat2]],
+      [cards2, [seat0, seat1]],
+    ] as const) {
+      for (const other of others) {
+        for (const card of mine ?? []) {
+          expect(raw(other.messages)).not.toContain(JSON.stringify(card));
+        }
+      }
+      expect(raw(table.messages)).not.toContain("yourHoleCards");
+    }
+
+    const tableStreetStarted = table.messages.find(
+      (m) => m.type === "hand-update" && m.event.type === "StreetStarted",
+    );
+    expect(tableStreetStarted).toBeDefined();
+  });
+
+  it("excludes a sitting-out seat from the deal and it stays sitting out", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    const midHandJoin = await claimAndConnect(room.code, 2);
+    await settle();
+    const handUpdates = midHandJoin.messages.filter(
+      (m) => m.type === "hand-update",
+    );
+    expect(handUpdates).toHaveLength(0);
+
+    expect(rooms.get(room.code)?.seats[2]?.sittingOut).toBe(true);
+  });
+
+  it("rejects a malformed command via Zod before it reaches the engine", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "definitely-not-a-command" }));
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "invalid-command",
+    });
+    expect(rooms.get(room.code)?.engine).toBeNull();
+  });
+
+  it("rejects a player-issued startHand — table-only at the server layer", async () => {
+    const room = rooms.create();
+    const seat0 = await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    await settle();
+
+    seat0.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    expect(seat0.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "not-permitted",
+    });
+    expect(rooms.get(room.code)?.engine).toBeNull();
   });
 });
