@@ -1,0 +1,280 @@
+import fc from "fast-check";
+import { describe, expect, it } from "vitest";
+import { apply } from "./apply.js";
+import { decide } from "./decide.js";
+import { createInitialState } from "./room.js";
+import { facingBet } from "./table.js";
+import { playAll } from "./test-utils.js";
+import type { Card, EngineState, SeatId } from "./types.js";
+import { must } from "./util.js";
+import { view } from "./view.js";
+
+function headsUpToRiver(seed: string): EngineState {
+  let state = createInitialState([0, 1]);
+  state = playAll(state, [{ type: "startHand", playerId: 0, seed }]);
+  state = playAll(state, [
+    { type: "call", playerId: 0 },
+    { type: "check", playerId: 1 },
+    { type: "check", playerId: 1 },
+    { type: "check", playerId: 0 },
+    { type: "check", playerId: 1 },
+    { type: "check", playerId: 0 },
+    { type: "check", playerId: 1 },
+    { type: "check", playerId: 0 },
+  ]);
+  return state;
+}
+
+/** Three-way, preflop action closed and the flop dealt — a non-trivial board. */
+function onTheFlopThreeWay(): EngineState {
+  let state = createInitialState([0, 1, 2]);
+  state = playAll(state, [{ type: "startHand", playerId: 0, seed: "mid" }]);
+  // ring (button 0) = [1, 2, 0], BB = seat 2. Only the BB can check preflop
+  // absent a raise; everyone else calls. No raise, so the BB also gets its
+  // one-time option turn after the lap closes back around.
+  state = playAll(state, [
+    { type: "call", playerId: 1 },
+    { type: "check", playerId: 2 },
+    { type: "call", playerId: 0 },
+    { type: "check", playerId: 2 },
+  ]);
+  if (state.hand?.status !== "betting" || state.hand.street !== "flop") {
+    throw new Error("expected to reach the flop");
+  }
+  return state;
+}
+
+describe("view: own hole cards mid-hand", () => {
+  it("a seat sees its own hole cards", () => {
+    const state = onTheFlopThreeWay();
+    const mine = view(state, 0);
+    if (mine.phase !== "betting") throw new Error("expected betting phase");
+    expect(mine.yourHoleCards).not.toBeNull();
+    expect(mine.yourHoleCards).toHaveLength(2);
+  });
+});
+
+describe("view: other seats' hole cards mid-hand", () => {
+  it("a seat does not see another live seat's hole cards", () => {
+    const state = onTheFlopThreeWay();
+    if (state.hand?.status !== "betting") throw new Error("expected betting");
+    const otherHoleCards = must(must(state.hand.players.get(1)).holeCards);
+
+    const mine = view(state, 0);
+    if (mine.phase !== "betting") throw new Error("expected betting phase");
+    expect(mine.yourSeatId).toBe(0);
+    for (const card of otherHoleCards) {
+      expect(JSON.stringify(mine)).not.toContain(JSON.stringify(card));
+    }
+    for (const seat of mine.seats) {
+      expect(seat).not.toHaveProperty("holeCards");
+    }
+  });
+});
+
+describe("view: folded seats", () => {
+  it("a folded seat no longer sees its own hole cards", () => {
+    let state = onTheFlopThreeWay();
+    state = playAll(state, [{ type: "fold", playerId: 1 }]);
+
+    const mine = view(state, 1);
+    if (mine.phase !== "betting") throw new Error("expected betting phase");
+    expect(mine.yourHoleCards).toBeNull();
+  });
+});
+
+describe("view: table view", () => {
+  it("sees no hole card pre-showdown, even with a board dealt", () => {
+    const state = onTheFlopThreeWay();
+    if (state.hand?.status !== "betting") throw new Error("expected betting");
+    expect(state.hand.board.length).toBeGreaterThan(0);
+
+    const table = view(state, "table");
+    expect(table).not.toHaveProperty("results");
+
+    for (const seatState of state.hand.players.values()) {
+      if (!seatState.holeCards) continue;
+      for (const card of seatState.holeCards) {
+        expect(JSON.stringify(table)).not.toContain(JSON.stringify(card));
+      }
+    }
+  });
+});
+
+describe("view: post-showdown", () => {
+  it("all live seats' cards are visible to every viewer, including the table", () => {
+    const state = headsUpToRiver("s0");
+    if (
+      state.hand?.status !== "complete" ||
+      state.hand.reason !== "showdown"
+    ) {
+      throw new Error("expected a showdown completion");
+    }
+    const expectedSeats = state.hand.results.map((r) => r.seatId).sort();
+
+    for (const v of [view(state, 0), view(state, 1), view(state, "table")]) {
+      if (v.phase !== "showdown") throw new Error("expected showdown phase");
+      expect(v.results.map((r) => r.seatId).sort()).toEqual(expectedSeats);
+      for (const result of v.results) {
+        expect(result.holeCards).toHaveLength(2);
+      }
+    }
+  });
+
+  it("never reveals a folded seat, even at a normal showdown", () => {
+    let state = createInitialState([0, 1, 2]);
+    state = playAll(state, [
+      { type: "startHand", playerId: 0, seed: "seed-1" },
+    ]);
+    state = playAll(state, [
+      { type: "call", playerId: 1 },
+      { type: "raise", playerId: 2 },
+      { type: "call", playerId: 0 },
+      { type: "call", playerId: 1 },
+      { type: "check", playerId: 1 },
+      { type: "check", playerId: 2 },
+      { type: "check", playerId: 0 },
+      { type: "fold", playerId: 1 },
+      { type: "check", playerId: 2 },
+      { type: "check", playerId: 0 },
+      { type: "check", playerId: 2 },
+      { type: "raise", playerId: 0 },
+      { type: "call", playerId: 2 },
+    ]);
+    if (
+      state.hand?.status !== "complete" ||
+      state.hand.reason !== "showdown"
+    ) {
+      throw new Error("expected a showdown completion");
+    }
+
+    const table = view(state, "table");
+    if (table.phase !== "showdown") throw new Error("expected showdown phase");
+    expect(table.results.some((r) => r.seatId === 1)).toBe(false);
+  });
+});
+
+const seatsArb = fc
+  .array(fc.integer({ min: 0, max: 7 }), { minLength: 2, maxLength: 8 })
+  .map((raw) => [...new Set(raw)])
+  .filter((seats) => seats.length >= 2);
+
+function collectAllCards(value: unknown, into: Card[]): void {
+  if (value === null || typeof value !== "object") return;
+  if (
+    "rank" in (value as Record<string, unknown>) &&
+    "suit" in (value as Record<string, unknown>)
+  ) {
+    into.push(value as Card);
+    return;
+  }
+  for (const child of Object.values(value)) collectAllCards(child, into);
+}
+
+const actionArb = fc.constantFrom<"fold" | "check" | "call" | "raise">(
+  "fold",
+  "check",
+  "call",
+  "raise",
+);
+
+/**
+ * Asserts the leak-freeness property against the state as it stands right
+ * now: every seat's dealt cards are visible to every viewer (including the
+ * table) exactly when that viewer is entitled to them — the owner while
+ * still live, or anyone once the seat is revealed at showdown — and never
+ * otherwise. Called after the deal, after every action, and at the end, so
+ * every intermediate street and every partial-fold configuration gets
+ * checked, not just whatever state a hand happens to finish in.
+ */
+function assertNoLeak(
+  state: EngineState,
+  dealtCards: ReadonlyMap<SeatId, readonly [Card, Card]>,
+  seats: readonly SeatId[],
+): void {
+  const revealed = new Set<SeatId>();
+  if (state.hand?.status === "complete" && state.hand.reason === "showdown") {
+    for (const result of state.hand.results) revealed.add(result.seatId);
+  }
+
+  const viewers: (SeatId | "table")[] = [...seats, "table"];
+  for (const v of viewers) {
+    const rendered = v === "table" ? view(state, "table") : view(state, v);
+    const cardsInView: Card[] = [];
+    collectAllCards(rendered, cardsInView);
+    const cardKeys = new Set(cardsInView.map((c) => `${c.rank}${c.suit}`));
+
+    for (const [seatId, cards] of dealtCards) {
+      const isRevealed = revealed.has(seatId);
+      const isLiveOwner =
+        v === seatId &&
+        state.hand?.status === "betting" &&
+        !must(state.hand.players.get(seatId)).folded;
+
+      for (const card of cards) {
+        const present = cardKeys.has(`${card.rank}${card.suit}`);
+        if (isRevealed) {
+          // Post-showdown, every viewer — including the table — sees
+          // every live seat's cards, not just the owner.
+          expect(present).toBe(true);
+        } else if (!isLiveOwner) {
+          expect(present).toBe(false);
+        }
+      }
+    }
+  }
+}
+
+describe("property: view never leaks a hole card it isn't entitled to", () => {
+  it("holds at every step of arbitrary hands, for every seat and the table", () => {
+    fc.assert(
+      fc.property(
+        seatsArb,
+        fc.string({ minLength: 1, maxLength: 10 }),
+        fc.array(actionArb, { minLength: 0, maxLength: 40 }),
+        (seats, seed, actions) => {
+          let state: EngineState = createInitialState(seats);
+          const firstPlayer = must(seats[0]);
+          const startEvents = decide(state, {
+            type: "startHand",
+            playerId: firstPlayer,
+            seed,
+          });
+          if (!Array.isArray(startEvents)) {
+            throw new Error("unexpected rejection starting the hand");
+          }
+          for (const event of startEvents) state = apply(state, event);
+
+          const dealt = startEvents.find((e) => e.type === "HoleCardsDealt");
+          if (dealt?.type !== "HoleCardsDealt") {
+            throw new Error("expected a deal");
+          }
+          const dealtCards = new Map<SeatId, readonly [Card, Card]>(
+            dealt.deals.map((d) => [d.seatId, d.cards]),
+          );
+
+          assertNoLeak(state, dealtCards, seats);
+
+          for (const action of actions) {
+            if (state.hand?.status !== "betting") break;
+            const hand = state.hand;
+            const actor = must(hand.toAct[0]);
+            const legal = facingBet(hand, actor)
+              ? action === "check"
+                ? "call"
+                : action
+              : action === "call"
+                ? "check"
+                : action;
+            const result = decide(state, { type: legal, playerId: actor });
+            if (!Array.isArray(result)) continue;
+            for (const event of result) state = apply(state, event);
+            assertNoLeak(state, dealtCards, seats);
+          }
+
+          assertNoLeak(state, dealtCards, seats);
+        },
+      ),
+    );
+  });
+});
