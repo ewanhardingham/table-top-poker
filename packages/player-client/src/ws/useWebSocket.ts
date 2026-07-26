@@ -24,7 +24,7 @@ export function useWebSocket(params: SeatConnectionParams | null): void {
     (state) => state.setConnectionStatus,
   );
   const setRoomView = usePlayerStore((state) => state.setRoomView);
-  const setHandUpdate = usePlayerStore((state) => state.setHandUpdate);
+  const setHandView = usePlayerStore((state) => state.setHandView);
 
   useEffect(() => {
     if (params === null) {
@@ -55,7 +55,7 @@ export function useWebSocket(params: SeatConnectionParams | null): void {
         setRoomView(message.view);
       } else if (message.type === "hand-update") {
         // The server only ever sends a seat's socket its own `view(state, seatId)`.
-        setHandUpdate(message.event, message.view as PlayerView);
+        setHandView(message.view as PlayerView);
       }
     });
 
@@ -63,5 +63,5 @@ export function useWebSocket(params: SeatConnectionParams | null): void {
       active = false;
       socket.close();
     };
-  }, [params, setConnectionStatus, setRoomView, setHandUpdate]);
+  }, [params, setConnectionStatus, setRoomView, setHandView]);
 }

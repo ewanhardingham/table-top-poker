@@ -23,7 +23,7 @@ export function useWebSocket(roomCode: string | null): TableSocket {
     (state) => state.setConnectionStatus,
   );
   const setRoomView = useTableStore((state) => state.setRoomView);
-  const setHandUpdate = useTableStore((state) => state.setHandUpdate);
+  const setHandView = useTableStore((state) => state.setHandView);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function useWebSocket(roomCode: string | null): TableSocket {
         setRoomView(message.view);
       } else if (message.type === "hand-update") {
         // The server only ever sends a table-role socket a `view(state, 'table')`.
-        setHandUpdate(message.event, message.view);
+        setHandView(message.view);
       }
     });
 
@@ -61,7 +61,7 @@ export function useWebSocket(roomCode: string | null): TableSocket {
       socketRef.current = null;
       socket.close();
     };
-  }, [roomCode, setConnectionStatus, setRoomView, setHandUpdate]);
+  }, [roomCode, setConnectionStatus, setRoomView, setHandView]);
 
   const send = useCallback((command: ClientCommand) => {
     socketRef.current?.send(JSON.stringify(command));
