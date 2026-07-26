@@ -33,10 +33,9 @@ const headsUpToRiver: Command[] = [
   { type: "check", playerId: 0 },
 ];
 
-function showdownFor(seed: string): Extract<
-  HandEvent,
-  { type: "ShowdownReached" }
-> {
+function showdownFor(
+  seed: string,
+): Extract<HandEvent, { type: "ShowdownReached" }> {
   const state = createInitialState([0, 1]);
   const events = playAndCollect(state, [
     { type: "startHand", playerId: 0, seed },
