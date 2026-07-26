@@ -1,5 +1,6 @@
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { evaluate } from "./evaluate.js";
+import { evaluate, winnersOf } from "./evaluate.js";
 import type { Card } from "./types.js";
 
 function cards(spec: string): Card[] {
@@ -59,5 +60,30 @@ describe("evaluate: split and tie cases", () => {
     expect(seatA.rank).toBe(seatB.rank);
     expect(seatB.rank).toBe(seatC.rank);
     expect(seatA.description).toBe("Royal flush");
+  });
+});
+
+describe("property: winnersOf", () => {
+  const resultArb = fc.array(
+    fc.record({ seatId: fc.integer({ min: 0, max: 7 }), rank: fc.integer() }),
+    { minLength: 1, maxLength: 8 },
+  );
+
+  it("returns exactly the seats tied for the best rank, and is never empty", () => {
+    fc.assert(
+      fc.property(resultArb, (results) => {
+        const winners = winnersOf(results);
+        const bestRank = Math.max(...results.map((result) => result.rank));
+
+        expect(winners.length).toBeGreaterThan(0);
+        expect(new Set(winners)).toEqual(
+          new Set(
+            results
+              .filter((result) => result.rank === bestRank)
+              .map((result) => result.seatId),
+          ),
+        );
+      }),
+    );
   });
 });

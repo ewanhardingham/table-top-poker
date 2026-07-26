@@ -63,8 +63,10 @@ describe("a full hand, 3 seats, start to showdown", () => {
     const showdown = riverEvents.find((e) => e.type === "ShowdownReached");
     expect(showdown).toBeDefined();
     if (showdown?.type === "ShowdownReached") {
+      // Seat 1 folded on the turn — never revealed, even though it was live earlier.
       expect(showdown.results.map((r) => r.seatId).sort()).toEqual([0, 2]);
-      expect(showdown.winners.sort()).toEqual([0, 2]);
+      // Deterministic for seed "seed-1": seat 2 holds the clear best hand.
+      expect(showdown.winners).toEqual([2]);
     }
     expect(riverEvents.at(-1)?.type).toBe("HandComplete");
   });
