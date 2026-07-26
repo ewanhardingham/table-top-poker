@@ -22,9 +22,7 @@ describe("CompleteHandState carries how the hand ended", () => {
 
   it("tags a showdown completion with reason 'showdown' plus results and winners", () => {
     let state = createInitialState([0, 1]);
-    state = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "s0" },
-    ]);
+    state = playAll(state, [{ type: "startHand", playerId: 0, seed: "s0" }]);
     state = playAll(state, [
       { type: "call", playerId: 0 },
       { type: "check", playerId: 1 },

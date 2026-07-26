@@ -126,8 +126,7 @@ export interface ShowdownCompleteHandState {
 }
 
 export type CompleteHandState =
-  | FoldedOutCompleteHandState
-  | ShowdownCompleteHandState;
+  FoldedOutCompleteHandState | ShowdownCompleteHandState;
 
 export type HandState = BettingHandState | CompleteHandState;
 

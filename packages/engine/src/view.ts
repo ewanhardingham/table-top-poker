@@ -50,16 +50,10 @@ export interface TableViewBetting {
 }
 
 export type PlayerView =
-  | NoHandView
-  | PlayerViewBetting
-  | FoldedOutView
-  | ShowdownView;
+  NoHandView | PlayerViewBetting | FoldedOutView | ShowdownView;
 
 export type TableView =
-  | NoHandView
-  | TableViewBetting
-  | FoldedOutView
-  | ShowdownView;
+  NoHandView | TableViewBetting | FoldedOutView | ShowdownView;
 
 /**
  * Builds the restricted view for one seat, or the table device via the
@@ -82,7 +76,7 @@ export function view(
     return { phase: "folded-out", button: hand.button, winner: hand.winner };
   }
 
-  if (hand.status === "complete" && hand.reason === "showdown") {
+  if (hand.status === "complete") {
     return {
       phase: "showdown",
       button: hand.button,
@@ -91,9 +85,10 @@ export function view(
     };
   }
 
-  const seats: SeatSnapshot[] = [...hand.players].map(
-    ([seat, seatState]) => ({ seatId: seat, folded: seatState.folded }),
-  );
+  const seats: SeatSnapshot[] = [...hand.players].map(([seat, seatState]) => ({
+    seatId: seat,
+    folded: seatState.folded,
+  }));
 
   const tableView: TableViewBetting = {
     phase: "betting",
