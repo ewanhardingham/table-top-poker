@@ -150,6 +150,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           reason: "showdown",
           seed: hand.seed,
           button: hand.button,
+          board: hand.board,
           results,
           winners: event.winners,
         },

@@ -121,6 +121,7 @@ export interface ShowdownCompleteHandState {
   readonly reason: "showdown";
   readonly seed: string;
   readonly button: SeatId;
+  readonly board: readonly Card[];
   readonly results: readonly RevealedResult[];
   readonly winners: readonly SeatId[];
 }
