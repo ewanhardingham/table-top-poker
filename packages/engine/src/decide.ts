@@ -3,8 +3,8 @@ import { evaluate, winnersOf } from "./evaluate.js";
 import {
   dealCommunityCards,
   dealHoleCards,
-  facingBet,
   initialToAct,
+  legalActions,
   liveSeats,
   nextStreetOf,
   rotateFromButton,
@@ -31,9 +31,7 @@ function isLegal(
   actorSeat: SeatId,
   action: ActionType,
 ): boolean {
-  if (action === "check") return !facingBet(hand, actorSeat);
-  if (action === "call") return facingBet(hand, actorSeat);
-  return true;
+  return legalActions(hand, actorSeat).includes(action);
 }
 
 export function decide(

@@ -66,6 +66,23 @@ describe("view: own hole cards mid-hand", () => {
   });
 });
 
+describe("view: legalActions", () => {
+  it("is populated for the seat to act and empty for everyone else", () => {
+    const state = onTheFlopThreeWay();
+    if (state.hand?.status !== "betting") throw new Error("expected betting");
+    const actor = must(state.hand.toAct[0]);
+
+    const actorView = view(state, actor);
+    if (actorView.phase !== "betting") throw new Error("expected betting");
+    expect(actorView.legalActions).toEqual(["fold", "check", "raise"]);
+
+    const other = must(state.hand.ring.find((seat) => seat !== actor));
+    const otherView = view(state, other);
+    if (otherView.phase !== "betting") throw new Error("expected betting");
+    expect(otherView.legalActions).toEqual([]);
+  });
+});
+
 describe("view: other seats' hole cards mid-hand", () => {
   it("a seat does not see another live seat's hole cards", () => {
     const state = onTheFlopThreeWay();
