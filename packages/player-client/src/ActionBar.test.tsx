@@ -67,5 +67,29 @@ describe("ActionBar", () => {
     expect(html).toContain('data-testid="action-rejection"');
     expect(html).toContain('data-rejected-action="check"');
     expect(html).toContain("isn&#x27;t available right now");
+
+    // Inline on the triggering control: inside check's group, not fold's or call's.
+    const checkGroupStart = html.indexOf('data-testid="action-group-check"');
+    const callGroupStart = html.indexOf('data-testid="action-group-call"');
+    const rejectionStart = html.indexOf('data-testid="action-rejection"');
+    expect(rejectionStart).toBeGreaterThan(checkGroupStart);
+    expect(rejectionStart).toBeLessThan(callGroupStart);
+  });
+
+  it("falls back to a bar-level message when no action is attributed", () => {
+    const html = renderToStaticMarkup(
+      <ActionBar
+        legalActions={[]}
+        pendingAction={null}
+        rejection={{ action: null, reason: "hand-not-in-progress" }}
+        onFold={noop}
+        onCheck={noop}
+        onCall={noop}
+        onRaise={noop}
+      />,
+    );
+
+    expect(html).toContain('data-testid="action-rejection"');
+    expect(html).toContain('data-rejected-action=""');
   });
 });
