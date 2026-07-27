@@ -46,22 +46,28 @@ export function ActionBar({
   return (
     <div data-testid="action-bar">
       {(["fold", "check", "call", "raise"] as const).map((action) => (
-        <button
-          key={action}
-          type="button"
-          data-testid={`action-${action}`}
-          data-pending={pendingAction === action}
-          disabled={!legalActions.includes(action) || pendingAction !== null}
-          onClick={handlers[action]}
-        >
-          {LABELS[action]}
-        </button>
+        <div key={action} data-testid={`action-group-${action}`}>
+          <button
+            type="button"
+            data-testid={`action-${action}`}
+            data-pending={pendingAction === action}
+            disabled={!legalActions.includes(action) || pendingAction !== null}
+            onClick={handlers[action]}
+          >
+            {LABELS[action]}
+          </button>
+          {rejection !== null && rejection.action === action && (
+            <div data-testid="action-rejection" data-rejected-action={action}>
+              {rejectionCopy(rejection.reason)}
+            </div>
+          )}
+        </div>
       ))}
-      {rejection !== null && (
-        <div
-          data-testid="action-rejection"
-          data-rejected-action={rejection.action ?? ""}
-        >
+      {/* No pending command to attribute the reject to (no correlation id
+          on the wire, docs/phase-1-spec.md §6) — falls back to a bar-level
+          message rather than guessing which button triggered it. */}
+      {rejection !== null && rejection.action === null && (
+        <div data-testid="action-rejection" data-rejected-action="">
           {rejectionCopy(rejection.reason)}
         </div>
       )}

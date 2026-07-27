@@ -15,11 +15,23 @@ export interface ActionIntent {
 }
 
 /**
+ * Whether `action` may be sent right now: it must be legal in the latest
+ * view and nothing else already in flight. Buttons are expected to disable
+ * themselves off this same state (`legalActions`/`pendingAction`) — this is
+ * the belt-and-braces guard against a stale click slipping through.
+ */
+export function canAct(
+  legalActions: readonly ActionType[],
+  pendingAction: ActionType | null,
+  action: ActionType,
+): boolean {
+  return pendingAction === null && legalActions.includes(action);
+}
+
+/**
  * The action-intent module (docs/phase-1-spec.md §9): `fold`/`check`/
  * `call`/`raise`, plus `legalActions` derived from the latest view
- * snapshot. Each function is a no-op unless the action is currently legal
- * and nothing else is already pending — buttons are expected to disable
- * themselves off this same state, this is the belt-and-braces guard.
+ * snapshot.
  */
 export function useActionIntent(
   send: (command: ClientCommand) => void,
@@ -33,8 +45,7 @@ export function useActionIntent(
 
   const act = useCallback(
     (action: ActionType) => {
-      if (pendingAction !== null) return;
-      if (!legalActions.includes(action)) return;
+      if (!canAct(legalActions, pendingAction, action)) return;
       sendStarted(action);
       send({ type: action });
     },

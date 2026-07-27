@@ -14,7 +14,7 @@ export interface SeatConnectionParams {
 }
 
 export interface SeatSocket {
-  /** No-ops silently while disconnected — buttons are gated on connection state upstream. */
+  /** No-ops silently unless the socket is open — calling `WebSocket.send` before then throws. */
   readonly send: (command: ClientCommand) => void;
 }
 
@@ -69,14 +69,18 @@ export function useWebSocket(params: SeatConnectionParams | null): SeatSocket {
     socket.addEventListener("message", (event: MessageEvent<string>) => {
       if (!active) return;
       const message: ServerMessage = JSON.parse(event.data) as ServerMessage;
-      if (message.type === "room-view") {
-        setRoomView(message.view);
-      } else if (message.type === "hand-update") {
-        // The server only ever sends a seat's socket its own `view(state, seatId)`.
-        setHandView(message.view as PlayerView);
-        viewSnapshotReceived();
-      } else {
-        commandRejected(message.reason);
+      switch (message.type) {
+        case "room-view":
+          setRoomView(message.view);
+          break;
+        case "hand-update":
+          // The server only ever sends a seat's socket its own `view(state, seatId)`.
+          setHandView(message.view as PlayerView);
+          viewSnapshotReceived();
+          break;
+        case "command-rejected":
+          commandRejected(message.reason);
+          break;
       }
     });
 
@@ -95,7 +99,8 @@ export function useWebSocket(params: SeatConnectionParams | null): SeatSocket {
   ]);
 
   const send = useCallback((command: ClientCommand) => {
-    socketRef.current?.send(JSON.stringify(command));
+    if (socketRef.current?.readyState !== WebSocket.OPEN) return;
+    socketRef.current.send(JSON.stringify(command));
   }, []);
 
   return { send };
