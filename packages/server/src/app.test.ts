@@ -895,6 +895,7 @@ describe("action clock", () => {
 });
 
 describe("presence and reconnection", () => {
+  const ACTION_CLOCK_MS = 200;
   let app: FastifyInstance;
   let rooms: RoomStore;
   let port: number;
@@ -906,6 +907,7 @@ describe("presence and reconnection", () => {
       pingIntervalMs: 15,
       missedPongLimit: 2,
       graceWindowMs: 60,
+      actionClockMs: ACTION_CLOCK_MS,
     });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
@@ -1068,17 +1070,14 @@ describe("presence and reconnection", () => {
     seat0.socket.close();
     await settle();
 
-    // Whoever's turn it is folds — standing in for ticket 14's auto-fold
-    // clock, which this ticket doesn't implement; the reconnect behavior
-    // this test proves (fold-cause-agnostic, per view()'s burn-pile logic)
-    // is identical either way.
+    // Whoever's turn it is gets auto-folded by ticket 14's action clock.
     const engine = rooms.get(room.code)?.engine;
     if (engine?.hand?.status !== "betting") {
       throw new Error("expected a betting hand in progress");
     }
     const toAct = engine.hand.toAct[0];
     if (toAct === undefined) throw new Error("expected an actor");
-    rooms.dispatch(room.code, toAct, "fold");
+    await settle(ACTION_CLOCK_MS + 60);
 
     const reconnected = connect(`room=${room.code}&seat=0&token=${token0}`);
     await opened(reconnected.socket);
