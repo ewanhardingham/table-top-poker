@@ -28,6 +28,7 @@ describe("Hand", () => {
         { rank: "Q", suit: "diamonds" },
         { rank: "J", suit: "clubs" },
       ],
+      legalActions: ["fold", "check", "raise"],
     };
     const html = renderToStaticMarkup(<Hand view={view} />);
 
@@ -50,6 +51,7 @@ describe("Hand", () => {
       ],
       yourSeatId: 0,
       yourHoleCards: null,
+      legalActions: [],
     };
     const html = renderToStaticMarkup(<Hand view={view} />);
 
