@@ -11,7 +11,7 @@ describe("Hand", () => {
     expect(html).toMatch(/data-testid="hand"[^>]*data-phase="no-hand"/);
   });
 
-  it("reveals own hole cards and mirrors the shared board", () => {
+  it("reveals own hole cards but never the shared board mid-hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
@@ -35,7 +35,9 @@ describe("Hand", () => {
     expect(html).toMatch(/data-testid="hole-cards"/);
     expect(html).toContain('data-rank="Q"');
     expect(html).toContain('data-rank="J"');
-    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(5);
+    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(2);
+    expect(html).not.toContain('data-testid="community-cards"');
+    expect(html).not.toContain('data-rank="A"');
   });
 
   it("hides hole cards once folded, without a placeholder leak", () => {
@@ -57,5 +59,64 @@ describe("Hand", () => {
 
     expect(html).toMatch(/data-testid="no-hole-cards"/);
     expect(html).not.toContain("data-rank");
+  });
+
+  it("shows the board and the winning hand(s) below it at showdown", () => {
+    const view: PlayerView = {
+      phase: "showdown",
+      button: 0,
+      board: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "hearts" },
+        { rank: "2", suit: "clubs" },
+        { rank: "9", suit: "diamonds" },
+        { rank: "4", suit: "spades" },
+      ],
+      results: [
+        {
+          seatId: 0,
+          rank: 1,
+          bestHand: [
+            { rank: "A", suit: "spades" },
+            { rank: "A", suit: "diamonds" },
+            { rank: "K", suit: "hearts" },
+            { rank: "9", suit: "diamonds" },
+            { rank: "4", suit: "spades" },
+          ],
+          description: "Pair of Aces",
+          holeCards: [
+            { rank: "A", suit: "diamonds" },
+            { rank: "7", suit: "clubs" },
+          ],
+        },
+        {
+          seatId: 1,
+          rank: 2,
+          bestHand: [
+            { rank: "A", suit: "spades" },
+            { rank: "K", suit: "hearts" },
+            { rank: "K", suit: "clubs" },
+            { rank: "9", suit: "diamonds" },
+            { rank: "4", suit: "spades" },
+          ],
+          description: "Pair of Kings",
+          holeCards: [
+            { rank: "K", suit: "clubs" },
+            { rank: "3", suit: "hearts" },
+          ],
+        },
+      ],
+      winners: [0],
+    };
+    const html = renderToStaticMarkup(<Hand view={view} />);
+
+    expect(html).toMatch(/data-testid="hand"[^>]*data-phase="showdown"/);
+    expect(html).toContain('data-testid="community-cards"');
+    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(7);
+
+    expect(html).toContain('data-testid="winning-hand-0"');
+    expect(html).not.toContain('data-testid="winning-hand-1"');
+    expect(html).toContain("Pair of Aces");
+    expect(html).not.toContain("Pair of Kings");
   });
 });
