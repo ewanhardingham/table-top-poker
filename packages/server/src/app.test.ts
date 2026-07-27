@@ -782,7 +782,11 @@ describe("action clock", () => {
       (e) => e.action === "fold",
     );
     expect(folds).toEqual([
-      expect.objectContaining({ type: "ActionTaken", seatId: 1, action: "fold" }),
+      expect.objectContaining({
+        type: "ActionTaken",
+        seatId: 1,
+        action: "fold",
+      }),
     ]);
   });
 
@@ -833,7 +837,11 @@ describe("action clock", () => {
       (e) => e.action === "fold",
     );
     expect(folds).toEqual([
-      expect.objectContaining({ type: "ActionTaken", seatId: 2, action: "fold" }),
+      expect.objectContaining({
+        type: "ActionTaken",
+        seatId: 2,
+        action: "fold",
+      }),
     ]);
   });
 
@@ -875,7 +883,11 @@ describe("action clock", () => {
       (e) => e.action === "fold",
     );
     expect(folds).toEqual([
-      expect.objectContaining({ type: "ActionTaken", seatId: 1, action: "fold" }),
+      expect.objectContaining({
+        type: "ActionTaken",
+        seatId: 1,
+        action: "fold",
+      }),
     ]);
   });
 });
