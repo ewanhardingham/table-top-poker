@@ -5,10 +5,10 @@ import { describe, expect, it } from "vitest";
 import { Board } from "./Board.js";
 
 const seats: SeatView[] = [
-  { id: 0, claimed: true, sittingOut: false },
-  { id: 1, claimed: true, sittingOut: false },
-  { id: 2, claimed: true, sittingOut: true },
-  { id: 3, claimed: false, sittingOut: false },
+  { id: 0, claimed: true, sittingOut: false, disconnected: false },
+  { id: 1, claimed: true, sittingOut: false, disconnected: false },
+  { id: 2, claimed: true, sittingOut: true, disconnected: false },
+  { id: 3, claimed: false, sittingOut: false, disconnected: false },
 ];
 
 describe("Board", () => {
@@ -67,6 +67,32 @@ describe("Board", () => {
       <Board view={view} seats={seats.slice(0, 2)} />,
     );
     expect(html).toMatch(/data-testid="board-seat-1"[^>]*data-status="folded"/);
+  });
+
+  it("shows a disconnected badge for a presence-dropped seat", () => {
+    const view: TableView = {
+      phase: "betting",
+      button: 0,
+      street: "preflop",
+      board: [],
+      toAct: [0],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 1, folded: false },
+      ],
+    };
+    const disconnectedSeats: SeatView[] = [
+      { id: 0, claimed: true, sittingOut: false, disconnected: false },
+      { id: 1, claimed: true, sittingOut: false, disconnected: true },
+    ];
+    const html = renderToStaticMarkup(
+      <Board view={view} seats={disconnectedSeats} />,
+    );
+    expect(html).toMatch(
+      /data-testid="board-seat-1"[^>]*data-disconnected="true"/,
+    );
+    expect(html).toContain('data-testid="board-seat-1-disconnected"');
+    expect(html).not.toContain('data-testid="board-seat-0-disconnected"');
   });
 
   it("renders a fold-out completion with no reveal", () => {

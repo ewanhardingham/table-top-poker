@@ -13,25 +13,47 @@ export interface SeatConnectionParams {
   readonly token: string;
 }
 
+export interface UseWebSocketOptions {
+  /**
+   * The socket closed before ever opening — an upgrade-time rejection (a
+   * bad or stale seat token), not a network blip. Retrying would spin
+   * forever against a seat that's gone, so the caller drops back to the
+   * seat picker instead (docs/phase-1-spec.md §7 — a cleared token never
+   * auto-reclaims a seat).
+   */
+  readonly onRejected?: () => void;
+  /** The room ended — manual "End session" or the table's grace window elapsing. */
+  readonly onRoomEnded?: () => void;
+}
+
 export interface SeatSocket {
   /** No-ops silently unless the socket is open — calling `WebSocket.send` before then throws. */
   readonly send: (command: ClientCommand) => void;
 }
 
+const RETRY_DELAY_MS = 1500;
+
 /**
  * Opens a seat-scoped WebSocket connection once a seat is claimed and
  * reflects its lifecycle into the connection slice. Every `room-view` push
- * replaces the seat list; every `hand-update` replaces the hand slice with
- * the fresh `view(state, seatId)` the server just computed for this seat —
- * the view is source of truth (docs/phase-1-spec.md §6), never rebuilt from
- * the raw event locally. That same snapshot also clears any pending/
- * rejected action, since the view is what "next legal action or next view
- * snapshot" (§9) resolves against. `command-rejected` is delivered to the
- * sender only, so it's always this player's own action being rejected — it
- * feeds the action slice's rejection, never a broadcast. No reconnection
- * logic yet — that's ticket 33.
+ * replaces the seat list; every `hand-update`/`view-snapshot` replaces the
+ * hand slice with the fresh `view(state, seatId)` the server just computed
+ * for this seat — the view is source of truth (docs/phase-1-spec.md §6),
+ * never rebuilt from the raw event locally. That same snapshot also clears
+ * any pending/rejected action, since the view is what "next legal action or
+ * next view snapshot" (§9) resolves against. `command-rejected` is
+ * delivered to the sender only, so it's always this player's own action
+ * being rejected — it feeds the action slice's rejection, never a
+ * broadcast.
+ *
+ * A socket that closes after having opened retries after a fixed delay —
+ * a transient drop, not a rejection. One that closes without ever opening
+ * is treated as terminal and is not retried; see `onRejected`.
  */
-export function useWebSocket(params: SeatConnectionParams | null): SeatSocket {
+export function useWebSocket(
+  params: SeatConnectionParams | null,
+  options: UseWebSocketOptions = {},
+): SeatSocket {
   const setConnectionStatus = usePlayerStore(
     (state) => state.setConnectionStatus,
   );
@@ -42,6 +64,8 @@ export function useWebSocket(params: SeatConnectionParams | null): SeatSocket {
   );
   const commandRejected = usePlayerStore((state) => state.commandRejected);
   const socketRef = useRef<WebSocket | null>(null);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
     if (params === null) {
@@ -49,45 +73,69 @@ export function useWebSocket(params: SeatConnectionParams | null): SeatSocket {
       return;
     }
 
+    const seatParams = params;
     let active = true;
-    setConnectionStatus("connecting");
-    const socket = new WebSocket(
-      getWebSocketUrl(window.location, {
-        room: params.roomCode,
-        seat: String(params.seatId),
-        token: params.token,
-      }),
-    );
-    socketRef.current = socket;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    socket.addEventListener("open", () => {
-      if (active) setConnectionStatus("connected");
-    });
-    socket.addEventListener("close", () => {
-      if (active) setConnectionStatus("disconnected");
-    });
-    socket.addEventListener("message", (event: MessageEvent<string>) => {
+    function connect(): void {
       if (!active) return;
-      const message: ServerMessage = JSON.parse(event.data) as ServerMessage;
-      switch (message.type) {
-        case "room-view":
-          setRoomView(message.view);
-          break;
-        case "hand-update":
-          // The server only ever sends a seat's socket its own `view(state, seatId)`.
-          setHandView(message.view as PlayerView);
-          viewSnapshotReceived();
-          break;
-        case "command-rejected":
-          commandRejected(message.reason);
-          break;
-      }
-    });
+      setConnectionStatus("connecting");
+      let openedOnce = false;
+      const socket = new WebSocket(
+        getWebSocketUrl(window.location, {
+          room: seatParams.roomCode,
+          seat: String(seatParams.seatId),
+          token: seatParams.token,
+        }),
+      );
+      socketRef.current = socket;
+
+      socket.addEventListener("open", () => {
+        openedOnce = true;
+        if (active) setConnectionStatus("connected");
+      });
+      socket.addEventListener("close", () => {
+        if (!active) return;
+        setConnectionStatus("disconnected");
+        if (!openedOnce) {
+          optionsRef.current.onRejected?.();
+          return;
+        }
+        retryTimer = setTimeout(connect, RETRY_DELAY_MS);
+      });
+      socket.addEventListener("message", (event: MessageEvent<string>) => {
+        if (!active) return;
+        const message: ServerMessage = JSON.parse(event.data) as ServerMessage;
+        switch (message.type) {
+          case "room-view":
+            setRoomView(message.view);
+            break;
+          case "hand-update":
+            // The server only ever sends a seat's socket its own `view(state, seatId)`.
+            setHandView(message.view as PlayerView);
+            viewSnapshotReceived();
+            break;
+          case "view-snapshot":
+            setHandView(message.view as PlayerView);
+            viewSnapshotReceived();
+            break;
+          case "command-rejected":
+            commandRejected(message.reason);
+            break;
+          case "room-ended":
+            optionsRef.current.onRoomEnded?.();
+            break;
+        }
+      });
+    }
+
+    connect();
 
     return () => {
       active = false;
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
+      socketRef.current?.close();
       socketRef.current = null;
-      socket.close();
     };
   }, [
     params,

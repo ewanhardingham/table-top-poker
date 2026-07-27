@@ -27,6 +27,8 @@ export interface Seat {
   claimed: boolean;
   token: string | null;
   sittingOut: boolean;
+  /** Cosmetic presence badge only (ticket 33) — never consulted by `dispatch`/`decide`. */
+  disconnected: boolean;
 }
 
 export interface Room {
@@ -65,6 +67,7 @@ function makeSeats(): Seat[] {
     claimed: false,
     token: null,
     sittingOut: false,
+    disconnected: false,
   }));
 }
 
@@ -129,10 +132,11 @@ export class RoomStore {
     seat.claimed = true;
     seat.token = this.#generateToken();
     seat.sittingOut = isHandInProgress(room);
+    seat.disconnected = false;
     return { seat };
   }
 
-  /** Force-clears a claimed seat. Stand-in for real disconnect handling (ticket 33). */
+  /** Force-clears a claimed seat — used by the manual "clear seat" admin action. */
   clearSeat(code: string, seatId: SeatId): void {
     const room = this.#rooms.get(code);
     const seat = room?.seats[seatId];
@@ -141,6 +145,23 @@ export class RoomStore {
     seat.claimed = false;
     seat.token = null;
     seat.sittingOut = false;
+    seat.disconnected = false;
+  }
+
+  /**
+   * Presence-only badge toggle (ticket 33 §7): missed pongs or a socket
+   * closing flip it on, a reconnect or fresh pong flips it off. Purely
+   * cosmetic — never read by `dispatch`, so it can never cause a fold.
+   */
+  setSeatDisconnected(
+    code: string,
+    seatId: SeatId,
+    disconnected: boolean,
+  ): void {
+    const room = this.#rooms.get(code);
+    const seat = room?.seats[seatId];
+    if (!seat) return;
+    seat.disconnected = disconnected;
   }
 
   /**
@@ -219,6 +240,7 @@ export function toRoomView(room: Room): RoomView {
       id: seat.id,
       claimed: seat.claimed,
       sittingOut: seat.sittingOut,
+      disconnected: seat.disconnected,
     })),
   };
 }

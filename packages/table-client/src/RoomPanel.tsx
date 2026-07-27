@@ -32,6 +32,7 @@ export function RoomPanel({
             data-testid={`seat-${String(seat.id)}`}
             data-claimed={seat.claimed}
             data-sitting-out={seat.sittingOut}
+            data-disconnected={seat.disconnected}
           >
             Seat {seat.id + 1}
             {seat.claimed
@@ -39,6 +40,12 @@ export function RoomPanel({
                 ? " — sitting out"
                 : " — claimed"
               : " — open"}
+            {seat.claimed && seat.disconnected && (
+              <span data-testid={`seat-${String(seat.id)}-disconnected`}>
+                {" "}
+                — disconnected
+              </span>
+            )}
           </li>
         ))}
       </ul>

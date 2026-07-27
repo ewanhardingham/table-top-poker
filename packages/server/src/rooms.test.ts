@@ -64,13 +64,20 @@ describe("RoomStore", () => {
       const result = store.claimSeat(room.code, 0);
 
       expect(result).toEqual({
-        seat: { id: 0, claimed: true, token: "token-0", sittingOut: false },
+        seat: {
+          id: 0,
+          claimed: true,
+          token: "token-0",
+          sittingOut: false,
+          disconnected: false,
+        },
       });
       expect(room.seats[0]).toEqual({
         id: 0,
         claimed: true,
         token: "token-0",
         sittingOut: false,
+        disconnected: false,
       });
     });
 
@@ -130,6 +137,7 @@ describe("RoomStore", () => {
         claimed: false,
         token: null,
         sittingOut: false,
+        disconnected: false,
       });
       const reclaimed = store.claimSeat(room.code, 0);
       if (!("seat" in reclaimed)) throw new Error("expected a claimed seat");
@@ -335,11 +343,12 @@ describe("toRoomView", () => {
     expect(view).toEqual({
       code: room.code,
       seats: [
-        { id: 0, claimed: true, sittingOut: false },
+        { id: 0, claimed: true, sittingOut: false, disconnected: false },
         ...Array.from({ length: SEAT_COUNT - 1 }, (_, i) => ({
           id: i + 1,
           claimed: false,
           sittingOut: false,
+          disconnected: false,
         })),
       ],
     });

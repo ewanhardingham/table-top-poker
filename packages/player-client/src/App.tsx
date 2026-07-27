@@ -8,7 +8,11 @@ import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
 import { SeatPanel } from "./SeatPanel.js";
 import { SeatPicker } from "./SeatPicker.js";
 import { StatusBar } from "./StatusBar.js";
-import { saveSeatToken } from "./storage/seatToken.js";
+import {
+  clearSeatToken,
+  loadSeatToken,
+  saveSeatToken,
+} from "./storage/seatToken.js";
 import { usePlayerStore } from "./store/store.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
@@ -23,6 +27,8 @@ export function App() {
   const setRoomView = usePlayerStore((state) => state.setRoomView);
   const setJoinError = usePlayerStore((state) => state.setJoinError);
   const setSeat = usePlayerStore((state) => state.setSeat);
+  const clearSeat = usePlayerStore((state) => state.clearSeat);
+  const clearRoom = usePlayerStore((state) => state.clearRoom);
 
   const [defaultRoomCode, setDefaultRoomCode] = useState("");
   const [claimError, setClaimError] = useState<string | null>(null);
@@ -31,7 +37,38 @@ export function App() {
   useEffect(() => {
     const fromPath = parseRoomCodeFromPath(window.location.pathname);
     if (fromPath) setDefaultRoomCode(fromPath);
-  }, []);
+
+    // Silently reclaim a stored seat on mount (docs/phase-1-spec.md §7) — a
+    // cleared/absent token just falls through to the normal join flow.
+    const stored = loadSeatToken(window.localStorage);
+    if (stored === null) return;
+    joinRoom(stored.roomCode)
+      .then((view) => {
+        setRoomView(view);
+        const seat = view.seats.find((s) => s.id === stored.seatId);
+        setSeat({
+          seatId: stored.seatId,
+          sittingOut: seat?.sittingOut ?? false,
+        });
+        setSeatToken(stored.token);
+      })
+      .catch(() => {
+        clearSeatToken(window.localStorage);
+      });
+  }, [setRoomView, setSeat]);
+
+  const handleRejected = useCallback(() => {
+    clearSeatToken(window.localStorage);
+    setSeatToken(null);
+    clearSeat();
+  }, [clearSeat]);
+
+  const handleRoomEnded = useCallback(() => {
+    clearSeatToken(window.localStorage);
+    setSeatToken(null);
+    clearSeat();
+    clearRoom();
+  }, [clearSeat, clearRoom]);
 
   const wsParams = useMemo(() => {
     if (roomCode === null || seatId === null || seatToken === null) {
@@ -39,7 +76,10 @@ export function App() {
     }
     return { roomCode, seatId, token: seatToken };
   }, [roomCode, seatId, seatToken]);
-  const { send } = useWebSocket(wsParams);
+  const { send } = useWebSocket(wsParams, {
+    onRejected: handleRejected,
+    onRoomEnded: handleRoomEnded,
+  });
   const intent = useActionIntent(send);
 
   const handleJoin = useCallback(

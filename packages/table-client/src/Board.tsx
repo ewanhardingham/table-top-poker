@@ -92,10 +92,19 @@ export function Board({ view, seats }: BoardProps) {
               data-status={status}
               data-button={isButton}
               data-turn={isActor}
+              data-disconnected={seat.disconnected}
             >
               Seat {seat.id + 1} — {status}
               {isButton ? " (button)" : ""}
               {isActor ? " (to act)" : ""}
+              {seat.disconnected && (
+                <span
+                  data-testid={`board-seat-${String(seat.id)}-disconnected`}
+                >
+                  {" "}
+                  — disconnected
+                </span>
+              )}
             </li>
           );
         })}

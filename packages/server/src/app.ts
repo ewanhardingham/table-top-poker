@@ -31,6 +31,12 @@ export interface BuildAppOptions {
   readonly rooms?: RoomStore;
   /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
   readonly actionClockMs?: number;
+  /** How often the server pings every open socket (docs/phase-1-spec.md §7). */
+  readonly pingIntervalMs?: number;
+  /** Missed pongs before a seat's badge flips to "disconnected". */
+  readonly missedPongLimit?: number;
+  /** How long the table device's own socket may stay down before the room ends. */
+  readonly graceWindowMs?: number;
 }
 
 interface RoomCodeRoute {
@@ -101,9 +107,16 @@ export async function buildApp(
   options: BuildAppOptions = {},
 ): Promise<FastifyInstance> {
   const rooms = options.rooms ?? new RoomStore();
+  const pingIntervalMs = options.pingIntervalMs ?? 10_000;
+  const missedPongLimit = options.missedPongLimit ?? 2;
+  const graceWindowMs = options.graceWindowMs ?? 60_000;
   const roomSockets = new Map<string, Set<WebSocket>>();
   const socketIdentity = new Map<WebSocket, SeatId | "table">();
   const actionClock = new ActionClock(options.actionClockMs);
+  const socketRoomCode = new Map<WebSocket, string>();
+  const pingMissed = new Map<WebSocket, number>();
+  /** One timer per room, armed the moment its table-role socket closes. */
+  const tableGraceTimers = new Map<string, NodeJS.Timeout>();
   const app = Fastify();
 
   function send(socket: WebSocket, message: ServerMessage): void {
@@ -129,6 +142,66 @@ export async function buildApp(
       send(socket, message);
     }
   }
+
+  /** Cosmetic presence toggle for a seat's socket — never touches `rooms.dispatch`. */
+  function markPresence(socket: WebSocket, disconnected: boolean): void {
+    const identity = socketIdentity.get(socket);
+    const code = socketRoomCode.get(socket);
+    if (identity === undefined || identity === "table" || code === undefined) {
+      return;
+    }
+    rooms.setSeatDisconnected(code, identity, disconnected);
+    broadcastRoomView(code);
+  }
+
+  /**
+   * Ends a room the same way whether triggered by "End session" or the
+   * table device's own reconnect grace window elapsing (docs/phase-1-spec.md
+   * §7): notify every socket, close them, discard the transport bookkeeping,
+   * then discard the room itself. Hand logs on disk are untouched — this
+   * only ever touches in-memory state.
+   */
+  function endRoom(code: string): void {
+    const sockets = roomSockets.get(code);
+    if (sockets) {
+      for (const socket of sockets) {
+        send(socket, { type: "room-ended" });
+        socket.close();
+        socketIdentity.delete(socket);
+        socketRoomCode.delete(socket);
+        pingMissed.delete(socket);
+      }
+      roomSockets.delete(code);
+    }
+    const timer = tableGraceTimers.get(code);
+    if (timer) {
+      clearTimeout(timer);
+      tableGraceTimers.delete(code);
+    }
+    actionClock.clear(code);
+    rooms.end(code);
+  }
+
+  const pingTimer = setInterval(() => {
+    for (const socket of pingMissed.keys()) {
+      const missed = (pingMissed.get(socket) ?? 0) + 1;
+      pingMissed.set(socket, missed);
+      if (missed === missedPongLimit) {
+        markPresence(socket, true);
+      }
+      try {
+        socket.ping();
+      } catch {
+        // Socket is already on its way down; its 'close' handler cleans up.
+      }
+    }
+  }, pingIntervalMs);
+
+  app.addHook("onClose", (_instance, done) => {
+    clearInterval(pingTimer);
+    for (const timer of tableGraceTimers.values()) clearTimeout(timer);
+    done();
+  });
 
   /**
    * Fans one event out to every socket in the room, per-recipient: the
@@ -215,8 +288,7 @@ export async function buildApp(
   app.post<RoomCodeRoute>("/rooms/:code/end", (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
-    actionClock.clear(room.code);
-    rooms.end(room.code);
+    endRoom(room.code);
     return reply.code(204).send();
   });
 
@@ -317,6 +389,8 @@ export async function buildApp(
           identity = seatId;
         }
         socketIdentity.set(socket, identity);
+        socketRoomCode.set(socket, code);
+        pingMissed.set(socket, 0);
 
         let sockets = roomSockets.get(code);
         if (!sockets) {
@@ -325,10 +399,44 @@ export async function buildApp(
         }
         sockets.add(socket);
 
+        if (identity === "table") {
+          const timer = tableGraceTimers.get(code);
+          if (timer) {
+            clearTimeout(timer);
+            tableGraceTimers.delete(code);
+          }
+        } else {
+          // A reconnecting seat resumes silently, no penalty (§7) — clear
+          // any presence badge a prior drop had set.
+          rooms.setSeatDisconnected(code, identity, false);
+        }
+
         const room = rooms.get(code);
         if (room) {
-          send(socket, { type: "room-view", view: toRoomView(room) });
+          broadcastRoomView(code);
+          // One fresh snapshot on connect, never event replay (§7, §9).
+          if (room.engine !== null) {
+            if (identity === "table") {
+              send(socket, {
+                type: "view-snapshot",
+                view: view(room.engine, "table"),
+              });
+            } else if (room.engine.seats.includes(identity)) {
+              send(socket, {
+                type: "view-snapshot",
+                view: view(room.engine, identity),
+              });
+            }
+          }
         }
+
+        socket.on("pong", () => {
+          const missed = pingMissed.get(socket) ?? 0;
+          pingMissed.set(socket, 0);
+          if (missed >= missedPongLimit) {
+            markPresence(socket, false);
+          }
+        });
 
         socket.on("message", (data: Buffer) => {
           let parsed: unknown;
@@ -371,6 +479,26 @@ export async function buildApp(
         socket.on("close", () => {
           sockets.delete(socket);
           socketIdentity.delete(socket);
+          socketRoomCode.delete(socket);
+          pingMissed.delete(socket);
+
+          if (identity === "table") {
+            // Room may already be gone (this close came from `endRoom` itself
+            // closing every socket) — only arm a fresh grace window for a
+            // room that's still live.
+            if (rooms.get(code) && !tableGraceTimers.has(code)) {
+              tableGraceTimers.set(
+                code,
+                setTimeout(() => {
+                  tableGraceTimers.delete(code);
+                  endRoom(code);
+                }, graceWindowMs),
+              );
+            }
+          } else {
+            rooms.setSeatDisconnected(code, identity, true);
+            broadcastRoomView(code);
+          }
         });
       },
     );
