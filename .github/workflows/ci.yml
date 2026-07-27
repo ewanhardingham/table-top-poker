@@ -84,5 +84,8 @@ jobs:
           path: node_modules/.vite
           key: vitest-${{ hashFiles('package-lock.json') }}
 
+      - name: Diagnose runner CPU count
+        run: nproc
+
       - name: Test
         run: npm test
