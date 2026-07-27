@@ -67,4 +67,44 @@ describe("usePlayerStore", () => {
     expect(usePlayerStore.getState().roomCode).toBeNull();
     expect(usePlayerStore.getState().seats).toEqual([]);
   });
+
+  it("marks an action pending on send, with no rejection yet", () => {
+    usePlayerStore.getState().sendStarted("call");
+    expect(usePlayerStore.getState().pendingAction).toBe("call");
+    expect(usePlayerStore.getState().rejection).toBeNull();
+  });
+
+  it("clears pending and attributes the reason to it on reject", () => {
+    usePlayerStore.getState().sendStarted("raise");
+    usePlayerStore.getState().commandRejected("not-your-turn");
+    expect(usePlayerStore.getState().pendingAction).toBeNull();
+    expect(usePlayerStore.getState().rejection).toEqual({
+      action: "raise",
+      reason: "not-your-turn",
+    });
+  });
+
+  it("attributes a reject with nothing pending to no action", () => {
+    usePlayerStore.getState().commandRejected("invalid-command");
+    expect(usePlayerStore.getState().rejection).toEqual({
+      action: null,
+      reason: "invalid-command",
+    });
+  });
+
+  it("clears pending and any rejection on the next view snapshot", () => {
+    usePlayerStore.getState().sendStarted("fold");
+    usePlayerStore.getState().commandRejected("action-not-legal");
+    usePlayerStore.getState().viewSnapshotReceived();
+    expect(usePlayerStore.getState().pendingAction).toBeNull();
+    expect(usePlayerStore.getState().rejection).toBeNull();
+  });
+
+  it("dismisses a stale rejection as soon as another action is sent", () => {
+    usePlayerStore.getState().sendStarted("check");
+    usePlayerStore.getState().commandRejected("action-not-legal");
+    usePlayerStore.getState().sendStarted("fold");
+    expect(usePlayerStore.getState().rejection).toBeNull();
+    expect(usePlayerStore.getState().pendingAction).toBe("fold");
+  });
 });

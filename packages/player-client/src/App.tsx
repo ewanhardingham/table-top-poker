@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ActionBar } from "./ActionBar.js";
 import { claimSeat, joinRoom } from "./api/rooms.js";
+import { useActionIntent } from "./actions/useActionIntent.js";
 import { Hand } from "./Hand.js";
 import { JoinForm } from "./JoinForm.js";
 import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
@@ -37,7 +39,8 @@ export function App() {
     }
     return { roomCode, seatId, token: seatToken };
   }, [roomCode, seatId, seatToken]);
-  useWebSocket(wsParams);
+  const { send } = useWebSocket(wsParams);
+  const intent = useActionIntent(send);
 
   const handleJoin = useCallback(
     (code: string) => {
@@ -89,6 +92,17 @@ export function App() {
       <>
         <SeatPanel seatId={seatId} sittingOut={sittingOut} />
         {handView !== null && <Hand view={handView} />}
+        {handView !== null && handView.phase === "betting" && (
+          <ActionBar
+            legalActions={intent.legalActions}
+            pendingAction={intent.pendingAction}
+            rejection={intent.rejection}
+            onFold={intent.fold}
+            onCheck={intent.check}
+            onCall={intent.call}
+            onRaise={intent.raise}
+          />
+        )}
       </>
     );
   }
