@@ -107,6 +107,13 @@ export class RoomStore {
     return this.#rooms.get(code);
   }
 
+  /** The seat currently owed a decision in `code`'s hand, or undefined between/after hands. */
+  currentActor(code: string): SeatId | undefined {
+    const hand = this.#rooms.get(code)?.engine?.hand;
+    if (hand?.status !== "betting") return undefined;
+    return hand.toAct[0];
+  }
+
   end(code: string): void {
     this.#rooms.delete(code);
   }

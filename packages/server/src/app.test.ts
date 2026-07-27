@@ -698,3 +698,184 @@ describe("hand command dispatch over WebSocket", () => {
     );
   });
 });
+
+describe("action clock", () => {
+  const ACTION_CLOCK_MS = 200;
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms, actionClockMs: ACTION_CLOCK_MS });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function connect(query: string): {
+    socket: WebSocket;
+    messages: ServerMessage[];
+  } {
+    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/ws?${query}`);
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    return { socket, messages };
+  }
+
+  async function opened(socket: WebSocket): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+  }
+
+  async function settle(ms = 10): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function claimAndConnect(
+    code: string,
+    seatId: number,
+  ): Promise<{ socket: WebSocket; messages: ServerMessage[] }> {
+    const claim = rooms.claimSeat(code, seatId);
+    if (!("seat" in claim)) throw new Error("expected a claimed seat");
+    const conn = connect(
+      `room=${code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
+    );
+    await opened(conn.socket);
+    return conn;
+  }
+
+  function actionsSeen(messages: ServerMessage[]) {
+    return messages
+      .filter((m) => m.type === "hand-update")
+      .map((m) => m.event)
+      .filter((e) => e.type === "ActionTaken");
+  }
+
+  it("auto-folds the current actor via a synthesized fold once the clock elapses", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // Preflop's first actor is seat 1 (SB) — takes no action at all.
+    await settle(ACTION_CLOCK_MS + 60);
+
+    const folds = actionsSeen(table.messages).filter(
+      (e) => e.action === "fold",
+    );
+    expect(folds).toEqual([
+      expect.objectContaining({ type: "ActionTaken", seatId: 1, action: "fold" }),
+    ]);
+  });
+
+  it("does not auto-fold a seat that acts before the clock elapses", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    seat1.socket.send(JSON.stringify({ type: "call" }));
+    await settle(ACTION_CLOCK_MS - 50);
+
+    const folds = actionsSeen(table.messages).filter(
+      (e) => e.action === "fold",
+    );
+    expect(folds).toHaveLength(0);
+    for (const conn of [table, seat0, seat1]) {
+      expect(conn.messages.some((m) => m.type === "command-rejected")).toBe(
+        false,
+      );
+    }
+  });
+
+  it("resets the clock onto the new actor after a real action, rather than firing against the old one", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // Seat 1 (SB) acts immediately; seat 2 (BB) then sits idle and should
+    // be the one auto-folded, not seat 1.
+    seat1.socket.send(JSON.stringify({ type: "call" }));
+    await settle(ACTION_CLOCK_MS + 60);
+
+    const folds = actionsSeen(table.messages).filter(
+      (e) => e.action === "fold",
+    );
+    expect(folds).toEqual([
+      expect.objectContaining({ type: "ActionTaken", seatId: 2, action: "fold" }),
+    ]);
+  });
+
+  it("resets the clock onto the new street's first actor after a street transition", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    const seat2 = await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // Preflop, no raise: every seat (button included) still owes a decision.
+    seat1.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
+    seat2.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    // The button never posted a blind, so it must call the BB's amount
+    // rather than check.
+    seat0.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
+    // No raise occurred, so the BB gets its one-time option before the
+    // street actually closes.
+    seat2.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    // Preflop closes; the flop's first actor (seat 1, SB) now idles out.
+    await settle(ACTION_CLOCK_MS + 60);
+
+    const streetsStarted = table.messages
+      .filter((m) => m.type === "hand-update")
+      .map((m) => m.event)
+      .filter((e) => e.type === "StreetStarted");
+    expect(streetsStarted.some((e) => e.street === "flop")).toBe(true);
+
+    const folds = actionsSeen(table.messages).filter(
+      (e) => e.action === "fold",
+    );
+    expect(folds).toEqual([
+      expect.objectContaining({ type: "ActionTaken", seatId: 1, action: "fold" }),
+    ]);
+  });
+});

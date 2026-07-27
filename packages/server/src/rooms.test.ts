@@ -276,6 +276,52 @@ describe("RoomStore", () => {
       });
     });
   });
+
+  describe("currentActor", () => {
+    function roomWithClaimedSeats(store: RoomStore, count: number) {
+      const room = store.create();
+      for (let seatId = 0; seatId < count; seatId++) {
+        store.claimSeat(room.code, seatId);
+      }
+      return room;
+    }
+
+    it("is undefined for an unknown room", () => {
+      const store = new RoomStore();
+      expect(store.currentActor("ZZZZ")).toBeUndefined();
+    });
+
+    it("is undefined before any hand has started", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, 2);
+      expect(store.currentActor(room.code)).toBeUndefined();
+    });
+
+    it("is the seat named by the hand's own StreetStarted event", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, 2);
+      const started = store.dispatch(room.code, "table", "startHand");
+      if (!("steps" in started)) throw new Error("expected dispatch steps");
+      const streetStarted = started.steps.at(-1)?.event;
+      if (streetStarted?.type !== "StreetStarted") {
+        throw new Error("expected StreetStarted");
+      }
+
+      expect(store.currentActor(room.code)).toBe(streetStarted.actor);
+    });
+
+    it("advances to the next actor after a legal action", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, 2);
+      store.dispatch(room.code, "table", "startHand");
+      const actor = store.currentActor(room.code);
+      if (actor === undefined) throw new Error("expected a current actor");
+
+      store.dispatch(room.code, actor, "call");
+
+      expect(store.currentActor(room.code)).not.toBe(actor);
+    });
+  });
 });
 
 describe("toRoomView", () => {
