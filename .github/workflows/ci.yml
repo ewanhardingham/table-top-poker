@@ -65,6 +65,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Cache TypeScript incremental build info
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/*/dist
+            packages/*/tsconfig.tsbuildinfo
+          key: tsc-build-${{ hashFiles('packages/**/src/**', 'packages/*/tsconfig.json', 'tsconfig*.json') }}
+          restore-keys: |
+            tsc-build-
+
+      - name: Build
+        run: npm run build
+
       - name: Cache Vitest/Vite dependency cache
         uses: actions/cache@v4
         with:
