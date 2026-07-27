@@ -33,10 +33,6 @@ describe("legalActions", () => {
     if (afterLap.hand?.status !== "betting") {
       throw new Error("expected betting");
     }
-    expect(legalActions(afterLap.hand, 2)).toEqual([
-      "fold",
-      "check",
-      "raise",
-    ]);
+    expect(legalActions(afterLap.hand, 2)).toEqual(["fold", "check", "raise"]);
   });
 });

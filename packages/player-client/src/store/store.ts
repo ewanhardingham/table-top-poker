@@ -8,8 +8,11 @@ import { createHandSlice, type HandSlice } from "./handSlice.js";
 import { createRoomSlice, type RoomSlice } from "./roomSlice.js";
 import { createSeatSlice, type SeatSlice } from "./seatSlice.js";
 
-export type PlayerStore =
-  ConnectionSlice & RoomSlice & SeatSlice & HandSlice & ActionSlice;
+export type PlayerStore = ConnectionSlice &
+  RoomSlice &
+  SeatSlice &
+  HandSlice &
+  ActionSlice;
 
 export const usePlayerStore = create<PlayerStore>()((...args) => ({
   ...createConnectionSlice(...args),
