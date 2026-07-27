@@ -12,6 +12,7 @@ import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { WebSocket } from "ws";
+import { ActionClock } from "./action-clock.js";
 import { joinUrl, roomQrCodeDataUrl } from "./qr.js";
 import {
   type ClaimSeatError,
@@ -28,6 +29,8 @@ const publicIndexPath = fileURLToPath(
 
 export interface BuildAppOptions {
   readonly rooms?: RoomStore;
+  /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
+  readonly actionClockMs?: number;
 }
 
 interface RoomCodeRoute {
@@ -100,6 +103,7 @@ export async function buildApp(
   const rooms = options.rooms ?? new RoomStore();
   const roomSockets = new Map<string, Set<WebSocket>>();
   const socketIdentity = new Map<WebSocket, SeatId | "table">();
+  const actionClock = new ActionClock(options.actionClockMs);
   const app = Fastify();
 
   function send(socket: WebSocket, message: ServerMessage): void {
@@ -155,6 +159,35 @@ export async function buildApp(
     }
   }
 
+  /**
+   * Re-arms the room's action clock against whoever is now on the clock —
+   * called after every command a room accepts, real or synthesized, so the
+   * clock always reflects the live actor. A disconnected socket plays no
+   * part here; only `dispatch` outcomes move this clock, per
+   * docs/phase-1-spec.md §7.
+   */
+  function rescheduleActionClock(code: string): void {
+    const actor = rooms.currentActor(code);
+    if (actor === undefined) {
+      actionClock.clear(code);
+      return;
+    }
+    actionClock.schedule(code, () => {
+      const result = rooms.dispatch(code, actor, "fold");
+      // `actor` was read as the live current actor at schedule time, and
+      // any real action in between would have rescheduled (and thus
+      // replaced) this very timer — so `dispatch` rejecting the
+      // synthesized fold isn't expected to happen. `for` runs zero times
+      // if it somehow does, and the clock still re-arms below.
+      if ("steps" in result) {
+        for (const step of result.steps) {
+          fanOutHandUpdate(code, step);
+        }
+      }
+      rescheduleActionClock(code);
+    });
+  }
+
   await app.register(fastifyStatic, { root: publicDir });
   await app.register(fastifyWebsocket);
 
@@ -182,6 +215,7 @@ export async function buildApp(
   app.post<RoomCodeRoute>("/rooms/:code/end", (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
+    actionClock.clear(room.code);
     rooms.end(room.code);
     return reply.code(204).send();
   });
@@ -328,6 +362,7 @@ export async function buildApp(
           for (const step of dispatchResult.steps) {
             fanOutHandUpdate(code, step);
           }
+          rescheduleActionClock(code);
           if (parseResult.data.type === "startHand") {
             broadcastRoomView(code);
           }
