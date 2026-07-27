@@ -1,5 +1,11 @@
 import { shuffledDeck } from "./deck.js";
-import type { BettingHandState, Card, SeatId, Street } from "./types.js";
+import type {
+  ActionType,
+  BettingHandState,
+  Card,
+  SeatId,
+  Street,
+} from "./types.js";
 import { must } from "./util.js";
 
 /** Reorders `seats` to start right after `button` and end at `button`. */
@@ -90,6 +96,23 @@ export function facingBet(
     hand.street === "preflop" &&
     actorSeat !== bigBlindSeat(hand.ring, hand.button)
   );
+}
+
+/**
+ * The full set of actions `actorSeat` may legally take right now — fold and
+ * raise are always available; check and call are mutually exclusive and
+ * follow `facingBet` (see its own doc comment for the preflop/big-blind
+ * subtlety). The single source of truth for action legality, consumed by
+ * both `decide` (server-side enforcement) and `view` (the client-facing
+ * `legalActions` field) so the two can never drift apart.
+ */
+export function legalActions(
+  hand: Pick<BettingHandState, "street" | "ring" | "button" | "raiseOccurred">,
+  actorSeat: SeatId,
+): ActionType[] {
+  return facingBet(hand, actorSeat)
+    ? ["fold", "call", "raise"]
+    : ["fold", "check", "raise"];
 }
 
 /**

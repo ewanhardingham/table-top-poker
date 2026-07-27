@@ -1,4 +1,6 @@
+import { legalActions } from "./table.js";
 import type {
+  ActionType,
   Card,
   EngineState,
   RevealedResult,
@@ -38,6 +40,8 @@ export interface PlayerViewBetting {
   readonly seats: readonly SeatSnapshot[];
   readonly yourSeatId: SeatId;
   readonly yourHoleCards: readonly [Card, Card] | null;
+  /** Empty unless it's `yourSeatId`'s turn — see `legalActions` in table.ts. */
+  readonly legalActions: readonly ActionType[];
 }
 
 export interface TableViewBetting {
@@ -113,6 +117,7 @@ export function view(
     ...tableView,
     yourSeatId: seatId,
     yourHoleCards,
+    legalActions: hand.toAct[0] === seatId ? legalActions(hand, seatId) : [],
   };
   return playerView;
 }
