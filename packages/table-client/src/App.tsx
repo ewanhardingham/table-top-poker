@@ -17,7 +17,9 @@ export function App() {
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
   const clearRoom = useTableStore((state) => state.clearRoom);
 
-  const { send } = useWebSocket(roomCode);
+  const { send } = useWebSocket(roomCode, {
+    onRoomEnded: clearRoom,
+  });
 
   const handleCreateRoom = useCallback(() => {
     createRoom()

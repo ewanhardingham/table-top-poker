@@ -31,7 +31,7 @@ describe("usePlayerStore", () => {
   it("clears the seat slice independently of the room slice", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
-      seats: [{ id: 0, claimed: true, sittingOut: false }],
+      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     usePlayerStore.getState().setSeat({ seatId: 0, sittingOut: false });
 
@@ -44,11 +44,11 @@ describe("usePlayerStore", () => {
   it("replaces the seat list from a room-view snapshot", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
-      seats: [{ id: 0, claimed: true, sittingOut: false }],
+      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     expect(usePlayerStore.getState().roomCode).toBe("ABCD");
     expect(usePlayerStore.getState().seats).toEqual([
-      { id: 0, claimed: true, sittingOut: false },
+      { id: 0, claimed: true, sittingOut: false, disconnected: false },
     ]);
   });
 
@@ -61,7 +61,7 @@ describe("usePlayerStore", () => {
   it("clears the room slice back to its initial state", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
-      seats: [{ id: 0, claimed: true, sittingOut: false }],
+      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     usePlayerStore.getState().clearRoom();
     expect(usePlayerStore.getState().roomCode).toBeNull();

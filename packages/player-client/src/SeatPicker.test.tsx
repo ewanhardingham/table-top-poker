@@ -10,8 +10,8 @@ describe("SeatPicker", () => {
         error={null}
         onClaim={() => undefined}
         seats={[
-          { id: 0, claimed: false, sittingOut: false },
-          { id: 1, claimed: true, sittingOut: false },
+          { id: 0, claimed: false, sittingOut: false, disconnected: false },
+          { id: 1, claimed: true, sittingOut: false, disconnected: false },
         ]}
       />,
     );
