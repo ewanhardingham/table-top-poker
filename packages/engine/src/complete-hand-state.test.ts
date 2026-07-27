@@ -44,4 +44,23 @@ describe("CompleteHandState carries how the hand ended", () => {
       }
     }
   });
+
+  it("carries the full five-card board on a showdown completion", () => {
+    let state = createInitialState([0, 1]);
+    state = playAll(state, [{ type: "startHand", playerId: 0, seed: "s0" }]);
+    state = playAll(state, [
+      { type: "call", playerId: 0 },
+      { type: "check", playerId: 1 },
+      { type: "check", playerId: 1 },
+      { type: "check", playerId: 0 },
+      { type: "check", playerId: 1 },
+      { type: "check", playerId: 0 },
+      { type: "check", playerId: 1 },
+      { type: "check", playerId: 0 },
+    ]);
+
+    if (state.hand?.status !== "complete") throw new Error("expected complete");
+    if (state.hand.reason !== "showdown") throw new Error("expected showdown");
+    expect(state.hand.board).toHaveLength(5);
+  });
 });
