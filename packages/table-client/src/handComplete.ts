@@ -6,5 +6,7 @@ import type { TableView } from "@table-top-poker/protocol";
  * §2. Both are the cue for the table device's "Next hand" button.
  */
 export function isHandComplete(view: TableView | null): boolean {
-  return view !== null && (view.phase === "folded-out" || view.phase === "showdown");
+  return (
+    view !== null && (view.phase === "folded-out" || view.phase === "showdown")
+  );
 }

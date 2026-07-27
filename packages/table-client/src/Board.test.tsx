@@ -128,16 +128,13 @@ describe("Board", () => {
     expect(html).toMatch(/data-testid="board"[^>]*data-phase="showdown"/);
     expect(html).toContain('data-testid="winners"');
     expect(html).toContain("Winners: seats 1, 2");
-    expect(html).toMatch(
-      /data-testid="result-0"[^>]*>Seat 1: Pair of Aces/,
-    );
-    expect(html).toMatch(
-      /data-testid="result-1"[^>]*>Seat 2: Pair of Aces/,
-    );
+    expect(html).toMatch(/data-testid="result-0"[^>]*>Seat 1: Pair of Aces/);
+    expect(html).toMatch(/data-testid="result-1"[^>]*>Seat 2: Pair of Aces/);
     expect((html.match(/data-testid="best-hand-0"/g) ?? []).length).toBe(1);
     expect((html.match(/data-testid="best-hand-1"/g) ?? []).length).toBe(1);
     // Each best-hand block shows the full five-card hand, not just the two hole cards.
-    const result0 = html.match(/data-testid="result-0"[\s\S]*?<\/li>/)?.[0] ?? "";
+    const result0 =
+      /data-testid="result-0"[\s\S]*?<\/li>/.exec(html)?.[0] ?? "";
     expect((result0.match(/data-face-down="false"/g) ?? []).length).toBe(5);
   });
 });
