@@ -543,4 +543,158 @@ describe("hand command dispatch over WebSocket", () => {
     });
     expect(rooms.get(room.code)?.engine).toBeNull();
   });
+
+  it("plays a full betting round preflop through river, every action type exercised, over the wire", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    const seat2 = await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // button = seat 0, ring = [1, 2, 0], BB = seat 2 (see rooms.ts/room.ts).
+    // Preflop: SB calls, BB raises — forcing seat 0 and seat 1 to act again
+    // (street closure waits for every live player since the raise, not just
+    // one lap), both call, street closes.
+    seat1.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
+    seat2.socket.send(JSON.stringify({ type: "raise" }));
+    await settle();
+    seat0.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
+    seat1.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
+
+    // Flop: everyone checks.
+    seat1.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    seat2.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    seat0.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+
+    // Turn: seat 0 folds instead of its final check — two live players
+    // remain, so the hand keeps going rather than folding out.
+    seat1.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    seat2.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    seat0.socket.send(JSON.stringify({ type: "fold" }));
+    await settle();
+
+    // River: the two remaining live seats check down to showdown.
+    seat1.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    seat2.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+
+    const events = table.messages
+      .filter((m) => m.type === "hand-update")
+      .map((m) => m.event);
+
+    const actionsSeen = new Set(
+      events.filter((e) => e.type === "ActionTaken").map((e) => e.action),
+    );
+    expect(actionsSeen).toEqual(new Set(["call", "raise", "check", "fold"]));
+
+    const streetsStarted = new Set(
+      events.filter((e) => e.type === "StreetStarted").map((e) => e.street),
+    );
+    expect(streetsStarted).toEqual(
+      new Set(["preflop", "flop", "turn", "river"]),
+    );
+
+    expect(events.some((e) => e.type === "ShowdownReached")).toBe(true);
+    expect(events.some((e) => e.type === "HandFoldedOut")).toBe(false);
+    expect(events.filter((e) => e.type === "HandComplete")).toHaveLength(1);
+
+    for (const conn of [table, seat0, seat1, seat2]) {
+      expect(conn.messages.some((m) => m.type === "command-rejected")).toBe(
+        false,
+      );
+    }
+  });
+
+  it("rejects an out-of-turn action, visible only to the sender", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // Preflop's first actor is seat 1 (SB), not seat 0.
+    seat0.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+
+    expect(seat0.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "not-your-turn",
+    });
+    expect(seat1.messages).not.toContainEqual(
+      expect.objectContaining({ type: "command-rejected" }),
+    );
+    expect(table.messages).not.toContainEqual(
+      expect.objectContaining({ type: "command-rejected" }),
+    );
+  });
+
+  it("rejects an illegal action, visible only to the sender and never on the table device", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    const seat2 = await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // Seat 1 (SB) faces the BB's post and can't check.
+    seat1.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+
+    expect(seat1.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "action-not-legal",
+    });
+    expect(seat0.messages).not.toContainEqual(
+      expect.objectContaining({ type: "command-rejected" }),
+    );
+    expect(seat2.messages).not.toContainEqual(
+      expect.objectContaining({ type: "command-rejected" }),
+    );
+    expect(table.messages).not.toContainEqual(
+      expect.objectContaining({ type: "command-rejected" }),
+    );
+  });
+
+  it("rejects an action before any hand has started, sender-only", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    await settle();
+
+    seat0.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+
+    expect(seat0.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "hand-not-in-progress",
+    });
+    expect(table.messages).not.toContainEqual(
+      expect.objectContaining({ type: "command-rejected" }),
+    );
+  });
 });
