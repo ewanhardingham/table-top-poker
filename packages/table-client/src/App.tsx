@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { createRoom, endSession } from "./api/rooms.js";
 import { Board } from "./Board.js";
+import { isHandComplete } from "./handComplete.js";
 import { RoomPanel } from "./RoomPanel.js";
 import { StatusBar } from "./StatusBar.js";
 import { useTableStore } from "./store/store.js";
@@ -39,8 +40,13 @@ export function App() {
     send({ type: "startHand" });
   }, [send]);
 
+  const handleNextHand = useCallback(() => {
+    send({ type: "nextHand" });
+  }, [send]);
+
   const claimedSeatCount = seats.filter((seat) => seat.claimed).length;
   const canStartHand = handView === null && claimedSeatCount >= 2;
+  const handComplete = isHandComplete(handView);
 
   return (
     <div className="app-shell" data-testid="table-client-shell">
@@ -70,6 +76,15 @@ export function App() {
                 onClick={handleStartHand}
               >
                 Start hand
+              </button>
+            )}
+            {handComplete && (
+              <button
+                type="button"
+                data-testid="next-hand-button"
+                onClick={handleNextHand}
+              >
+                Next hand
               </button>
             )}
             {handView !== null && <Board view={handView} seats={seats} />}

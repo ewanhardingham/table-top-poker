@@ -59,9 +59,11 @@ export function Board({ view, seats }: BoardProps) {
               data-testid={`result-${String(result.seatId)}`}
             >
               Seat {result.seatId + 1}: {result.description}
-              {result.holeCards.map((card, i) => (
-                <Card key={i} rank={card.rank} suit={card.suit} />
-              ))}
+              <div data-testid={`best-hand-${String(result.seatId)}`}>
+                {result.bestHand.map((card, i) => (
+                  <Card key={i} rank={card.rank} suit={card.suit} />
+                ))}
+              </div>
             </li>
           ))}
         </ul>
