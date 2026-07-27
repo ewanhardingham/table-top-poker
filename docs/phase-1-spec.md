@@ -409,8 +409,10 @@ research in `docs/research/frontend-gesture-stack.md`)
 **Player device** (`player-client`)
 
 - Own hole cards, revealed on deal (not fetched later), hidden again once
-  folded (burn-pile, §4).
-- The shared board, mirrored from the same `view`.
+  folded (burn-pile, §4). The shared board is deliberately *not* shown
+  during betting — that's the table device's job, and mirroring it on the
+  phone too was redundant screen clutter — but it does reappear on the
+  showdown screen, alongside each winning seat's revealed hand.
 - The permanent action-intent buttons, restricted to `legalActions` for the
   current state, with `pending` styling while a sent action awaits
   ack/reject.
