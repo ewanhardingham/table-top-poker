@@ -27,6 +27,7 @@ interface FoldedOutView {
 interface ShowdownView {
   readonly phase: "showdown";
   readonly button: SeatId;
+  readonly board: readonly Card[];
   readonly results: readonly RevealedResult[];
   readonly winners: readonly SeatId[];
 }
@@ -88,6 +89,7 @@ export function view(
     return {
       phase: "showdown",
       button: hand.button,
+      board: hand.board,
       winners: hand.winners,
       results: hand.results,
     };

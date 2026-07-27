@@ -141,6 +141,7 @@ describe("view: post-showdown", () => {
     for (const v of [view(state, 0), view(state, 1), view(state, "table")]) {
       if (v.phase !== "showdown") throw new Error("expected showdown phase");
       expect(v.results.map((r) => r.seatId).sort()).toEqual(expectedSeats);
+      expect(v.board).toHaveLength(5);
       for (const result of v.results) {
         expect(result.holeCards).toHaveLength(2);
       }
