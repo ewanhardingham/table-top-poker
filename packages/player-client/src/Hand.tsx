@@ -10,7 +10,7 @@ export interface HandProps {
  * `view` — nothing rebuilt from the raw event locally
  * (docs/phase-1-spec.md §9). Hidden again once folded, a burn-pile per §4:
  * `yourHoleCards` is already `null` in that view, this never redacts.
- * No action buttons yet — that's ticket 12.
+ * Action buttons live in `ActionBar`, rendered alongside this by `App`.
  */
 export function Hand({ view }: HandProps) {
   if (view.phase === "no-hand") {
