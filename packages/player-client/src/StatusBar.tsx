@@ -1,10 +1,15 @@
 import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
+import { SeatPanel } from "./SeatPanel.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface StatusBarProps {
   readonly showBadge: boolean;
   readonly connectionStatus: ConnectionStatus;
+  readonly seat: {
+    readonly seatId: number;
+    readonly sittingOut: boolean;
+  } | null;
 }
 
 const badgeTone: Record<
@@ -27,17 +32,23 @@ const badgeStyle: CSSProperties = {
 };
 
 /** No connection badge before a seat is claimed — there's nothing to connect to yet. */
-export function StatusBar({ showBadge, connectionStatus }: StatusBarProps) {
+export function StatusBar({
+  showBadge,
+  connectionStatus,
+  seat,
+}: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
   return (
     <header
       style={{
         flex: "none",
         display: "flex",
-        justifyContent: "flex-end",
+        alignItems: "center",
+        justifyContent: seat ? "space-between" : "flex-end",
         padding: "16px 18px 0",
       }}
     >
+      {seat && <SeatPanel seatId={seat.seatId} sittingOut={seat.sittingOut} />}
       {showBadge && (
         <span
           data-testid="connection-status"
