@@ -21,9 +21,9 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: #0f172a;
-  color: #f8fafc;
-  font-family: system-ui, sans-serif;
+  background: #0b0a09;
+  color: #f3ece1;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
@@ -36,9 +36,12 @@ body {
 }
 
 .felt {
+  position: relative;
   flex: 1;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 12px;
+  background: linear-gradient(160deg, #1a1516, #0a0708 60%, #161011);
 }

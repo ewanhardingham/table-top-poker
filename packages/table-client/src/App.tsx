@@ -1,11 +1,13 @@
-import { PillButton } from "@table-top-poker/ui-shared";
+import { PillButton, color } from "@table-top-poker/ui-shared";
 import { useCallback, useState } from "react";
 import { createRoom, endSession } from "./api/rooms.js";
 import { Board } from "./Board.js";
 import { isHandComplete } from "./handComplete.js";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import { JoinPanel } from "./JoinPanel.js";
+import { Seats } from "./Seats.js";
 import { StatusBar } from "./StatusBar.js";
+import { TableControls } from "./TableControls.js";
 import { useTableStore } from "./store/store.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
@@ -77,7 +79,31 @@ export function App() {
             Create room
           </PillButton>
         ) : (
-          <>
+          <div
+            style={{
+              position: "absolute",
+              inset: "1em",
+              borderRadius: "0.7em",
+              background: color.felt,
+              boxShadow:
+                "inset 0 0 12em 4em rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.08)",
+            }}
+          >
+            <Seats seats={seats} view={handView} />
+            {handView !== null && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                <Board view={handView} />
+              </div>
+            )}
             <JoinCodeToggle
               roomCode={roomCode}
               open={joinOpen}
@@ -93,33 +119,14 @@ export function App() {
                 onDismiss={toggleJoin}
               />
             )}
-            {canStartHand && (
-              <button
-                type="button"
-                data-testid="start-hand-button"
-                onClick={handleStartHand}
-              >
-                Start hand
-              </button>
-            )}
-            {handComplete && (
-              <button
-                type="button"
-                data-testid="next-hand-button"
-                onClick={handleNextHand}
-              >
-                Next hand
-              </button>
-            )}
-            {handView !== null && <Board view={handView} seats={seats} />}
-            <button
-              type="button"
-              data-testid="end-session-button"
-              onClick={handleEndSession}
-            >
-              End session
-            </button>
-          </>
+            <TableControls
+              canStartHand={canStartHand}
+              handComplete={handComplete}
+              onStartHand={handleStartHand}
+              onNextHand={handleNextHand}
+              onEndSession={handleEndSession}
+            />
+          </div>
         )}
       </main>
     </div>
