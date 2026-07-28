@@ -30,14 +30,15 @@ export function App() {
   const clearSeat = usePlayerStore((state) => state.clearSeat);
   const clearRoom = usePlayerStore((state) => state.clearRoom);
 
-  const [defaultRoomCode, setDefaultRoomCode] = useState("");
+  const [defaultRoomCode] = useState(() =>
+    typeof window === "undefined"
+      ? ""
+      : (parseRoomCodeFromPath(window.location.pathname) ?? ""),
+  );
   const [claimError, setClaimError] = useState<string | null>(null);
   const [seatToken, setSeatToken] = useState<string | null>(null);
 
   useEffect(() => {
-    const fromPath = parseRoomCodeFromPath(window.location.pathname);
-    if (fromPath) setDefaultRoomCode(fromPath);
-
     // Silently reclaim a stored seat on mount (docs/phase-1-spec.md §7) — a
     // cleared/absent token just falls through to the normal join flow.
     const stored = loadSeatToken(window.localStorage);
