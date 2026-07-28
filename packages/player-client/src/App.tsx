@@ -5,7 +5,6 @@ import { useActionIntent } from "./actions/useActionIntent.js";
 import { Hand } from "./Hand.js";
 import { JoinForm } from "./JoinForm.js";
 import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
-import { SeatPanel } from "./SeatPanel.js";
 import { SeatPicker } from "./SeatPicker.js";
 import { StatusBar } from "./StatusBar.js";
 import {
@@ -131,7 +130,6 @@ export function App() {
   } else {
     content = (
       <>
-        <SeatPanel seatId={seatId} sittingOut={sittingOut} />
         {handView !== null && (
           <Hand view={handView} connectionStatus={connectionStatus} />
         )}
@@ -155,6 +153,7 @@ export function App() {
       <StatusBar
         showBadge={wsParams !== null}
         connectionStatus={connectionStatus}
+        seat={seatId !== null ? { seatId, sittingOut } : null}
       />
       <main className="hand">{content}</main>
     </div>
