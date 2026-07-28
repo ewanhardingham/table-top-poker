@@ -7,16 +7,25 @@ body {
   margin: 0;
   padding: 0;
   touch-action: manipulation;
+  background: #050403;
 }
 
+/*
+ * player-client is a phone experience even when opened in a wide desktop
+ * tab (no phone in hand for testing/demoing) — #root centres a
+ * phone-width column instead of letting the shell stretch full-bleed.
+ */
 #root {
   width: 100%;
   height: 100svh;
   overflow: hidden;
+  display: flex;
+  justify-content: center;
 }
 
 .app-shell {
   width: 100%;
+  max-width: 480px;
   height: 100%;
   overflow: hidden;
   display: flex;
@@ -24,6 +33,7 @@ body {
   background: radial-gradient(520px 380px at 50% -6%, #2a1518, #0b0708 70%);
   color: #f8fafc;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
+  box-shadow: 0 0 80px rgba(0, 0, 0, 0.6);
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
