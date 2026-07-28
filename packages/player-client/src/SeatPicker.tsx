@@ -1,6 +1,7 @@
 import type { SeatView } from "@table-top-poker/protocol";
 import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
+import { InlineError } from "./InlineError.js";
 
 export interface SeatPickerProps {
   readonly seats: readonly SeatView[];
@@ -31,12 +32,12 @@ function seatStyle(claimed: boolean): CSSProperties {
     ...(claimed
       ? {
           border: `1px solid ${color.border}`,
-          background: "rgba(255,255,255,.02)",
+          background: color.mutedSurface,
           opacity: 0.5,
         }
       : {
           border: `1px solid ${color.accentBorder}`,
-          background: "rgba(229,68,60,.07)",
+          background: color.accentWash,
         }),
   };
 }
@@ -67,8 +68,8 @@ function avatarStyle(claimed: boolean): CSSProperties {
     fontFamily: font.mono,
     fontWeight: 700,
     fontSize: fontSize.xs,
-    background: "linear-gradient(160deg,#e9a89f,#a13a2e)",
-    color: "#170708",
+    background: color.avatarGradient,
+    color: color.pillInk,
     filter: claimed ? "saturate(.2) brightness(.7)" : undefined,
   };
 }
@@ -88,16 +89,10 @@ const titleStyle: CSSProperties = {
 
 const subStyle: CSSProperties = {
   fontFamily: font.mono,
-  fontSize: "9.5px",
+  fontSize: fontSize.xs,
   letterSpacing: "0.14em",
   textTransform: "uppercase",
   color: color.textDim,
-};
-
-const errorStyle: CSSProperties = {
-  fontSize: "13.5px",
-  color: color.accentBright,
-  textAlign: "center",
 };
 
 export function SeatPicker({ seats, error, onClaim }: SeatPickerProps) {
@@ -154,9 +149,10 @@ export function SeatPicker({ seats, error, onClaim }: SeatPickerProps) {
         })}
       </div>
       {error && (
-        <div data-testid="claim-error" style={errorStyle}>
-          {seatErrorCopy[error] ?? error}
-        </div>
+        <InlineError
+          testId="claim-error"
+          message={seatErrorCopy[error] ?? error}
+        />
       )}
     </div>
   );
