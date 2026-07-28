@@ -6,6 +6,7 @@ import { Hand } from "./Hand.js";
 import { JoinForm } from "./JoinForm.js";
 import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
 import { SeatPicker } from "./SeatPicker.js";
+import { ShowdownCard } from "./ShowdownCard.js";
 import { StatusBar } from "./StatusBar.js";
 import {
   clearSeatToken,
@@ -144,6 +145,11 @@ export function App() {
             onRaise={intent.raise}
           />
         )}
+        {handView !== null &&
+          (handView.phase === "showdown" ||
+            handView.phase === "folded-out") && (
+            <ShowdownCard seatId={seatId} view={handView} />
+          )}
       </>
     );
   }

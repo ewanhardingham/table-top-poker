@@ -23,6 +23,8 @@ export const color = {
   accentWash: "rgba(229,68,60,.07)",
   mutedSurface: "rgba(255,255,255,.02)",
   focusBorder: "rgba(240,120,110,.8)",
+  showdownBackground: "rgba(229,68,60,.1)",
+  showdownBorder: "rgba(229,68,60,.34)",
 
   accent: "#e5443c",
   accentBright: "#ef6259",
@@ -35,6 +37,7 @@ export const color = {
   pillInk: "#1b0708",
 
   text: "#f3ece1",
+  textHeadline: "#faeae7",
   textBright: "#f6dcd8",
   textMuted: "#cdbfa6",
   textDim: "#a2957f",
