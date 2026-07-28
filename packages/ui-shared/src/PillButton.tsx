@@ -2,9 +2,11 @@ import type { ButtonHTMLAttributes, CSSProperties } from "react";
 import { color, font, radius, shadow } from "./theme.js";
 
 export type PillButtonSize = "md" | "lg";
+export type PillButtonTone = "solid" | "outline";
 
 export interface PillButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   readonly size?: PillButtonSize;
+  readonly tone?: PillButtonTone;
 }
 
 const sizeStyle: Record<PillButtonSize, CSSProperties> = {
@@ -12,24 +14,45 @@ const sizeStyle: Record<PillButtonSize, CSSProperties> = {
   lg: { padding: "20px 44px", fontSize: "19px" },
 };
 
+const toneStyle: Record<PillButtonTone, CSSProperties> = {
+  solid: {
+    border: 0,
+    background: color.pillGradient,
+    color: color.pillInk,
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    boxShadow: shadow.pill,
+  },
+  outline: {
+    border: `1px solid ${color.border}`,
+    background: "rgba(0,0,0,.28)",
+    color: color.textMuted,
+    fontFamily: font.mono,
+    fontWeight: 600,
+    letterSpacing: "0.14em",
+    textTransform: "uppercase",
+  },
+};
+
 /**
- * The rounded gradient pill used for primary actions ("Deal hand", "Create
- * room"). Matches the prototype's cream-on-felt button, not a generic button.
+ * The rounded pill used for table/player actions. `tone="solid"` is the
+ * cream gradient for primary actions ("Deal hand", "Create room"); `tone="outline"`
+ * is the muted mono-label pill used for secondary actions ("End session").
  */
-export function PillButton({ size = "md", style, ...rest }: PillButtonProps) {
+export function PillButton({
+  size = "md",
+  tone = "solid",
+  style,
+  ...rest
+}: PillButtonProps) {
   return (
     <button
       type="button"
       {...rest}
       style={{
-        border: 0,
         borderRadius: radius.pill,
-        background: color.pillGradient,
-        color: color.pillInk,
         fontFamily: font.body,
-        fontWeight: 700,
-        letterSpacing: "0.04em",
-        boxShadow: shadow.pill,
+        ...toneStyle[tone],
         ...sizeStyle[size],
         ...style,
       }}

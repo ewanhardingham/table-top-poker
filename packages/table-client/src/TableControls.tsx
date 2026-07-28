@@ -1,4 +1,4 @@
-import { PillButton, color, font } from "@table-top-poker/ui-shared";
+import { PillButton } from "@table-top-poker/ui-shared";
 
 export interface TableControlsProps {
   readonly canStartHand: boolean;
@@ -43,24 +43,14 @@ export function TableControls({
           Next hand
         </PillButton>
       )}
-      <button
-        type="button"
+      <PillButton
+        tone="outline"
         data-testid="end-session-button"
         onClick={onEndSession}
-        style={{
-          padding: "0.9em 1.3em",
-          borderRadius: "999px",
-          border: `1px solid ${color.border}`,
-          background: "rgba(0,0,0,.28)",
-          color: color.textMuted,
-          fontFamily: font.mono,
-          fontSize: "0.7em",
-          letterSpacing: "0.14em",
-          textTransform: "uppercase",
-        }}
+        style={{ padding: "15px 22px", fontSize: "11px" }}
       >
         End session
-      </button>
+      </PillButton>
     </div>
   );
 }

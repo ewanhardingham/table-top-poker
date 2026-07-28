@@ -29,4 +29,13 @@ describe("PillButton", () => {
     );
     expect(html).toContain("disabled");
   });
+
+  it("switches to the muted mono-label style when tone is outline", () => {
+    const solid = renderToStaticMarkup(<PillButton>Deal hand</PillButton>);
+    const outline = renderToStaticMarkup(
+      <PillButton tone="outline">End session</PillButton>,
+    );
+    expect(solid).not.toContain("text-transform");
+    expect(outline).toContain("text-transform:uppercase");
+  });
 });
