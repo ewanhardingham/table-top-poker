@@ -15,8 +15,10 @@ export const color = {
   surfaceGradient: "linear-gradient(180deg,#1d1214,#100a0b)",
   sideMenuGradient: "linear-gradient(180deg,#241417,#0d0809)",
   control: "rgba(12,7,8,.62)",
+  overlay: "rgba(5,8,7,.5)",
   border: "rgba(255,255,255,.1)",
   borderStrong: "rgba(255,255,255,.16)",
+  accentBorder: "rgba(229,68,60,.32)",
 
   accent: "#e5443c",
   accentBright: "#ef6259",
@@ -26,9 +28,12 @@ export const color = {
   pillInk: "#1b0708",
 
   text: "#f3ece1",
+  textBright: "#f6dcd8",
   textMuted: "#cdbfa6",
   textDim: "#a2957f",
   textFaint: "#7d6a68",
+
+  qrPlate: "#f6f1e6",
 
   cardFace: "linear-gradient(170deg,#fffdf7,#efe7d6)",
   cardBack: feltGradient,
