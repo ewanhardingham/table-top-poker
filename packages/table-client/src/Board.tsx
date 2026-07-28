@@ -1,33 +1,17 @@
-import type { SeatView, TableView } from "@table-top-poker/protocol";
-import { Card } from "@table-top-poker/ui-shared";
+import type { TableView } from "@table-top-poker/protocol";
+import { Card, font } from "@table-top-poker/ui-shared";
+import { motion } from "motion/react";
 
 export interface BoardProps {
   readonly view: TableView;
-  readonly seats: readonly SeatView[];
-}
-
-type SeatStatus = "open" | "sitting-out" | "folded" | "in-hand";
-
-/** The per-seat slice of a betting-phase `TableView`. */
-interface HandSeat {
-  readonly seatId: number;
-  readonly folded: boolean;
 }
 
 /**
- * Cross-references the room's full seat list against this hand's dealt-in
- * seats: a claimed seat absent from `handSeats` was excluded from the deal
- * (sitting out), never a leak — `handSeats` only ever lists seats actually
- * dealt into the running hand (docs/phase-1-spec.md §4).
+ * The felt's centre content — community cards and, at showdown, every live
+ * seat's revealed hand. Seat pods themselves (including button/actor state
+ * and each winner's hole cards) are `Seats`' job, not this component's.
  */
-function statusOf(seat: SeatView, handSeats: readonly HandSeat[]): SeatStatus {
-  if (!seat.claimed) return "open";
-  const handSeat = handSeats.find((s) => s.seatId === seat.id);
-  if (!handSeat) return "sitting-out";
-  return handSeat.folded ? "folded" : "in-hand";
-}
-
-export function Board({ view, seats }: BoardProps) {
+export function Board({ view }: BoardProps) {
   if (view.phase === "no-hand") {
     return (
       <div data-testid="board" data-phase="no-hand">
@@ -47,7 +31,22 @@ export function Board({ view, seats }: BoardProps) {
   if (view.phase === "showdown") {
     return (
       <div data-testid="board" data-phase="showdown">
-        <span data-testid="winners">
+        <div
+          data-testid="community-cards"
+          style={{ display: "flex", gap: "0.4em", fontSize: "2em" }}
+        >
+          {view.board.map((card, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: -18, rotate: -6, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+              transition={{ duration: 0.4, delay: i * 0.08 }}
+            >
+              <Card rank={card.rank} suit={card.suit} />
+            </motion.div>
+          ))}
+        </div>
+        <span data-testid="winners" style={{ fontFamily: font.display }}>
           Winner{view.winners.length > 1 ? "s" : ""}: seat
           {view.winners.length > 1 ? "s" : ""}{" "}
           {view.winners.map((seatId) => seatId + 1).join(", ")}
@@ -71,44 +70,23 @@ export function Board({ view, seats }: BoardProps) {
     );
   }
 
-  const actor = view.toAct[0];
-
   return (
     <div data-testid="board" data-phase="betting" data-street={view.street}>
-      <div data-testid="community-cards">
+      <div
+        data-testid="community-cards"
+        style={{ display: "flex", gap: "0.4em", fontSize: "2em" }}
+      >
         {view.board.map((card, i) => (
-          <Card key={i} rank={card.rank} suit={card.suit} />
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: -18, rotate: -6, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+            transition={{ duration: 0.4, delay: i * 0.08 }}
+          >
+            <Card rank={card.rank} suit={card.suit} />
+          </motion.div>
         ))}
       </div>
-      <ul data-testid="board-seats">
-        {seats.map((seat) => {
-          const status = statusOf(seat, view.seats);
-          const isButton = seat.id === view.button;
-          const isActor = seat.id === actor;
-          return (
-            <li
-              key={seat.id}
-              data-testid={`board-seat-${String(seat.id)}`}
-              data-status={status}
-              data-button={isButton}
-              data-turn={isActor}
-              data-disconnected={seat.disconnected}
-            >
-              Seat {seat.id + 1} — {status}
-              {isButton ? " (button)" : ""}
-              {isActor ? " (to act)" : ""}
-              {seat.disconnected && (
-                <span
-                  data-testid={`board-seat-${String(seat.id)}-disconnected`}
-                >
-                  {" "}
-                  — disconnected
-                </span>
-              )}
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 }
