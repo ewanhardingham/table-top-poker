@@ -28,6 +28,10 @@ const baseStyle: CSSProperties = {
  * Renders a card as DOM elements, branching on `faceDown` rather than
  * swapping an `<img>` src — required so Phase 3's flip animation can
  * cross-fade between the two branches instead of a network image swap.
+ *
+ * Face styling matches the prototype's hole card (the larger of its two
+ * card treatments); the board card differs slightly (radius, border,
+ * shadow) but the two aren't different enough to justify a second component.
  */
 export function Card(props: CardProps) {
   if (props.faceDown) {
