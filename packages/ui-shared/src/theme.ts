@@ -15,14 +15,21 @@ export const color = {
   surfaceGradient: "linear-gradient(180deg,#1d1214,#100a0b)",
   sideMenuGradient: "linear-gradient(180deg,#241417,#0d0809)",
   control: "rgba(12,7,8,.62)",
+  controlFill: "rgba(255,255,255,.04)",
   overlay: "rgba(5,8,7,.5)",
   border: "rgba(255,255,255,.1)",
   borderStrong: "rgba(255,255,255,.16)",
   accentBorder: "rgba(229,68,60,.32)",
+  accentWash: "rgba(229,68,60,.07)",
+  mutedSurface: "rgba(255,255,255,.02)",
+  focusBorder: "rgba(240,120,110,.8)",
 
   accent: "#e5443c",
   accentBright: "#ef6259",
   accentDeep: "#a81d1c",
+  disabledText: "rgba(243,236,225,.35)",
+
+  avatarGradient: "linear-gradient(160deg,#e9a89f,#a13a2e)",
 
   pillGradient: "linear-gradient(180deg,#fbf6f3,#e0cdc7)",
   pillInk: "#1b0708",
@@ -64,6 +71,8 @@ export const fontSize = {
   md: "15px",
   lg: "19px",
   xl: "26px",
+  caption: "13.5px",
+  codeDigit: "42px",
   display: "34px",
   jumbo: "104px",
 } as const;

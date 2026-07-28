@@ -7,6 +7,7 @@ import {
 } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
 import { useState } from "react";
+import { InlineError } from "./InlineError.js";
 
 export interface JoinFormProps {
   readonly defaultRoomCode: string;
@@ -74,10 +75,10 @@ function boxStyle(active: boolean): CSSProperties {
     justifyContent: "center",
     fontFamily: font.mono,
     fontWeight: 700,
-    fontSize: "42px",
-    background: "rgba(255,255,255,.04)",
+    fontSize: fontSize.codeDigit,
+    background: color.controlFill,
     color: color.textBright,
-    border: `1px solid ${active ? "rgba(240,120,110,.8)" : color.border}`,
+    border: `1px solid ${active ? color.focusBorder : color.border}`,
   };
 }
 
@@ -90,26 +91,20 @@ const keypadStyle: CSSProperties = {
 const keyStyle: CSSProperties = {
   height: 52,
   borderRadius: radius.control,
-  border: "1px solid rgba(255,255,255,.09)",
-  background: "rgba(255,255,255,.04)",
+  border: `1px solid ${color.border}`,
+  background: color.controlFill,
   fontFamily: font.mono,
-  fontSize: "18px",
+  fontSize: fontSize.lg,
   fontWeight: 600,
   color: color.text,
 };
 
 const disabledJoinStyle: CSSProperties = {
-  background: "rgba(255,255,255,.05)",
-  color: "rgba(243,236,225,.35)",
-  border: "1px solid rgba(255,255,255,.09)",
+  background: color.controlFill,
+  color: color.disabledText,
+  border: `1px solid ${color.border}`,
   boxShadow: "none",
   cursor: "default",
-};
-
-const errorStyle: CSSProperties = {
-  fontSize: "13.5px",
-  color: color.accentBright,
-  textAlign: "center",
 };
 
 export function JoinForm({ defaultRoomCode, error, onSubmit }: JoinFormProps) {
@@ -186,9 +181,7 @@ export function JoinForm({ defaultRoomCode, error, onSubmit }: JoinFormProps) {
         {complete ? "Join room" : "Enter 4 letters"}
       </PillButton>
       {error && (
-        <div data-testid="join-error" style={errorStyle}>
-          {errorCopy[error] ?? error}
-        </div>
+        <InlineError testId="join-error" message={errorCopy[error] ?? error} />
       )}
     </div>
   );
