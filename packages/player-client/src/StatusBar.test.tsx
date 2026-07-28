@@ -6,16 +6,49 @@ import { StatusBar } from "./StatusBar.js";
 describe("StatusBar", () => {
   it("hides the connection badge before a seat is claimed", () => {
     const html = renderToStaticMarkup(
-      <StatusBar showBadge={false} connectionStatus="disconnected" />,
+      <StatusBar
+        showBadge={false}
+        connectionStatus="disconnected"
+        seat={null}
+      />,
     );
     expect(html).not.toContain('data-testid="connection-status"');
   });
 
   it("shows the connection badge once connecting begins", () => {
     const html = renderToStaticMarkup(
-      <StatusBar showBadge={true} connectionStatus="connected" />,
+      <StatusBar showBadge={true} connectionStatus="connected" seat={null} />,
     );
     expect(html).toContain('data-testid="connection-status"');
     expect(html).toContain("connected");
+  });
+
+  it("shows the seat chip alongside the connection badge, on the same row", () => {
+    const html = renderToStaticMarkup(
+      <StatusBar
+        showBadge={true}
+        connectionStatus="connected"
+        seat={{ seatId: 0, sittingOut: false }}
+      />,
+    );
+
+    expect(html).toContain('data-testid="seat-panel"');
+    expect(html).toContain("Seat 1");
+    // Both live in the same header row, not stacked in separate blocks.
+    const headerMatch = /<header[^>]*>[\s\S]*<\/header>/.exec(html);
+    expect(headerMatch).not.toBeNull();
+    expect(headerMatch?.[0]).toContain('data-testid="seat-panel"');
+    expect(headerMatch?.[0]).toContain('data-testid="connection-status"');
+  });
+
+  it("omits the seat chip before a seat is claimed", () => {
+    const html = renderToStaticMarkup(
+      <StatusBar
+        showBadge={false}
+        connectionStatus="disconnected"
+        seat={null}
+      />,
+    );
+    expect(html).not.toContain('data-testid="seat-panel"');
   });
 });
