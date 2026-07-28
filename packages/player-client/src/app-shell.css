@@ -21,9 +21,9 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: #1e293b;
+  background: radial-gradient(520px 380px at 50% -6%, #2a1518, #0b0708 70%);
   color: #f8fafc;
-  font-family: system-ui, sans-serif;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
@@ -37,8 +37,7 @@ body {
 
 .hand {
   flex: 1;
+  min-height: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  flex-direction: column;
 }
