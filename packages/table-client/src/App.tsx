@@ -1,8 +1,10 @@
-import { useCallback } from "react";
+import { PillButton } from "@table-top-poker/ui-shared";
+import { useCallback, useState } from "react";
 import { createRoom, endSession } from "./api/rooms.js";
 import { Board } from "./Board.js";
 import { isHandComplete } from "./handComplete.js";
-import { RoomPanel } from "./RoomPanel.js";
+import { JoinCodeToggle } from "./JoinCodeToggle.js";
+import { JoinPanel } from "./JoinPanel.js";
 import { StatusBar } from "./StatusBar.js";
 import { useTableStore } from "./store/store.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
@@ -16,6 +18,11 @@ export function App() {
   const handView = useTableStore((state) => state.handView);
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
   const clearRoom = useTableStore((state) => state.clearRoom);
+
+  const [joinOpen, setJoinOpen] = useState(false);
+  const toggleJoin = useCallback(() => {
+    setJoinOpen((open) => !open);
+  }, []);
 
   const { send } = useWebSocket(roomCode, {
     onRoomEnded: clearRoom,
@@ -47,30 +54,45 @@ export function App() {
   }, [send]);
 
   const claimedSeatCount = seats.filter((seat) => seat.claimed).length;
-  const canStartHand = handView === null && claimedSeatCount >= 2;
+  const handInProgress = handView !== null;
+  const canStartHand = !handInProgress && claimedSeatCount >= 2;
   const handComplete = isHandComplete(handView);
+  const showJoinPanel = !handInProgress || joinOpen;
+  const lobbyHint = handInProgress
+    ? "New players are dealt in from the next hand"
+    : claimedSeatCount >= 2
+      ? `${String(claimedSeatCount)} seated — deal when ready`
+      : "Waiting for at least two players";
 
   return (
     <div className="app-shell" data-testid="table-client-shell">
       <StatusBar roomCode={roomCode} connectionStatus={connectionStatus} />
       <main className="felt">
         {roomCode === null ? (
-          <button
-            type="button"
+          <PillButton
+            size="lg"
             data-testid="create-room-button"
             onClick={handleCreateRoom}
           >
             Create room
-          </button>
+          </PillButton>
         ) : (
           <>
-            <RoomPanel
+            <JoinCodeToggle
               roomCode={roomCode}
-              joinUrl={joinUrl}
-              qrCodeDataUrl={qrCodeDataUrl}
-              seats={seats}
-              onEndSession={handleEndSession}
+              open={joinOpen}
+              onToggle={toggleJoin}
             />
+            {showJoinPanel && (
+              <JoinPanel
+                roomCode={roomCode}
+                joinUrl={joinUrl}
+                qrCodeDataUrl={qrCodeDataUrl}
+                lobbyHint={lobbyHint}
+                dismissable={handInProgress}
+                onDismiss={toggleJoin}
+              />
+            )}
             {canStartHand && (
               <button
                 type="button"
@@ -90,6 +112,13 @@ export function App() {
               </button>
             )}
             {handView !== null && <Board view={handView} seats={seats} />}
+            <button
+              type="button"
+              data-testid="end-session-button"
+              onClick={handleEndSession}
+            >
+              End session
+            </button>
           </>
         )}
       </main>
