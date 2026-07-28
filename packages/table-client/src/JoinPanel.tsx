@@ -24,6 +24,19 @@ const overlayStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   background: color.overlay,
+  // The panel is centred and visually small, but this wrapper spans the
+  // whole felt — without this, its invisible edges swallow clicks on
+  // whatever sits behind them, like the "Deal hand" control in the
+  // bottom-right rail. Only the panel itself should be clickable.
+  pointerEvents: "none",
+};
+
+const panelStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 38,
+  padding: "26px 34px",
+  pointerEvents: "auto",
 };
 
 const qrPlateStyle: CSSProperties = {
@@ -55,14 +68,7 @@ export function JoinPanel({
 }: JoinPanelProps) {
   return (
     <div style={overlayStyle} data-testid="join-panel">
-      <Panel
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 38,
-          padding: "26px 34px",
-        }}
-      >
+      <Panel style={panelStyle}>
         <div style={qrPlateStyle}>
           {qrCodeDataUrl && (
             <img
