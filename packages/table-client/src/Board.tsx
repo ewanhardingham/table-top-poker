@@ -1,9 +1,30 @@
-import type { TableView } from "@table-top-poker/protocol";
+import type { Card as CardType, TableView } from "@table-top-poker/protocol";
 import { Card, font } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
 
 export interface BoardProps {
   readonly view: TableView;
+}
+
+/** The community cards, dealt in one at a time via Motion rather than CSS keyframes. */
+function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
+  return (
+    <div
+      data-testid="community-cards"
+      style={{ display: "flex", gap: "0.4em", fontSize: "2em" }}
+    >
+      {board.map((card, i) => (
+        <motion.div
+          key={i}
+          initial={{ opacity: 0, y: -18, rotate: -6, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+          transition={{ duration: 0.4, delay: i * 0.08 }}
+        >
+          <Card rank={card.rank} suit={card.suit} />
+        </motion.div>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -31,21 +52,7 @@ export function Board({ view }: BoardProps) {
   if (view.phase === "showdown") {
     return (
       <div data-testid="board" data-phase="showdown">
-        <div
-          data-testid="community-cards"
-          style={{ display: "flex", gap: "0.4em", fontSize: "2em" }}
-        >
-          {view.board.map((card, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: -18, rotate: -6, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
-              transition={{ duration: 0.4, delay: i * 0.08 }}
-            >
-              <Card rank={card.rank} suit={card.suit} />
-            </motion.div>
-          ))}
-        </div>
+        <CommunityCards board={view.board} />
         <span data-testid="winners" style={{ fontFamily: font.display }}>
           Winner{view.winners.length > 1 ? "s" : ""}: seat
           {view.winners.length > 1 ? "s" : ""}{" "}
@@ -72,21 +79,7 @@ export function Board({ view }: BoardProps) {
 
   return (
     <div data-testid="board" data-phase="betting" data-street={view.street}>
-      <div
-        data-testid="community-cards"
-        style={{ display: "flex", gap: "0.4em", fontSize: "2em" }}
-      >
-        {view.board.map((card, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: -18, rotate: -6, scale: 0.9 }}
-            animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
-            transition={{ duration: 0.4, delay: i * 0.08 }}
-          >
-            <Card rank={card.rank} suit={card.suit} />
-          </motion.div>
-        ))}
-      </div>
+      <CommunityCards board={view.board} />
     </div>
   );
 }

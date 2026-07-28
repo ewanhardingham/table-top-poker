@@ -3,7 +3,7 @@ import type {
   SeatView,
   TableView,
 } from "@table-top-poker/protocol";
-import { Card, color, font } from "@table-top-poker/ui-shared";
+import { Card, color, font, shadow } from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
 import { posFor } from "./table/posFor.js";
 
@@ -14,37 +14,71 @@ export interface SeatsProps {
 
 type SeatStatus = "open" | "sitting-out" | "folded" | "in-hand";
 
-function statusOf(seat: SeatView, view: TableView | null): SeatStatus {
-  if (!seat.claimed) return "open";
-  if (view !== null && view.phase === "betting") {
-    const handSeat = view.seats.find((s) => s.seatId === seat.id);
-    if (!handSeat) return "sitting-out";
-    return handSeat.folded ? "folded" : "in-hand";
+interface SeatVisual {
+  readonly status: SeatStatus;
+  readonly isButton: boolean;
+  readonly isActor: boolean;
+  readonly isWinner: boolean;
+  readonly holeCards: readonly [CardType, CardType] | null;
+  readonly avatarBackground: string;
+  readonly avatarColor: string;
+}
+
+/**
+ * Merges one seat's static room membership with whatever the in-progress
+ * `view` knows about it — the single place `Seats` reasons about `TableView`'s
+ * per-phase shape, so the render below stays a plain lookup.
+ */
+function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
+  const handSeat =
+    view?.phase === "betting"
+      ? view.seats.find((s) => s.seatId === seat.id)
+      : undefined;
+
+  let status: SeatStatus = "open";
+  if (seat.claimed) {
+    if (view?.phase === "betting") {
+      status = !handSeat
+        ? "sitting-out"
+        : handSeat.folded
+          ? "folded"
+          : "in-hand";
+    } else {
+      status = seat.sittingOut ? "sitting-out" : "in-hand";
+    }
   }
-  return seat.sittingOut ? "sitting-out" : "in-hand";
-}
 
-function isWinnerSeat(seatId: number, view: TableView | null): boolean {
-  if (view === null) return false;
-  if (view.phase === "showdown") return view.winners.includes(seatId);
-  if (view.phase === "folded-out") return view.winner === seatId;
-  return false;
-}
+  const isWinner =
+    view?.phase === "showdown"
+      ? view.winners.includes(seat.id)
+      : view?.phase === "folded-out"
+        ? view.winner === seat.id
+        : false;
 
-function holeCardsFor(
-  seatId: number,
-  view: TableView | null,
-): readonly [CardType, CardType] | null {
-  if (view?.phase !== "showdown") return null;
-  return view.results.find((r) => r.seatId === seatId)?.holeCards ?? null;
-}
+  const avatarBackground = !seat.claimed
+    ? color.seatAvatarOpen
+    : status === "folded"
+      ? color.seatAvatarFolded
+      : color.text;
+  const avatarColor = !seat.claimed
+    ? color.seatAvatarOpenText
+    : status === "folded"
+      ? color.seatAvatarFoldedText
+      : color.pillInk;
 
-const restingGlow = "0 0 0 1px rgba(255,255,255,.1)";
-const actorGlowFrames = [
-  "0 0 0 2px rgba(229,68,60,.95), 0 0 34px 6px rgba(229,68,60,.3)",
-  "0 0 0 3px rgba(255,120,110,1), 0 0 54px 14px rgba(229,68,60,.5)",
-  "0 0 0 2px rgba(229,68,60,.95), 0 0 34px 6px rgba(229,68,60,.3)",
-];
+  return {
+    status,
+    isButton: view !== null && seat.id === view.button,
+    isActor: view?.phase === "betting" && view.toAct[0] === seat.id,
+    isWinner,
+    holeCards:
+      view?.phase === "showdown"
+        ? (view.results.find((r) => r.seatId === seat.id)?.holeCards ?? null)
+        : null,
+    avatarBackground,
+    avatarColor,
+  };
+}
 
 /**
  * The seat pods ringing the felt's two long edges, percentage-positioned via
@@ -56,35 +90,17 @@ export function Seats({ seats, view }: SeatsProps) {
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
       {seats.map((seat) => {
-        const status = statusOf(seat, view);
-        const isButton = view !== null && seat.id === view.button;
-        const isActor =
-          view !== null &&
-          view.phase === "betting" &&
-          view.toAct[0] === seat.id;
-        const isWinner = isWinnerSeat(seat.id, view);
-        const holeCards = holeCardsFor(seat.id, view);
+        const visual = deriveSeat(seat, view);
         const pos = posFor(seat.id, seats.length);
-
-        let avatarBackground = "rgba(255,255,255,.06)";
-        let avatarColor = "rgba(250,240,238,.5)";
-        if (seat.claimed) {
-          avatarBackground = color.text;
-          avatarColor = color.pillInk;
-        }
-        if (status === "folded") {
-          avatarBackground = "rgba(255,255,255,.1)";
-          avatarColor = "rgba(250,240,238,.45)";
-        }
 
         return (
           <div
             key={seat.id}
             data-testid={`seat-pod-${String(seat.id)}`}
-            data-status={status}
-            data-button={isButton}
-            data-turn={isActor}
-            data-winner={isWinner}
+            data-status={visual.status}
+            data-button={visual.isButton}
+            data-turn={visual.isActor}
+            data-winner={visual.isWinner}
             data-disconnected={seat.disconnected}
             style={{
               position: "absolute",
@@ -98,9 +114,13 @@ export function Seats({ seats, view }: SeatsProps) {
             }}
           >
             <motion.div
-              animate={{ boxShadow: isActor ? actorGlowFrames : restingGlow }}
+              animate={{
+                boxShadow: visual.isActor
+                  ? [...shadow.seatActorGlow]
+                  : shadow.seatResting,
+              }}
               transition={
-                isActor
+                visual.isActor
                   ? { duration: 1.7, repeat: Infinity, ease: "easeInOut" }
                   : { duration: 0.3 }
               }
@@ -112,19 +132,19 @@ export function Seats({ seats, view }: SeatsProps) {
                 flexDirection: "column",
                 alignItems: "center",
                 gap: "0.4em",
-                background: isWinner
-                  ? "rgba(250,234,231,.14)"
-                  : isActor
-                    ? "rgba(20,7,8,.72)"
+                background: visual.isWinner
+                  ? color.seatWinnerBackground
+                  : visual.isActor
+                    ? color.seatActorBackground
                     : "transparent",
                 border: `1px solid ${
-                  isWinner
-                    ? "rgba(250,234,231,.7)"
-                    : isActor
-                      ? "rgba(229,68,60,.95)"
+                  visual.isWinner
+                    ? color.seatWinnerBorder
+                    : visual.isActor
+                      ? color.accent
                       : "transparent"
                 }`,
-                opacity: status === "folded" ? 0.34 : 1,
+                opacity: visual.status === "folded" ? 0.34 : 1,
               }}
             >
               <div
@@ -138,13 +158,13 @@ export function Seats({ seats, view }: SeatsProps) {
                   fontFamily: font.display,
                   fontWeight: 800,
                   fontSize: "1.1em",
-                  background: avatarBackground,
-                  color: avatarColor,
+                  background: visual.avatarBackground,
+                  color: visual.avatarColor,
                 }}
               >
                 {seat.id + 1}
               </div>
-              {isButton && (
+              {visual.isButton && (
                 <span
                   data-testid={`seat-pod-${String(seat.id)}-button`}
                   style={{
@@ -160,20 +180,20 @@ export function Seats({ seats, view }: SeatsProps) {
                     fontFamily: font.mono,
                     fontSize: "0.6em",
                     fontWeight: 700,
-                    background: "#faf6f0",
+                    background: color.buttonMarker,
                     color: color.pillInk,
-                    boxShadow: "0 6px 16px -4px rgba(0,0,0,.85)",
+                    boxShadow: shadow.card,
                   }}
                 >
                   D
                 </span>
               )}
-              {holeCards && (
+              {visual.holeCards && (
                 <div
                   data-testid={`seat-pod-${String(seat.id)}-hole-cards`}
                   style={{ display: "flex", gap: "0.2em", fontSize: "0.5em" }}
                 >
-                  {holeCards.map((c, i) => (
+                  {visual.holeCards.map((c, i) => (
                     <motion.div
                       key={i}
                       initial={{ opacity: 0, rotateY: -92 }}
@@ -187,7 +207,7 @@ export function Seats({ seats, view }: SeatsProps) {
               )}
             </motion.div>
             <AnimatePresence>
-              {isActor && (
+              {visual.isActor && (
                 <motion.div
                   data-testid={`seat-pod-${String(seat.id)}-to-act`}
                   initial={{ opacity: 0, y: 6, scale: 0.9 }}
