@@ -144,7 +144,7 @@ describe("ShowdownCard", () => {
     };
     const html = renderToStaticMarkup(<ShowdownCard seatId={0} view={view} />);
 
-    expect(html).toContain("You win — everyone else folded");
+    expect(html).toContain("You win — everyone folded");
     expect(html).toContain("Everyone else folded.");
   });
 

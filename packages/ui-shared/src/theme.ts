@@ -40,6 +40,7 @@ export const color = {
   textHeadline: "#faeae7",
   textBright: "#f6dcd8",
   textMuted: "#cdbfa6",
+  textDetail: "#b5a894",
   textDim: "#a2957f",
   textFaint: "#7d6a68",
 
@@ -71,6 +72,7 @@ export const font = {
 export const fontSize = {
   xs: "10px",
   sm: "12px",
+  detail: "14px",
   md: "15px",
   lg: "19px",
   xl: "26px",

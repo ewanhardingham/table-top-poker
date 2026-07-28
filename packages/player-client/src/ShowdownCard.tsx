@@ -1,5 +1,5 @@
 import type { PlayerView } from "@table-top-poker/protocol";
-import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
+import { color, font, fontSize } from "@table-top-poker/ui-shared";
 
 export interface ShowdownCardProps {
   readonly seatId: number;
@@ -23,7 +23,7 @@ function describeResult(
     const won = view.winner === yourSeatId;
     return {
       resultText: won
-        ? "You win — everyone else folded"
+        ? "You win — everyone folded"
         : `${seatLabel(view.winner, yourSeatId)} wins — everyone folded`,
       yourResultText: won
         ? "Everyone else folded."
@@ -64,7 +64,7 @@ export function ShowdownCard({ seatId, view }: ShowdownCardProps) {
       data-testid="showdown-card"
       style={{
         width: "100%",
-        borderRadius: radius.panel,
+        borderRadius: "20px",
         padding: "18px 20px",
         background: color.showdownBackground,
         border: `1px solid ${color.showdownBorder}`,
@@ -99,7 +99,7 @@ export function ShowdownCard({ seatId, view }: ShowdownCardProps) {
       </span>
       <span
         data-testid="your-result"
-        style={{ fontSize: 14, color: color.textDim }}
+        style={{ fontSize: fontSize.detail, color: color.textDetail }}
       >
         {yourResultText}
       </span>
