@@ -61,6 +61,70 @@ describe("Hand", () => {
     expect(html).not.toContain("data-rank");
   });
 
+  it("shows the empty state, not the folded copy, when sitting out of the current hand", () => {
+    const view: PlayerView = {
+      phase: "betting",
+      button: 0,
+      street: "flop",
+      board: [],
+      toAct: [1],
+      seats: [{ seatId: 1, folded: false }],
+      yourSeatId: 0,
+      yourHoleCards: null,
+      legalActions: [],
+    };
+    const html = renderToStaticMarkup(<Hand view={view} />);
+
+    expect(html).toMatch(/data-testid="no-hole-cards"/);
+    expect(html).toContain("Waiting for the next deal.");
+    expect(html).not.toContain("muck");
+  });
+
+  it("shows the turn banner announcing it's your turn when you have a legal action", () => {
+    const view: PlayerView = {
+      phase: "betting",
+      button: 0,
+      street: "turn",
+      board: [],
+      toAct: [0],
+      seats: [{ seatId: 0, folded: false }],
+      yourSeatId: 0,
+      yourHoleCards: [
+        { rank: "Q", suit: "diamonds" },
+        { rank: "J", suit: "clubs" },
+      ],
+      legalActions: ["fold", "check", "raise"],
+    };
+    const html = renderToStaticMarkup(<Hand view={view} />);
+
+    expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="turn"/);
+    expect(html).toContain("Your turn");
+  });
+
+  it("shows a connection-aware banner instead of the turn state while reconnecting", () => {
+    const view: PlayerView = {
+      phase: "betting",
+      button: 0,
+      street: "turn",
+      board: [],
+      toAct: [0],
+      seats: [{ seatId: 0, folded: false }],
+      yourSeatId: 0,
+      yourHoleCards: [
+        { rank: "Q", suit: "diamonds" },
+        { rank: "J", suit: "clubs" },
+      ],
+      legalActions: ["fold", "check", "raise"],
+    };
+    const html = renderToStaticMarkup(
+      <Hand view={view} connectionStatus="connecting" />,
+    );
+
+    expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="offline"/);
+    expect(html).toContain("Reconnecting");
+    expect(html).not.toContain("Your turn");
+  });
+
   it("shows the board and the winning hand(s) below it at showdown", () => {
     const view: PlayerView = {
       phase: "showdown",

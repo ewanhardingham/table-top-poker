@@ -132,7 +132,9 @@ export function App() {
     content = (
       <>
         <SeatPanel seatId={seatId} sittingOut={sittingOut} />
-        {handView !== null && <Hand view={handView} />}
+        {handView !== null && (
+          <Hand view={handView} connectionStatus={connectionStatus} />
+        )}
         {handView !== null && handView.phase === "betting" && (
           <ActionBar
             legalActions={intent.legalActions}

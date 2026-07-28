@@ -51,6 +51,25 @@ describe("ActionBar", () => {
     expect(html).not.toContain('data-testid="action-rejection"');
   });
 
+  it("labels every action with its sub-caption regardless of legality", () => {
+    const html = renderToStaticMarkup(
+      <ActionBar
+        legalActions={["fold", "check", "raise"]}
+        pendingAction={null}
+        rejection={null}
+        onFold={noop}
+        onCheck={noop}
+        onCall={noop}
+        onRaise={noop}
+      />,
+    );
+
+    expect(html).toContain("muck");
+    expect(html).toContain("no bet");
+    expect(html).toContain("match");
+    expect(html).toContain("put in more");
+  });
+
   it("shows the rejection reason inline", () => {
     const html = renderToStaticMarkup(
       <ActionBar
