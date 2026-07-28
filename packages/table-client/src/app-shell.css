@@ -28,13 +28,6 @@ body {
     env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
 
-.status-bar {
-  display: flex;
-  justify-content: space-between;
-  padding: 12px 16px;
-  font-size: 14px;
-}
-
 .felt {
   position: relative;
   flex: 1;
