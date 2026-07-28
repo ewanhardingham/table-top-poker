@@ -15,7 +15,7 @@ describe("Panel", () => {
 
   it("blurs its background so content behind it reads as backdrop, not overlay", () => {
     const html = renderToStaticMarkup(<Panel>content</Panel>);
-    expect(html).toContain("backdrop-filter:blur(6px)");
+    expect(html).toContain("backdrop-filter:blur(3px)");
   });
 
   it("lets a caller override style, for shapes that diverge from the base card (e.g. the side-menu drawer)", () => {

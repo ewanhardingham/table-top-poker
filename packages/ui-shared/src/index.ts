@@ -4,4 +4,4 @@ export { PillButton } from "./PillButton.js";
 export type { PillButtonProps, PillButtonSize } from "./PillButton.js";
 export { Panel } from "./Panel.js";
 export type { PanelProps } from "./Panel.js";
-export { color, font, radius, shadow } from "./theme.js";
+export { color, font, fontSize, radius, shadow } from "./theme.js";
