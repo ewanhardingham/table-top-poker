@@ -40,6 +40,15 @@ export const color = {
   cardBorder: "rgba(0,0,0,.2)",
   suitRed: "#c0392b",
   suitBlack: "#151311",
+
+  seatAvatarOpen: "rgba(255,255,255,.06)",
+  seatAvatarOpenText: "rgba(250,240,238,.5)",
+  seatAvatarFolded: "rgba(255,255,255,.1)",
+  seatAvatarFoldedText: "rgba(250,240,238,.45)",
+  seatWinnerBorder: "rgba(250,234,231,.7)",
+  seatWinnerBackground: "rgba(250,234,231,.14)",
+  seatActorBackground: "rgba(20,7,8,.72)",
+  buttonMarker: "#faf6f0",
 } as const;
 
 export const font = {
@@ -70,4 +79,11 @@ export const shadow = {
   panel: "0 44px 90px -30px rgba(0,0,0,.95)",
   pill: "0 16px 40px -14px rgba(229,68,60,.6), inset 0 1px 0 rgba(255,255,255,.5)",
   card: "0 22px 44px -16px rgba(0,0,0,.85)",
+  seatResting: "0 0 0 1px rgba(255,255,255,.1)",
+  /** The actor-glow pulse's three keyframes, driven by Motion's `animate`. */
+  seatActorGlow: [
+    "0 0 0 2px rgba(229,68,60,.95), 0 0 34px 6px rgba(229,68,60,.3)",
+    "0 0 0 3px rgba(255,120,110,1), 0 0 54px 14px rgba(229,68,60,.5)",
+    "0 0 0 2px rgba(229,68,60,.95), 0 0 34px 6px rgba(229,68,60,.3)",
+  ],
 } as const;
