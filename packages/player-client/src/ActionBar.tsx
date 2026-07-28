@@ -1,4 +1,12 @@
 import type { ActionType } from "@table-top-poker/protocol";
+import {
+  color,
+  font,
+  fontSize,
+  radius,
+  shadow,
+} from "@table-top-poker/ui-shared";
+import type { CSSProperties } from "react";
 import { rejectionCopy } from "./actions/rejectionCopy.js";
 import type { ActionRejection } from "./store/actionSlice.js";
 
@@ -12,11 +20,58 @@ export interface ActionBarProps {
   readonly onRaise: () => void;
 }
 
+const ACTIONS = ["fold", "check", "call", "raise"] as const;
+
 const LABELS: Record<ActionType, string> = {
   fold: "Fold",
   check: "Check",
   call: "Call",
   raise: "Raise",
+};
+
+/** Matches the prototype's per-button sub-caption ("muck"/"no bet"/…). */
+const SUB_LABELS: Record<ActionType, string> = {
+  fold: "muck",
+  check: "no bet",
+  call: "match",
+  raise: "put in more",
+};
+
+const disabledStyle: CSSProperties = {
+  border: `1px solid ${color.border}`,
+  background: "rgba(255,255,255,.03)",
+  color: color.textFaint,
+};
+
+const primaryToneStyle: CSSProperties = {
+  border: `1px solid ${color.accentBorder}`,
+  background: "rgba(229,68,60,.12)",
+  color: color.textBright,
+};
+
+const toneStyle: Record<ActionType, CSSProperties> = {
+  fold: {
+    border: "1px solid rgba(232,139,125,.42)",
+    background: "rgba(232,139,125,.13)",
+    color: "#f0b3a8",
+  },
+  check: primaryToneStyle,
+  call: primaryToneStyle,
+  raise: {
+    border: 0,
+    background: color.pillGradient,
+    color: color.pillInk,
+    boxShadow: shadow.pill,
+  },
+};
+
+const rejectionStyle: CSSProperties = {
+  padding: "0.7em 0.9em",
+  borderRadius: radius.control,
+  background: "rgba(232,139,125,.13)",
+  border: "1px solid rgba(232,139,125,.34)",
+  fontSize: fontSize.caption,
+  color: "#f0aa9d",
 };
 
 /**
@@ -44,33 +99,97 @@ export function ActionBar({
   };
 
   return (
-    <div data-testid="action-bar">
-      {(["fold", "check", "call", "raise"] as const).map((action) => (
-        <div key={action} data-testid={`action-group-${action}`}>
-          <button
-            type="button"
-            data-testid={`action-${action}`}
-            data-pending={pendingAction === action}
-            disabled={!legalActions.includes(action) || pendingAction !== null}
-            onClick={handlers[action]}
-          >
-            {LABELS[action]}
-          </button>
-          {rejection !== null && rejection.action === action && (
-            <div data-testid="action-rejection" data-rejected-action={action}>
-              {rejectionCopy(rejection.reason)}
-            </div>
-          )}
-        </div>
-      ))}
+    <div
+      data-testid="action-bar"
+      style={{
+        flex: "none",
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.7em",
+      }}
+    >
       {/* No pending command to attribute the reject to (no correlation id
           on the wire, docs/phase-1-spec.md §6) — falls back to a bar-level
           message rather than guessing which button triggered it. */}
       {rejection !== null && rejection.action === null && (
-        <div data-testid="action-rejection" data-rejected-action="">
+        <div
+          data-testid="action-rejection"
+          data-rejected-action=""
+          style={rejectionStyle}
+        >
           {rejectionCopy(rejection.reason)}
         </div>
       )}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "0.7em",
+        }}
+      >
+        {ACTIONS.map((action) => {
+          const enabled =
+            legalActions.includes(action) && pendingAction === null;
+          return (
+            <div
+              key={action}
+              data-testid={`action-group-${action}`}
+              style={{ display: "flex", flexDirection: "column", gap: "0.4em" }}
+            >
+              <button
+                type="button"
+                data-testid={`action-${action}`}
+                data-pending={pendingAction === action}
+                disabled={
+                  !legalActions.includes(action) || pendingAction !== null
+                }
+                onClick={handlers[action]}
+                style={{
+                  height: "4.6em",
+                  borderRadius: radius.control,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "0.2em",
+                  fontFamily: font.body,
+                  ...(enabled ? toneStyle[action] : disabledStyle),
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: fontSize.lg,
+                    fontWeight: 700,
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  {LABELS[action]}
+                </span>
+                <span
+                  style={{
+                    fontFamily: font.mono,
+                    fontSize: fontSize.xs,
+                    letterSpacing: "0.18em",
+                    textTransform: "uppercase",
+                    opacity: 0.72,
+                  }}
+                >
+                  {SUB_LABELS[action]}
+                </span>
+              </button>
+              {rejection !== null && rejection.action === action && (
+                <div
+                  data-testid="action-rejection"
+                  data-rejected-action={action}
+                  style={rejectionStyle}
+                >
+                  {rejectionCopy(rejection.reason)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
