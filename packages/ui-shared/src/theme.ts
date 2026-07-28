@@ -4,13 +4,17 @@
  * `player-client` both style against these rather than hard-coding values.
  */
 
+const feltGradient =
+  "linear-gradient(180deg,#6a1a1f 0%,#4b1317 42%,#2c0c0f 100%)";
+
 export const color = {
   background: "#0b0a09",
-  felt: "linear-gradient(180deg,#6a1a1f 0%,#4b1317 42%,#2c0c0f 100%)",
+  felt: feltGradient,
 
   surface: "rgba(6,9,8,.62)",
-  surfaceStrong: "rgba(12,7,8,.62)",
   surfaceGradient: "linear-gradient(180deg,#1d1214,#100a0b)",
+  sideMenuGradient: "linear-gradient(180deg,#241417,#0d0809)",
+  control: "rgba(12,7,8,.62)",
   border: "rgba(255,255,255,.1)",
   borderStrong: "rgba(255,255,255,.16)",
 
@@ -27,7 +31,7 @@ export const color = {
   textFaint: "#7d6a68",
 
   cardFace: "linear-gradient(170deg,#fffdf7,#efe7d6)",
-  cardBack: "linear-gradient(180deg,#6a1a1f 0%,#4b1317 42%,#2c0c0f 100%)",
+  cardBack: feltGradient,
   cardBorder: "rgba(0,0,0,.2)",
   suitRed: "#c0392b",
   suitBlack: "#151311",
@@ -37,6 +41,17 @@ export const font = {
   display: "'Archivo', system-ui, sans-serif",
   body: "'IBM Plex Sans', system-ui, sans-serif",
   mono: "'IBM Plex Mono', monospace",
+} as const;
+
+/** Named rungs of the type scale, from mono kicker labels up to the room-code display. */
+export const fontSize = {
+  xs: "10px",
+  sm: "12px",
+  md: "15px",
+  lg: "19px",
+  xl: "26px",
+  display: "34px",
+  jumbo: "104px",
 } as const;
 
 export const radius = {

@@ -8,14 +8,15 @@ const baseStyle: CSSProperties = {
   background: color.surface,
   border: `1px solid ${color.border}`,
   boxShadow: shadow.panel,
-  backdropFilter: "blur(6px)",
-  WebkitBackdropFilter: "blur(6px)",
+  backdropFilter: "blur(3px)",
+  WebkitBackdropFilter: "blur(3px)",
 };
 
 /**
  * The blurred dark card container behind the settings sheet, join panel, and
- * side menu. Consumers override `style` for layout that diverges from this
- * base (the side menu's drawer shape, the settings sheet's fixed width).
+ * side menu. Defaults match the join panel exactly; the settings sheet
+ * (opaque gradient, no self-blur) and the side menu (drawer shape, no
+ * radius) diverge, so those consumers override `background`/`style`.
  */
 export function Panel({ style, ...rest }: PanelProps) {
   return <div {...rest} style={{ ...baseStyle, ...style }} />;
