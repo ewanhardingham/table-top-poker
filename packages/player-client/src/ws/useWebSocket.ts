@@ -24,6 +24,8 @@ export interface UseWebSocketOptions {
   readonly onRejected?: () => void;
   /** The room ended — manual "End session" or the table's grace window elapsing. */
   readonly onRoomEnded?: () => void;
+  /** The seat was evicted by the table device. */
+  readonly onEvicted?: () => void;
 }
 
 export interface SeatSocket {
@@ -133,6 +135,10 @@ export function useWebSocket(
             break;
           case "room-ended":
             optionsRef.current.onRoomEnded?.();
+            break;
+          case "player-evicted":
+            active = false;
+            optionsRef.current.onEvicted?.();
             break;
         }
       });

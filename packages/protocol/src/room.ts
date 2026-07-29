@@ -21,6 +21,11 @@ export interface RoomViewMessage {
   readonly view: RoomView;
 }
 
+/** Sent to a player's socket immediately before the server closes it after eviction. */
+export interface PlayerEvictedMessage {
+  readonly type: "player-evicted";
+}
+
 /**
  * Pushed once, right after a socket opens (fresh join or reconnect), when a
  * hand is already in progress — a snapshot only, never replayed events
@@ -42,6 +47,7 @@ export interface RoomEndedMessage {
 
 export type ServerMessage =
   | RoomViewMessage
+  | PlayerEvictedMessage
   | HandUpdateMessage
   | CommandRejectedMessage
   | ViewSnapshotMessage

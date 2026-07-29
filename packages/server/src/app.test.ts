@@ -724,6 +724,7 @@ describe("hand command dispatch over WebSocket", () => {
 
     expect(rooms.get(room.code)?.seats[1]).toMatchObject({ claimed: false });
     expect(seat1.socket.readyState).toBe(WebSocket.CLOSED);
+    expect(seat1.messages).toContainEqual({ type: "player-evicted" });
     const lastView = table.messages.findLast((m) => m.type === "room-view");
     if (lastView?.type !== "room-view") throw new Error("expected a view");
     expect(lastView.view.seats[1]).toMatchObject({ claimed: false });

@@ -35,6 +35,7 @@ export function App() {
   );
   const [claimError, setClaimError] = useState<string | null>(null);
   const [seatToken, setSeatToken] = useState<string | null>(null);
+  const [evictionMessage, setEvictionMessage] = useState<string | null>(null);
 
   useEffect(() => {
     // Silently reclaim a stored seat on mount (docs/phase-1-spec.md §7) — a
@@ -43,6 +44,7 @@ export function App() {
     if (stored === null) return;
     joinRoom(stored.roomCode)
       .then((view) => {
+        setEvictionMessage(null);
         setRoomView(view);
         const seat = view.seats.find((s) => s.id === stored.seatId);
         setSeat({
@@ -62,6 +64,13 @@ export function App() {
     clearSeat();
   }, [clearSeat]);
 
+  const handleEvicted = useCallback(() => {
+    clearSeatToken(window.localStorage);
+    setSeatToken(null);
+    clearSeat();
+    setEvictionMessage("You have been evicted from the room");
+  }, [clearSeat]);
+
   const handleRoomEnded = useCallback(() => {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
@@ -77,6 +86,7 @@ export function App() {
   }, [roomCode, seatId, seatToken]);
   const { send } = useWebSocket(wsParams, {
     onRejected: handleRejected,
+    onEvicted: handleEvicted,
     onRoomEnded: handleRoomEnded,
   });
   const playerSeat =
@@ -90,7 +100,10 @@ export function App() {
   const handleJoin = useCallback(
     (code: string) => {
       joinRoom(code)
-        .then(setRoomView)
+        .then((view) => {
+          setEvictionMessage(null);
+          setRoomView(view);
+        })
         .catch(() => {
           setJoinError("room-not-found");
         });
@@ -104,6 +117,7 @@ export function App() {
       claimSeat(roomCode, seat)
         .then((claim) => {
           setClaimError(null);
+          setEvictionMessage(null);
           setSeat({ seatId: claim.seatId, sittingOut: claim.sittingOut });
           setSeatToken(claim.token);
           saveSeatToken(window.localStorage, {
@@ -130,7 +144,12 @@ export function App() {
     );
   } else if (seatId === null) {
     content = (
-      <SeatPicker seats={seats} error={claimError} onClaim={handleClaim} />
+      <SeatPicker
+        seats={seats}
+        error={claimError}
+        evictionMessage={evictionMessage}
+        onClaim={handleClaim}
+      />
     );
   } else {
     content = (

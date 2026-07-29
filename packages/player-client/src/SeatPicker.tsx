@@ -6,6 +6,7 @@ import { InlineError } from "./InlineError.js";
 export interface SeatPickerProps {
   readonly seats: readonly SeatView[];
   readonly error: string | null;
+  readonly evictionMessage?: string | null;
   readonly onClaim: (seatId: number) => void;
 }
 
@@ -95,7 +96,12 @@ const subStyle: CSSProperties = {
   color: color.textDim,
 };
 
-export function SeatPicker({ seats, error, onClaim }: SeatPickerProps) {
+export function SeatPicker({
+  seats,
+  error,
+  evictionMessage,
+  onClaim,
+}: SeatPickerProps) {
   return (
     <div
       data-testid="seat-picker"
@@ -148,6 +154,25 @@ export function SeatPicker({ seats, error, onClaim }: SeatPickerProps) {
           );
         })}
       </div>
+      {evictionMessage && (
+        <div
+          data-testid="eviction-message"
+          style={{
+            padding: "14px 16px",
+            border: `1px solid ${color.accent}`,
+            borderRadius: radius.control,
+            background: color.lossBackground,
+            color: color.textBright,
+            fontFamily: font.display,
+            fontSize: fontSize.lg,
+            fontWeight: 800,
+            lineHeight: 1.25,
+            textAlign: "center",
+          }}
+        >
+          {evictionMessage}
+        </div>
+      )}
       {error && (
         <InlineError
           testId="claim-error"
