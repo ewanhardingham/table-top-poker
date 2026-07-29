@@ -124,6 +124,10 @@ describe("Seats", () => {
     expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-winner="true"/);
     expect(html).toContain('data-testid="seat-pod-0-hole-cards"');
     expect(html).not.toContain('data-testid="seat-pod-1-hole-cards"');
+    // The hand description shows plainly — no "Winner —" prefix, since the
+    // pod's own winner styling and the board's banner already say so.
+    expect(html).toMatch(/data-testid="seat-pod-0-hand"[^>]*>Pair of Aces</);
+    expect(html).not.toContain("Winner");
   });
 
   it("marks the sole winner at a fold-out completion, with no reveal", () => {
