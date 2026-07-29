@@ -28,7 +28,16 @@ Room — across hands, and across a Device disconnecting and reconnecting.
 A position at the table (tracked positionally for the Button and blinds),
 occupied by a Player for as long as they remain seated. Persists across
 hands within a Room; a Player keeps their Seat through a Device disconnect.
-A Room has at most 8 Seats.
+A Room has at most 8 Seats. A Seat is always in one of four states: Active,
+Sitting-out, Disconnected, or Evicted (see ADR-0002).
+
+**Sitting-out**:
+A Seat state the Player toggles themselves — not dealt in, and never
+accrues eviction risk no matter how long it lasts, even alongside a Device
+disconnect. Distinct from Disconnected, which is involuntary and does
+accrue eviction risk.
+_Avoid_: Conflating with Disconnected — sitting-out is a choice, not a
+connection failure.
 
 **Device**:
 A Player's current live connection (their phone's socket). Ephemeral — can
