@@ -12,15 +12,11 @@ import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface HandProps {
   readonly view: PlayerView;
+  readonly seatId: number;
   readonly connectionStatus?: ConnectionStatus;
 }
 
-type TurnBannerView = Extract<
-  PlayerView,
-  { phase: "no-hand" } | { phase: "betting" }
->;
-
-type BannerTone = "turn" | "idle" | "offline";
+type BannerTone = "turn" | "win" | "loss" | "idle" | "offline";
 
 interface Banner {
   readonly kicker: string;
@@ -42,6 +38,20 @@ const bannerToneStyle: Record<
     background:
       "linear-gradient(120deg,rgba(229,68,60,.22),rgba(229,68,60,.08))",
     border: color.accentBorder,
+    dot: color.accentBright,
+    kicker: color.textBright,
+    text: color.text,
+  },
+  win: {
+    background: color.winBackground,
+    border: color.winBorder,
+    dot: color.winBright,
+    kicker: color.winKicker,
+    text: color.winText,
+  },
+  loss: {
+    background: color.lossBackground,
+    border: color.lossBorder,
     dot: color.accentBright,
     kicker: color.textBright,
     text: color.text,
@@ -73,17 +83,22 @@ function isDealtIn(view: PlayerViewBetting): boolean {
   return view.seats.some((s) => s.seatId === view.yourSeatId);
 }
 
+function seatLabel(seatId: number): string {
+  return `Seat ${String(seatId + 1)}`;
+}
+
 /**
  * Whose-turn state as `{ kicker, text, tone }`, matching the prototype's
- * banner copy — only for the `no-hand` and `betting` phases. Showdown and
- * folded-out get their own result treatment from #63 (the showdown result
- * card ticket), not this banner. Connection state wins over hand state:
- * nothing can be acted on off-line, so that's surfaced first regardless of
- * whose turn the hand thinks it is.
+ * banner copy — the same box carries the result once the hand's decided
+ * (issue #63), rather than a separate card competing with the hole cards
+ * for attention. Connection state wins over hand state: nothing can be
+ * acted on off-line, so that's surfaced first regardless of whose turn (or
+ * whose win) the hand thinks it is.
  */
 function bannerFor(
-  view: TurnBannerView,
+  view: PlayerView,
   connectionStatus: ConnectionStatus,
+  seatId: number,
 ): Banner {
   if (connectionStatus !== "connected") {
     return {
@@ -95,6 +110,47 @@ function bannerFor(
 
   if (view.phase === "no-hand") {
     return { kicker: "Table", text: "Waiting for the next hand", tone: "idle" };
+  }
+
+  if (view.phase === "showdown") {
+    const iWon = view.winners.includes(seatId);
+    const winnerResult = view.results.find(
+      (result) => result.seatId === view.winners[0],
+    );
+    if (iWon) {
+      const label = view.winners.length > 1 ? "You split the pot" : "You win";
+      return {
+        kicker: "Hand complete",
+        text: winnerResult
+          ? `${label} with ${winnerResult.description}`
+          : label,
+        tone: "win",
+      };
+    }
+    const winnerNames = view.winners.map(seatLabel).join(" & ");
+    const winClause = winnerResult
+      ? `${winnerNames} wins with ${winnerResult.description}`
+      : `${winnerNames} wins`;
+    const myResult = view.results.find((result) => result.seatId === seatId);
+    const yourClause = myResult
+      ? ` — you had ${myResult.description}`
+      : " — you folded earlier";
+    return {
+      kicker: "Hand complete",
+      text: winClause + yourClause,
+      tone: "loss",
+    };
+  }
+
+  if (view.phase === "folded-out") {
+    const iWon = view.winner === seatId;
+    return {
+      kicker: "Hand complete",
+      text: iWon
+        ? "You win — everyone folded"
+        : `${seatLabel(view.winner)} wins — everyone folded`,
+      tone: iWon ? "win" : "loss",
+    };
   }
 
   const dealtIn = isDealtIn(view);
@@ -305,13 +361,18 @@ function EmptyHoleCards({ text }: { readonly text: string }) {
  * Own hole cards, mirrored straight from the seat's `view` — nothing
  * rebuilt from the raw event locally (docs/phase-1-spec.md §9). Hidden
  * again once folded, a burn-pile per §4: `yourHoleCards` is already `null`
- * in that view, this never redacts. The shared board is deliberately not
- * shown here mid-hand — the player device stays hole-cards-only, the board
- * lives on the table device — but does reappear on the showdown screen,
- * alongside the winning hand(s), since there's nothing left to keep secret.
+ * in that view, this never redacts. The shared board is deliberately never
+ * shown here, showdown included — the player device stays hole-cards-only,
+ * the board and every seat's revealed hand live on the table device
+ * (issue #63); this seat's own result comes back through the turn banner
+ * above, not a second card competing with the hole cards for attention.
  * Action buttons live in `ActionBar`, rendered alongside this by `App`.
  */
-export function Hand({ view, connectionStatus = "connected" }: HandProps) {
+export function Hand({
+  view,
+  seatId,
+  connectionStatus = "connected",
+}: HandProps) {
   if (view.phase === "no-hand") {
     return (
       <div
@@ -325,46 +386,61 @@ export function Hand({ view, connectionStatus = "connected" }: HandProps) {
           gap: "1em",
         }}
       >
-        <TurnBanner banner={bannerFor(view, connectionStatus)} />
+        <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
         <EmptyHoleCards text="Waiting for the next hand." />
       </div>
     );
   }
 
   if (view.phase === "folded-out") {
+    const iWon = view.winner === seatId;
     return (
-      <div data-testid="hand" data-phase="folded-out">
-        Hand complete.
+      <div
+        data-testid="hand"
+        data-phase="folded-out"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          gap: "1em",
+        }}
+      >
+        <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
+        <EmptyHoleCards
+          text={
+            iWon
+              ? "No showdown — everyone else folded."
+              : "You folded — cards are in the muck."
+          }
+        />
       </div>
     );
   }
 
   if (view.phase === "showdown") {
-    const winningResults = view.results.filter((result) =>
-      view.winners.includes(result.seatId),
-    );
+    const myResult = view.results.find((result) => result.seatId === seatId);
     return (
-      <div data-testid="hand" data-phase="showdown">
-        <div data-testid="community-cards">
-          {view.board.map((card, i) => (
-            <Card key={i} rank={card.rank} suit={card.suit} />
-          ))}
-        </div>
-        <ul data-testid="winning-hands">
-          {winningResults.map((result) => (
-            <li
-              key={result.seatId}
-              data-testid={`winning-hand-${String(result.seatId)}`}
-            >
-              Seat {result.seatId + 1}: {result.description}
-              <div data-testid={`winning-cards-${String(result.seatId)}`}>
-                {result.holeCards.map((card, i) => (
-                  <Card key={i} rank={card.rank} suit={card.suit} />
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
+      <div
+        data-testid="hand"
+        data-phase="showdown"
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          gap: "1em",
+        }}
+      >
+        <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
+        {myResult ? (
+          <HoleCards
+            cards={myResult.holeCards}
+            caption="Your hole cards · showdown"
+          />
+        ) : (
+          <EmptyHoleCards text="You folded — cards are in the muck." />
+        )}
       </div>
     );
   }
@@ -382,7 +458,7 @@ export function Hand({ view, connectionStatus = "connected" }: HandProps) {
         gap: "1em",
       }}
     >
-      <TurnBanner banner={bannerFor(view, connectionStatus)} />
+      <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
       {view.yourHoleCards ? (
         <HoleCards
           cards={view.yourHoleCards}
