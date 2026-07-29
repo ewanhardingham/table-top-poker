@@ -20,6 +20,7 @@ interface SeatVisual {
   readonly isActor: boolean;
   readonly isWinner: boolean;
   readonly holeCards: readonly [CardType, CardType] | null;
+  readonly handDescription: string | null;
   readonly avatarBackground: string;
   readonly avatarColor: string;
 }
@@ -66,15 +67,18 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
       ? color.seatAvatarFoldedText
       : color.pillInk;
 
+  const showdownResult =
+    view?.phase === "showdown"
+      ? view.results.find((r) => r.seatId === seat.id)
+      : undefined;
+
   return {
     status,
     isButton: view !== null && seat.id === view.button,
     isActor: view?.phase === "betting" && view.toAct[0] === seat.id,
     isWinner,
-    holeCards:
-      view?.phase === "showdown"
-        ? (view.results.find((r) => r.seatId === seat.id)?.holeCards ?? null)
-        : null,
+    holeCards: showdownResult?.holeCards ?? null,
+    handDescription: showdownResult?.description ?? null,
     avatarBackground,
     avatarColor,
   };
@@ -92,6 +96,107 @@ export function Seats({ seats, view }: SeatsProps) {
       {seats.map((seat) => {
         const visual = deriveSeat(seat, view);
         const pos = posFor(seat.id, seats.length);
+        // Bottom-row seats sit at posFor's ~90% and top-row at ~10% — the
+        // midline split below is only ever used to pick a stacking
+        // direction, not to reposition anything posFor already placed.
+        const isTopRow = pos.top < 50;
+
+        const avatarBlock = (
+          <div key="avatar" style={{ position: "relative" }}>
+            <div
+              style={{
+                width: "3em",
+                height: "3em",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontFamily: font.display,
+                fontWeight: 800,
+                fontSize: "1.1em",
+                background: visual.avatarBackground,
+                color: visual.avatarColor,
+              }}
+            >
+              {seat.id + 1}
+            </div>
+            {visual.isButton && (
+              <span
+                data-testid={`seat-pod-${String(seat.id)}-button`}
+                style={{
+                  position: "absolute",
+                  top: "-0.4em",
+                  right: "-0.4em",
+                  width: "1.6em",
+                  height: "1.6em",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontFamily: font.mono,
+                  fontSize: "0.6em",
+                  fontWeight: 700,
+                  background: color.buttonMarker,
+                  color: color.pillInk,
+                  boxShadow: shadow.card,
+                }}
+              >
+                D
+              </span>
+            )}
+          </div>
+        );
+
+        const holeCardsBlock = visual.holeCards && (
+          <div
+            key="cards"
+            data-testid={`seat-pod-${String(seat.id)}-hole-cards`}
+            style={{ display: "flex", gap: "0.15em", fontSize: "1.1em" }}
+          >
+            {visual.holeCards.map((c, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, rotateY: -92 }}
+                animate={{ opacity: 1, rotateY: 0 }}
+                transition={{ duration: 0.35, delay: i * 0.08 }}
+              >
+                <Card rank={c.rank} suit={c.suit} />
+              </motion.div>
+            ))}
+          </div>
+        );
+
+        // No "Winner —" prefix here (issue #60 follow-up to #63): the pod's
+        // own border/background already carries that, and so does the
+        // board's "Hand complete" banner — repeating it a third time here
+        // was just noise.
+        const captionBlock = visual.handDescription && (
+          <div
+            key="caption"
+            data-testid={`seat-pod-${String(seat.id)}-hand`}
+            style={{
+              fontFamily: font.mono,
+              fontSize: "0.6em",
+              letterSpacing: "0.03em",
+              textAlign: "center",
+              lineHeight: 1.3,
+              maxWidth: "7em",
+              color: visual.isWinner ? color.textBright : color.textDim,
+            }}
+          >
+            {visual.handDescription}
+          </div>
+        );
+
+        // Boundary rule: the avatar is the fixed anchor `posFor` placed —
+        // cards and the hand-description caption only ever grow inward,
+        // toward the felt's centre, never past the seat toward the rail.
+        // Top row reads avatar → cards → caption top to bottom; bottom row
+        // is the mirror, so the caption always ends up on the table-facing
+        // side, closest to the centre everyone's looking at.
+        const stack = isTopRow
+          ? [avatarBlock, holeCardsBlock, captionBlock]
+          : [captionBlock, holeCardsBlock, avatarBlock];
 
         return (
           <div
@@ -147,64 +252,7 @@ export function Seats({ seats, view }: SeatsProps) {
                 opacity: visual.status === "folded" ? 0.34 : 1,
               }}
             >
-              <div
-                style={{
-                  width: "3em",
-                  height: "3em",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontFamily: font.display,
-                  fontWeight: 800,
-                  fontSize: "1.1em",
-                  background: visual.avatarBackground,
-                  color: visual.avatarColor,
-                }}
-              >
-                {seat.id + 1}
-              </div>
-              {visual.isButton && (
-                <span
-                  data-testid={`seat-pod-${String(seat.id)}-button`}
-                  style={{
-                    position: "absolute",
-                    top: "-0.4em",
-                    right: "-0.4em",
-                    width: "1.6em",
-                    height: "1.6em",
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontFamily: font.mono,
-                    fontSize: "0.6em",
-                    fontWeight: 700,
-                    background: color.buttonMarker,
-                    color: color.pillInk,
-                    boxShadow: shadow.card,
-                  }}
-                >
-                  D
-                </span>
-              )}
-              {visual.holeCards && (
-                <div
-                  data-testid={`seat-pod-${String(seat.id)}-hole-cards`}
-                  style={{ display: "flex", gap: "0.2em", fontSize: "0.5em" }}
-                >
-                  {visual.holeCards.map((c, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, rotateY: -92 }}
-                      animate={{ opacity: 1, rotateY: 0 }}
-                      transition={{ duration: 0.35, delay: i * 0.08 }}
-                    >
-                      <Card rank={c.rank} suit={c.suit} />
-                    </motion.div>
-                  ))}
-                </div>
-              )}
+              {stack}
             </motion.div>
             <AnimatePresence>
               {visual.isActor && (
