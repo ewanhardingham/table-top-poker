@@ -58,6 +58,7 @@ export function useWebSocket(
     (state) => state.setConnectionStatus,
   );
   const setRoomView = usePlayerStore((state) => state.setRoomView);
+  const setSeat = usePlayerStore((state) => state.setSeat);
   const setHandView = usePlayerStore((state) => state.setHandView);
   const viewSnapshotReceived = usePlayerStore(
     (state) => state.viewSnapshotReceived,
@@ -109,6 +110,14 @@ export function useWebSocket(
         switch (message.type) {
           case "room-view":
             setRoomView(message.view);
+            {
+              const seat = message.view.seats.find(
+                (candidate) => candidate.id === seatParams.seatId,
+              );
+              if (seat?.claimed) {
+                setSeat({ seatId: seat.id, sittingOut: seat.sittingOut });
+              }
+            }
             break;
           case "hand-update":
             // The server only ever sends a seat's socket its own `view(state, seatId)`.
@@ -141,6 +150,7 @@ export function useWebSocket(
     params,
     setConnectionStatus,
     setRoomView,
+    setSeat,
     setHandView,
     viewSnapshotReceived,
     commandRejected,

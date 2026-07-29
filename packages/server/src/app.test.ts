@@ -416,6 +416,7 @@ describe("hand command dispatch over WebSocket", () => {
   }
 
   async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
     await new Promise<void>((resolve, reject) => {
       socket.on("open", resolve);
       socket.on("error", reject);
@@ -706,16 +707,23 @@ describe("hand command dispatch over WebSocket", () => {
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     await claimAndConnect(room.code, 0);
-    await claimAndConnect(room.code, 1);
+    const seat1 = await claimAndConnect(room.code, 1);
     await settle();
 
+    const closed = new Promise<void>((resolve) => {
+      seat1.socket.once("close", () => {
+        resolve();
+      });
+    });
     await app.inject({
       method: "POST",
       url: `/rooms/${room.code}/seats/1/evict`,
     });
+    await closed;
     await settle();
 
     expect(rooms.get(room.code)?.seats[1]).toMatchObject({ claimed: false });
+    expect(seat1.socket.readyState).toBe(WebSocket.CLOSED);
     const lastView = table.messages.findLast((m) => m.type === "room-view");
     if (lastView?.type !== "room-view") throw new Error("expected a view");
     expect(lastView.view.seats[1]).toMatchObject({ claimed: false });
@@ -835,6 +843,7 @@ describe("action clock", () => {
   }
 
   async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
     await new Promise<void>((resolve, reject) => {
       socket.on("open", resolve);
       socket.on("error", reject);
@@ -1037,6 +1046,7 @@ describe("presence and reconnection", () => {
   }
 
   async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
     await new Promise<void>((resolve, reject) => {
       socket.on("open", resolve);
       socket.on("error", reject);

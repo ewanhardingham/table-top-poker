@@ -3,12 +3,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { StatusBar } from "./StatusBar.js";
 
+const noop = () => undefined;
+
 describe("StatusBar", () => {
   it("hides the connection badge before a seat is claimed", () => {
     const html = renderToStaticMarkup(
       <StatusBar
         showBadge={false}
         connectionStatus="disconnected"
+        onToggleSittingOut={noop}
         seat={null}
       />,
     );
@@ -17,7 +20,12 @@ describe("StatusBar", () => {
 
   it("shows the connection badge once connecting begins", () => {
     const html = renderToStaticMarkup(
-      <StatusBar showBadge={true} connectionStatus="connected" seat={null} />,
+      <StatusBar
+        showBadge={true}
+        connectionStatus="connected"
+        onToggleSittingOut={noop}
+        seat={null}
+      />,
     );
     expect(html).toContain('data-testid="connection-status"');
     expect(html).toContain("connected");
@@ -28,6 +36,7 @@ describe("StatusBar", () => {
       <StatusBar
         showBadge={true}
         connectionStatus="connected"
+        onToggleSittingOut={noop}
         seat={{ seatId: 0, sittingOut: false }}
       />,
     );
@@ -46,6 +55,7 @@ describe("StatusBar", () => {
       <StatusBar
         showBadge={false}
         connectionStatus="disconnected"
+        onToggleSittingOut={noop}
         seat={null}
       />,
     );
