@@ -7,7 +7,7 @@ import { Hand } from "./Hand.js";
 describe("Hand", () => {
   it("shows a waiting state before any hand has started", () => {
     const view: PlayerView = { phase: "no-hand", button: 0 };
-    const html = renderToStaticMarkup(<Hand view={view} />);
+    const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
     expect(html).toMatch(/data-testid="hand"[^>]*data-phase="no-hand"/);
   });
 
@@ -30,7 +30,7 @@ describe("Hand", () => {
       ],
       legalActions: ["fold", "check", "raise"],
     };
-    const html = renderToStaticMarkup(<Hand view={view} />);
+    const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
     expect(html).toMatch(/data-testid="hole-cards"/);
     expect(html).toContain('data-rank="Q"');
@@ -55,7 +55,7 @@ describe("Hand", () => {
       yourHoleCards: null,
       legalActions: [],
     };
-    const html = renderToStaticMarkup(<Hand view={view} />);
+    const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
     expect(html).toMatch(/data-testid="no-hole-cards"/);
     expect(html).not.toContain("data-rank");
@@ -73,7 +73,7 @@ describe("Hand", () => {
       yourHoleCards: null,
       legalActions: [],
     };
-    const html = renderToStaticMarkup(<Hand view={view} />);
+    const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
     expect(html).toMatch(/data-testid="no-hole-cards"/);
     expect(html).toContain("Waiting for the next deal.");
@@ -95,7 +95,7 @@ describe("Hand", () => {
       ],
       legalActions: ["fold", "check", "raise"],
     };
-    const html = renderToStaticMarkup(<Hand view={view} />);
+    const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
     expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="turn"/);
     expect(html).toContain("Your turn");
@@ -117,7 +117,7 @@ describe("Hand", () => {
       legalActions: ["fold", "check", "raise"],
     };
     const html = renderToStaticMarkup(
-      <Hand view={view} connectionStatus="connecting" />,
+      <Hand view={view} seatId={0} connectionStatus="connecting" />,
     );
 
     expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="offline"/);
@@ -125,8 +125,8 @@ describe("Hand", () => {
     expect(html).not.toContain("Your turn");
   });
 
-  it("shows the board and the winning hand(s) below it at showdown", () => {
-    const view: PlayerView = {
+  describe("showdown", () => {
+    const showdownView: PlayerView = {
       phase: "showdown",
       button: 0,
       board: [
@@ -172,15 +172,63 @@ describe("Hand", () => {
       ],
       winners: [0],
     };
-    const html = renderToStaticMarkup(<Hand view={view} />);
 
-    expect(html).toMatch(/data-testid="hand"[^>]*data-phase="showdown"/);
-    expect(html).toContain('data-testid="community-cards"');
-    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(7);
+    it("shows the winner's own hole cards and a win banner, never an opponent's cards", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={showdownView} seatId={0} />,
+      );
 
-    expect(html).toContain('data-testid="winning-hand-0"');
-    expect(html).not.toContain('data-testid="winning-hand-1"');
-    expect(html).toContain("Pair of Aces");
-    expect(html).not.toContain("Pair of Kings");
+      expect(html).toMatch(/data-testid="hand"[^>]*data-phase="showdown"/);
+      expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="win"/);
+      expect(html).toContain("You win with Pair of Aces");
+      expect(html).toMatch(/data-testid="hole-cards"/);
+      expect(html).toContain('data-rank="A"');
+      expect(html).not.toContain('data-rank="K"');
+      expect(html).not.toContain("Pair of Kings");
+    });
+
+    it("shows the loser's own hole cards and a loss banner naming the winner", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={showdownView} seatId={1} />,
+      );
+
+      expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="loss"/);
+      expect(html).toContain(
+        "Seat 1 wins with Pair of Aces — you had Pair of Kings",
+      );
+      expect(html).toContain('data-rank="K"');
+      expect(html).not.toContain('data-rank="A"');
+    });
+
+    it("reads a fold message and shows no hole cards for a seat that folded before showdown", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={showdownView} seatId={2} />,
+      );
+
+      expect(html).toMatch(/data-testid="no-hole-cards"/);
+      expect(html).toContain("you folded earlier");
+      expect(html).toContain("You folded — cards are in the muck.");
+    });
+  });
+
+  describe("folded-out", () => {
+    it("shows a win banner and no hole cards when everyone else folded", () => {
+      const view: PlayerView = { phase: "folded-out", button: 0, winner: 0 };
+      const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
+
+      expect(html).toMatch(/data-testid="hand"[^>]*data-phase="folded-out"/);
+      expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="win"/);
+      expect(html).toContain("You win — everyone folded");
+      expect(html).toMatch(/data-testid="no-hole-cards"/);
+    });
+
+    it("shows a loss banner naming the winner when this seat folded", () => {
+      const view: PlayerView = { phase: "folded-out", button: 0, winner: 1 };
+      const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
+
+      expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="loss"/);
+      expect(html).toContain("Seat 2 wins — everyone folded");
+      expect(html).toContain("You folded — cards are in the muck.");
+    });
   });
 });

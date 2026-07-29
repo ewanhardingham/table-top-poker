@@ -23,8 +23,13 @@ export const color = {
   accentWash: "rgba(229,68,60,.07)",
   mutedSurface: "rgba(255,255,255,.02)",
   focusBorder: "rgba(240,120,110,.8)",
-  showdownBackground: "rgba(229,68,60,.1)",
-  showdownBorder: "rgba(229,68,60,.34)",
+  lossBackground: "rgba(229,68,60,.1)",
+  lossBorder: "rgba(229,68,60,.34)",
+  winBackground: "rgba(123,216,143,.1)",
+  winBorder: "rgba(123,216,143,.4)",
+  winBright: "#7bd88f",
+  winKicker: "#8fdfa1",
+  winText: "#eef7ef",
 
   accent: "#e5443c",
   accentBright: "#ef6259",
@@ -37,10 +42,8 @@ export const color = {
   pillInk: "#1b0708",
 
   text: "#f3ece1",
-  textHeadline: "#faeae7",
   textBright: "#f6dcd8",
   textMuted: "#cdbfa6",
-  textDetail: "#b5a894",
   textDim: "#a2957f",
   textFaint: "#7d6a68",
 
@@ -72,7 +75,6 @@ export const font = {
 export const fontSize = {
   xs: "10px",
   sm: "12px",
-  detail: "14px",
   md: "15px",
   lg: "19px",
   xl: "26px",
