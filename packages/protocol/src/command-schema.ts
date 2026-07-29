@@ -16,6 +16,9 @@ export const ClientCommandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("call") }),
   z.strictObject({ type: z.literal("raise") }),
   z.strictObject({ type: z.literal("nextHand") }),
+  /** Voluntary seat state (ADR-0002) — never reaches the engine, handled at the room-store layer only. */
+  z.strictObject({ type: z.literal("sitOut") }),
+  z.strictObject({ type: z.literal("sitIn") }),
 ]);
 
 export type ClientCommand = z.infer<typeof ClientCommandSchema>;

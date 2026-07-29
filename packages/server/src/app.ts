@@ -324,7 +324,7 @@ export async function buildApp(
       return {
         seatId: result.seat.id,
         token: result.seat.token,
-        sittingOut: result.seat.sittingOut,
+        sittingOut: rooms.isSittingOut(request.params.code, result.seat.id),
       };
     },
   );
@@ -453,6 +453,25 @@ export async function buildApp(
             return;
           }
 
+          // Voluntary sit-out/in (ADR-0002) never reaches the engine — it's
+          // a seat-only room-store mutation, not a hand command.
+          if (
+            parseResult.data.type === "sitOut" ||
+            parseResult.data.type === "sitIn"
+          ) {
+            if (identity === "table") {
+              sendRejection(socket, "not-permitted");
+              return;
+            }
+            rooms.setSittingOut(
+              code,
+              identity,
+              parseResult.data.type === "sitOut",
+            );
+            broadcastRoomView(code);
+            return;
+          }
+
           const dispatchResult = rooms.dispatch(
             code,
             identity,
@@ -464,6 +483,12 @@ export async function buildApp(
           }
           if ("reason" in dispatchResult) {
             sendRejection(socket, dispatchResult.reason);
+            // A rejected nextHand can still have evicted seats (ADR-0002) —
+            // eviction runs before the eligible-seat-count check, so it
+            // isn't undone by the rejection.
+            if ((dispatchResult.evicted?.length ?? 0) > 0) {
+              broadcastRoomView(code);
+            }
             return;
           }
 
@@ -471,7 +496,14 @@ export async function buildApp(
             fanOutHandUpdate(code, step);
           }
           rescheduleActionClock(code);
-          if (parseResult.data.type === "startHand") {
+          // A fresh deal-in (new join, eviction, reconnect) or an eviction
+          // on its own (ADR-0002) all change seat state the routine
+          // hand-update fan-out above doesn't cover.
+          if (
+            parseResult.data.type === "startHand" ||
+            parseResult.data.type === "nextHand" ||
+            (dispatchResult.evicted?.length ?? 0) > 0
+          ) {
             broadcastRoomView(code);
           }
         });

@@ -15,6 +15,9 @@ import { generateRoomCode } from "./room-code.js";
 
 export const SEAT_COUNT = 8;
 
+/** Consecutive missed hands before a still-disconnected seat is evicted (ADR-0002). */
+const EVICTION_THRESHOLD = 3;
+
 /**
  * `Seat` and `Room` are `RoomStore`'s internal mutable aggregate state, not
  * wire DTOs — mutated in place by the store rather than replaced, unlike
@@ -26,9 +29,21 @@ export interface Seat {
   readonly id: SeatId;
   claimed: boolean;
   token: string | null;
+  /**
+   * Voluntary opt-out only (ADR-0002) — set solely by the `sitOut`/`sitIn`
+   * commands via `setSittingOut`. Excludes the seat from deal-in and, unlike
+   * `disconnected`, never accrues `missedHands` no matter how long it lasts.
+   */
   sittingOut: boolean;
-  /** Cosmetic presence badge only (ticket 33) — never consulted by `dispatch`/`decide`. */
+  /**
+   * Presence badge (ticket 33 §7): missed pongs or a closed socket flip it
+   * on, a reconnect flips it off. Beyond the cosmetic badge, ADR-0002 also
+   * has it gate deal-in and drive `missedHands` — `dispatch`'s own
+   * fold/check/call/raise legality still never consults it directly.
+   */
   disconnected: boolean;
+  /** Consecutive hands skipped while disconnected (ADR-0002); reset to 0 on reconnect. */
+  missedHands: number;
 }
 
 export interface Room {
@@ -52,11 +67,30 @@ export interface DispatchStep {
 export type DispatchRejectionReason = RejectionReason | "not-enough-players";
 
 export type DispatchResult =
-  | { readonly steps: readonly DispatchStep[] }
+  | {
+      readonly steps: readonly DispatchStep[];
+      /** Seats evicted (ADR-0002) as a side effect of this dispatch, if any. */
+      readonly evicted?: readonly SeatId[];
+    }
   | { readonly error: "room-not-found" | "not-permitted" }
-  | { readonly reason: DispatchRejectionReason };
+  | {
+      readonly reason: DispatchRejectionReason;
+      /**
+       * A rejected `nextHand` can still have evicted seats: eviction runs
+       * before the eligible-seat-count check, so a `not-enough-players`
+       * rejection doesn't undo it (ADR-0002) — surfaced here so the caller
+       * still broadcasts the freed seats.
+       */
+      readonly evicted?: readonly SeatId[];
+    };
 
-const TABLE_ONLY_COMMANDS: ReadonlySet<ClientCommandType> = new Set([
+/**
+ * `sitOut`/`sitIn` are seat commands that never reach the engine (ADR-0002)
+ * — `dispatch` only ever runs the commands the engine understands.
+ */
+export type SeatCommandType = Exclude<ClientCommandType, "sitOut" | "sitIn">;
+
+const TABLE_ONLY_COMMANDS: ReadonlySet<SeatCommandType> = new Set([
   "startHand",
   "nextHand",
 ]);
@@ -68,18 +102,84 @@ function makeSeats(): Seat[] {
     token: null,
     sittingOut: false,
     disconnected: false,
+    missedHands: 0,
   }));
 }
 
+/** Seats eligible for the next deal-in: claimed, connected, not voluntarily sitting out. */
+function eligibleSeats(room: Room): SeatId[] {
+  return room.seats
+    .filter((seat) => seat.claimed && !seat.disconnected && !seat.sittingOut)
+    .map((seat) => seat.id);
+}
+
 /**
- * True once the room's first hand has ever started. `nextHand` reuses the
- * same `EngineState` for the room's whole life (its `seats` are fixed at
- * creation, per `createInitialState`), so there's no later point at which a
- * seat that missed the deal-in is automatically un-sat-out — that's future
- * scope, not this ticket's.
+ * Runs the ADR-0002 hand-boundary bookkeeping before a `nextHand` deal-in is
+ * computed: every still-claimed, still-disconnected, not-sitting-out seat
+ * just missed the hand about to start, so its counter advances; a seat that
+ * reaches `EVICTION_THRESHOLD` is freed back into the join picker instead.
+ * Returns the seat ids evicted this call, for the caller to broadcast.
  */
-function isHandInProgress(room: Room): boolean {
-  return room.engine !== null;
+function advanceMissedHandsAndEvict(room: Room): SeatId[] {
+  const evicted: SeatId[] = [];
+  for (const seat of room.seats) {
+    if (!seat.claimed || seat.sittingOut || !seat.disconnected) continue;
+
+    seat.missedHands += 1;
+    if (seat.missedHands >= EVICTION_THRESHOLD) {
+      freeSeat(seat);
+      evicted.push(seat.id);
+    }
+  }
+  return evicted;
+}
+
+/** Resets a seat to its unclaimed default — shared by `clearSeat` and eviction. */
+function freeSeat(seat: Seat): void {
+  seat.claimed = false;
+  seat.token = null;
+  seat.sittingOut = false;
+  seat.disconnected = false;
+  seat.missedHands = 0;
+}
+
+/**
+ * Whether `seatId` reads as "sitting out" to a client: a voluntary opt-out,
+ * or a claim that arrived after the room's current ring was fixed and
+ * hasn't been swept into a deal-in recompute yet (issue #13). Shared by
+ * `toRoomView` and any single-seat lookup that needs the same derivation.
+ */
+function isSittingOut(room: Room, seatId: SeatId): boolean {
+  const seat = room.seats[seatId];
+  if (!seat) return false;
+  const ring = room.engine?.seats;
+  return (
+    seat.sittingOut ||
+    (seat.claimed &&
+      !seat.disconnected &&
+      ring !== undefined &&
+      !ring.includes(seatId))
+  );
+}
+
+/**
+ * Carries the button forward into a freshly recomputed deal-in list: stays
+ * put if the previous button is still eligible, otherwise advances to the
+ * next eligible seat in physical (ascending id) order, wrapping around —
+ * the button skipping an empty/sitting-out/disconnected seat, same as at a
+ * real table.
+ */
+function resolveButtonFor(
+  previousButton: SeatId,
+  dealIn: readonly SeatId[],
+): SeatId {
+  if (dealIn.includes(previousButton)) return previousButton;
+  const ordered = [...dealIn].sort((a, b) => a - b);
+  const first = ordered[0];
+  if (first === undefined) {
+    throw new Error("resolveButtonFor requires a non-empty deal-in list");
+  }
+  return ordered.find((id) => id > previousButton) ?? first;
 }
 
 /** In-memory room registry, with the engine wired in behind `dispatch`. */
@@ -131,8 +231,9 @@ export class RoomStore {
 
     seat.claimed = true;
     seat.token = this.#generateToken();
-    seat.sittingOut = isHandInProgress(room);
+    seat.sittingOut = false;
     seat.disconnected = false;
+    seat.missedHands = 0;
     return { seat };
   }
 
@@ -141,17 +242,35 @@ export class RoomStore {
     const room = this.#rooms.get(code);
     const seat = room?.seats[seatId];
     if (!seat) return;
+    freeSeat(seat);
+  }
 
-    seat.claimed = false;
-    seat.token = null;
-    seat.sittingOut = false;
-    seat.disconnected = false;
+  /** Whether `seatId` reads as "sitting out" in the room's public view — see `isSittingOut`. */
+  isSittingOut(code: string, seatId: SeatId): boolean {
+    const room = this.#rooms.get(code);
+    return room ? isSittingOut(room, seatId) : false;
+  }
+
+  /**
+   * Voluntary seat-state toggle (ADR-0002), driven by the `sitOut`/`sitIn`
+   * commands. Never reaches the engine — a sitting-out seat is simply
+   * excluded the next time deal-in is recomputed, and never accrues
+   * `missedHands` regardless of how long it lasts, even if also
+   * disconnected the whole time.
+   */
+  setSittingOut(code: string, seatId: SeatId, sittingOut: boolean): void {
+    const room = this.#rooms.get(code);
+    const seat = room?.seats[seatId];
+    if (!seat?.claimed) return;
+    seat.sittingOut = sittingOut;
   }
 
   /**
    * Presence-only badge toggle (ticket 33 §7): missed pongs or a socket
-   * closing flip it on, a reconnect or fresh pong flips it off. Purely
-   * cosmetic — never read by `dispatch`, so it can never cause a fold.
+   * closing flip it on, a reconnect or fresh pong flips it off. Cosmetic to
+   * `dispatch`'s fold/check/call/raise legality, which never consults it —
+   * but ADR-0002 has it gate deal-in, so reconnecting also resets
+   * `missedHands` to 0 here, before any hand-boundary bookkeeping runs.
    */
   setSeatDisconnected(
     code: string,
@@ -161,6 +280,7 @@ export class RoomStore {
     const room = this.#rooms.get(code);
     const seat = room?.seats[seatId];
     if (!seat) return;
+    if (seat.disconnected && !disconnected) seat.missedHands = 0;
     seat.disconnected = disconnected;
   }
 
@@ -169,14 +289,16 @@ export class RoomStore {
    * socket. `identity` is derived server-side from the WS connection, never
    * from the message payload — see docs/phase-1-spec.md §6. `startHand` and
    * `nextHand` are table-only at this layer (the engine itself places no
-   * such restriction); everything else is seat-only. A room's first
-   * `startHand` builds its `EngineState` from the seats currently claimed
-   * and not sitting out — every other seat stays sitting out for that hand.
+   * such restriction); everything else is seat-only. Every `startHand`/
+   * `nextHand` recomputes deal-in from the seats currently claimed,
+   * connected, and not sitting out (ADR-0002) — `nextHand` additionally
+   * runs the missed-hands/eviction bookkeeping first, and carries the
+   * button forward into whatever that recompute leaves eligible.
    */
   dispatch(
     code: string,
     identity: SeatId | "table",
-    type: ClientCommandType,
+    type: SeatCommandType,
   ): DispatchResult {
     const room = this.#rooms.get(code);
     if (!room) return { error: "room-not-found" };
@@ -186,12 +308,25 @@ export class RoomStore {
       return { error: "not-permitted" };
     }
 
+    let evicted: readonly SeatId[] = [];
+
     if (type === "startHand" && room.engine === null) {
-      const dealIn = room.seats
-        .filter((seat) => seat.claimed && !seat.sittingOut)
-        .map((seat) => seat.id);
+      const dealIn = eligibleSeats(room);
       if (dealIn.length < 2) return { reason: "not-enough-players" };
       room.engine = createInitialState(dealIn);
+    } else if (type === "nextHand" && room.engine !== null) {
+      evicted = advanceMissedHandsAndEvict(room);
+      const dealIn = eligibleSeats(room);
+      if (dealIn.length < 2) {
+        return evicted.length > 0
+          ? { reason: "not-enough-players", evicted }
+          : { reason: "not-enough-players" };
+      }
+      room.engine = {
+        ...room.engine,
+        seats: dealIn,
+        button: resolveButtonFor(room.engine.button, dealIn),
+      };
     }
 
     if (room.engine === null) return { reason: "hand-not-in-progress" };
@@ -208,14 +343,7 @@ export class RoomStore {
     }
     room.engine = state;
 
-    if (type === "startHand") {
-      for (const seatId of room.engine.seats) {
-        const seat = room.seats[seatId];
-        if (seat) seat.sittingOut = false;
-      }
-    }
-
-    return { steps };
+    return evicted.length > 0 ? { steps, evicted } : { steps };
   }
 
   /**
@@ -224,7 +352,7 @@ export class RoomStore {
    * table isn't a seat, so there's no meaningful id to supply; `0` is an
    * arbitrary placeholder.
    */
-  #buildCommand(identity: SeatId | "table", type: ClientCommandType): Command {
+  #buildCommand(identity: SeatId | "table", type: SeatCommandType): Command {
     if (type === "startHand" || type === "nextHand") {
       return { type, playerId: 0, seed: this.#generateSeed() };
     }
@@ -239,7 +367,7 @@ export function toRoomView(room: Room): RoomView {
     seats: room.seats.map((seat) => ({
       id: seat.id,
       claimed: seat.claimed,
-      sittingOut: seat.sittingOut,
+      sittingOut: isSittingOut(room, seat.id),
       disconnected: seat.disconnected,
     })),
   };
