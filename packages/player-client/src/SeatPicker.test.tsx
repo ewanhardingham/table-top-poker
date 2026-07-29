@@ -40,4 +40,21 @@ describe("SeatPicker", () => {
     );
     expect(html).not.toContain('data-testid="claim-error"');
   });
+
+  it("shows the eviction message above the seat choices", () => {
+    const html = renderToStaticMarkup(
+      <SeatPicker
+        error={null}
+        evictionMessage="You have been evicted from the room"
+        onClaim={() => undefined}
+        seats={[]}
+      />,
+    );
+
+    expect(html).toContain('data-testid="eviction-message"');
+    expect(html).toContain("You have been evicted from the room");
+    expect(html).toMatch(
+      /data-testid="eviction-message"[^>]*font-size:19px[^>]*font-weight:800/,
+    );
+  });
 });

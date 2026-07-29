@@ -115,6 +115,7 @@ export async function buildApp(
   const actionClock = new ActionClock(options.actionClockMs);
   const socketRoomCode = new Map<WebSocket, string>();
   const pingMissed = new Map<WebSocket, number>();
+  const evictedSockets = new WeakSet<WebSocket>();
   /** One timer per room, armed the moment its table-role socket closes. */
   const tableGraceTimers = new Map<string, NodeJS.Timeout>();
   const app = Fastify();
@@ -154,6 +155,8 @@ export async function buildApp(
 
     for (const socket of [...sockets]) {
       if (socketIdentity.get(socket) !== seatId) continue;
+      evictedSockets.add(socket);
+      send(socket, { type: "player-evicted" });
       sockets.delete(socket);
       socketIdentity.delete(socket);
       socketRoomCode.delete(socket);
@@ -359,8 +362,8 @@ export async function buildApp(
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
       rooms.evictSeat(request.params.code, seatId);
-      closeSeatSockets(request.params.code, seatId);
       broadcastRoomView(request.params.code);
+      closeSeatSockets(request.params.code, seatId);
       return reply.code(204).send();
     },
   );
@@ -526,6 +529,8 @@ export async function buildApp(
           socketIdentity.delete(socket);
           socketRoomCode.delete(socket);
           pingMissed.delete(socket);
+
+          if (evictedSockets.delete(socket)) return;
 
           if (identity === "table") {
             // Room may already be gone (this close came from `endRoom` itself
