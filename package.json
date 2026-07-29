@@ -17,6 +17,7 @@
   ],
   "scripts": {
     "build": "tsc --build tsconfig.json",
+    "build:release": "bash scripts/build-release.sh",
     "clean": "tsc --build tsconfig.json --clean",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
