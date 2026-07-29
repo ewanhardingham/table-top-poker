@@ -1,10 +1,11 @@
 import { PillButton, color } from "@table-top-poker/ui-shared";
 import { useCallback, useState } from "react";
-import { createRoom, endSession } from "./api/rooms.js";
+import { createRoom, endSession, evictSeat } from "./api/rooms.js";
 import { Board } from "./Board.js";
 import { isHandComplete } from "./handComplete.js";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import { JoinPanel } from "./JoinPanel.js";
+import { SeatMenu } from "./SeatMenu.js";
 import { Seats } from "./Seats.js";
 import { StatusBar } from "./StatusBar.js";
 import { TableControls } from "./TableControls.js";
@@ -25,6 +26,21 @@ export function App() {
   const toggleJoin = useCallback(() => {
     setJoinOpen((open) => !open);
   }, []);
+
+  const [menuSeatId, setMenuSeatId] = useState<number | null>(null);
+  const handleSeatClick = useCallback((seatId: number) => {
+    setMenuSeatId((current) => (current === seatId ? null : seatId));
+  }, []);
+  const dismissSeatMenu = useCallback(() => {
+    setMenuSeatId(null);
+  }, []);
+  const handleEvictSeat = useCallback(() => {
+    if (roomCode === null || menuSeatId === null) return;
+    evictSeat(roomCode, menuSeatId).catch((error: unknown) => {
+      console.error(error);
+    });
+    setMenuSeatId(null);
+  }, [roomCode, menuSeatId]);
 
   const { send } = useWebSocket(roomCode, {
     onRoomEnded: clearRoom,
@@ -89,7 +105,19 @@ export function App() {
                 "inset 0 0 12em 4em rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.08)",
             }}
           >
-            <Seats seats={seats} view={handView} />
+            <Seats
+              seats={seats}
+              view={handView}
+              onSeatClick={handleSeatClick}
+            />
+            {menuSeatId !== null && (
+              <SeatMenu
+                seatId={menuSeatId}
+                seatCount={seats.length}
+                onEvict={handleEvictSeat}
+                onDismiss={dismissSeatMenu}
+              />
+            )}
             {handView !== null && (
               <div
                 style={{

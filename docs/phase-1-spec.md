@@ -325,18 +325,18 @@ network round trip.
   model. The real perimeter is keeping strangers off the network at all.
 - **Seat eviction** ([Seat lifecycle: disconnected sit-out and eviction
   after missed hands](https://github.com/ewanhardingham/table-top-poker/issues/56),
-  [ADR-0002](adr/0002-seat-eviction-clocks-on-missed-hands.md)): a seat has
+  [ADR-0002](adr/0002-seat-eviction-clocks-on-missed-hands.md),
+  [ADR-0003](adr/0003-eviction-is-a-manual-table-action.md)): a seat has
   four states — **active**, **sitting-out** (voluntary, player-toggled,
-  never dealt in, never accrues eviction risk regardless of connection
-  status), **disconnected** (the existing presence signal above, unchanged
-  — a hand already in progress still folds via the action clock, never the
-  socket), and **evicted**. From the hand *after* a seat goes disconnected,
-  it's skipped like a sit-out and a per-seat "hands missed" counter
-  increments each skipped hand; reconnecting at any point resets the
-  counter to 0 and returns the seat to active next hand. At **N = 3**
-  consecutive missed hands (a fixed Phase 1 constant, not a room setting),
-  the seat is evicted: its token is invalidated server-side, the seat is
-  freed into the join picker, and the eviction is broadcast to the table.
+  never dealt in), **disconnected** (the existing presence signal above,
+  unchanged — a hand already in progress still folds via the action clock,
+  never the socket; from the *next* hand onward, a disconnected seat is
+  skipped like a sit-out), and **evicted**. Eviction is a manual table
+  action, not automatic — the table device can evict any claimed seat
+  (active, sitting-out, or disconnected) at any time; there is no
+  missed-hands counter or threshold. On eviction: the seat's token is
+  invalidated server-side, the seat is freed into the join picker, and the
+  eviction is broadcast to the table.
 
 ## 8. Deployment
 ([Research: hosting on a Pi](https://github.com/ewanhardingham/table-top-poker/issues/7),

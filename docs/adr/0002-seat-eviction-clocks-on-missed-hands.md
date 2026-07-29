@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Partially superseded by [ADR-0003](0003-eviction-is-a-manual-table-action.md):
+the "Eviction" section below (automatic, threshold-triggered) no longer
+applies — eviction is now a manual table action. The rest of this ADR
+(sitting-out as an explicit state, disconnected seats skipped from deal-in)
+still stands.
 
 ## Context
 

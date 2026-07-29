@@ -70,7 +70,6 @@ describe("RoomStore", () => {
           token: "token-0",
           sittingOut: false,
           disconnected: false,
-          missedHands: 0,
         },
       });
       expect(room.seats[0]).toEqual({
@@ -79,7 +78,6 @@ describe("RoomStore", () => {
         token: "token-0",
         sittingOut: false,
         disconnected: false,
-        missedHands: 0,
       });
     });
 
@@ -128,12 +126,12 @@ describe("RoomStore", () => {
       expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: true });
     });
 
-    it("force-clears a claimed seat so it can be reclaimed", () => {
+    it("evicts a claimed seat so it can be reclaimed (ADR-0003)", () => {
       const store = new RoomStore();
       const room = store.create();
       store.claimSeat(room.code, 0);
 
-      store.clearSeat(room.code, 0);
+      store.evictSeat(room.code, 0);
 
       expect(room.seats[0]).toEqual({
         id: 0,
@@ -141,7 +139,6 @@ describe("RoomStore", () => {
         token: null,
         sittingOut: false,
         disconnected: false,
-        missedHands: 0,
       });
       const reclaimed = store.claimSeat(room.code, 0);
       if (!("seat" in reclaimed)) throw new Error("expected a claimed seat");
@@ -153,10 +150,10 @@ describe("RoomStore", () => {
       });
     });
 
-    it("clearing a seat in an unknown room is a no-op", () => {
+    it("evicting a seat in an unknown room is a no-op", () => {
       const store = new RoomStore();
       expect(() => {
-        store.clearSeat("ZZZZ", 0);
+        store.evictSeat("ZZZZ", 0);
       }).not.toThrow();
     });
   });
@@ -299,7 +296,7 @@ describe("RoomStore", () => {
       throw new Error("hand did not complete");
     }
 
-    describe("ADR-0002: seat eviction", () => {
+    describe("ADR-0002: per-hand deal-in recompute", () => {
       it("deals a mid-hand joiner into the next hand", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);
@@ -322,7 +319,7 @@ describe("RoomStore", () => {
         expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: false });
       });
 
-      it("excludes a disconnected seat from the next hand and increments its missed-hands counter", () => {
+      it("excludes a disconnected seat from the next hand's deal-in", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
         store.dispatch(room.code, "table", "startHand");
@@ -333,61 +330,6 @@ describe("RoomStore", () => {
 
         if (!("steps" in result)) throw new Error("expected dispatch steps");
         expect(room.engine?.seats).not.toContain(2);
-        expect(room.seats[2]?.missedHands).toBe(1);
-      });
-
-      it("never accrues missed hands for a voluntarily sitting-out seat, even while disconnected", () => {
-        const store = new RoomStore();
-        const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
-        completeHand(store, room);
-        store.setSittingOut(room.code, 2, true);
-        store.setSeatDisconnected(room.code, 2, true);
-
-        store.dispatch(room.code, "table", "nextHand");
-        completeHand(store, room);
-        store.dispatch(room.code, "table", "nextHand");
-        completeHand(store, room);
-        store.dispatch(room.code, "table", "nextHand");
-
-        expect(room.seats[2]?.missedHands).toBe(0);
-        expect(room.seats[2]?.claimed).toBe(true);
-      });
-
-      it("resets the missed-hands counter to 0 on reconnect", () => {
-        const store = new RoomStore();
-        const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
-        completeHand(store, room);
-        store.setSeatDisconnected(room.code, 2, true);
-        store.dispatch(room.code, "table", "nextHand");
-        expect(room.seats[2]?.missedHands).toBe(1);
-
-        store.setSeatDisconnected(room.code, 2, false);
-
-        expect(room.seats[2]?.missedHands).toBe(0);
-      });
-
-      it("evicts a seat once it misses 3 consecutive hands, freeing it and reporting the eviction", () => {
-        const store = new RoomStore();
-        const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
-        completeHand(store, room);
-        store.setSeatDisconnected(room.code, 2, true);
-
-        store.dispatch(room.code, "table", "nextHand");
-        completeHand(store, room);
-        store.dispatch(room.code, "table", "nextHand");
-        completeHand(store, room);
-        const result = store.dispatch(room.code, "table", "nextHand");
-
-        if (!("steps" in result)) throw new Error("expected dispatch steps");
-        expect(result.evicted).toEqual([2]);
-        expect(room.seats[2]).toMatchObject({
-          claimed: false,
-          token: null,
-          missedHands: 0,
-        });
       });
 
       it("rejects nextHand once too few seats remain eligible, without dealing anyone in", () => {
@@ -400,31 +342,44 @@ describe("RoomStore", () => {
         expect(store.dispatch(room.code, "table", "nextHand")).toEqual({
           reason: "not-enough-players",
         });
-        expect(room.seats[1]?.missedHands).toBe(1);
       });
+    });
 
-      it("reports evicted seats on a rejected nextHand, since eviction isn't undone by the rejection", () => {
+    describe("ADR-0003: manual eviction", () => {
+      it("frees a claimed seat via evictSeat regardless of connection status", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
         store.dispatch(room.code, "table", "startHand");
         completeHand(store, room);
-        store.setSeatDisconnected(room.code, 1, true);
         store.setSeatDisconnected(room.code, 2, true);
 
-        // Only seat 0 stays eligible throughout, so every nextHand rejects —
-        // but seats 1 and 2 still miss hands and reach eviction on the 3rd.
-        expect(store.dispatch(room.code, "table", "nextHand")).toEqual({
-          reason: "not-enough-players",
-        });
-        expect(store.dispatch(room.code, "table", "nextHand")).toEqual({
-          reason: "not-enough-players",
-        });
-        expect(store.dispatch(room.code, "table", "nextHand")).toEqual({
-          reason: "not-enough-players",
-          evicted: [1, 2],
-        });
+        store.evictSeat(room.code, 2);
+
+        expect(room.seats[2]).toMatchObject({ claimed: false, token: null });
+      });
+
+      it("has no automatic eviction — a disconnected seat stays occupied across any number of hands", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 3);
+        store.dispatch(room.code, "table", "startHand");
+        completeHand(store, room);
+        store.setSeatDisconnected(room.code, 2, true);
+
+        for (let i = 0; i < 5; i++) {
+          store.dispatch(room.code, "table", "nextHand");
+          completeHand(store, room);
+        }
+
+        expect(room.seats[2]).toMatchObject({ claimed: true });
+      });
+
+      it("evicts an active (non-disconnected) seat just as freely", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 2);
+
+        store.evictSeat(room.code, 1);
+
         expect(room.seats[1]).toMatchObject({ claimed: false });
-        expect(room.seats[2]).toMatchObject({ claimed: false });
       });
     });
 
