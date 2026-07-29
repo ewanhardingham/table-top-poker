@@ -6,10 +6,25 @@ import {
   type ServerMessage,
 } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildApp } from "./app.js";
 import { RoomStore, toRoomView } from "./rooms.js";
+
+const publicTableDir = fileURLToPath(
+  new URL("../public/table", import.meta.url),
+);
+const publicPlayerDir = fileURLToPath(
+  new URL("../public/player", import.meta.url),
+);
+
+/** Stages a fake release build (ticket 34) so tests can assert it's served in place of the placeholder. */
+function stageBuiltIndex(dir: string, marker: string): void {
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}/index.html`, `<!doctype html><p>${marker}</p>`);
+}
 
 interface RoomCreatedBody {
   readonly code: string;
@@ -233,6 +248,52 @@ describe("GET /join/:code", () => {
     expect(response.headers.location).toBe(
       `http://192.168.1.50:5174/join/${code}`,
     );
+  });
+
+  it("serves a release build staged at public/player over the placeholder", async () => {
+    stageBuiltIndex(publicPlayerDir, "real player client");
+    try {
+      app = await buildApp();
+      const created = await app.inject({ method: "POST", url: "/rooms" });
+      const { code } = created.json<RoomCreatedBody>();
+
+      const response = await app.inject({
+        method: "GET",
+        url: `/join/${code}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain("real player client");
+    } finally {
+      rmSync(publicPlayerDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("GET /", () => {
+  let app: FastifyInstance;
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it("serves the same-origin placeholder when no table build is staged", async () => {
+    app = await buildApp();
+    const response = await app.inject({ method: "GET", url: "/" });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toMatch(/^text\/html/);
+  });
+
+  it("serves a release build staged at public/table over the placeholder", async () => {
+    stageBuiltIndex(publicTableDir, "real table client");
+    try {
+      app = await buildApp();
+      const response = await app.inject({ method: "GET", url: "/" });
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toContain("real table client");
+    } finally {
+      rmSync(publicTableDir, { recursive: true, force: true });
+    }
   });
 });
 

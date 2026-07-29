@@ -6,7 +6,10 @@ import { defineConfig, loadEnv } from "vite";
 // server bound to localhost.
 const repoRoot = new URL("../..", import.meta.url).pathname;
 
-export default defineConfig(({ mode }) => {
+// A release build (ticket 34) is staged at packages/server/public/player and
+// served for GET /join/:code — its asset URLs need that prefix baked in. The
+// dev server still serves everything from "/", so only `build` gets it.
+export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, repoRoot, "");
   const allowedHosts = (env.DEV_ALLOWED_HOSTS ?? "")
     .split(",")
@@ -15,6 +18,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    base: command === "build" ? "/player/" : "/",
     build: {
       outDir: "build",
     },

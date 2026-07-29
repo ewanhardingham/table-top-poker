@@ -1,0 +1,38 @@
+[Unit]
+Description=Table Top Poker server
+Documentation=https://github.com/ewanhardingham/table-top-poker
+# network-online.target is a weaker promise than it looks (systemd's own
+# advice: don't depend on it for correctness) — it's still worth an ordering
+# hint, just not a guarantee the LAN is actually up. See docs/deploy-pi.md.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=poker
+Group=poker
+WorkingDirectory=/opt/poker/current
+EnvironmentFile=/etc/poker/poker.env
+ExecStart=/usr/bin/node /opt/poker/current/packages/server/dist/server.js
+Restart=always
+RestartSec=2
+# Don't give up after 5 rapid restarts — a poker night is not a production SLO.
+StartLimitIntervalSec=0
+
+# Only needed if poker.env sets PORT=80 (binding <1024 as a non-root user):
+# CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+# AmbientCapabilities=CAP_NET_BIND_SERVICE
+
+# Cheap hardening; all supported on Raspberry Pi OS.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+# journald picks up stdout/stderr automatically.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=poker
+
+[Install]
+WantedBy=multi-user.target

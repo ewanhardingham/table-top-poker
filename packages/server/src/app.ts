@@ -18,7 +18,7 @@ import Fastify, {
   type FastifyReply,
   type FastifyRequest,
 } from "fastify";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { WebSocket } from "ws";
 import { ActionClock } from "./action-clock.js";
@@ -35,6 +35,23 @@ const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const publicIndexPath = fileURLToPath(
   new URL("../public/index.html", import.meta.url),
 );
+/**
+ * A release build (ticket 34's `build:release` script) stages the real
+ * table/player apps here, under their own subpath so each is servable at
+ * its own base URL from the same origin; unstaged (dev, tests, a checkout
+ * that hasn't run the release script), these don't exist and every route
+ * below falls back to `publicIndexPath`'s placeholder.
+ */
+const publicTableIndexPath = fileURLToPath(
+  new URL("../public/table/index.html", import.meta.url),
+);
+const publicPlayerIndexPath = fileURLToPath(
+  new URL("../public/player/index.html", import.meta.url),
+);
+
+function readIndexOr(stagedPath: string): Buffer {
+  return readFileSync(existsSync(stagedPath) ? stagedPath : publicIndexPath);
+}
 
 export interface BuildAppOptions {
   readonly rooms?: RoomStore;
@@ -365,8 +382,16 @@ export async function buildApp(
     });
   }
 
-  await app.register(fastifyStatic, { root: publicDir });
+  // `index: false` — the explicit "/" route below owns index resolution
+  // (placeholder vs. a staged table build), so the static plugin only ever
+  // serves fingerprinted assets (`/table/assets/*`, `/player/assets/*`),
+  // never racing its own directory-index behaviour against that route.
+  await app.register(fastifyStatic, { root: publicDir, index: false });
   await app.register(fastifyWebsocket);
+
+  app.get("/", (_request, reply) => {
+    return reply.type("text/html").send(readIndexOr(publicTableIndexPath));
+  });
 
   app.post("/rooms", async (request, reply) => {
     // The table client picks a seat count (issue #74); this is the trust
@@ -444,8 +469,9 @@ export async function buildApp(
 
   /**
    * Where the QR code's join URL lands. `PLAYER_CLIENT_ORIGIN` points dev at
-   * the player-client's own Vite server; unset, it serves the (currently
-   * placeholder) same-origin index — ticket 34 bundles the real app there.
+   * the player-client's own Vite server; unset, it serves a release build
+   * staged at `public/player` (ticket 34's `build:release`), or the
+   * placeholder if none has been staged.
    */
   app.get<RoomCodeRoute>("/join/:code", (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);
@@ -454,7 +480,7 @@ export async function buildApp(
     if (playerOrigin) {
       return reply.redirect(`${playerOrigin}/join/${room.code}`);
     }
-    return reply.type("text/html").send(readFileSync(publicIndexPath));
+    return reply.type("text/html").send(readIndexOr(publicPlayerIndexPath));
   });
 
   app.post<RoomSeatRoute>(
