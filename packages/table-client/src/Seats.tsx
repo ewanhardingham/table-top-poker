@@ -10,6 +10,8 @@ import { posFor } from "./table/posFor.js";
 export interface SeatsProps {
   readonly seats: readonly SeatView[];
   readonly view: TableView | null;
+  /** Called with a claimed seat's id when its pod is clicked — table-only, see ADR-0003. */
+  readonly onSeatClick?: (seatId: number) => void;
 }
 
 type SeatStatus = "open" | "sitting-out" | "folded" | "in-hand";
@@ -90,7 +92,7 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
  * is the only place `seats` and the in-progress `view` are merged into a
  * single per-seat picture — `Board` only ever renders the centre content.
  */
-export function Seats({ seats, view }: SeatsProps) {
+export function Seats({ seats, view, onSeatClick }: SeatsProps) {
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
       {seats.map((seat) => {
@@ -207,6 +209,13 @@ export function Seats({ seats, view }: SeatsProps) {
             data-turn={visual.isActor}
             data-winner={visual.isWinner}
             data-disconnected={seat.disconnected}
+            onClick={
+              seat.claimed && onSeatClick
+                ? () => {
+                    onSeatClick(seat.id);
+                  }
+                : undefined
+            }
             style={{
               position: "absolute",
               left: `${String(pos.left)}%`,
@@ -216,6 +225,7 @@ export function Seats({ seats, view }: SeatsProps) {
               flexDirection: "column",
               alignItems: "center",
               gap: "0.5em",
+              cursor: seat.claimed && onSeatClick ? "pointer" : undefined,
             }}
           >
             <motion.div

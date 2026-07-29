@@ -152,7 +152,7 @@ describe("GET /join/:code", () => {
   });
 });
 
-describe("seat claim/clear routes", () => {
+describe("seat claim/evict routes", () => {
   let app: FastifyInstance;
   let rooms: RoomStore;
 
@@ -237,15 +237,15 @@ describe("seat claim/clear routes", () => {
     expect(response.json<SeatClaimBody>().sittingOut).toBe(true);
   });
 
-  it("force-clears a seat so it can be reclaimed", async () => {
+  it("evicts a seat so it can be reclaimed (ADR-0003)", async () => {
     const code = await createRoom();
     await app.inject({ method: "POST", url: `/rooms/${code}/seats/0/claim` });
 
-    const cleared = await app.inject({
+    const evicted = await app.inject({
       method: "POST",
-      url: `/rooms/${code}/seats/0/clear`,
+      url: `/rooms/${code}/seats/0/evict`,
     });
-    expect(cleared.statusCode).toBe(204);
+    expect(evicted.statusCode).toBe(204);
 
     const reclaimed = await app.inject({
       method: "POST",
@@ -662,7 +662,7 @@ describe("hand command dispatch over WebSocket", () => {
     }
   });
 
-  it("evicts a seat after 3 hands disconnected and broadcasts the freed seat (ADR-0002)", async () => {
+  it("has no automatic eviction — a disconnected seat stays occupied across repeated nextHands (ADR-0003)", async () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
@@ -692,57 +692,33 @@ describe("hand command dispatch over WebSocket", () => {
     seat2.socket.close();
     await settle();
 
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       table.socket.send(JSON.stringify({ type: "nextHand" }));
       await settle();
       await completeHandOverWs();
     }
-    table.socket.send(JSON.stringify({ type: "nextHand" }));
-    await settle();
 
-    expect(rooms.get(room.code)?.seats[2]).toMatchObject({
-      claimed: false,
-      missedHands: 0,
-    });
-    const roomViews = table.messages.filter((m) => m.type === "room-view");
-    const lastView = roomViews.at(-1);
-    if (lastView?.type !== "room-view") throw new Error("expected a view");
-    expect(lastView.view.seats[2]).toMatchObject({
-      claimed: false,
-      sittingOut: false,
-    });
+    expect(rooms.get(room.code)?.seats[2]).toMatchObject({ claimed: true });
   });
 
-  it("still broadcasts an eviction that happens on a nextHand rejected as not-enough-players", async () => {
+  it("evicting a seat via the REST route broadcasts the freed seat over the room's sockets (ADR-0003)", async () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     await claimAndConnect(room.code, 0);
-    const seat1 = await claimAndConnect(room.code, 1);
-    const seat2 = await claimAndConnect(room.code, 2);
+    await claimAndConnect(room.code, 1);
     await settle();
 
-    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/1/evict`,
+    });
     await settle();
-
-    // Seats 1 and 2 stay disconnected for every subsequent nextHand — only
-    // seat 0 stays eligible, so every nextHand rejects as not-enough-players,
-    // but the eviction bookkeeping still runs and still needs broadcasting.
-    seat1.socket.close();
-    seat2.socket.close();
-    await settle();
-
-    for (let i = 0; i < 3; i++) {
-      table.socket.send(JSON.stringify({ type: "nextHand" }));
-      await settle();
-    }
 
     expect(rooms.get(room.code)?.seats[1]).toMatchObject({ claimed: false });
-    expect(rooms.get(room.code)?.seats[2]).toMatchObject({ claimed: false });
     const lastView = table.messages.findLast((m) => m.type === "room-view");
     if (lastView?.type !== "room-view") throw new Error("expected a view");
     expect(lastView.view.seats[1]).toMatchObject({ claimed: false });
-    expect(lastView.view.seats[2]).toMatchObject({ claimed: false });
   });
 
   it("rejects an out-of-turn action, visible only to the sender", async () => {
@@ -1222,12 +1198,12 @@ describe("presence and reconnection", () => {
     expect(view.yourHoleCards).toBeNull();
   });
 
-  it("rejects a WS connect with a stale token after the seat is cleared", async () => {
+  it("rejects a WS connect with a stale token after the seat is evicted", async () => {
     const room = rooms.create();
     const claim = rooms.claimSeat(room.code, 0);
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
     const token = claim.seat.token ?? "";
-    rooms.clearSeat(room.code, 0);
+    rooms.evictSeat(room.code, 0);
 
     const socket = new WebSocket(
       `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&seat=0&token=${token}`,

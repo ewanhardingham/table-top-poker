@@ -137,4 +137,16 @@ describe("Seats", () => {
     expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-winner="false"/);
     expect(html).not.toContain("hole-cards");
   });
+
+  it("marks only claimed seats as clickable when onSeatClick is provided (ADR-0003)", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={null} onSeatClick={() => undefined} />,
+    );
+    expect(html).toMatch(
+      /data-testid="seat-pod-0"[^>]*style="[^"]*cursor:pointer/,
+    );
+    expect(html).toMatch(
+      /data-testid="seat-pod-3"[^>]*style="(?:(?!cursor).)*"/,
+    );
+  });
 });

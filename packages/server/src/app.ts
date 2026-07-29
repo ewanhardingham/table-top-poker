@@ -329,8 +329,9 @@ export async function buildApp(
     },
   );
 
+  /** The table device's manual evict action (ADR-0003) — no automatic trigger. */
   app.post<RoomSeatRoute>(
-    "/rooms/:code/seats/:seatId/clear",
+    "/rooms/:code/seats/:seatId/evict",
     (request, reply) => {
       const seatId = parseSeatId(request.params.seatId);
       if (seatId === undefined) {
@@ -338,7 +339,7 @@ export async function buildApp(
       }
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      rooms.clearSeat(request.params.code, seatId);
+      rooms.evictSeat(request.params.code, seatId);
       broadcastRoomView(request.params.code);
       return reply.code(204).send();
     },
@@ -483,12 +484,6 @@ export async function buildApp(
           }
           if ("reason" in dispatchResult) {
             sendRejection(socket, dispatchResult.reason);
-            // A rejected nextHand can still have evicted seats (ADR-0002) —
-            // eviction runs before the eligible-seat-count check, so it
-            // isn't undone by the rejection.
-            if ((dispatchResult.evicted?.length ?? 0) > 0) {
-              broadcastRoomView(code);
-            }
             return;
           }
 
@@ -496,13 +491,11 @@ export async function buildApp(
             fanOutHandUpdate(code, step);
           }
           rescheduleActionClock(code);
-          // A fresh deal-in (new join, eviction, reconnect) or an eviction
-          // on its own (ADR-0002) all change seat state the routine
-          // hand-update fan-out above doesn't cover.
+          // A fresh deal-in (new join, reconnect) changes seat state the
+          // routine hand-update fan-out above doesn't cover.
           if (
             parseResult.data.type === "startHand" ||
-            parseResult.data.type === "nextHand" ||
-            (dispatchResult.evicted?.length ?? 0) > 0
+            parseResult.data.type === "nextHand"
           ) {
             broadcastRoomView(code);
           }
