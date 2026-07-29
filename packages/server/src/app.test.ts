@@ -3,7 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildApp } from "./app.js";
-import { RoomStore, SEAT_COUNT } from "./rooms.js";
+import { RoomStore, SEAT_COUNT, toRoomView } from "./rooms.js";
 
 interface RoomCreatedBody {
   readonly code: string;
@@ -511,7 +511,48 @@ describe("hand command dispatch over WebSocket", () => {
     );
     expect(handUpdates).toHaveLength(0);
 
-    expect(rooms.get(room.code)?.seats[2]?.sittingOut).toBe(true);
+    const view = rooms.get(room.code);
+    expect(view && toRoomView(view).seats[2]?.sittingOut).toBe(true);
+  });
+
+  it("lets a seat voluntarily sit out and back in over the WebSocket (ADR-0002)", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    await settle();
+
+    seat0.socket.send(JSON.stringify({ type: "sitOut" }));
+    await settle();
+
+    expect(rooms.get(room.code)?.seats[0]).toMatchObject({
+      sittingOut: true,
+    });
+    const roomView = table.messages.findLast((m) => m.type === "room-view");
+    if (roomView?.type !== "room-view") throw new Error("expected a view");
+    expect(roomView.view.seats[0]).toMatchObject({ sittingOut: true });
+
+    seat0.socket.send(JSON.stringify({ type: "sitIn" }));
+    await settle();
+
+    expect(rooms.get(room.code)?.seats[0]).toMatchObject({
+      sittingOut: false,
+    });
+  });
+
+  it("rejects sitOut/sitIn from the table role", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "sitOut" }));
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "not-permitted",
+    });
   });
 
   it("rejects a malformed command via Zod before it reaches the engine", async () => {
@@ -619,6 +660,89 @@ describe("hand command dispatch over WebSocket", () => {
         false,
       );
     }
+  });
+
+  it("evicts a seat after 3 hands disconnected and broadcasts the freed seat (ADR-0002)", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat2 = await claimAndConnect(room.code, 2);
+    const seatSockets: Record<number, { socket: WebSocket }> = {
+      0: await claimAndConnect(room.code, 0),
+      1: await claimAndConnect(room.code, 1),
+      2: seat2,
+    };
+    await settle();
+
+    async function completeHandOverWs(): Promise<void> {
+      for (let i = 0; i < 5; i++) {
+        if (rooms.get(room.code)?.engine?.hand?.status === "complete") return;
+        const actor = rooms.currentActor(room.code);
+        if (actor === undefined) throw new Error("expected a current actor");
+        seatSockets[actor]?.socket.send(JSON.stringify({ type: "fold" }));
+        await settle();
+      }
+      throw new Error("hand did not complete");
+    }
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await completeHandOverWs();
+
+    seat2.socket.close();
+    await settle();
+
+    for (let i = 0; i < 2; i++) {
+      table.socket.send(JSON.stringify({ type: "nextHand" }));
+      await settle();
+      await completeHandOverWs();
+    }
+    table.socket.send(JSON.stringify({ type: "nextHand" }));
+    await settle();
+
+    expect(rooms.get(room.code)?.seats[2]).toMatchObject({
+      claimed: false,
+      missedHands: 0,
+    });
+    const roomViews = table.messages.filter((m) => m.type === "room-view");
+    const lastView = roomViews.at(-1);
+    if (lastView?.type !== "room-view") throw new Error("expected a view");
+    expect(lastView.view.seats[2]).toMatchObject({
+      claimed: false,
+      sittingOut: false,
+    });
+  });
+
+  it("still broadcasts an eviction that happens on a nextHand rejected as not-enough-players", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    const seat2 = await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // Seats 1 and 2 stay disconnected for every subsequent nextHand — only
+    // seat 0 stays eligible, so every nextHand rejects as not-enough-players,
+    // but the eviction bookkeeping still runs and still needs broadcasting.
+    seat1.socket.close();
+    seat2.socket.close();
+    await settle();
+
+    for (let i = 0; i < 3; i++) {
+      table.socket.send(JSON.stringify({ type: "nextHand" }));
+      await settle();
+    }
+
+    expect(rooms.get(room.code)?.seats[1]).toMatchObject({ claimed: false });
+    expect(rooms.get(room.code)?.seats[2]).toMatchObject({ claimed: false });
+    const lastView = table.messages.findLast((m) => m.type === "room-view");
+    if (lastView?.type !== "room-view") throw new Error("expected a view");
+    expect(lastView.view.seats[1]).toMatchObject({ claimed: false });
+    expect(lastView.view.seats[2]).toMatchObject({ claimed: false });
   });
 
   it("rejects an out-of-turn action, visible only to the sender", async () => {

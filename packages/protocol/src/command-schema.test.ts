@@ -2,13 +2,19 @@ import { describe, expect, it } from "vitest";
 import { ClientCommandSchema } from "./command-schema.js";
 
 describe("ClientCommandSchema", () => {
-  it.each(["startHand", "fold", "check", "call", "raise", "nextHand"])(
-    "accepts a bare %s command",
-    (type) => {
-      const result = ClientCommandSchema.safeParse({ type });
-      expect(result.success).toBe(true);
-    },
-  );
+  it.each([
+    "startHand",
+    "fold",
+    "check",
+    "call",
+    "raise",
+    "nextHand",
+    "sitOut",
+    "sitIn",
+  ])("accepts a bare %s command", (type) => {
+    const result = ClientCommandSchema.safeParse({ type });
+    expect(result.success).toBe(true);
+  });
 
   it("rejects an unknown command type", () => {
     const result = ClientCommandSchema.safeParse({ type: "advance" });
