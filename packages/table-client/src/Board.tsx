@@ -1,9 +1,13 @@
 import type { Card as CardType, TableView } from "@table-top-poker/protocol";
-import { Card, font } from "@table-top-poker/ui-shared";
+import { Card, color, font } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
 
 export interface BoardProps {
   readonly view: TableView;
+}
+
+function seatLabel(seatId: number): string {
+  return `Seat ${String(seatId + 1)}`;
 }
 
 /** The community cards, dealt in one at a time via Motion rather than CSS keyframes. */
@@ -11,7 +15,7 @@ function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
   return (
     <div
       data-testid="community-cards"
-      style={{ display: "flex", gap: "0.4em", fontSize: "2em" }}
+      style={{ display: "flex", gap: "0.4em", fontSize: "2.4em" }}
     >
       {board.map((card, i) => (
         <motion.div
@@ -28,9 +32,71 @@ function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
 }
 
 /**
- * The felt's centre content — community cards and, at showdown, every live
- * seat's revealed hand. Seat pods themselves (including button/actor state
- * and each winner's hole cards) are `Seats`' job, not this component's.
+ * "Hand complete" pill grouped directly above the community cards — the
+ * two move as one unit rather than the banner pinned to the felt's edge
+ * independently of the board it's describing. Never says "you" (unlike
+ * player-client's identical-looking banner, docs/design decision from
+ * issue #63) since the table has no single viewer to address.
+ */
+function HandCompleteBanner({ text }: { readonly text: string }) {
+  return (
+    <div
+      data-testid="hand-complete-banner"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5em",
+        padding: "0.45em 1em",
+        borderRadius: "999px",
+        background: color.winBackground,
+        border: `1px solid ${color.winBorder}`,
+        fontSize: "0.9em",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        style={{
+          width: "0.5em",
+          height: "0.5em",
+          borderRadius: "50%",
+          flex: "none",
+          background: color.winBright,
+          boxShadow: `0 0 0.5em ${color.winBright}`,
+        }}
+      />
+      <span
+        style={{
+          fontFamily: font.mono,
+          fontSize: "0.65em",
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          color: color.winKicker,
+        }}
+      >
+        Hand complete
+      </span>
+      <span style={{ color: color.winText, fontWeight: 600 }}>{text}</span>
+    </div>
+  );
+}
+
+/** `winners.join(" & ") wins/split with <description>` — never "everyone folded". */
+function showdownText(
+  winners: readonly number[],
+  description: string | undefined,
+): string {
+  const names = winners.map(seatLabel).join(" & ");
+  const verb = winners.length > 1 ? "split" : "wins";
+  return description ? `${names} ${verb} — ${description}` : `${names} ${verb}`;
+}
+
+/**
+ * The felt's centre content — community cards and, at showdown, a single
+ * "hand complete" line naming the winner(s) and their hand. Each seat's own
+ * revealed hole cards live at the seat pod (`Seats`' job), not duplicated
+ * here — issue #60's showdown-reveal pass found showing every hand twice
+ * (once here, once at the pod) was most of what made the felt unreadable
+ * at a full 8-player table.
  */
 export function Board({ view }: BoardProps) {
   if (view.phase === "no-hand") {
@@ -44,12 +110,17 @@ export function Board({ view }: BoardProps) {
   if (view.phase === "folded-out") {
     return (
       <div data-testid="board" data-phase="folded-out">
-        Hand complete — Seat {view.winner + 1} wins, everyone else folded.
+        <HandCompleteBanner
+          text={`${seatLabel(view.winner)} wins — everyone folded`}
+        />
       </div>
     );
   }
 
   if (view.phase === "showdown") {
+    const winnerResult = view.results.find((result) =>
+      view.winners.includes(result.seatId),
+    );
     return (
       <div
         data-testid="board"
@@ -61,51 +132,10 @@ export function Board({ view }: BoardProps) {
           gap: "0.6em",
         }}
       >
+        <HandCompleteBanner
+          text={showdownText(view.winners, winnerResult?.description)}
+        />
         <CommunityCards board={view.board} />
-        <span
-          data-testid="winners"
-          style={{ fontFamily: font.display, fontSize: "1.2em" }}
-        >
-          Winner{view.winners.length > 1 ? "s" : ""}: seat
-          {view.winners.length > 1 ? "s" : ""}{" "}
-          {view.winners.map((seatId) => seatId + 1).join(", ")}
-        </span>
-        <ul
-          data-testid="showdown-results"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: "1.2em",
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-          }}
-        >
-          {view.results.map((result) => (
-            <li
-              key={result.seatId}
-              data-testid={`result-${String(result.seatId)}`}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "0.3em",
-                fontSize: "0.85em",
-              }}
-            >
-              Seat {result.seatId + 1}: {result.description}
-              <div
-                data-testid={`best-hand-${String(result.seatId)}`}
-                style={{ display: "flex", gap: "0.2em", fontSize: "0.6em" }}
-              >
-                {result.bestHand.map((card, i) => (
-                  <Card key={i} rank={card.rank} suit={card.suit} />
-                ))}
-              </div>
-            </li>
-          ))}
-        </ul>
       </div>
     );
   }

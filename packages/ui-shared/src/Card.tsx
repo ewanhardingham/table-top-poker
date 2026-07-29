@@ -1,6 +1,6 @@
 import type { Rank, Suit } from "@table-top-poker/protocol";
 import type { CSSProperties } from "react";
-import { color, font, radius, shadow } from "./theme.js";
+import { color, font, shadow } from "./theme.js";
 
 export type CardProps =
   | { readonly faceDown: true }
@@ -18,7 +18,15 @@ const redSuits: ReadonlySet<Suit> = new Set(["diamonds", "hearts"]);
 const baseStyle: CSSProperties = {
   width: "3.5em",
   height: "5em",
-  borderRadius: radius.card,
+  // Self-relative, not `radius.card` (a fixed px token): consumers shrink
+  // this component's whole box by wrapping it in a smaller font-size
+  // context (seat-pod and multi-way showdown reveals go well under 1em),
+  // and a fixed px radius doesn't shrink with them — past a certain point
+  // it swallows the rank/suit entirely. `em` here resolves against this
+  // card's own font-size, the same one `width`/`height` scale from, so
+  // the corner stays the same small, rectangular-not-round proportion of
+  // the card (~6% of its width) at every size.
+  borderRadius: "0.2em",
   boxSizing: "border-box",
   fontFamily: font.body,
   userSelect: "none",
@@ -60,7 +68,7 @@ export function Card(props: CardProps) {
         display: "flex",
         flexDirection: "column",
         justifyContent: "space-between",
-        padding: "0.15em 0.18em",
+        padding: "0.24em 0.26em",
       }}
     >
       <span

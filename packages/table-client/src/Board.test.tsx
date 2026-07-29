@@ -34,14 +34,74 @@ describe("Board", () => {
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(3);
   });
 
-  it("renders a fold-out completion with no reveal", () => {
+  it("names the winner in a hand-complete banner after everyone else folds", () => {
     const view: TableView = { phase: "folded-out", button: 0, winner: 1 };
     const html = renderToStaticMarkup(<Board view={view} />);
+
     expect(html).toMatch(/data-testid="board"[^>]*data-phase="folded-out"/);
-    expect(html).not.toContain('data-testid="showdown-results"');
+    expect(html).toContain('data-testid="hand-complete-banner"');
+    expect(html).toContain("Seat 2 wins — everyone folded");
+    expect(html).not.toContain('data-testid="community-cards"');
   });
 
-  it("renders every live seat's rank and best five cards at showdown, split-aware", () => {
+  it("names the winner and their hand in a hand-complete banner at showdown, without duplicating any seat's hole cards", () => {
+    const view: TableView = {
+      phase: "showdown",
+      button: 0,
+      board: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "hearts" },
+        { rank: "2", suit: "clubs" },
+        { rank: "7", suit: "diamonds" },
+        { rank: "9", suit: "clubs" },
+      ],
+      winners: [0],
+      results: [
+        {
+          seatId: 0,
+          rank: 1,
+          description: "Pair of Aces",
+          holeCards: [
+            { rank: "A", suit: "clubs" },
+            { rank: "3", suit: "hearts" },
+          ],
+          bestHand: [
+            { rank: "A", suit: "spades" },
+            { rank: "A", suit: "clubs" },
+            { rank: "K", suit: "hearts" },
+            { rank: "9", suit: "clubs" },
+            { rank: "7", suit: "diamonds" },
+          ],
+        },
+        {
+          seatId: 1,
+          rank: 2,
+          description: "Ace high",
+          holeCards: [
+            { rank: "Q", suit: "diamonds" },
+            { rank: "4", suit: "hearts" },
+          ],
+          bestHand: [
+            { rank: "A", suit: "spades" },
+            { rank: "K", suit: "hearts" },
+            { rank: "Q", suit: "diamonds" },
+            { rank: "9", suit: "clubs" },
+            { rank: "7", suit: "diamonds" },
+          ],
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<Board view={view} />);
+
+    expect(html).toMatch(/data-testid="board"[^>]*data-phase="showdown"/);
+    expect(html).toContain('data-testid="hand-complete-banner"');
+    expect(html).toContain("Seat 1 wins — Pair of Aces");
+    expect(html).toMatch(/data-testid="community-cards"/);
+    // Only the 5 board cards — no seat's hole cards duplicated in the board.
+    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(5);
+  });
+
+  it("names every winner on a split pot", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
@@ -90,16 +150,6 @@ describe("Board", () => {
     };
     const html = renderToStaticMarkup(<Board view={view} />);
 
-    expect(html).toMatch(/data-testid="board"[^>]*data-phase="showdown"/);
-    expect(html).toContain('data-testid="winners"');
-    expect(html).toContain("Winners: seats 1, 2");
-    expect(html).toMatch(/data-testid="result-0"[^>]*>Seat 1: Pair of Aces/);
-    expect(html).toMatch(/data-testid="result-1"[^>]*>Seat 2: Pair of Aces/);
-    expect((html.match(/data-testid="best-hand-0"/g) ?? []).length).toBe(1);
-    expect((html.match(/data-testid="best-hand-1"/g) ?? []).length).toBe(1);
-    // Each best-hand block shows the full five-card hand, not just the two hole cards.
-    const result0 =
-      /data-testid="result-0"[\s\S]*?<\/li>/.exec(html)?.[0] ?? "";
-    expect((result0.match(/data-face-down="false"/g) ?? []).length).toBe(5);
+    expect(html).toContain("Seat 1 &amp; Seat 2 split — Pair of Aces");
   });
 });
