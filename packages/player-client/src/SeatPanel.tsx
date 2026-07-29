@@ -1,11 +1,24 @@
-import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
+import {
+  PillButton,
+  color,
+  font,
+  fontSize,
+  radius,
+} from "@table-top-poker/ui-shared";
 
 export interface SeatPanelProps {
   readonly seatId: number;
   readonly sittingOut: boolean;
+  readonly toggleDisabled: boolean;
+  readonly onToggleSittingOut: () => void;
 }
 
-export function SeatPanel({ seatId, sittingOut }: SeatPanelProps) {
+export function SeatPanel({
+  seatId,
+  sittingOut,
+  toggleDisabled,
+  onToggleSittingOut,
+}: SeatPanelProps) {
   return (
     <div
       data-testid="seat-panel"
@@ -55,6 +68,16 @@ export function SeatPanel({ seatId, sittingOut }: SeatPanelProps) {
           Sitting out
         </div>
       )}
+      <PillButton
+        size="md"
+        tone="outline"
+        data-testid="sitting-out-toggle"
+        disabled={toggleDisabled}
+        onClick={onToggleSittingOut}
+        style={{ padding: "8px 12px", fontSize: fontSize.xs }}
+      >
+        {sittingOut ? "Sit in" : "Sit out"}
+      </PillButton>
     </div>
   );
 }

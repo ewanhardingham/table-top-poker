@@ -20,7 +20,6 @@ export function App() {
   const seats = usePlayerStore((state) => state.seats);
   const joinError = usePlayerStore((state) => state.joinError);
   const seatId = usePlayerStore((state) => state.seatId);
-  const sittingOut = usePlayerStore((state) => state.sittingOut);
   const connectionStatus = usePlayerStore((state) => state.connectionStatus);
   const handView = usePlayerStore((state) => state.handView);
   const setRoomView = usePlayerStore((state) => state.setRoomView);
@@ -80,6 +79,12 @@ export function App() {
     onRejected: handleRejected,
     onRoomEnded: handleRoomEnded,
   });
+  const playerSeat =
+    seatId === null ? undefined : seats.find((seat) => seat.id === seatId);
+  const handleToggleSittingOut = useCallback(() => {
+    if (!playerSeat) return;
+    send({ type: playerSeat.sittingOut ? "sitIn" : "sitOut" });
+  }, [playerSeat, send]);
   const intent = useActionIntent(send);
 
   const handleJoin = useCallback(
@@ -157,7 +162,12 @@ export function App() {
       <StatusBar
         showBadge={wsParams !== null}
         connectionStatus={connectionStatus}
-        seat={seatId !== null ? { seatId, sittingOut } : null}
+        onToggleSittingOut={handleToggleSittingOut}
+        seat={
+          playerSeat
+            ? { seatId: playerSeat.id, sittingOut: playerSeat.sittingOut }
+            : null
+        }
       />
       <main className="hand">{content}</main>
     </div>

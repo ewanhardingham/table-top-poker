@@ -143,6 +143,25 @@ export async function buildApp(
     }
   }
 
+  /**
+   * A seat token only protects the next connection attempt. Remove all
+   * currently open sockets for an evicted seat too, otherwise that socket
+   * could keep issuing commands until it disconnected on its own.
+   */
+  function closeSeatSockets(code: string, seatId: SeatId): void {
+    const sockets = roomSockets.get(code);
+    if (!sockets) return;
+
+    for (const socket of [...sockets]) {
+      if (socketIdentity.get(socket) !== seatId) continue;
+      sockets.delete(socket);
+      socketIdentity.delete(socket);
+      socketRoomCode.delete(socket);
+      pingMissed.delete(socket);
+      socket.close();
+    }
+  }
+
   /** Cosmetic presence toggle for a seat's socket — never touches `rooms.dispatch`. */
   function markPresence(socket: WebSocket, disconnected: boolean): void {
     const identity = socketIdentity.get(socket);
@@ -340,6 +359,7 @@ export async function buildApp(
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
       rooms.evictSeat(request.params.code, seatId);
+      closeSeatSockets(request.params.code, seatId);
       broadcastRoomView(request.params.code);
       return reply.code(204).send();
     },

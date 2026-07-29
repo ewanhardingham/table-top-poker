@@ -6,6 +6,7 @@ import type { ConnectionStatus } from "./store/connectionSlice.js";
 export interface StatusBarProps {
   readonly showBadge: boolean;
   readonly connectionStatus: ConnectionStatus;
+  readonly onToggleSittingOut: () => void;
   readonly seat: {
     readonly seatId: number;
     readonly sittingOut: boolean;
@@ -35,6 +36,7 @@ const badgeStyle: CSSProperties = {
 export function StatusBar({
   showBadge,
   connectionStatus,
+  onToggleSittingOut,
   seat,
 }: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
@@ -48,7 +50,14 @@ export function StatusBar({
         padding: "16px 18px 0",
       }}
     >
-      {seat && <SeatPanel seatId={seat.seatId} sittingOut={seat.sittingOut} />}
+      {seat && (
+        <SeatPanel
+          seatId={seat.seatId}
+          sittingOut={seat.sittingOut}
+          toggleDisabled={connectionStatus !== "connected"}
+          onToggleSittingOut={onToggleSittingOut}
+        />
+      )}
       {showBadge && (
         <span
           data-testid="connection-status"

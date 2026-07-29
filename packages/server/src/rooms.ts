@@ -238,7 +238,7 @@ export class RoomStore {
   ): void {
     const room = this.#rooms.get(code);
     const seat = room?.seats[seatId];
-    if (!seat) return;
+    if (!seat?.claimed) return;
     seat.disconnected = disconnected;
   }
 
