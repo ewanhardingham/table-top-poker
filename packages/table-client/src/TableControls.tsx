@@ -1,4 +1,4 @@
-import { PillButton, color } from "@table-top-poker/ui-shared";
+import { PillButton } from "@table-top-poker/ui-shared";
 
 export interface TableControlsProps {
   readonly canStartHand: boolean;
@@ -26,6 +26,10 @@ export interface TableControlsProps {
  * whatever width each label happens to be. Sizing comes from `PillButton`'s
  * size token for all of them — an ad-hoc smaller `End session` made the rail
  * read as two unrelated controls rather than one group.
+ *
+ * The two secondary actions take the plain outline tone with no per-call
+ * colour of their own, so the rail's only visual hierarchy is solid (deal the
+ * next hand) against outline (everything else).
  */
 export function TableControls({
   canStartHand,
@@ -80,11 +84,7 @@ export function TableControls({
         tone="outline"
         data-testid="end-session-button"
         onClick={onEndSession}
-        style={{
-          width: "100%",
-          borderColor: color.accentBorder,
-          color: color.textBright,
-        }}
+        style={{ width: "100%" }}
       >
         End session
       </PillButton>
