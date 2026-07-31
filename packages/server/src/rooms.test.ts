@@ -276,21 +276,6 @@ describe("RoomStore", () => {
       expect(room.engine?.seats).toEqual([0, 1, 2]);
     });
 
-    it("applies a queued shrink at the start-hand deal-in seam", () => {
-      const store = new RoomStore();
-      const room = store.create();
-      claimSeats(store, room, [0, 3]);
-      room.pendingSeatCount = 2;
-
-      const started = store.dispatch(room.code, "table", "startHand");
-
-      if (!("steps" in started)) throw new Error("expected dispatch steps");
-      expect(started.seatMoves).toEqual([{ from: 3, to: 1 }]);
-      expect(room.pendingSeatCount).toBeNull();
-      expect(room.seats).toHaveLength(2);
-      expect(room.engine?.seats).toEqual([0, 1]);
-    });
-
     it("repacks claimed seats while carrying token and seat state", () => {
       const store = new RoomStore(Math.random, () => "token");
       const room = store.create();
@@ -365,7 +350,7 @@ describe("RoomStore", () => {
       expect(room.engine?.hand?.status).toBe("betting");
     });
 
-    it("keeps a completed hand's positions until the next deal-in", () => {
+    it("applies a shrink immediately between hands", () => {
       const store = new RoomStore();
       const room = store.create();
       claimSeats(store, room, [2, 5, 7]);
@@ -373,25 +358,30 @@ describe("RoomStore", () => {
       if (!("steps" in started)) throw new Error("expected dispatch steps");
       completeHand(store, room);
 
-      const queued = store.changeSeatCount(room.code, 3);
+      const applied = store.changeSeatCount(room.code, 3);
 
-      expect(queued).toEqual({
-        seatCount: DEFAULT_SEAT_COUNT,
-        pendingSeatCount: 3,
-        applied: false,
-        moves: [],
+      expect(applied).toEqual({
+        seatCount: 3,
+        pendingSeatCount: null,
+        applied: true,
+        moves: [
+          { from: 2, to: 0 },
+          { from: 5, to: 1 },
+          { from: 7, to: 2 },
+        ],
       });
-      expect(room.seats).toHaveLength(DEFAULT_SEAT_COUNT);
+      expect(room.seats).toHaveLength(3);
       expect(room.engine?.seats).toEqual([2, 5, 7]);
+      expect(toRoomView(room).seats.map((seat) => seat.sittingOut)).toEqual([
+        false,
+        false,
+        false,
+      ]);
 
       const next = store.dispatch(room.code, "table", "nextHand");
 
       if (!("steps" in next)) throw new Error("expected dispatch steps");
-      expect(next.seatMoves).toEqual([
-        { from: 2, to: 0 },
-        { from: 5, to: 1 },
-        { from: 7, to: 2 },
-      ]);
+      expect(next.seatMoves).toBeUndefined();
       expect(room.engine?.seats).toEqual([0, 1, 2]);
       expect(room.engine?.hand?.status).toBe("betting");
     });

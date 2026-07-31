@@ -190,7 +190,7 @@ export function App() {
                 seatCount={seats.length}
                 pendingSeatCount={pendingSeatCount}
                 seats={seats}
-                handInProgress={handView !== null}
+                handInProgress={handView?.phase === "betting"}
                 onApply={handleChangeSeatCount}
                 onClose={() => {
                   setSettingsOpen(false);

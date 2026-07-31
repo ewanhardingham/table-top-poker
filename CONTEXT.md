@@ -12,8 +12,9 @@ The persistent host for a poker night. Created when the table device starts
 it; holds the current seating and button position across hands; ends when
 the table device closes it. A Room hosts exactly one Table and as many
 seated Players as it has Seats. The table device may change the Seat count
-between 2 and 8 while the Room exists; a shrink waits for the next deal-in
-and repacks claimed positions without evicting anyone (ADR-0004).
+between 2 and 8 while the Room exists; a shrink during a live hand waits for
+the next deal-in, while an idle Room repacks claimed positions immediately
+without evicting anyone (ADR-0004).
 _Avoid_: Game, Session — both mean Room.
 
 **Table**:
@@ -41,9 +42,10 @@ The table device chooses the Room's initial Seat count from 2 (heads-up) to 8
 and may change it later. A shrink repacks claimed Players into the surviving
 positions, so a Seat id is mutable position rather than permanent identity;
 the claim token and seat state move with the Player. The count can never fall
-below the number of claimed Seats, and a shrink applies at the next deal-in
-when a hand is displayed (see ADR-0002, ADR-0003, ADR-0004). A Seat is
-always in one of four states: Active, Sitting-out, Disconnected, or Evicted.
+below the number of claimed Seats; a shrink during a live hand applies at the
+next deal-in, while a shrink between hands applies immediately (see ADR-0002,
+ADR-0003, ADR-0004). A Seat is always in one of four states: Active,
+Sitting-out, Disconnected, or Evicted.
 
 **Sitting-out**:
 A Seat state the Player toggles themselves — not dealt in. Distinct from

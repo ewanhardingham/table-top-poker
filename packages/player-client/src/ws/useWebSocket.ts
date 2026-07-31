@@ -72,20 +72,26 @@ export function useWebSocket(
   const commandRejected = usePlayerStore((state) => state.commandRejected);
   const socketRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
-  const currentSeatIdRef = useRef<number | null>(params?.seatId ?? null);
   optionsRef.current = options;
-  currentSeatIdRef.current = params?.seatId ?? null;
 
   const roomCode = params?.roomCode ?? null;
   const token = params?.token ?? null;
-  const hasParams =
-    roomCode !== null && token !== null && params?.seatId !== undefined;
+  const connectionKey =
+    roomCode === null || token === null ? null : `${roomCode}\u0000${token}`;
+  const connectionKeyRef = useRef<string | null>(null);
+  const currentSeatIdRef = useRef<number | null>(null);
+  if (connectionKeyRef.current !== connectionKey) {
+    connectionKeyRef.current = connectionKey;
+    currentSeatIdRef.current = params?.seatId ?? null;
+  }
 
-  // Keep the existing socket open after a seat move. The current seat is
+  // Keep the existing socket open after a seat move. The transport seat is
   // updated for reconnects without making the server briefly mark the player
   // disconnected while the effect restarts.
+  // The effect is keyed by room and token; the seat ref deliberately does not
+  // appear in its dependencies because a repack must not bounce the socket.
   useEffect(() => {
-    if (!hasParams) {
+    if (roomCode === null || token === null) {
       setConnectionStatus("disconnected");
       return;
     }
@@ -99,17 +105,18 @@ export function useWebSocket(
     }
 
     let active = true;
-    let currentSeatId = initialSeatId;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     function connect(): void {
       if (!active) return;
+      const seatId = currentSeatIdRef.current;
+      if (seatId === null) return;
       setConnectionStatus("connecting");
       let openedOnce = false;
       const socket = new WebSocket(
         getWebSocketUrl(window.location, {
           room: code,
-          seat: String(currentSeatId),
+          seat: String(seatId),
           token: authToken,
         }),
       );
@@ -135,6 +142,7 @@ export function useWebSocket(
           case "room-view":
             setRoomView(message.view);
             {
+              const currentSeatId = currentSeatIdRef.current;
               const seat = message.view.seats.find(
                 (candidate) => candidate.id === currentSeatId,
               );
@@ -156,7 +164,6 @@ export function useWebSocket(
             commandRejected(message.reason);
             break;
           case "seat-moved":
-            currentSeatId = message.to;
             currentSeatIdRef.current = message.to;
             moveSeat(message.to);
             optionsRef.current.onSeatMoved?.({
@@ -184,7 +191,6 @@ export function useWebSocket(
       socketRef.current = null;
     };
   }, [
-    hasParams,
     roomCode,
     token,
     setConnectionStatus,

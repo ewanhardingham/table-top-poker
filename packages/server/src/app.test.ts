@@ -343,7 +343,7 @@ describe("seat claim/evict routes", () => {
   });
 });
 
-describe("table-only seat-count settings route", () => {
+describe("seat-count settings route", () => {
   let app: FastifyInstance;
   let rooms: RoomStore;
   let port: number;
@@ -560,15 +560,16 @@ describe("seat-count movement over WebSocket", () => {
     );
     reconnect.socket.close();
 
-    const stale = new WebSocket(
-      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&seat=5&token=${token}`,
-    );
-    const staleStatus = await new Promise<number>((resolve) => {
-      stale.on("unexpected-response", (_request, response) => {
-        resolve(response.statusCode ?? 0);
-      });
+    const stale = connect(room.code, 5, token);
+    await opened(stale.socket);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(stale.messages).toContainEqual({
+      type: "seat-moved",
+      from: 5,
+      to: 1,
     });
-    expect(staleStatus).toBe(403);
+    stale.socket.close();
   });
 });
 
