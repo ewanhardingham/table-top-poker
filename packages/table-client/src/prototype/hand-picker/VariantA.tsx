@@ -7,7 +7,11 @@
  * streets should be shown as empty slots so a preflop walk reads as a
  * visibly short hand rather than a missing one.
  *
- * Ordering: newest first. In-progress hand: shown at top, not selectable.
+ * Ordering: newest first.
+ *
+ * In-progress hands are not rendered at all. Review is reachable only between
+ * hands (map #79), so at the moment the picker is open there is no hand in
+ * progress — an "in progress" row is a state the picker can never be in.
  */
 import { Card, color, font, radius } from "@table-top-poker/ui-shared";
 import {
@@ -50,12 +54,10 @@ function Row({
   readonly hand: HandSummary;
   readonly onSelect: (n: number) => void;
 }) {
-  const live = hand.outcome.kind === "in-progress";
   const winners = winnersOf(hand);
   return (
     <button
       type="button"
-      disabled={live}
       onClick={() => {
         onSelect(hand.handNumber);
       }}
@@ -68,19 +70,18 @@ function Row({
         textAlign: "left",
         padding: "0.7em 1.1em",
         borderRadius: radius.control,
-        border: `1px solid ${live ? color.accentBorder : color.border}`,
-        background: live ? color.accentWash : color.surfaceGradient,
+        border: `1px solid ${color.border}`,
+        background: color.surfaceGradient,
         color: color.text,
         font: "inherit",
-        cursor: live ? "default" : "pointer",
-        opacity: live ? 0.72 : 1,
+        cursor: "pointer",
       }}
     >
       <span
         style={{
           fontFamily: font.display,
           fontSize: "1.9em",
-          color: live ? color.textDim : color.textBright,
+          color: color.textBright,
           lineHeight: 1,
         }}
       >
@@ -99,9 +100,8 @@ function Row({
             color: color.textDim,
           }}
         >
-          {live
-            ? "Live"
-            : `${String(survivors(hand).length)} to ${hand.lastStreet} · ${actionShape(hand)}`}
+          {String(survivors(hand).length)} to {hand.lastStreet} ·{" "}
+          {actionShape(hand)}
         </span>
         <span
           style={{
@@ -129,7 +129,9 @@ export function VariantA({
   readonly hands: readonly HandSummary[];
   readonly onSelect: (n: number) => void;
 }) {
-  const ordered = [...hands].sort((a, b) => b.handNumber - a.handNumber);
+  const ordered = [...hands]
+    .filter((hand) => hand.outcome.kind !== "in-progress")
+    .sort((a, b) => b.handNumber - a.handNumber);
   return (
     <div
       style={{

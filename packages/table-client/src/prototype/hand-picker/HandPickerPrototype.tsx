@@ -133,7 +133,11 @@ export function HandPickerPrototype() {
                     color: color.textDim,
                   }}
                 >
-                  {fixtureHands.length} hands this session
+                  {
+                    fixtureHands.filter((h) => h.outcome.kind !== "in-progress")
+                      .length
+                  }{" "}
+                  hands this session
                 </span>
                 <PillButton
                   tone="outline"
