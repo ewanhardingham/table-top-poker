@@ -35,7 +35,16 @@ describe("PillButton", () => {
     const outline = renderToStaticMarkup(
       <PillButton tone="outline">End session</PillButton>,
     );
+    expect(solid).not.toContain("IBM Plex Mono");
+    expect(outline).toContain("IBM Plex Mono");
+  });
+
+  it("renders both tones' labels as written, so a mixed rail reads as one group", () => {
+    const solid = renderToStaticMarkup(<PillButton>Deal hand</PillButton>);
+    const outline = renderToStaticMarkup(
+      <PillButton tone="outline">End session</PillButton>,
+    );
     expect(solid).not.toContain("text-transform");
-    expect(outline).toContain("text-transform:uppercase");
+    expect(outline).not.toContain("text-transform");
   });
 });
