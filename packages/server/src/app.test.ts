@@ -254,7 +254,11 @@ describe("GET /join/:code", () => {
     stageBuiltIndex(publicPlayerDir, "real player client");
     try {
       app = await buildApp();
-      const created = await app.inject({ method: "POST", url: "/rooms" });
+      const created = await app.inject({
+        method: "POST",
+        url: "/rooms",
+        payload: { seatCount: DEFAULT_SEAT_COUNT },
+      });
       const { code } = created.json<RoomCreatedBody>();
 
       const response = await app.inject({
