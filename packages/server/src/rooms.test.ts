@@ -185,6 +185,141 @@ describe("RoomStore", () => {
     });
   });
 
+  describe("seat-count changes", () => {
+    function claimSeats(store: RoomStore, room: Room, ids: readonly number[]) {
+      for (const seatId of ids) {
+        const result = store.claimSeat(room.code, seatId);
+        if (!("seat" in result)) throw new Error("expected a claimed seat");
+      }
+    }
+
+    function completeHand(store: RoomStore, room: Room): void {
+      for (let i = 0; i < MAX_SEAT_COUNT; i++) {
+        if (room.engine?.hand?.status === "complete") return;
+        const actor = store.currentActor(room.code);
+        if (actor === undefined) throw new Error("expected a current actor");
+        const result = store.dispatch(room.code, actor, "fold");
+        if (!("steps" in result)) throw new Error("expected dispatch steps");
+      }
+      throw new Error("hand did not complete");
+    }
+
+    it("uses the claimed-seat floor and still floors an empty table at two", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      claimSeats(store, room, [1, 4, 7]);
+
+      expect(store.changeSeatCount(room.code, 2)).toEqual({
+        error: "seat-count-below-floor",
+        minimum: 3,
+      });
+      expect(store.changeSeatCount(room.code, 3)).toMatchObject({
+        seatCount: 3,
+        applied: true,
+      });
+
+      const empty = store.create();
+      expect(store.changeSeatCount(empty.code, 1)).toEqual({
+        error: "invalid-seat-count",
+      });
+      const min = store.changeSeatCount(empty.code, MIN_SEAT_COUNT);
+      expect(min).toMatchObject({ seatCount: MIN_SEAT_COUNT, applied: true });
+    });
+
+    it("grows immediately and appends only fresh unclaimed seats", () => {
+      const store = new RoomStore();
+      const room = store.create(4);
+      const claimed = store.claimSeat(room.code, 1);
+      if (!("seat" in claimed)) throw new Error("expected a claimed seat");
+
+      const result = store.changeSeatCount(room.code, 6);
+
+      expect(result).toEqual({
+        seatCount: 6,
+        pendingSeatCount: null,
+        applied: true,
+        moves: [],
+      });
+      expect(room.seats.map((seat) => seat.id)).toEqual([0, 1, 2, 3, 4, 5]);
+      expect(room.seats[1]?.token).toBe(claimed.seat.token);
+      expect(room.seats.slice(4).every((seat) => !seat.claimed)).toBe(true);
+    });
+
+    it("repacks claimed seats while carrying token and seat state", () => {
+      const store = new RoomStore(Math.random, () => "token");
+      const room = store.create();
+      claimSeats(store, room, [0, 3, 5]);
+      store.setSittingOut(room.code, 3, true);
+      store.setSeatDisconnected(room.code, 5, true);
+      const tokens = room.seats
+        .filter((seat) => seat.claimed)
+        .map((seat) => seat.token);
+
+      const result = store.changeSeatCount(room.code, 4);
+
+      expect(result).toEqual({
+        seatCount: 4,
+        pendingSeatCount: null,
+        applied: true,
+        moves: [
+          { from: 3, to: 1 },
+          { from: 5, to: 2 },
+        ],
+      });
+      expect(
+        room.seats.filter((seat) => seat.claimed).map((seat) => seat.token),
+      ).toEqual(tokens);
+      expect(room.seats[1]).toMatchObject({
+        claimed: true,
+        sittingOut: true,
+        disconnected: false,
+      });
+      expect(room.seats[2]).toMatchObject({
+        claimed: true,
+        sittingOut: false,
+        disconnected: true,
+      });
+      expect(room.seats.filter((seat) => seat.claimed)).toHaveLength(3);
+    });
+
+    it("queues a live-hand shrink and applies it at the next deal-in", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      claimSeats(store, room, [2, 5, 7]);
+      const started = store.dispatch(room.code, "table", "startHand");
+      if (!("steps" in started)) throw new Error("expected dispatch steps");
+      const liveEngine = room.engine;
+
+      const queued = store.changeSeatCount(room.code, 3);
+
+      expect(queued).toEqual({
+        seatCount: MAX_SEAT_COUNT,
+        pendingSeatCount: 3,
+        applied: false,
+        moves: [],
+      });
+      expect(room.seats).toHaveLength(MAX_SEAT_COUNT);
+      expect(room.engine).toBe(liveEngine);
+
+      completeHand(store, room);
+      const next = store.dispatch(room.code, "table", "nextHand");
+
+      if (!("steps" in next)) throw new Error("expected dispatch steps");
+      expect(next.seatMoves).toEqual([
+        { from: 2, to: 0 },
+        { from: 5, to: 1 },
+        { from: 7, to: 2 },
+      ]);
+      expect(room.pendingSeatCount).toBeNull();
+      expect(room.seats).toHaveLength(3);
+      expect(room.engine?.seats).toEqual([0, 1, 2]);
+      // The completed hand's next button was old seat 5; after repacking it
+      // is seat 1 and the new hand keeps it there.
+      expect(room.engine?.button).toBe(1);
+      expect(room.engine?.hand?.status).toBe("betting");
+    });
+  });
+
   describe("dispatch", () => {
     function roomWithClaimedSeats(store: RoomStore, count: number) {
       const room = store.create();

@@ -11,7 +11,9 @@ a hand moves through.
 The persistent host for a poker night. Created when the table device starts
 it; holds the current seating and button position across hands; ends when
 the table device closes it. A Room hosts exactly one Table and as many
-seated Players as it has Seats.
+seated Players as it has Seats. The table device may change the Seat count
+between 2 and 8 while the Room exists; a live-hand shrink waits for the next
+deal-in and repacks claimed positions without evicting anyone (ADR-0004).
 _Avoid_: Game, Session — both mean Room.
 
 **Table**:
@@ -23,15 +25,20 @@ _Avoid_: Using "table" for anything other than the central device's role.
 **Player**:
 The identity of a person seated at the table. Persists for the life of the
 Room — across hands, and across a Device disconnecting and reconnecting.
+If the table shrinks, the Player keeps their claim token while their
+positional Seat id may change (ADR-0004).
 
 **Seat**:
 A position at the table (tracked positionally for the Button and blinds),
 occupied by a Player for as long as they remain seated. Persists across
-hands within a Room; a Player keeps their Seat through a Device disconnect.
-A Room's Seat count is fixed when the Room is created — the creator picks
-it on the table device, from 2 (heads-up) to 8, and the server enforces
-that range. A Seat is always in one of four states: Active, Sitting-out,
-Disconnected, or Evicted (see ADR-0002, ADR-0003).
+hands within a Room; a Player keeps their claim through a Device disconnect.
+The table device chooses the Room's initial Seat count from 2 (heads-up) to 8
+and may change it later. A shrink repacks claimed Players into the surviving
+positions, so a Seat id is mutable position rather than permanent identity;
+the claim token and seat state move with the Player. The count can never fall
+below the number of claimed Seats, and a live-hand shrink applies at the next
+deal-in (see ADR-0002, ADR-0003, ADR-0004). A Seat is always in one of four
+states: Active, Sitting-out, Disconnected, or Evicted.
 
 **Sitting-out**:
 A Seat state the Player toggles themselves — not dealt in. Distinct from

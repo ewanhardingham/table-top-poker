@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ChangeSeatCountRequestSchema,
   CreateRoomRequestSchema,
   DEFAULT_SEAT_COUNT,
   MAX_SEAT_COUNT,
@@ -38,5 +39,28 @@ describe("CreateRoomRequestSchema", () => {
         false,
       );
     }
+  });
+});
+
+describe("ChangeSeatCountRequestSchema", () => {
+  it("reuses the room seat-count bounds", () => {
+    expect(
+      ChangeSeatCountRequestSchema.parse({ seatCount: MIN_SEAT_COUNT }),
+    ).toEqual({
+      seatCount: MIN_SEAT_COUNT,
+    });
+    expect(
+      ChangeSeatCountRequestSchema.safeParse({ seatCount: MAX_SEAT_COUNT + 1 })
+        .success,
+    ).toBe(false);
+  });
+
+  it("rejects extra fields", () => {
+    expect(
+      ChangeSeatCountRequestSchema.safeParse({
+        seatCount: 4,
+        reason: "smaller",
+      }).success,
+    ).toBe(false);
   });
 });

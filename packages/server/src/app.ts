@@ -1,6 +1,7 @@
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import {
+  ChangeSeatCountRequestSchema,
   ClientCommandSchema,
   CreateRoomRequestSchema,
   view,
@@ -9,7 +10,11 @@ import {
   type SeatId,
   type ServerMessage,
 } from "@table-top-poker/protocol";
-import Fastify, { type FastifyInstance, type FastifyReply } from "fastify";
+import Fastify, {
+  type FastifyInstance,
+  type FastifyReply,
+  type FastifyRequest,
+} from "fastify";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { WebSocket } from "ws";
@@ -19,6 +24,7 @@ import {
   type ClaimSeatError,
   type DispatchStep,
   type Room,
+  type SeatMove,
   RoomStore,
   toRoomView,
 } from "./rooms.js";
@@ -142,6 +148,45 @@ export async function buildApp(
     };
     for (const socket of sockets) {
       send(socket, message);
+    }
+  }
+
+  /**
+   * Applies a positional repack to every currently open player socket before
+   * the new room view or hand snapshot is sent. The token stays with the
+   * player, while this transport identity follows the moved seat.
+   */
+  function applySeatMoves(code: string, moves: readonly SeatMove[]): void {
+    const sockets = roomSockets.get(code);
+    if (!sockets) return;
+    for (const move of moves) {
+      for (const socket of sockets) {
+        if (socketIdentity.get(socket) !== move.from) continue;
+        socketIdentity.set(socket, move.to);
+        send(socket, { type: "seat-moved", from: move.from, to: move.to });
+      }
+    }
+  }
+
+  /** Refreshes an already displayed completed hand after an immediate repack. */
+  function broadcastCurrentView(code: string): void {
+    const room = rooms.get(code);
+    const sockets = roomSockets.get(code);
+    if (!room?.engine || !sockets) return;
+    for (const socket of sockets) {
+      const identity = socketIdentity.get(socket);
+      if (identity === undefined) continue;
+      if (identity === "table") {
+        send(socket, {
+          type: "view-snapshot",
+          view: view(room.engine, "table"),
+        });
+      } else if (room.engine.seats.includes(identity)) {
+        send(socket, {
+          type: "view-snapshot",
+          view: view(room.engine, identity),
+        });
+      }
     }
   }
 
@@ -330,6 +375,42 @@ export async function buildApp(
     return reply.code(204).send();
   });
 
+  /** Table-device house rules: change the room's seat count (issue #77). */
+  const changeSeatCount = (
+    request: FastifyRequest<RoomCodeRoute>,
+    reply: FastifyReply,
+  ) => {
+    const body = ChangeSeatCountRequestSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({ error: "invalid-seat-count" });
+    }
+
+    const room = findRoomOrReject(rooms, request.params.code, reply);
+    if (!room) return;
+    const result = rooms.changeSeatCount(room.code, body.data.seatCount);
+    if ("error" in result) {
+      if (result.error === "seat-count-below-floor") {
+        return reply.code(400).send({
+          error: result.error,
+          minimum: result.minimum,
+        });
+      }
+      return reply.code(400).send({ error: result.error });
+    }
+
+    applySeatMoves(room.code, result.moves);
+    broadcastRoomView(room.code);
+    if (result.moves.length > 0 && room.engine?.hand?.status === "complete") {
+      broadcastCurrentView(room.code);
+    }
+    return result;
+  };
+
+  // The collection-shaped path is canonical; retain the explicit alias for
+  // callers that name the setting rather than the seats collection.
+  app.post<RoomCodeRoute>("/rooms/:code/seats/count", changeSeatCount);
+  app.post<RoomCodeRoute>("/rooms/:code/seat-count", changeSeatCount);
+
   /**
    * Where the QR code's join URL lands. `PLAYER_CLIENT_ORIGIN` points dev at
    * the player-client's own Vite server; unset, it serves the (currently
@@ -403,13 +484,13 @@ export async function buildApp(
           if (role === "table") return;
 
           const seatId = seat === undefined ? undefined : parseSeatId(seat);
-          const seatObj = seatId === undefined ? undefined : room.seats[seatId];
-          if (
-            !seatObj ||
-            !seatObj.claimed ||
-            token === undefined ||
-            seatObj.token !== token
-          ) {
+          const seatObj =
+            seatId === undefined || token === undefined
+              ? undefined
+              : room.seats.find(
+                  (candidate) => candidate.claimed && candidate.token === token,
+                );
+          if (!seatObj || seatId === undefined || token === undefined) {
             await reply.code(403).send({ error: "invalid-seat-token" });
             return;
           }
@@ -421,12 +502,24 @@ export async function buildApp(
 
         const { role, seat } = request.query;
         let identity: SeatId | "table";
+        let movedFrom: SeatId | undefined;
         if (role === "table") {
           identity = "table";
         } else {
           const seatId = seat === undefined ? undefined : parseSeatId(seat);
-          if (seatId === undefined) return;
-          identity = seatId;
+          const token = request.query.token;
+          const seatObj =
+            seatId === undefined || token === undefined
+              ? undefined
+              : rooms
+                  .get(code)
+                  ?.seats.find(
+                    (candidate) =>
+                      candidate.claimed && candidate.token === token,
+                  );
+          if (seatId === undefined || seatObj === undefined) return;
+          identity = seatObj.id;
+          movedFrom = seatId === identity ? undefined : seatId;
         }
         socketIdentity.set(socket, identity);
         socketRoomCode.set(socket, code);
@@ -449,6 +542,10 @@ export async function buildApp(
           // A reconnecting seat resumes silently, no penalty (§7) — clear
           // any presence badge a prior drop had set.
           rooms.setSeatDisconnected(code, identity, false);
+        }
+
+        if (movedFrom !== undefined && identity !== "table") {
+          send(socket, { type: "seat-moved", from: movedFrom, to: identity });
         }
 
         const room = rooms.get(code);
@@ -499,22 +596,28 @@ export async function buildApp(
             parseResult.data.type === "sitOut" ||
             parseResult.data.type === "sitIn"
           ) {
-            if (identity === "table") {
+            const currentIdentity = socketIdentity.get(socket);
+            if (currentIdentity === undefined || currentIdentity === "table") {
               sendRejection(socket, "not-permitted");
               return;
             }
             rooms.setSittingOut(
               code,
-              identity,
+              currentIdentity,
               parseResult.data.type === "sitOut",
             );
             broadcastRoomView(code);
             return;
           }
 
+          const currentIdentity = socketIdentity.get(socket);
+          if (currentIdentity === undefined) {
+            sendRejection(socket, "invalid-command");
+            return;
+          }
           const dispatchResult = rooms.dispatch(
             code,
-            identity,
+            currentIdentity,
             parseResult.data.type,
           );
           if ("error" in dispatchResult) {
@@ -526,6 +629,9 @@ export async function buildApp(
             return;
           }
 
+          if (dispatchResult.seatMoves !== undefined) {
+            applySeatMoves(code, dispatchResult.seatMoves);
+          }
           for (const step of dispatchResult.steps) {
             fanOutHandUpdate(code, step);
           }
@@ -541,6 +647,7 @@ export async function buildApp(
         });
 
         socket.on("close", () => {
+          const currentIdentity = socketIdentity.get(socket);
           sockets.delete(socket);
           socketIdentity.delete(socket);
           socketRoomCode.delete(socket);
@@ -548,7 +655,7 @@ export async function buildApp(
 
           if (evictedSockets.delete(socket)) return;
 
-          if (identity === "table") {
+          if (currentIdentity === "table") {
             // Room may already be gone (this close came from `endRoom` itself
             // closing every socket) — only arm a fresh grace window for a
             // room that's still live.
@@ -561,8 +668,8 @@ export async function buildApp(
                 }, graceWindowMs),
               );
             }
-          } else {
-            rooms.setSeatDisconnected(code, identity, true);
+          } else if (currentIdentity !== undefined) {
+            rooms.setSeatDisconnected(code, currentIdentity, true);
             broadcastRoomView(code);
           }
         });

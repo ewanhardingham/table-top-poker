@@ -342,6 +342,211 @@ describe("seat claim/evict routes", () => {
   });
 });
 
+describe("seat-count settings route", () => {
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it("rejects out-of-range counts at the HTTP boundary", async () => {
+    const room = rooms.create();
+    for (const seatCount of [0, 1, 9, 2.5, "4"]) {
+      const response = await app.inject({
+        method: "POST",
+        url: `/rooms/${room.code}/seats/count`,
+        payload: { seatCount },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: "invalid-seat-count" });
+    }
+  });
+
+  it("rejects a count below the live claimed-seat floor", async () => {
+    const room = rooms.create();
+    rooms.claimSeat(room.code, 0);
+    rooms.claimSeat(room.code, 4);
+    rooms.claimSeat(room.code, 7);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/count`,
+      payload: { seatCount: 2 },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: "seat-count-below-floor",
+      minimum: 3,
+    });
+    expect(room.seats).toHaveLength(DEFAULT_SEAT_COUNT);
+  });
+
+  it("grows and shrinks the room, returning the repack moves", async () => {
+    const room = rooms.create(4);
+    rooms.claimSeat(room.code, 0);
+    const moved = rooms.claimSeat(room.code, 3);
+    if (!("seat" in moved)) throw new Error("expected a claimed seat");
+
+    const grown = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/count`,
+      payload: { seatCount: 6 },
+    });
+    expect(grown.statusCode).toBe(200);
+    expect(grown.json()).toMatchObject({
+      seatCount: 6,
+      pendingSeatCount: null,
+      applied: true,
+    });
+
+    const shrunk = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seat-count`,
+      payload: { seatCount: 2 },
+    });
+    expect(shrunk.statusCode).toBe(200);
+    expect(shrunk.json()).toMatchObject({
+      seatCount: 2,
+      moves: [{ from: 3, to: 1 }],
+    });
+    expect(room.seats).toHaveLength(2);
+    expect(room.seats[1]?.token).toBe(moved.seat.token);
+  });
+
+  it("broadcasts a queued shrink in the room view", async () => {
+    const room = rooms.create();
+    rooms.claimSeat(room.code, 0);
+    rooms.claimSeat(room.code, 1);
+    rooms.dispatch(room.code, "table", "startHand");
+
+    const table = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&role=table`,
+    );
+    const messages: ServerMessage[] = [];
+    table.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    await new Promise<void>((resolve, reject) => {
+      table.on("open", resolve);
+      table.on("error", reject);
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/count`,
+      payload: { seatCount: 4 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(response.statusCode).toBe(200);
+    const lastView = messages.findLast(
+      (message) => message.type === "room-view",
+    );
+    if (lastView?.type !== "room-view") throw new Error("expected a room view");
+    expect(lastView.view.pendingSeatCount).toBe(4);
+    table.close();
+  });
+});
+
+describe("seat-count movement over WebSocket", () => {
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function connect(
+    code: string,
+    seatId: number,
+    token: string,
+  ): { socket: WebSocket; messages: ServerMessage[] } {
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${code}&seat=${String(seatId)}&token=${token}`,
+    );
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    return { socket, messages };
+  }
+
+  async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+  }
+
+  it("moves an open player socket with its token and accepts an old-seat reconnect", async () => {
+    const room = rooms.create();
+    const claim0 = rooms.claimSeat(room.code, 2);
+    const claim1 = rooms.claimSeat(room.code, 5);
+    const claim2 = rooms.claimSeat(room.code, 7);
+    if (!("seat" in claim0) || !("seat" in claim1) || !("seat" in claim2)) {
+      throw new Error("expected claimed seats");
+    }
+    const token = claim1.seat.token ?? "";
+    const player = connect(room.code, 5, token);
+    await opened(player.socket);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/count`,
+      payload: { seatCount: 3 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(response.statusCode).toBe(200);
+    expect(player.messages).toContainEqual({
+      type: "seat-moved",
+      from: 5,
+      to: 1,
+    });
+    expect(room.seats[1]?.token).toBe(token);
+
+    player.socket.close();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    const reconnect = connect(room.code, 5, token);
+    await opened(reconnect.socket);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(reconnect.messages).toContainEqual({
+      type: "seat-moved",
+      from: 5,
+      to: 1,
+    });
+    reconnect.socket.close();
+  });
+});
+
 describe("WebSocket upgrade", () => {
   let app: FastifyInstance;
   let rooms: RoomStore;
