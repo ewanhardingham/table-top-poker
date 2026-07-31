@@ -128,6 +128,52 @@ Phase 1 tracks no value, no state; the engine never references a Pot.
 _Avoid_: Treating Pot, Stack, Chips, or Side pot as engine concepts —
 they're Phase 4 scope, and conditional even then.
 
+**Rejection**:
+The typed value the engine returns when a Command is not valid —
+`{ type: 'Rejection', reason, command }`. Never thrown, never itself an
+Event, never processed by `apply`. Delivered only to the Device that sent
+the Command, and kept in the Hand recording for audit; it is absent from
+every player-facing shape, including Replay.
+_Avoid_: Calling a Rejection an error or an event.
+
+**Room ID**:
+The opaque UUID a Room is given at creation, naming its Room recording
+directory on disk. Distinct from the four-character join code, which is a
+live, human-typed handle with no durable meaning.
+_Avoid_: Using the join code as a durable identifier.
+
+**Room recording**:
+The durable, unredacted, local record of a Room — an immutable `room.json`
+manifest plus one Hand recording per Hand, under the Room ID's directory.
+Written by the server for every Room, always, from creation until the Room
+ends. Owned by the `recording` package; the engine holds no I/O.
+_Avoid_: Log — a Room recording is the whole directory, not one file.
+
+**Hand context**:
+The immutable document a Hand recording opens with: the participating
+Seats, the starting Button, the Hand ordinal, and `startedAt`. Contains no
+cards and no state snapshot — it is the bootstrap Replay needs, not a
+saved position.
+
+**Hand recording**:
+One Hand's independently replayable triplet within a Room recording — its
+Hand context, its exact ordered Commands, and the resulting Events and
+Rejections. Replaying it never requires any other Hand.
+
+**Replay**:
+Rebuilding a Hand from its Hand recording by re-running its Commands
+through the engine and validating the generated Events against the
+persisted ones. A pure engine capability. Replay obeys live visibility
+exactly: it re-projects `view`, so a muck stays mucked and a folded Seat's
+cards are shown to no one.
+_Avoid_: Treating Replay as a stored playback or a recording of views.
+
+**Replay position**:
+A point within a replayed Hand, addressed as an Event ordinal — position
+*n* is the state after applying *n* Events, and carries that *n*th Event
+alongside it. Position 0 is the starting state with no Event. A Rejection
+occurs *at* a position without advancing it.
+
 ## Hand lifecycle
 
 ```

@@ -34,7 +34,8 @@ on each):
   Phase 1's UI is tap-a-button; the frontend choice must not preclude Phase 3,
   but building it is not this phase's job.
 - Replay and audit tooling (browsing/stepping through recorded hands) —
-  Phase 2. Phase 1 writes the log; it does not read it back.
+  Phase 2. Phase 1 writes the log (in the harness only — see the correction
+  in §5); it does not read it back.
 - Public internet deployment, accounts, authentication — later. Phase 1 is
   LAN-only, no auth, bearer-secret trust model throughout.
 - Poker variants other than Texas hold'em, and multiple simultaneous tables.
@@ -201,10 +202,13 @@ provable in a unit test.
 - **Folded players are never revealed, even at a normal showdown** —
   `ShowdownReached.results` is scoped to live seats only.
 - **The remaining deck order is never reachable** from any view or event.
-- **The raw event log is server-side only** in Phase 1 — no client-facing
-  read path (API, socket, or download), for the table device or anyone
-  else. Phase 2's audit/replay tooling designs its own access story from
-  scratch; this makes no forward promise.
+- **The raw event log is never client-facing** in Phase 1 — no read path
+  (API, socket, or download), for the table device or anyone else. Phase 2's
+  audit/replay tooling designs its own access story from scratch; this makes
+  no forward promise. (Stated here as "server-side only", which overstated
+  what shipped: the server writes no log at all — see the correction in §5.
+  Phase 2's read path is table-safe by projection, not by secrecy —
+  [`docs/phase-2-spec.md`](phase-2-spec.md) §2.)
 
 **Proof strategy**: a fast-check property test as the primary guarantee —
 generate arbitrary hand states and arbitrary seat ids, assert `view` never
@@ -240,6 +244,18 @@ network round trip.
   migration required.
 - **Retention**: keep everything, forever. No rotation or size cap for
   Phase 1.
+
+> **Correction — this section specifies a write path Phase 1 never shipped
+> in production.** As built, the only writer is `HandLog`
+> (`packages/harness/src/persistence.ts`), used by the harness CLI alone.
+> `packages/server` has no `harness` dependency and performs no filesystem
+> write of any kind, so a Room played through the server left nothing on
+> disk. Discovered while charting
+> [map #79](https://github.com/ewanhardingham/table-top-poker/issues/79).
+> The durable server-side write path is delivered by Phase 2 —
+> [`docs/phase-2-spec.md`](phase-2-spec.md) §3 — which also supersedes the
+> "partitioned by game and by hand" layout above with the Room-ID-keyed
+> version-2 layout, and the version tag above with `ENGINE_LOG_VERSION: 2`.
 
 ## 6. Transport and wire contract
 ([Transport and server framework](https://github.com/ewanhardingham/table-top-poker/issues/12))
