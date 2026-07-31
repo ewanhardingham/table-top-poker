@@ -1,21 +1,28 @@
 /**
- * PROTOTYPE — throwaway, wayfinder ticket #81.
+ * PROTOTYPE — throwaway, wayfinder ticket #81 (extended by #87).
  *
  * Three variants of the session hand picker, switchable via `?variant=`, on
  * the real table shell (StatusBar, felt, seat ring, control rail) so each is
  * judged against the density it will actually sit in — the picker is an
  * overlay on the felt, reachable only between hands (map #79).
  *
+ * Ticket #87 adds a second axis, `?clock=`, that only applies to Variant A —
+ * the chosen design (ticket #81) — switching between showing no start time,
+ * an absolute local time, or a live-ticking relative label ("6m ago") for
+ * each Hand row. The clock switcher only renders for Variant A; B and C were
+ * already settled and are kept only for provenance.
+ *
  * Run: `npm run dev -w @table-top-poker/table-client`
- *      then open /?prototype=hand-picker&variant=A
+ *      then open /?prototype=hand-picker&variant=A&clock=relative
  */
 import type { SeatView } from "@table-top-poker/protocol";
 import { PillButton, color, font, radius } from "@table-top-poker/ui-shared";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Seats } from "../../Seats.js";
 import { StatusBar } from "../../StatusBar.js";
 import { TableControls } from "../../TableControls.js";
 import { PrototypeSwitcher } from "../PrototypeSwitcher.js";
+import { type ClockMode, clockModeNames, clockModes } from "./clock.js";
 import { fixtureHands, fixtureSeatIds } from "./fixtures.js";
 import { VariantA, variantAName } from "./VariantA.js";
 import { VariantB, variantBName } from "./VariantB.js";
@@ -27,6 +34,26 @@ const names: Record<string, string> = {
   B: variantBName,
   C: variantCName,
 };
+
+function readClockMode(): ClockMode {
+  const c = new URLSearchParams(window.location.search).get("clock") ?? "relative";
+  return clockModes.includes(c as ClockMode) ? (c as ClockMode) : "relative";
+}
+
+/** Ticks once a second so a relative label ("just now" → "1m ago") goes
+ * visibly stale while the picker stays open — the exact concern #87 raises. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => {
+      window.clearInterval(id);
+    };
+  }, []);
+  return now;
+}
 
 const fixtureSeats: readonly SeatView[] = fixtureSeatIds.map((id) => ({
   id,
@@ -42,14 +69,23 @@ function readVariant(): string {
 
 export function HandPickerPrototype() {
   const [variant, setVariantState] = useState(readVariant);
+  const [clockMode, setClockModeState] = useState(readClockMode);
   const [open, setOpen] = useState(true);
   const [picked, setPicked] = useState<number | null>(null);
+  const now = useNow();
 
   const setVariant = useCallback((next: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set("variant", next);
     window.history.replaceState(null, "", url);
     setVariantState(next);
+  }, []);
+
+  const setClockMode = useCallback((next: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("clock", next);
+    window.history.replaceState(null, "", url);
+    setClockModeState(next as ClockMode);
   }, []);
 
   const onSelect = useCallback((handNumber: number) => {
@@ -147,7 +183,12 @@ export function HandPickerPrototype() {
               <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
                 <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                   {variant === "A" && (
-                    <VariantA hands={fixtureHands} onSelect={onSelect} />
+                    <VariantA
+                      hands={fixtureHands}
+                      clockMode={clockMode}
+                      now={now}
+                      onSelect={onSelect}
+                    />
                   )}
                   {variant === "B" && (
                     <VariantB hands={fixtureHands} onSelect={onSelect} />
@@ -182,6 +223,16 @@ export function HandPickerPrototype() {
         names={names}
         onChange={setVariant}
       />
+      {variant === "A" && (
+        <PrototypeSwitcher
+          variants={[...clockModes]}
+          current={clockMode}
+          names={clockModeNames}
+          onChange={setClockMode}
+          bottom={64}
+          keyboard={false}
+        />
+      )}
     </div>
   );
 }

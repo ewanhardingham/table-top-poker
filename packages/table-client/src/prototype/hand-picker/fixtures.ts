@@ -1,9 +1,15 @@
 /**
- * PROTOTYPE — throwaway, wayfinder ticket #81.
+ * PROTOTYPE — throwaway, wayfinder ticket #81 (extended by #87).
  *
  * A fixture session chosen to be *hostile* to the picker: several fold-outs
  * that a naive "Hand N — Seat 3 won" summary would render indistinguishable,
  * plus preflop walks with no board at all, plus a hand still in progress.
+ *
+ * `startedAt` is computed relative to module-load time, not hardcoded, so
+ * whenever the prototype is opened the freshest completed hand (13) reads as
+ * "just now" and drifts to "1m ago" within the session — the exact staleness
+ * ticket #87 asks about. The oldest hand (1) sits past the one-hour mark, to
+ * exercise the relative formatter's hour-scale branch, not just minutes.
  */
 import type { Card, Rank, SeatId, Suit } from "@table-top-poker/protocol";
 import type { HandSummary, SummaryAction } from "./summary.js";
@@ -11,6 +17,9 @@ import type { HandSummary, SummaryAction } from "./summary.js";
 function c(rank: Rank, suit: Suit): Card {
   return { rank, suit };
 }
+
+const loadedAt = Date.now();
+const secondsAgo = (s: number) => new Date(loadedAt - s * 1000).toISOString();
 
 const fold = (seatId: SeatId): SummaryAction => ({ seatId, action: "fold" });
 const call = (seatId: SeatId): SummaryAction => ({ seatId, action: "call" });
@@ -22,6 +31,7 @@ export const fixtureSeatIds: readonly SeatId[] = [0, 1, 2, 3, 4, 5];
 export const fixtureHands: readonly HandSummary[] = [
   {
     handNumber: 1,
+    startedAt: secondsAgo(5700),
     button: 0,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [],
@@ -31,6 +41,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 2,
+    startedAt: secondsAgo(5400),
     button: 1,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [c("9", "hearts"), c("4", "clubs"), c("K", "spades")],
@@ -52,6 +63,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 3,
+    startedAt: secondsAgo(5100),
     button: 2,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [
@@ -99,6 +111,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 4,
+    startedAt: secondsAgo(4800),
     button: 3,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [],
@@ -108,6 +121,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 5,
+    startedAt: secondsAgo(4440),
     button: 4,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [c("6", "spades"), c("6", "hearts"), c("10", "clubs"), c("3", "spades")],
@@ -130,6 +144,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 6,
+    startedAt: secondsAgo(4080),
     button: 5,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [c("J", "hearts"), c("J", "spades"), c("5", "diamonds")],
@@ -139,6 +154,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 7,
+    startedAt: secondsAgo(3600),
     button: 0,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [
@@ -190,6 +206,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 8,
+    startedAt: secondsAgo(3000),
     button: 1,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [],
@@ -199,6 +216,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 9,
+    startedAt: secondsAgo(2520),
     button: 2,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [c("Q", "spades"), c("3", "hearts"), c("7", "spades")],
@@ -208,6 +226,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 10,
+    startedAt: secondsAgo(1980),
     button: 3,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [
@@ -254,6 +273,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 11,
+    startedAt: secondsAgo(1200),
     button: 4,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [c("5", "clubs"), c("5", "spades"), c("A", "hearts"), c("4", "diamonds")],
@@ -263,6 +283,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 12,
+    startedAt: secondsAgo(480),
     button: 5,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [],
@@ -272,6 +293,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 13,
+    startedAt: secondsAgo(95),
     button: 0,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [c("2", "hearts"), c("7", "clubs"), c("K", "hearts"), c("K", "spades")],
@@ -281,6 +303,7 @@ export const fixtureHands: readonly HandSummary[] = [
   },
   {
     handNumber: 14,
+    startedAt: secondsAgo(20),
     button: 1,
     dealtIn: [0, 1, 2, 3, 4, 5],
     board: [c("A", "clubs"), c("K", "clubs"), c("4", "hearts")],

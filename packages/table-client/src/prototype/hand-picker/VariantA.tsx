@@ -1,5 +1,5 @@
 /**
- * PROTOTYPE — throwaway, wayfinder ticket #81.
+ * PROTOTYPE — throwaway, wayfinder ticket #81 (extended by #87).
  *
  * Variant A — "Filmstrip". One row per hand, the *board* carried as real
  * cards at the row's centre. Bets that the board is the most recognisable
@@ -12,8 +12,14 @@
  * In-progress hands are not rendered at all. Review is reachable only between
  * hands (map #79), so at the moment the picker is open there is no hand in
  * progress — an "in progress" row is a state the picker can never be in.
+ *
+ * `clockMode` (ticket #87) sits on the same line as "Button Seat N" — the
+ * one line already dedicated to secondary, non-outcome metadata — so the
+ * other two lines never shift position as the mode switches.
  */
 import { Card, color, font, radius } from "@table-top-poker/ui-shared";
+import type { ClockMode } from "./clock.js";
+import { formatAbsolute, formatRelative } from "./clock.js";
 import {
   type HandSummary,
   actionShape,
@@ -47,14 +53,25 @@ function BoardStrip({ hand }: { readonly hand: HandSummary }) {
   );
 }
 
+function clockText(hand: HandSummary, clockMode: ClockMode, now: number): string | null {
+  if (clockMode === "none") return null;
+  if (clockMode === "absolute") return formatAbsolute(hand.startedAt);
+  return formatRelative(hand.startedAt, now);
+}
+
 function Row({
   hand,
+  clockMode,
+  now,
   onSelect,
 }: {
   readonly hand: HandSummary;
+  readonly clockMode: ClockMode;
+  readonly now: number;
   readonly onSelect: (n: number) => void;
 }) {
   const winners = winnersOf(hand);
+  const clock = clockText(hand, clockMode, now);
   return (
     <button
       type="button"
@@ -114,6 +131,7 @@ function Row({
         </span>
         <span style={{ fontSize: "0.72em", color: color.textFaint }}>
           Button {seatLabel(hand.button)}
+          {clock !== null && <> · {clock}</>}
         </span>
       </span>
     </button>
@@ -124,9 +142,13 @@ export const variantAName = "Filmstrip — board-first rows";
 
 export function VariantA({
   hands,
+  clockMode,
+  now,
   onSelect,
 }: {
   readonly hands: readonly HandSummary[];
+  readonly clockMode: ClockMode;
+  readonly now: number;
   readonly onSelect: (n: number) => void;
 }) {
   const ordered = [...hands]
@@ -143,7 +165,13 @@ export function VariantA({
       }}
     >
       {ordered.map((hand) => (
-        <Row key={hand.handNumber} hand={hand} onSelect={onSelect} />
+        <Row
+          key={hand.handNumber}
+          hand={hand}
+          clockMode={clockMode}
+          now={now}
+          onSelect={onSelect}
+        />
       ))}
     </div>
   );

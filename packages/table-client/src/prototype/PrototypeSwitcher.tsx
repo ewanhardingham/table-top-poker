@@ -10,6 +10,10 @@ export interface PrototypeSwitcherProps {
   readonly current: string;
   readonly names: Readonly<Record<string, string>>;
   readonly onChange: (variant: string) => void;
+  /** Stacks a second switcher above the first when a route needs two axes. */
+  readonly bottom?: number;
+  /** Off for a second, stacked switcher — arrow keys drive only the first. */
+  readonly keyboard?: boolean;
 }
 
 export function PrototypeSwitcher({
@@ -17,8 +21,11 @@ export function PrototypeSwitcher({
   current,
   names,
   onChange,
+  bottom = 16,
+  keyboard = true,
 }: PrototypeSwitcherProps) {
   useEffect(() => {
+    if (!keyboard) return;
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const tag = target?.tagName;
@@ -32,7 +39,7 @@ export function PrototypeSwitcher({
     return () => {
       window.removeEventListener("keydown", onKey);
     };
-  }, [variants, current, onChange]);
+  }, [variants, current, onChange, keyboard]);
 
   const i = variants.indexOf(current);
   const go = (step: number) => {
@@ -53,7 +60,7 @@ export function PrototypeSwitcher({
     <div
       style={{
         position: "fixed",
-        bottom: "16px",
+        bottom: `${String(bottom)}px`,
         left: "50%",
         transform: "translateX(-50%)",
         zIndex: 9999,

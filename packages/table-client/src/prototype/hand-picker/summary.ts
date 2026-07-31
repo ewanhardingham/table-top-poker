@@ -11,10 +11,14 @@
  *   available even when nothing was revealed.
  * - `ShowdownReached` carries hole cards and descriptions; a fold-out reveals
  *   only the winner. Nothing here peeks past that.
+ * - `startedAt` is now durable per-Hand context (wayfinder ticket #86's
+ *   resolution), so — unlike the rest of this file — it is *not* recovered
+ *   from the event stream. Whether it belongs in the player-facing summary at
+ *   all, and if so how it's shown, is wayfinder ticket #87, prototyped in
+ *   `clock.ts` and wired into `VariantA`'s row via `clockMode`.
  *
- * Not available, and deliberately absent: wall-clock time. The log carries no
- * timestamps (packages/harness/src/persistence.ts), so a hand's only "when" is
- * its ordinal.
+ * Commands and Events remain untimestamped, so a hand's only *internal*
+ * "when" is still its ordinal — `startedAt` marks only the Hand's start.
  */
 import type { ActionType, Card, SeatId, Street } from "@table-top-poker/protocol";
 
@@ -41,6 +45,8 @@ export type HandOutcome =
 export interface HandSummary {
   /** 1-based, from the `hand-NNNN` log partition. The only ordering key there is. */
   readonly handNumber: number;
+  /** ISO instant the Hand's context was recorded. See ticket #87 above. */
+  readonly startedAt: string;
   readonly button: SeatId;
   readonly dealtIn: readonly SeatId[];
   /** Public board, up to the street the hand died on. Empty for a preflop fold-out. */
