@@ -2,6 +2,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import {
   ClientCommandSchema,
+  CreateRoomRequestSchema,
   view,
   type CommandRejectedMessage,
   type HandEvent,
@@ -286,8 +287,23 @@ export async function buildApp(
   await app.register(fastifyStatic, { root: publicDir });
   await app.register(fastifyWebsocket);
 
-  app.post("/rooms", async (request) => {
-    const room = rooms.create();
+  app.post("/rooms", async (request, reply) => {
+    // The table client picks a seat count (issue #74); this is the trust
+    // boundary that decides whether it's a size a room may actually have.
+    const body = CreateRoomRequestSchema.safeParse(request.body);
+    if (!body.success) {
+      // The body is strict, so a bad shape and a bad count are both
+      // possible here — say which, rather than blaming the count for a
+      // stray key.
+      const blamesSeatCount = body.error.issues.some(
+        (issue) => issue.path[0] === "seatCount",
+      );
+      return reply.code(400).send({
+        error: blamesSeatCount ? "invalid-seat-count" : "invalid-request-body",
+      });
+    }
+
+    const room = rooms.create(body.data.seatCount);
     const url = joinUrl(request.headers.host ?? "localhost", room.code);
     const qrCodeDataUrl = await roomQrCodeDataUrl(url);
     return { code: room.code, joinUrl: url, qrCodeDataUrl };

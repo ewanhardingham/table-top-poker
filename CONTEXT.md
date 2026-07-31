@@ -10,8 +10,8 @@ a hand moves through.
 **Room**:
 The persistent host for a poker night. Created when the table device starts
 it; holds the current seating and button position across hands; ends when
-the table device closes it. A Room hosts exactly one Table and up to 8
-seated Players.
+the table device closes it. A Room hosts exactly one Table and as many
+seated Players as it has Seats.
 _Avoid_: Game, Session — both mean Room.
 
 **Table**:
@@ -28,8 +28,10 @@ Room — across hands, and across a Device disconnecting and reconnecting.
 A position at the table (tracked positionally for the Button and blinds),
 occupied by a Player for as long as they remain seated. Persists across
 hands within a Room; a Player keeps their Seat through a Device disconnect.
-A Room has at most 8 Seats. A Seat is always in one of four states: Active,
-Sitting-out, Disconnected, or Evicted (see ADR-0002, ADR-0003).
+A Room's Seat count is fixed when the Room is created — the creator picks
+it on the table device, from 2 (heads-up) to 8, and the server enforces
+that range. A Seat is always in one of four states: Active, Sitting-out,
+Disconnected, or Evicted (see ADR-0002, ADR-0003).
 
 **Sitting-out**:
 A Seat state the Player toggles themselves — not dealt in. Distinct from
