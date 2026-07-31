@@ -33,3 +33,12 @@ The five canonical triage roles, each using its default label string (`needs-tri
 ### Domain docs
 
 Single-context: one `CONTEXT.md` and one `docs/adr/` at the repo root, both created lazily. See `docs/agents/domain.md`.
+
+# Claude for Chrome
+
+- Never invoke unless explicitly asked by the human.
+- Use `read_page` to get element refs from the accessibility tree
+- Use `find` to locate elements by description
+- Click/interact using `ref`, not coordinates
+- NEVER take screenshots unless explicitly requested by the user
+
