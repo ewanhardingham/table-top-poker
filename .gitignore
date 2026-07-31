@@ -4,3 +4,7 @@ build/
 coverage/
 *.tsbuildinfo
 .DS_Store
+
+# Local env overrides (e.g. DEV_ALLOWED_HOSTS)
+.env.local
+.env.*.local
