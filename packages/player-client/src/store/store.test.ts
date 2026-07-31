@@ -28,9 +28,19 @@ describe("usePlayerStore", () => {
     expect(usePlayerStore.getState().connectionStatus).toBe("connected");
   });
 
+  it("moves a seat without resetting its sitting-out state", () => {
+    usePlayerStore.getState().setSeat({ seatId: 5, sittingOut: true });
+
+    usePlayerStore.getState().moveSeat(1);
+
+    expect(usePlayerStore.getState().seatId).toBe(1);
+    expect(usePlayerStore.getState().sittingOut).toBe(true);
+  });
+
   it("clears the seat slice independently of the room slice", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
+      pendingSeatCount: null,
       seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     usePlayerStore.getState().setSeat({ seatId: 0, sittingOut: false });
@@ -44,6 +54,7 @@ describe("usePlayerStore", () => {
   it("replaces the seat list from a room-view snapshot", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
+      pendingSeatCount: null,
       seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     expect(usePlayerStore.getState().roomCode).toBe("ABCD");
@@ -61,6 +72,7 @@ describe("usePlayerStore", () => {
   it("clears the room slice back to its initial state", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
+      pendingSeatCount: null,
       seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     usePlayerStore.getState().clearRoom();

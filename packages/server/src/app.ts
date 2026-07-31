@@ -8,6 +8,7 @@ import {
   type CommandRejectedMessage,
   type HandEvent,
   type SeatId,
+  type SeatMove,
   type ServerMessage,
 } from "@table-top-poker/protocol";
 import Fastify, {
@@ -24,7 +25,6 @@ import {
   type ClaimSeatError,
   type DispatchStep,
   type Room,
-  type SeatMove,
   RoomStore,
   toRoomView,
 } from "./rooms.js";
@@ -164,28 +164,6 @@ export async function buildApp(
         if (socketIdentity.get(socket) !== move.from) continue;
         socketIdentity.set(socket, move.to);
         send(socket, { type: "seat-moved", from: move.from, to: move.to });
-      }
-    }
-  }
-
-  /** Refreshes an already displayed completed hand after an immediate repack. */
-  function broadcastCurrentView(code: string): void {
-    const room = rooms.get(code);
-    const sockets = roomSockets.get(code);
-    if (!room?.engine || !sockets) return;
-    for (const socket of sockets) {
-      const identity = socketIdentity.get(socket);
-      if (identity === undefined) continue;
-      if (identity === "table") {
-        send(socket, {
-          type: "view-snapshot",
-          view: view(room.engine, "table"),
-        });
-      } else if (room.engine.seats.includes(identity)) {
-        send(socket, {
-          type: "view-snapshot",
-          view: view(room.engine, identity),
-        });
       }
     }
   }
@@ -382,7 +360,12 @@ export async function buildApp(
   ) => {
     const body = ChangeSeatCountRequestSchema.safeParse(request.body);
     if (!body.success) {
-      return reply.code(400).send({ error: "invalid-seat-count" });
+      const blamesSeatCount = body.error.issues.some(
+        (issue) => issue.path[0] === "seatCount",
+      );
+      return reply.code(400).send({
+        error: blamesSeatCount ? "invalid-seat-count" : "invalid-request-body",
+      });
     }
 
     const room = findRoomOrReject(rooms, request.params.code, reply);
@@ -400,16 +383,10 @@ export async function buildApp(
 
     applySeatMoves(room.code, result.moves);
     broadcastRoomView(room.code);
-    if (result.moves.length > 0 && room.engine?.hand?.status === "complete") {
-      broadcastCurrentView(room.code);
-    }
     return result;
   };
 
-  // The collection-shaped path is canonical; retain the explicit alias for
-  // callers that name the setting rather than the seats collection.
   app.post<RoomCodeRoute>("/rooms/:code/seats/count", changeSeatCount);
-  app.post<RoomCodeRoute>("/rooms/:code/seat-count", changeSeatCount);
 
   /**
    * Where the QR code's join URL lands. `PLAYER_CLIENT_ORIGIN` points dev at
@@ -485,12 +462,15 @@ export async function buildApp(
 
           const seatId = seat === undefined ? undefined : parseSeatId(seat);
           const seatObj =
-            seatId === undefined || token === undefined
+            token === undefined
               ? undefined
-              : room.seats.find(
-                  (candidate) => candidate.claimed && candidate.token === token,
-                );
-          if (!seatObj || seatId === undefined || token === undefined) {
+              : rooms.findSeatByToken(code, token);
+          if (
+            !seatObj ||
+            seatId === undefined ||
+            token === undefined ||
+            seatObj.id !== seatId
+          ) {
             await reply.code(403).send({ error: "invalid-seat-token" });
             return;
           }
@@ -500,26 +480,18 @@ export async function buildApp(
         const code = request.query.room;
         if (code === undefined) return;
 
-        const { role, seat } = request.query;
+        const { role, seat, token } = request.query;
         let identity: SeatId | "table";
-        let movedFrom: SeatId | undefined;
         if (role === "table") {
           identity = "table";
         } else {
           const seatId = seat === undefined ? undefined : parseSeatId(seat);
-          const token = request.query.token;
           const seatObj =
-            seatId === undefined || token === undefined
+            token === undefined
               ? undefined
-              : rooms
-                  .get(code)
-                  ?.seats.find(
-                    (candidate) =>
-                      candidate.claimed && candidate.token === token,
-                  );
-          if (seatId === undefined || seatObj === undefined) return;
+              : rooms.findSeatByToken(code, token);
+          if (seatId === undefined || seatObj?.id !== seatId) return;
           identity = seatObj.id;
-          movedFrom = seatId === identity ? undefined : seatId;
         }
         socketIdentity.set(socket, identity);
         socketRoomCode.set(socket, code);
@@ -542,10 +514,6 @@ export async function buildApp(
           // A reconnecting seat resumes silently, no penalty (§7) — clear
           // any presence badge a prior drop had set.
           rooms.setSeatDisconnected(code, identity, false);
-        }
-
-        if (movedFrom !== undefined && identity !== "table") {
-          send(socket, { type: "seat-moved", from: movedFrom, to: identity });
         }
 
         const room = rooms.get(code);

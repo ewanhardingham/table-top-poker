@@ -118,6 +118,16 @@ describe("RoomStore", () => {
       expect(result).toEqual({ error: "seat-already-claimed" });
     });
 
+    it("finds a claimed seat by its token", () => {
+      const store = new RoomStore(Math.random, () => "token");
+      const room = store.create();
+      const claim = store.claimSeat(room.code, 2);
+
+      if (!("seat" in claim)) throw new Error("expected a claimed seat");
+      expect(store.findSeatByToken(room.code, "token")).toBe(claim.seat);
+      expect(store.findSeatByToken(room.code, "missing")).toBeUndefined();
+    });
+
     it("rejects claiming a seat in an unknown room", () => {
       const store = new RoomStore();
       expect(store.claimSeat("ZZZZ", 0)).toEqual({ error: "room-not-found" });
@@ -245,6 +255,42 @@ describe("RoomStore", () => {
       expect(room.seats.slice(4).every((seat) => !seat.claimed)).toBe(true);
     });
 
+    it("deals a newly claimed seat after an immediate growth on the next hand", () => {
+      const store = new RoomStore();
+      const room = store.create(2);
+      claimSeats(store, room, [0, 1]);
+      const started = store.dispatch(room.code, "table", "startHand");
+      if (!("steps" in started)) throw new Error("expected dispatch steps");
+
+      expect(store.changeSeatCount(room.code, 4)).toMatchObject({
+        seatCount: 4,
+        pendingSeatCount: null,
+        applied: true,
+      });
+      claimSeats(store, room, [2]);
+      completeHand(store, room);
+
+      const next = store.dispatch(room.code, "table", "nextHand");
+
+      if (!("steps" in next)) throw new Error("expected dispatch steps");
+      expect(room.engine?.seats).toEqual([0, 1, 2]);
+    });
+
+    it("applies a queued shrink at the start-hand deal-in seam", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      claimSeats(store, room, [0, 3]);
+      room.pendingSeatCount = 2;
+
+      const started = store.dispatch(room.code, "table", "startHand");
+
+      if (!("steps" in started)) throw new Error("expected dispatch steps");
+      expect(started.seatMoves).toEqual([{ from: 3, to: 1 }]);
+      expect(room.pendingSeatCount).toBeNull();
+      expect(room.seats).toHaveLength(2);
+      expect(room.engine?.seats).toEqual([0, 1]);
+    });
+
     it("repacks claimed seats while carrying token and seat state", () => {
       const store = new RoomStore(Math.random, () => "token");
       const room = store.create();
@@ -316,6 +362,37 @@ describe("RoomStore", () => {
       // The completed hand's next button was old seat 5; after repacking it
       // is seat 1 and the new hand keeps it there.
       expect(room.engine?.button).toBe(1);
+      expect(room.engine?.hand?.status).toBe("betting");
+    });
+
+    it("keeps a completed hand's positions until the next deal-in", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      claimSeats(store, room, [2, 5, 7]);
+      const started = store.dispatch(room.code, "table", "startHand");
+      if (!("steps" in started)) throw new Error("expected dispatch steps");
+      completeHand(store, room);
+
+      const queued = store.changeSeatCount(room.code, 3);
+
+      expect(queued).toEqual({
+        seatCount: DEFAULT_SEAT_COUNT,
+        pendingSeatCount: 3,
+        applied: false,
+        moves: [],
+      });
+      expect(room.seats).toHaveLength(DEFAULT_SEAT_COUNT);
+      expect(room.engine?.seats).toEqual([2, 5, 7]);
+
+      const next = store.dispatch(room.code, "table", "nextHand");
+
+      if (!("steps" in next)) throw new Error("expected dispatch steps");
+      expect(next.seatMoves).toEqual([
+        { from: 2, to: 0 },
+        { from: 5, to: 1 },
+        { from: 7, to: 2 },
+      ]);
+      expect(room.engine?.seats).toEqual([0, 1, 2]);
       expect(room.engine?.hand?.status).toBe("betting");
     });
   });
@@ -643,6 +720,7 @@ describe("toRoomView", () => {
 
     expect(view).toEqual({
       code: room.code,
+      pendingSeatCount: null,
       seats: [
         { id: 0, claimed: true, sittingOut: false, disconnected: false },
         ...Array.from({ length: DEFAULT_SEAT_COUNT - 1 }, (_, i) => ({

@@ -40,6 +40,18 @@ export type ChangeSeatCountRequest = z.infer<
   typeof ChangeSeatCountRequestSchema
 >;
 
+export interface SeatMove {
+  readonly from: SeatId;
+  readonly to: SeatId;
+}
+
+export interface SeatCountChange {
+  readonly seatCount: number;
+  readonly pendingSeatCount: number | null;
+  readonly applied: boolean;
+  readonly moves: readonly SeatMove[];
+}
+
 /** A seat's public state — never carries its claim token. */
 export interface SeatView {
   readonly id: SeatId;
@@ -52,8 +64,8 @@ export interface SeatView {
 export interface RoomView {
   readonly code: string;
   readonly seats: readonly SeatView[];
-  /** A shrink requested during a live hand, applied at the next deal-in. */
-  readonly pendingSeatCount?: number;
+  /** A shrink queued until the next deal-in, or null when none is queued. */
+  readonly pendingSeatCount: number | null;
 }
 
 /** Pushed over the room's WebSocket whenever seat state changes. */
@@ -68,10 +80,8 @@ export interface PlayerEvictedMessage {
 }
 
 /** Pushed to a player when a table shrink renumbers their claimed seat. */
-export interface SeatMovedMessage {
+export interface SeatMovedMessage extends SeatMove {
   readonly type: "seat-moved";
-  readonly from: SeatId;
-  readonly to: SeatId;
 }
 
 /**

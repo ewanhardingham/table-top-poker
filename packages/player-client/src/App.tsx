@@ -1,3 +1,4 @@
+import type { SeatMove } from "@table-top-poker/protocol";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionBar } from "./ActionBar.js";
 import { claimSeat, joinRoom } from "./api/rooms.js";
@@ -6,6 +7,7 @@ import { Hand } from "./Hand.js";
 import { JoinForm } from "./JoinForm.js";
 import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
 import { SeatPicker } from "./SeatPicker.js";
+import { SeatMovedNotice } from "./SeatMovedNotice.js";
 import { StatusBar } from "./StatusBar.js";
 import {
   clearSeatToken,
@@ -25,6 +27,7 @@ export function App() {
   const setRoomView = usePlayerStore((state) => state.setRoomView);
   const setJoinError = usePlayerStore((state) => state.setJoinError);
   const setSeat = usePlayerStore((state) => state.setSeat);
+  const moveSeat = usePlayerStore((state) => state.moveSeat);
   const clearSeat = usePlayerStore((state) => state.clearSeat);
   const clearRoom = usePlayerStore((state) => state.clearRoom);
 
@@ -83,10 +86,11 @@ export function App() {
   }, [clearSeat, clearRoom]);
 
   const handleSeatMoved = useCallback(
-    ({ from, to }: { readonly from: number; readonly to: number }) => {
+    ({ from, to }: SeatMove) => {
       setSeatMoveMessage(
         `Your seat moved from Seat ${String(from + 1)} to Seat ${String(to + 1)}. Your claim stays with you.`,
       );
+      moveSeat(to);
       if (roomCode !== null && seatToken !== null) {
         saveSeatToken(window.localStorage, {
           roomCode,
@@ -95,7 +99,7 @@ export function App() {
         });
       }
     },
-    [roomCode, seatToken],
+    [moveSeat, roomCode, seatToken],
   );
 
   const wsParams = useMemo(() => {
@@ -211,23 +215,7 @@ export function App() {
             : null
         }
       />
-      {seatMoveMessage && (
-        <div
-          data-testid="seat-moved-notice"
-          style={{
-            flex: "none",
-            margin: "10px 18px 0",
-            padding: "10px 14px",
-            borderRadius: "12px",
-            background: "rgba(123,216,143,.1)",
-            border: "1px solid rgba(123,216,143,.4)",
-            color: "#eef7ef",
-            fontSize: "14px",
-          }}
-        >
-          {seatMoveMessage}
-        </div>
-      )}
+      {seatMoveMessage && <SeatMovedNotice message={seatMoveMessage} />}
       <main className="hand">{content}</main>
     </div>
   );

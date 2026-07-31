@@ -32,19 +32,20 @@ evict players and would leave the positional engine state inconsistent.
    The player's claim token, sitting-out state, and disconnected state move
    with them. Seat id is therefore a mutable position, not a permanent player
    identity. Affected open player sockets receive a `seat-moved` message, and
-   reconnect authentication uses the token to find the player's current seat.
+   the player persists the new positional seat alongside their claim token for
+   reconnect.
 
-4. **A shrink never applies during a live hand.** The requested count is
-   queued and applied at the next successful deal-in recompute at
+4. **A shrink never changes the displayed hand's positions.** The requested
+   count is queued and applied at the next successful deal-in recompute at
    `startHand`/`nextHand`, after the hand's fixed ring and Button are no longer
-   live. The engine state is remapped at that seam before the new hand starts.
-   Growing is safe immediately because it only appends empty positions; new
-   claimed seats join the next deal-in under ADR-0002.
+   live. The engine's positional state is updated at that seam before the new
+   hand starts. Growing is safe immediately because it only appends empty
+   positions; new claimed seats join the next deal-in under ADR-0002.
 
 The table client presents this as a modal “House rules” sheet. It shows the
-floor, previews positional moves, and labels a live-hand shrink as applying
-from the next hand. The player client surfaces a move explicitly and updates
-its persisted token record to the new position.
+floor, previews positional moves, and labels a queued shrink as applying from
+the next hand. The player client surfaces a move explicitly and updates its
+persisted token record to the new position.
 
 ## Consequences
 

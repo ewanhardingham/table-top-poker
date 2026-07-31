@@ -26,7 +26,7 @@ describe("HouseRulesSheet", () => {
         seatCount={8}
         pendingSeatCount={4}
         seats={seats}
-        handLive
+        handInProgress
         onApply={noop}
         onClose={noop}
       />,
@@ -45,7 +45,7 @@ describe("HouseRulesSheet", () => {
         seatCount={8}
         pendingSeatCount={3}
         seats={seats}
-        handLive
+        handInProgress
         onApply={noop}
         onClose={noop}
       />,
@@ -64,7 +64,7 @@ describe("HouseRulesSheet", () => {
         seatCount={4}
         pendingSeatCount={null}
         seats={seats.slice(0, 4)}
-        handLive
+        handInProgress
         onApply={noop}
         onClose={noop}
       />,

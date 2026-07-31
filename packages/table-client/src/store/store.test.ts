@@ -32,6 +32,7 @@ describe("useTableStore", () => {
   it("replaces the seat list from a room-view snapshot", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
+      pendingSeatCount: null,
       seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     expect(useTableStore.getState().roomCode).toBe("ABCD");
@@ -53,6 +54,7 @@ describe("useTableStore", () => {
   it("clears the room slice back to its initial state", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
+      pendingSeatCount: null,
       seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
     });
     useTableStore.getState().clearRoom();

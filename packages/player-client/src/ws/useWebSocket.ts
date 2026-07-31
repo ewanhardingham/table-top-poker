@@ -1,6 +1,7 @@
 import type {
   ClientCommand,
   PlayerView,
+  SeatMove,
   ServerMessage,
 } from "@table-top-poker/protocol";
 import { useCallback, useEffect, useRef } from "react";
@@ -27,7 +28,7 @@ export interface UseWebSocketOptions {
   /** The seat was evicted by the table device. */
   readonly onEvicted?: () => void;
   /** The table repacked this player's seat during a seat-count change. */
-  readonly onSeatMoved?: (move: { from: number; to: number }) => void;
+  readonly onSeatMoved?: (move: SeatMove) => void;
 }
 
 export interface SeatSocket {
@@ -63,6 +64,7 @@ export function useWebSocket(
   );
   const setRoomView = usePlayerStore((state) => state.setRoomView);
   const setSeat = usePlayerStore((state) => state.setSeat);
+  const moveSeat = usePlayerStore((state) => state.moveSeat);
   const setHandView = usePlayerStore((state) => state.setHandView);
   const viewSnapshotReceived = usePlayerStore(
     (state) => state.viewSnapshotReceived,
@@ -70,17 +72,34 @@ export function useWebSocket(
   const commandRejected = usePlayerStore((state) => state.commandRejected);
   const socketRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
+  const currentSeatIdRef = useRef<number | null>(params?.seatId ?? null);
   optionsRef.current = options;
+  currentSeatIdRef.current = params?.seatId ?? null;
 
+  const roomCode = params?.roomCode ?? null;
+  const token = params?.token ?? null;
+  const hasParams =
+    roomCode !== null && token !== null && params?.seatId !== undefined;
+
+  // Keep the existing socket open after a seat move. The current seat is
+  // updated for reconnects without making the server briefly mark the player
+  // disconnected while the effect restarts.
   useEffect(() => {
-    if (params === null) {
+    if (!hasParams) {
       setConnectionStatus("disconnected");
       return;
     }
 
-    const seatParams = params;
+    const code = roomCode;
+    const authToken = token;
+    const initialSeatId = currentSeatIdRef.current;
+    if (initialSeatId === null) {
+      setConnectionStatus("disconnected");
+      return;
+    }
+
     let active = true;
-    let currentSeatId = seatParams.seatId;
+    let currentSeatId = initialSeatId;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     function connect(): void {
@@ -89,9 +108,9 @@ export function useWebSocket(
       let openedOnce = false;
       const socket = new WebSocket(
         getWebSocketUrl(window.location, {
-          room: seatParams.roomCode,
-          seat: String(seatParams.seatId),
-          token: seatParams.token,
+          room: code,
+          seat: String(currentSeatId),
+          token: authToken,
         }),
       );
       socketRef.current = socket;
@@ -138,7 +157,8 @@ export function useWebSocket(
             break;
           case "seat-moved":
             currentSeatId = message.to;
-            setSeat({ seatId: message.to, sittingOut: false });
+            currentSeatIdRef.current = message.to;
+            moveSeat(message.to);
             optionsRef.current.onSeatMoved?.({
               from: message.from,
               to: message.to,
@@ -164,10 +184,13 @@ export function useWebSocket(
       socketRef.current = null;
     };
   }, [
-    params,
+    hasParams,
+    roomCode,
+    token,
     setConnectionStatus,
     setRoomView,
     setSeat,
+    moveSeat,
     setHandView,
     viewSnapshotReceived,
     commandRejected,
