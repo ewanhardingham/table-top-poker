@@ -15,6 +15,9 @@ User=poker
 Group=poker
 WorkingDirectory=/opt/poker/current
 EnvironmentFile=/etc/poker/poker.env
+# Keep hand logs outside versioned releases; an EnvironmentFile value can
+# override this default for a different persistent volume.
+Environment=HAND_LOG_DIR=/var/lib/poker/hands
 ExecStart=/usr/local/bin/node /opt/poker/current/packages/server/dist/server.js
 Restart=always
 RestartSec=2
@@ -28,6 +31,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+StateDirectory=poker
+ReadWritePaths=/var/lib/poker
 
 # journald picks up stdout/stderr automatically.
 StandardOutput=journal

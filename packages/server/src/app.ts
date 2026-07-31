@@ -13,6 +13,7 @@ import {
   type SeatMove,
   type ServerMessage,
 } from "@table-top-poker/protocol";
+import { HandLog } from "@table-top-poker/persistence";
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -25,7 +26,9 @@ import { ActionClock } from "./action-clock.js";
 import { joinUrl, roomQrCodeDataUrl } from "./qr.js";
 import {
   type ClaimSeatError,
+  type DispatchRejection,
   type DispatchStep,
+  type DispatchSuccess,
   type Room,
   RoomStore,
   toRoomView,
@@ -55,6 +58,8 @@ function readIndexOr(stagedPath: string): Buffer {
 
 export interface BuildAppOptions {
   readonly rooms?: RoomStore;
+  /** Root directory for append-as-you-go per-game hand logs. */
+  readonly handLogDir?: string;
   /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
   readonly actionClockMs?: number;
   /** How often the server pings every open socket (docs/phase-1-spec.md §7). */
@@ -167,6 +172,7 @@ export async function buildApp(
   options: BuildAppOptions = {},
 ): Promise<FastifyInstance> {
   const rooms = options.rooms ?? new RoomStore();
+  const handLogs = new Map<string, HandLog>();
   const pingIntervalMs = options.pingIntervalMs ?? 10_000;
   const missedPongLimit = options.missedPongLimit ?? 2;
   const graceWindowMs = options.graceWindowMs ?? 60_000;
@@ -300,7 +306,36 @@ export async function buildApp(
       tableGraceTimers.delete(code);
     }
     actionClock.clear(code);
+    handLogs.delete(code);
     rooms.end(code);
+  }
+
+  /** Persists the exact engine command and resulting events for replay/audit. */
+  function logDispatch(
+    code: string,
+    result: DispatchRejection | DispatchSuccess,
+  ): void {
+    if (options.handLogDir === undefined) return;
+    if (result.command === undefined) return;
+    const room = rooms.get(code);
+    const seats = room?.engine?.seats;
+    if (room === undefined || seats === undefined) return;
+
+    let log = handLogs.get(code);
+    if (log === undefined) {
+      log = new HandLog(options.handLogDir, code, seats);
+      handLogs.set(code, log);
+    }
+    if ("steps" in result) {
+      const startsHand = result.steps.some(
+        (step) => step.event.type === "HandStarted",
+      );
+      log.logCommand(result.command, startsHand);
+      for (const step of result.steps) log.logEvent(step.event);
+    } else if (result.rejection !== undefined) {
+      log.logCommand(result.command, false);
+      log.logEvent(result.rejection);
+    }
   }
 
   const pingTimer = setInterval(() => {
@@ -668,6 +703,7 @@ export async function buildApp(
             return;
           }
           if ("reason" in dispatchResult) {
+            logDispatch(code, dispatchResult);
             sendRejection(socket, dispatchResult.reason);
             return;
           }
@@ -675,6 +711,7 @@ export async function buildApp(
           if (dispatchResult.seatMoves !== undefined) {
             applySeatMoves(code, dispatchResult.seatMoves);
           }
+          logDispatch(code, dispatchResult);
           for (const step of dispatchResult.steps) {
             fanOutHandUpdate(code, step);
           }

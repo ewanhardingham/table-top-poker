@@ -54,11 +54,13 @@ source checkout or the development machine's workspace layout.
    fi
    sudo install -d -o poker -g poker -m 0755 /opt/poker
    sudo install -d -o "$USER" -g poker -m 0770 /opt/poker/releases
+   sudo install -d -o poker -g poker -m 0750 /var/lib/poker/hands
    sudo install -d -o poker -g poker -m 0750 /etc/poker
    ```
 
-5. Copy `deploy/poker.env.example` to `/etc/poker/poker.env`, set `HOST`/`PORT`, then
-   run `sudo chown poker:poker /etc/poker/poker.env && sudo chmod 600 /etc/poker/poker.env`.
+5. Copy `deploy/poker.env.example` to `/etc/poker/poker.env`, set `HOST`/`PORT` and
+   `HAND_LOG_DIR`, then run
+   `sudo chown poker:poker /etc/poker/poker.env && sudo chmod 600 /etc/poker/poker.env`.
 
 ## Getting code onto the Pi
 
@@ -74,6 +76,11 @@ ssh pi-host "sudo chown -R poker:poker '$RELEASE' && sudo ln -sfn '$RELEASE' /op
 The release contains the server's compiled output, both client bundles, `package.json`, and
 a dereferenced runtime `node_modules`. No workspace package symlinks point back to the
 development checkout.
+
+When `poker.service` is installed, completed and in-progress hands are logged under
+`/var/lib/poker/hands/<room-code>/` as `game.jsonl`, `hand-NNNN.commands.jsonl`, and
+`hand-NNNN.events.jsonl`. The command file is the replay input; the event file is the
+version-tagged audit stream.
 
 ## systemd
 

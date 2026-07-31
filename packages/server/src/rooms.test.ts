@@ -476,7 +476,11 @@ describe("RoomStore", () => {
 
       const foldResult = store.dispatch(room.code, 2, "fold");
 
-      expect(foldResult).toEqual({ reason: "not-your-turn" });
+      expect(foldResult).toMatchObject({
+        reason: "not-your-turn",
+        command: { type: "fold", playerId: 2 },
+        rejection: { type: "Rejection", reason: "not-your-turn" },
+      });
       expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: true });
     });
 
@@ -495,9 +499,23 @@ describe("RoomStore", () => {
       const room = roomWithClaimedSeats(store, 2);
       store.dispatch(room.code, "table", "startHand");
 
-      expect(store.dispatch(room.code, "table", "startHand")).toEqual({
+      const result = store.dispatch(room.code, "table", "startHand");
+      expect(result).toMatchObject({
         reason: "hand-already-in-progress",
+        command: {
+          type: "startHand",
+          playerId: 0,
+        },
+        rejection: {
+          type: "Rejection",
+          reason: "hand-already-in-progress",
+        },
       });
+      if (!("command" in result)) throw new Error("expected a command");
+      if (result.command.type !== "startHand") {
+        throw new Error("expected a startHand command");
+      }
+      expect(typeof result.command.seed).toBe("string");
     });
 
     it("rejects an out-of-turn fold", () => {
@@ -514,9 +532,13 @@ describe("RoomStore", () => {
       );
       if (!outOfTurnSeat) throw new Error("expected an out-of-turn seat");
 
-      expect(store.dispatch(room.code, outOfTurnSeat.id, "fold")).toEqual({
-        reason: "not-your-turn",
-      });
+      expect(store.dispatch(room.code, outOfTurnSeat.id, "fold")).toMatchObject(
+        {
+          reason: "not-your-turn",
+          command: { type: "fold", playerId: outOfTurnSeat.id },
+          rejection: { type: "Rejection", reason: "not-your-turn" },
+        },
+      );
     });
 
     /** Folds every actor in turn until only one live player remains (fold-out). */

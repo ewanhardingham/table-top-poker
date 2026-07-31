@@ -35,9 +35,19 @@ cp -a packages/server/dist packages/server/public packages/server/package.json "
 # npm workspaces represent local packages as symlinks. Dereference them so
 # the release does not depend on the source checkout existing on the Pi.
 rsync -aL node_modules/ "$release_dir/node_modules/"
+# `.bin` entries are symlinks to files beside the package entrypoint. The
+# dereferenced copy above turns them into standalone files, so their relative
+# imports resolve from `.bin` and fail. Restore the symlink directory after
+# copying the package contents.
+rm -rf "$release_dir/node_modules/.bin"
+rsync -a node_modules/.bin "$release_dir/node_modules/"
 
 echo "==> Verifying deployable runtime imports"
 node --input-type=module -e \
   'await import("./.release/packages/server/dist/app.js")'
+
+echo "==> Verifying the packaged harness entrypoint"
+cat "$release_dir/node_modules/@table-top-poker/harness/fixtures/hand-1.commands.jsonl" |
+  "$release_dir/node_modules/.bin/harness" >/dev/null
 
 echo "==> Release staged at .release/"

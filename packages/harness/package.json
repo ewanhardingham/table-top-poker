@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@table-top-poker/engine": "*"
+    "@table-top-poker/engine": "*",
+    "@table-top-poker/persistence": "*"
   }
 }
