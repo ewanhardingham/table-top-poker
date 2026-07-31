@@ -26,6 +26,8 @@ export interface UseWebSocketOptions {
   readonly onRoomEnded?: () => void;
   /** The seat was evicted by the table device. */
   readonly onEvicted?: () => void;
+  /** The table repacked this player's seat during a seat-count change. */
+  readonly onSeatMoved?: (move: { from: number; to: number }) => void;
 }
 
 export interface SeatSocket {
@@ -78,6 +80,7 @@ export function useWebSocket(
 
     const seatParams = params;
     let active = true;
+    let currentSeatId = seatParams.seatId;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
     function connect(): void {
@@ -114,7 +117,7 @@ export function useWebSocket(
             setRoomView(message.view);
             {
               const seat = message.view.seats.find(
-                (candidate) => candidate.id === seatParams.seatId,
+                (candidate) => candidate.id === currentSeatId,
               );
               if (seat?.claimed) {
                 setSeat({ seatId: seat.id, sittingOut: seat.sittingOut });
@@ -132,6 +135,14 @@ export function useWebSocket(
             break;
           case "command-rejected":
             commandRejected(message.reason);
+            break;
+          case "seat-moved":
+            currentSeatId = message.to;
+            setSeat({ seatId: message.to, sittingOut: false });
+            optionsRef.current.onSeatMoved?.({
+              from: message.from,
+              to: message.to,
+            });
             break;
           case "room-ended":
             optionsRef.current.onRoomEnded?.();

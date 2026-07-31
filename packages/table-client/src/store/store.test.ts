@@ -40,6 +40,16 @@ describe("useTableStore", () => {
     ]);
   });
 
+  it("tracks a queued seat-count shrink from the room view", () => {
+    useTableStore.getState().setRoomView({
+      code: "ABCD",
+      pendingSeatCount: 4,
+      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
+    });
+
+    expect(useTableStore.getState().pendingSeatCount).toBe(4);
+  });
+
   it("clears the room slice back to its initial state", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",

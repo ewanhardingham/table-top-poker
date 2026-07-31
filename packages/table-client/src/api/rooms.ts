@@ -33,3 +33,26 @@ export async function evictSeat(code: string, seatId: number): Promise<void> {
     throw new Error(`failed to evict seat: ${String(response.status)}`);
   }
 }
+
+export interface SeatCountChange {
+  readonly seatCount: number;
+  readonly pendingSeatCount: number | null;
+  readonly applied: boolean;
+  readonly moves: readonly { readonly from: number; readonly to: number }[];
+}
+
+/** The table device's House rules setting for the room seat count. */
+export async function changeSeatCount(
+  code: string,
+  seatCount: number,
+): Promise<SeatCountChange> {
+  const response = await fetch(`/rooms/${code}/seats/count`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ seatCount }),
+  });
+  if (!response.ok) {
+    throw new Error(`failed to change seat count: ${String(response.status)}`);
+  }
+  return (await response.json()) as SeatCountChange;
+}

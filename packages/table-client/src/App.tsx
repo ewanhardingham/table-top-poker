@@ -1,14 +1,21 @@
 import { DEFAULT_SEAT_COUNT } from "@table-top-poker/protocol";
 import { color } from "@table-top-poker/ui-shared";
 import { useCallback, useState } from "react";
-import { createRoom, endSession, evictSeat } from "./api/rooms.js";
+import {
+  changeSeatCount,
+  createRoom,
+  endSession,
+  evictSeat,
+} from "./api/rooms.js";
 import { Board } from "./Board.js";
+import { HouseRulesSheet } from "./HouseRulesSheet.js";
 import { SeatCountPicker } from "./SeatCountPicker.js";
 import { isHandComplete } from "./handComplete.js";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
 import { Seats } from "./Seats.js";
+import { SettingsToggle } from "./SettingsToggle.js";
 import { StatusBar } from "./StatusBar.js";
 import { TableControls } from "./TableControls.js";
 import { useTableStore } from "./store/store.js";
@@ -19,6 +26,7 @@ export function App() {
   const joinUrl = useTableStore((state) => state.joinUrl);
   const qrCodeDataUrl = useTableStore((state) => state.qrCodeDataUrl);
   const seats = useTableStore((state) => state.seats);
+  const pendingSeatCount = useTableStore((state) => state.pendingSeatCount);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
@@ -30,6 +38,7 @@ export function App() {
   }, []);
 
   const [menuSeatId, setMenuSeatId] = useState<number | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const handleSeatClick = useCallback((seatId: number) => {
     setMenuSeatId((current) => (current === seatId ? null : seatId));
   }, []);
@@ -44,8 +53,13 @@ export function App() {
     setMenuSeatId(null);
   }, [roomCode, menuSeatId]);
 
+  const handleRoomEnded = useCallback(() => {
+    setSettingsOpen(false);
+    clearRoom();
+  }, [clearRoom]);
+
   const { send } = useWebSocket(roomCode, {
-    onRoomEnded: clearRoom,
+    onRoomEnded: handleRoomEnded,
   });
 
   const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
@@ -60,11 +74,28 @@ export function App() {
   const handleEndSession = useCallback(() => {
     if (!roomCode) return;
     endSession(roomCode)
-      .then(clearRoom)
+      .then(() => {
+        setSettingsOpen(false);
+        clearRoom();
+      })
       .catch((error: unknown) => {
         console.error(error);
       });
   }, [roomCode, clearRoom]);
+
+  const handleChangeSeatCount = useCallback(
+    (seatCount: number) => {
+      if (roomCode === null) return;
+      changeSeatCount(roomCode, seatCount)
+        .then(() => {
+          setSettingsOpen(false);
+        })
+        .catch((error: unknown) => {
+          console.error(error);
+        });
+    },
+    [roomCode],
+  );
 
   const handleStartHand = useCallback(() => {
     send({ type: "startHand" });
@@ -146,6 +177,24 @@ export function App() {
                 lobbyHint={lobbyHint}
                 dismissable={handInProgress}
                 onDismiss={toggleJoin}
+              />
+            )}
+            <SettingsToggle
+              open={settingsOpen}
+              onToggle={() => {
+                setSettingsOpen((open) => !open);
+              }}
+            />
+            {settingsOpen && (
+              <HouseRulesSheet
+                seatCount={seats.length}
+                pendingSeatCount={pendingSeatCount}
+                seats={seats}
+                handLive={handView?.phase === "betting"}
+                onApply={handleChangeSeatCount}
+                onClose={() => {
+                  setSettingsOpen(false);
+                }}
               />
             )}
             <TableControls

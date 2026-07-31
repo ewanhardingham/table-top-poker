@@ -6,6 +6,7 @@ export interface RoomSlice {
   readonly joinUrl: string | null;
   readonly qrCodeDataUrl: string | null;
   readonly seats: readonly SeatView[];
+  readonly pendingSeatCount: number | null;
   readonly setRoomCreated: (room: {
     code: string;
     joinUrl: string;
@@ -20,13 +21,24 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
   joinUrl: null,
   qrCodeDataUrl: null,
   seats: [],
+  pendingSeatCount: null,
   setRoomCreated: ({ code, joinUrl, qrCodeDataUrl }) => {
-    set({ roomCode: code, joinUrl, qrCodeDataUrl });
+    set({ roomCode: code, joinUrl, qrCodeDataUrl, pendingSeatCount: null });
   },
   setRoomView: (view) => {
-    set({ roomCode: view.code, seats: view.seats });
+    set({
+      roomCode: view.code,
+      seats: view.seats,
+      pendingSeatCount: view.pendingSeatCount ?? null,
+    });
   },
   clearRoom: () => {
-    set({ roomCode: null, joinUrl: null, qrCodeDataUrl: null, seats: [] });
+    set({
+      roomCode: null,
+      joinUrl: null,
+      qrCodeDataUrl: null,
+      seats: [],
+      pendingSeatCount: null,
+    });
   },
 });

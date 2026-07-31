@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRoom, endSession } from "./rooms.js";
+import { changeSeatCount, createRoom, endSession } from "./rooms.js";
 
 describe("createRoom", () => {
   beforeEach(() => {
@@ -59,6 +59,43 @@ describe("endSession", () => {
 
     await expect(endSession("ABCD")).rejects.toThrow(
       "failed to end session: 404",
+    );
+  });
+});
+
+describe("changeSeatCount", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts the requested count to the table settings route", async () => {
+    const body = {
+      seatCount: 4,
+      pendingSeatCount: null,
+      applied: true,
+      moves: [],
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 200 }),
+    );
+
+    await expect(changeSeatCount("ABCD", 4)).resolves.toEqual(body);
+    expect(fetch).toHaveBeenCalledWith("/rooms/ABCD/seats/count", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ seatCount: 4 }),
+    });
+  });
+
+  it("throws when the server rejects a setting", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 400 }));
+
+    await expect(changeSeatCount("ABCD", 1)).rejects.toThrow(
+      "failed to change seat count: 400",
     );
   });
 });

@@ -36,6 +36,7 @@ export function App() {
   const [claimError, setClaimError] = useState<string | null>(null);
   const [seatToken, setSeatToken] = useState<string | null>(null);
   const [evictionMessage, setEvictionMessage] = useState<string | null>(null);
+  const [seatMoveMessage, setSeatMoveMessage] = useState<string | null>(null);
 
   useEffect(() => {
     // Silently reclaim a stored seat on mount (docs/phase-1-spec.md §7) — a
@@ -62,6 +63,7 @@ export function App() {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
     clearSeat();
+    setSeatMoveMessage(null);
   }, [clearSeat]);
 
   const handleEvicted = useCallback(() => {
@@ -69,6 +71,7 @@ export function App() {
     setSeatToken(null);
     clearSeat();
     setEvictionMessage("You have been evicted from the room");
+    setSeatMoveMessage(null);
   }, [clearSeat]);
 
   const handleRoomEnded = useCallback(() => {
@@ -76,7 +79,24 @@ export function App() {
     setSeatToken(null);
     clearSeat();
     clearRoom();
+    setSeatMoveMessage(null);
   }, [clearSeat, clearRoom]);
+
+  const handleSeatMoved = useCallback(
+    ({ from, to }: { readonly from: number; readonly to: number }) => {
+      setSeatMoveMessage(
+        `Your seat moved from Seat ${String(from + 1)} to Seat ${String(to + 1)}. Your claim stays with you.`,
+      );
+      if (roomCode !== null && seatToken !== null) {
+        saveSeatToken(window.localStorage, {
+          roomCode,
+          seatId: to,
+          token: seatToken,
+        });
+      }
+    },
+    [roomCode, seatToken],
+  );
 
   const wsParams = useMemo(() => {
     if (roomCode === null || seatId === null || seatToken === null) {
@@ -88,6 +108,7 @@ export function App() {
     onRejected: handleRejected,
     onEvicted: handleEvicted,
     onRoomEnded: handleRoomEnded,
+    onSeatMoved: handleSeatMoved,
   });
   const playerSeat =
     seatId === null ? undefined : seats.find((seat) => seat.id === seatId);
@@ -102,6 +123,7 @@ export function App() {
       joinRoom(code)
         .then((view) => {
           setEvictionMessage(null);
+          setSeatMoveMessage(null);
           setRoomView(view);
         })
         .catch(() => {
@@ -118,6 +140,7 @@ export function App() {
         .then((claim) => {
           setClaimError(null);
           setEvictionMessage(null);
+          setSeatMoveMessage(null);
           setSeat({ seatId: claim.seatId, sittingOut: claim.sittingOut });
           setSeatToken(claim.token);
           saveSeatToken(window.localStorage, {
@@ -188,6 +211,23 @@ export function App() {
             : null
         }
       />
+      {seatMoveMessage && (
+        <div
+          data-testid="seat-moved-notice"
+          style={{
+            flex: "none",
+            margin: "10px 18px 0",
+            padding: "10px 14px",
+            borderRadius: "12px",
+            background: "rgba(123,216,143,.1)",
+            border: "1px solid rgba(123,216,143,.4)",
+            color: "#eef7ef",
+            fontSize: "14px",
+          }}
+        >
+          {seatMoveMessage}
+        </div>
+      )}
       <main className="hand">{content}</main>
     </div>
   );

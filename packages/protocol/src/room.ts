@@ -31,6 +31,15 @@ export const CreateRoomRequestSchema = z.strictObject({
 
 export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>;
 
+/** Body of the table-only room settings request (issue #77). */
+export const ChangeSeatCountRequestSchema = z.strictObject({
+  seatCount: SeatCountSchema,
+});
+
+export type ChangeSeatCountRequest = z.infer<
+  typeof ChangeSeatCountRequestSchema
+>;
+
 /** A seat's public state — never carries its claim token. */
 export interface SeatView {
   readonly id: SeatId;
@@ -43,6 +52,8 @@ export interface SeatView {
 export interface RoomView {
   readonly code: string;
   readonly seats: readonly SeatView[];
+  /** A shrink requested during a live hand, applied at the next deal-in. */
+  readonly pendingSeatCount?: number;
 }
 
 /** Pushed over the room's WebSocket whenever seat state changes. */
@@ -54,6 +65,13 @@ export interface RoomViewMessage {
 /** Sent to a player's socket immediately before the server closes it after eviction. */
 export interface PlayerEvictedMessage {
   readonly type: "player-evicted";
+}
+
+/** Pushed to a player when a table shrink renumbers their claimed seat. */
+export interface SeatMovedMessage {
+  readonly type: "seat-moved";
+  readonly from: SeatId;
+  readonly to: SeatId;
 }
 
 /**
@@ -78,6 +96,7 @@ export interface RoomEndedMessage {
 export type ServerMessage =
   | RoomViewMessage
   | PlayerEvictedMessage
+  | SeatMovedMessage
   | HandUpdateMessage
   | CommandRejectedMessage
   | ViewSnapshotMessage
