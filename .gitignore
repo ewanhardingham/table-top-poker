@@ -13,3 +13,8 @@ coverage/
 # is a real tracked placeholder, but everything build:release copies under it is generated.
 /packages/server/public/table/
 /packages/server/public/player/
+/.release/
+
+# Local env overrides (e.g. DEV_ALLOWED_HOSTS)
+.env.local
+.env.*.local
