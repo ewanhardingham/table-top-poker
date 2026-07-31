@@ -5,10 +5,6 @@ coverage/
 *.tsbuildinfo
 .DS_Store
 
-# Local env overrides (e.g. DEV_ALLOWED_HOSTS)
-.env.local
-.env.*.local
-
 # Release builds staged by scripts/build-release.sh (ticket 34) — packages/server/public/index.html
 # is a real tracked placeholder, but everything build:release copies under it is generated.
 /packages/server/public/table/
