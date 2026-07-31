@@ -7,8 +7,8 @@
 #
 # Usage: npm run build:release
 #
-# Afterwards, packages/server/{dist,public,package.json} plus the workspace's
-# node_modules is what you rsync to the Pi — see docs/deploy-pi.md.
+# Afterwards, .release/ is the self-contained deployable unit —
+# see docs/deploy-pi.md.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -27,4 +27,17 @@ mkdir -p packages/server/public/table packages/server/public/player
 cp -r packages/table-client/build/. packages/server/public/table/
 cp -r packages/player-client/build/. packages/server/public/player/
 
-echo "==> Release staged. packages/server/{dist,public,package.json} is what to deploy."
+echo "==> Staging self-contained server release"
+release_dir=.release
+rm -rf "$release_dir"
+mkdir -p "$release_dir/packages/server"
+cp -a packages/server/dist packages/server/public packages/server/package.json "$release_dir/packages/server/"
+# npm workspaces represent local packages as symlinks. Dereference them so
+# the release does not depend on the source checkout existing on the Pi.
+rsync -aL node_modules/ "$release_dir/node_modules/"
+
+echo "==> Verifying deployable runtime imports"
+node --input-type=module -e \
+  'await import("./.release/packages/server/dist/app.js")'
+
+echo "==> Release staged at .release/"

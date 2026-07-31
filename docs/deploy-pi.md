@@ -10,39 +10,70 @@ condensed how-to; that doc is the why.
 both bundles under `packages/server/public/` so one Fastify process serves everything
 same-origin — plain HTTP, no certificate (docs/phase-1-spec.md §8).
 
-After it runs, `packages/server/{dist,public,package.json}` plus the workspace's installed
-`node_modules` is the deployable unit.
+After it runs, `.release/` is a self-contained deployable unit. The release
+script copies workspace symlink targets into its `node_modules`, so the Pi does not need a
+source checkout or the development machine's workspace layout.
 
 ## One-time Pi setup
 
 1. **OS**: Raspberry Pi OS Lite, 64-bit.
-2. **Node**: version matching this repo's `engines.node` (`^22.0.0`), arm64 build.
+2. **Node**: install the arm64 Node 22 build matching this repo's `engines.node` (`^22.0.0`).
+   The service uses `/usr/local/bin/node`; this installs the official binary there:
+
+   ```bash
+   sudo apt update
+   sudo apt install -y ca-certificates curl rsync xz-utils iw
+
+   NODE_VERSION=22.22.1
+   NODE_ARCHIVE="node-v${NODE_VERSION}-linux-arm64.tar.xz"
+   NODE_TMP=$(mktemp -d)
+   trap 'rm -rf "$NODE_TMP"' EXIT
+   curl -fsSLo "$NODE_TMP/$NODE_ARCHIVE" \
+     "https://nodejs.org/dist/v${NODE_VERSION}/$NODE_ARCHIVE"
+   curl -fsSLo "$NODE_TMP/SHASUMS256.txt" \
+     "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"
+   grep " $NODE_ARCHIVE$" "$NODE_TMP/SHASUMS256.txt" | \
+     (cd "$NODE_TMP" && sha256sum -c -)
+   sudo tar -xJf "$NODE_TMP/$NODE_ARCHIVE" -C /opt
+   sudo ln -sfn "/opt/node-v${NODE_VERSION}-linux-arm64" /opt/node
+   for binary in node npm npx corepack; do
+     sudo ln -sfn "/opt/node/bin/$binary" "/usr/local/bin/$binary"
+   done
+   node --version
+   ```
+
 3. **Network**: prefer Ethernet. If Wi-Fi, use the main SSID (not a guest network — see
    below) and disable power save: `sudo iw dev wlan0 set power_save off` (persist this,
    it resets on reboot otherwise).
-4. **A `poker` system user**, matching `deploy/poker.service`'s `User=`/`Group=`.
-5. `sudo mkdir -p /etc/poker /opt/poker/releases`, then copy `deploy/poker.env.example`
-   to `/etc/poker/poker.env` (`chmod 600`, owned by `poker`) and adjust `HOST`/`PORT`.
+4. **A `poker` system user**, matching `deploy/poker.service`'s `User=`/`Group=`:
+
+   ```bash
+   if ! id poker >/dev/null 2>&1; then
+     sudo useradd --system --home-dir /opt/poker --create-home \
+       --shell /usr/sbin/nologin poker
+   fi
+   sudo install -d -o poker -g poker -m 0755 /opt/poker
+   sudo install -d -o "$USER" -g poker -m 0770 /opt/poker/releases
+   sudo install -d -o poker -g poker -m 0750 /etc/poker
+   ```
+
+5. Copy `deploy/poker.env.example` to `/etc/poker/poker.env`, set `HOST`/`PORT`, then
+   run `sudo chown poker:poker /etc/poker/poker.env && sudo chmod 600 /etc/poker/poker.env`.
 
 ## Getting code onto the Pi
 
-Build the release on your dev machine (`npm run build:release`), then `rsync` it into a
-timestamped release directory and flip a `current` symlink:
+Build the release on your dev machine (`npm run build:release`), then `rsync` the
+self-contained directory into a timestamped release and flip a `current` symlink:
 
 ```bash
 RELEASE=/opt/poker/releases/$(date +%Y%m%d%H%M%S)
-rsync -az --relative \
-  packages/server/dist packages/server/public packages/server/package.json \
-  node_modules \
-  pi-host:"$RELEASE/"
-ssh pi-host "ln -sfn $RELEASE /opt/poker/current"
+rsync -az .release/ pi-host:"$RELEASE/"
+ssh pi-host "sudo chown -R poker:poker '$RELEASE' && sudo ln -sfn '$RELEASE' /opt/poker/current"
 ```
 
-(Adjust for however you actually get `node_modules` over — a full workspace `npm ci` on
-the Pi is simplest if disk/time allow; a pruned production install is the smaller-but-
-fussier alternative. Either way, `packages/server`'s own `node_modules` needs the
-workspace's `@table-top-poker/protocol` resolved, which is why the whole tree's
-`node_modules`, not just `packages/server`'s, goes over.)
+The release contains the server's compiled output, both client bundles, `package.json`, and
+a dereferenced runtime `node_modules`. No workspace package symlinks point back to the
+development checkout.
 
 ## systemd
 
@@ -54,8 +85,8 @@ systemctl status poker
 journalctl -u poker -f
 ```
 
-Redeploying is: rsync a new timestamped release, flip the symlink, `sudo systemctl restart
-poker`.
+Redeploying is: rsync a new timestamped release, `sudo chown -R poker:poker` it, flip the
+symlink, and run `sudo systemctl restart poker`.
 
 ## The two things that will actually ruin poker night
 
