@@ -13,6 +13,7 @@ import {
   type HandEvent,
   isHandComplete,
   isHandLive,
+  type Rejection,
   type RejectionReason,
   type RoomView,
   type SeatId,
@@ -78,13 +79,22 @@ export interface DispatchStep {
 
 export type DispatchRejectionReason = RejectionReason | "not-enough-players";
 
+export interface DispatchSuccess {
+  readonly command: Command;
+  readonly steps: readonly DispatchStep[];
+  readonly seatMoves?: readonly SeatMove[];
+}
+
+export interface DispatchRejection {
+  readonly reason: DispatchRejectionReason;
+  readonly command?: Command;
+  readonly rejection?: Rejection;
+}
+
 export type DispatchResult =
-  | {
-      readonly steps: readonly DispatchStep[];
-      readonly seatMoves?: readonly SeatMove[];
-    }
+  | DispatchSuccess
   | { readonly error: "room-not-found" | "not-permitted" }
-  | { readonly reason: DispatchRejectionReason };
+  | DispatchRejection;
 
 /**
  * `sitOut`/`sitIn` are seat commands that never reach the engine (ADR-0002)
@@ -500,7 +510,9 @@ export class RoomStore {
 
     const command = this.#buildCommand(identity, type);
     const result = decide(room.engine, command);
-    if (!Array.isArray(result)) return { reason: result.reason };
+    if (!Array.isArray(result)) {
+      return { reason: result.reason, command, rejection: result };
+    }
 
     const steps: DispatchStep[] = [];
     let state = room.engine;
@@ -510,7 +522,9 @@ export class RoomStore {
     }
     room.engine = state;
 
-    return seatMoves.length > 0 ? { steps, seatMoves } : { steps };
+    return seatMoves.length > 0
+      ? { command, steps, seatMoves }
+      : { command, steps };
   }
 
   /**

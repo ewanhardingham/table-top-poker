@@ -6,7 +6,15 @@ import {
   type ServerMessage,
 } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
@@ -1242,6 +1250,133 @@ describe("hand command dispatch over WebSocket", () => {
     expect(table.messages).not.toContainEqual(
       expect.objectContaining({ type: "command-rejected" }),
     );
+  });
+});
+
+describe("hand persistence", () => {
+  it("writes a completed hand's commands and events as replayable JSONL", async () => {
+    const handLogDir = mkdtempSync(path.join(tmpdir(), "server-hands-"));
+    const rooms = new RoomStore();
+    const app = await buildApp({ rooms, handLogDir });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+
+    const room = rooms.create(2);
+    const table = new WebSocket(
+      `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&role=table`,
+    );
+    const seat0Claim = rooms.claimSeat(room.code, 0);
+    const seat1Claim = rooms.claimSeat(room.code, 1);
+    if (!("seat" in seat0Claim) || !("seat" in seat1Claim)) {
+      throw new Error("expected both seats to be claimed");
+    }
+    const seat1 = new WebSocket(
+      `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&seat=1&token=${seat1Claim.seat.token ?? ""}`,
+    );
+    const seat0 = new WebSocket(
+      `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&seat=0&token=${seat0Claim.seat.token ?? ""}`,
+    );
+    const tableMessages: ServerMessage[] = [];
+    const seat1Messages: ServerMessage[] = [];
+    table.on("message", (data: Buffer) => {
+      tableMessages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    seat1.on("message", (data: Buffer) => {
+      seat1Messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+
+    async function waitForEvent(eventType: string): Promise<void> {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (
+          tableMessages.some(
+            (message) =>
+              message.type === "hand-update" &&
+              message.event.type === eventType,
+          )
+        ) {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error(`timed out waiting for ${eventType}`);
+    }
+
+    async function waitForRejection(): Promise<void> {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (
+          seat1Messages.some((message) => message.type === "command-rejected")
+        ) {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error("timed out waiting for command rejection");
+    }
+
+    try {
+      await Promise.all(
+        [table, seat0, seat1].map(
+          (socket) =>
+            new Promise<void>((resolve, reject) => {
+              socket.once("open", () => {
+                resolve();
+              });
+              socket.once("error", reject);
+            }),
+        ),
+      );
+
+      table.send(JSON.stringify({ type: "startHand" }));
+      await waitForEvent("StreetStarted");
+      seat1.send(JSON.stringify({ type: "fold" }));
+      await waitForRejection();
+      seat0.send(JSON.stringify({ type: "fold" }));
+      await waitForEvent("HandComplete");
+
+      const gameDir = path.join(handLogDir, room.code);
+      const commandsPath = path.join(gameDir, "hand-0001.commands.jsonl");
+      const eventsPath = path.join(gameDir, "hand-0001.events.jsonl");
+      const readJsonLines = (filePath: string): unknown[] =>
+        readFileSync(filePath, "utf8")
+          .trim()
+          .split("\n")
+          .map((line) => JSON.parse(line) as unknown);
+      const commands = readJsonLines(commandsPath) as {
+        type: string;
+        playerId: number;
+        seed?: string;
+        v: number;
+      }[];
+      const events = readJsonLines(eventsPath) as {
+        type: string;
+        seed?: string;
+        v: number;
+      }[];
+
+      expect(commands.map((command) => command.type)).toEqual([
+        "startHand",
+        "fold",
+        "fold",
+      ]);
+      expect(commands[0]?.type).toBe("startHand");
+      expect(commands[0]?.playerId).toBe(0);
+      expect(typeof commands[0]?.seed).toBe("string");
+      expect(Number.isInteger(commands[0]?.v)).toBe(true);
+      expect(events.at(-1)?.type).toBe("HandComplete");
+      expect(Number.isInteger(events.at(-1)?.v)).toBe(true);
+      expect(events.some((event) => event.type === "Rejection")).toBe(true);
+      expect(events[0]?.seed).toBe(commands[0]?.seed);
+      expect(events.every((event) => Number.isInteger(event.v))).toBe(true);
+    } finally {
+      table.close();
+      seat0.close();
+      seat1.close();
+      await app.close();
+      rmSync(handLogDir, { recursive: true, force: true });
+    }
   });
 });
 
