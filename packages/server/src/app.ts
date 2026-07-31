@@ -8,6 +8,7 @@ import {
   type CommandRejectedMessage,
   type HandEvent,
   type SeatId,
+  type SeatCountChangeError,
   type SeatMove,
   type ServerMessage,
 } from "@table-top-poker/protocol";
@@ -108,6 +109,17 @@ function redactEventFor(
 /** Seat ids arrive as route/query strings — reject anything that isn't a bare integer. */
 function parseSeatId(raw: string): number | undefined {
   return /^\d+$/.test(raw) ? Number(raw) : undefined;
+}
+
+function seatCountBodyError(
+  issues: readonly { readonly path: readonly PropertyKey[] }[],
+): Extract<
+  SeatCountChangeError,
+  "invalid-request-body" | "invalid-seat-count"
+> {
+  return issues.some((issue) => issue.path[0] === "seatCount")
+    ? "invalid-seat-count"
+    : "invalid-request-body";
 }
 
 export async function buildApp(
@@ -315,14 +327,8 @@ export async function buildApp(
     // boundary that decides whether it's a size a room may actually have.
     const body = CreateRoomRequestSchema.safeParse(request.body);
     if (!body.success) {
-      // The body is strict, so a bad shape and a bad count are both
-      // possible here — say which, rather than blaming the count for a
-      // stray key.
-      const blamesSeatCount = body.error.issues.some(
-        (issue) => issue.path[0] === "seatCount",
-      );
       return reply.code(400).send({
-        error: blamesSeatCount ? "invalid-seat-count" : "invalid-request-body",
+        error: seatCountBodyError(body.error.issues),
       });
     }
 
@@ -360,11 +366,8 @@ export async function buildApp(
   ) => {
     const body = ChangeSeatCountRequestSchema.safeParse(request.body);
     if (!body.success) {
-      const blamesSeatCount = body.error.issues.some(
-        (issue) => issue.path[0] === "seatCount",
-      );
       return reply.code(400).send({
-        error: blamesSeatCount ? "invalid-seat-count" : "invalid-request-body",
+        error: seatCountBodyError(body.error.issues),
       });
     }
 
@@ -465,12 +468,7 @@ export async function buildApp(
             token === undefined
               ? undefined
               : rooms.findSeatByToken(code, token);
-          if (
-            !seatObj ||
-            seatId === undefined ||
-            token === undefined ||
-            seatObj.id !== seatId
-          ) {
+          if (!seatObj || seatId === undefined || token === undefined) {
             await reply.code(403).send({ error: "invalid-seat-token" });
             return;
           }
@@ -482,6 +480,7 @@ export async function buildApp(
 
         const { role, seat, token } = request.query;
         let identity: SeatId | "table";
+        let movedFrom: SeatId | undefined;
         if (role === "table") {
           identity = "table";
         } else {
@@ -490,8 +489,9 @@ export async function buildApp(
             token === undefined
               ? undefined
               : rooms.findSeatByToken(code, token);
-          if (seatId === undefined || seatObj?.id !== seatId) return;
+          if (seatId === undefined || seatObj === undefined) return;
           identity = seatObj.id;
+          movedFrom = seatId === identity ? undefined : seatId;
         }
         socketIdentity.set(socket, identity);
         socketRoomCode.set(socket, code);
@@ -514,6 +514,13 @@ export async function buildApp(
           // A reconnecting seat resumes silently, no penalty (§7) — clear
           // any presence badge a prior drop had set.
           rooms.setSeatDisconnected(code, identity, false);
+        }
+
+        if (movedFrom !== undefined && identity !== "table") {
+          // A disconnected player may still have the pre-repack seat in
+          // localStorage. The token authenticates the player; this stale
+          // position is only the source for the resync notice.
+          send(socket, { type: "seat-moved", from: movedFrom, to: identity });
         }
 
         const room = rooms.get(code);

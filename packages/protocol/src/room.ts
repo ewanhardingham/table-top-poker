@@ -40,6 +40,13 @@ export type ChangeSeatCountRequest = z.infer<
   typeof ChangeSeatCountRequestSchema
 >;
 
+/** Errors returned by the table device's seat-count settings route. */
+export type SeatCountChangeError =
+  | "room-not-found"
+  | "invalid-request-body"
+  | "invalid-seat-count"
+  | "seat-count-below-floor";
+
 export interface SeatMove {
   readonly from: SeatId;
   readonly to: SeatId;

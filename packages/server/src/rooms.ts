@@ -15,6 +15,7 @@ import {
   type RoomView,
   type SeatId,
   type SeatCountChange,
+  type SeatCountChangeError,
   type SeatMove,
 } from "@table-top-poker/protocol";
 import { generateRoomCode } from "./room-code.js";
@@ -58,8 +59,10 @@ export type ClaimSeatError =
 
 export type ClaimSeatResult = { seat: Seat } | { error: ClaimSeatError };
 
-export type ChangeSeatCountError =
-  "room-not-found" | "invalid-seat-count" | "seat-count-below-floor";
+export type ChangeSeatCountError = Exclude<
+  SeatCountChangeError,
+  "invalid-request-body"
+>;
 
 export type ChangeSeatCountResult =
   | SeatCountChange
@@ -198,13 +201,15 @@ function freeSeat(seat: Seat): void {
 /**
  * Whether `seatId` reads as "sitting out" to a client: a voluntary opt-out,
  * or a claim that arrived after the room's current ring was fixed and
- * hasn't been swept into a deal-in recompute yet (issue #13). Shared by
- * `toRoomView` and any single-seat lookup that needs the same derivation.
+ * hasn't been swept into a live hand's deal-in recompute yet (issue #13).
+ * Shared by `toRoomView` and any single-seat lookup that needs the same
+ * derivation.
  */
 function isSittingOut(room: Room, seatId: SeatId): boolean {
   const seat = room.seats[seatId];
   if (!seat) return false;
-  const ring = room.engine?.seats;
+  const ring =
+    room.engine?.hand?.status === "betting" ? room.engine.seats : undefined;
   return (
     seat.sittingOut ||
     (seat.claimed &&
@@ -325,10 +330,10 @@ export class RoomStore {
 
   /**
    * Changes the room's physical seat count. Growing is always safe and
-   * immediate. A shrink would renumber the engine ring, so it is queued until
-   * the next deal-in recompute; outside a hand it applies immediately. The
-   * claimed-seat floor includes disconnected and sitting-out players because
-   * neither state releases a claim.
+   * immediate. A shrink would renumber the live engine ring, so it is queued
+   * until the next deal-in recompute; outside a live hand it applies
+   * immediately. The claimed-seat floor includes disconnected and sitting-out
+   * players because neither state releases a claim.
    */
   changeSeatCount(code: string, seatCount: number): ChangeSeatCountResult {
     const room = this.#rooms.get(code);
@@ -353,7 +358,7 @@ export class RoomStore {
       return appliedSeatCountChange(room);
     }
 
-    if (room.engine !== null) {
+    if (room.engine?.hand?.status === "betting") {
       room.pendingSeatCount = seatCount;
       return {
         seatCount: room.seats.length,
@@ -430,31 +435,24 @@ export class RoomStore {
     if (type === "startHand" && room.engine === null) {
       const dealIn = eligibleSeats(room);
       if (dealIn.length < 2) return { reason: "not-enough-players" };
-      seatMoves = applyPendingShrink(room).moves;
-      room.engine = createInitialState(eligibleSeats(room));
+      room.engine = createInitialState(dealIn);
     } else if (type === "nextHand" && room.engine !== null) {
       if (eligibleSeats(room).length < 2) {
         return { reason: "not-enough-players" };
       }
 
+      const repack =
+        room.engine.hand?.status === "complete"
+          ? applyPendingShrink(room)
+          : emptySeatRepack();
+      seatMoves = repack.moves;
+      const previousButton = remapSeatId(room.engine.button, repack.mapping);
       const dealIn = eligibleSeats(room);
-      if (room.engine.hand?.status === "complete") {
-        const repack = applyPendingShrink(room);
-        seatMoves = repack.moves;
-        const previousButton = remapSeatId(room.engine.button, repack.mapping);
-        const nextDealIn = eligibleSeats(room);
-        room.engine = {
-          ...room.engine,
-          seats: nextDealIn,
-          button: resolveButtonFor(previousButton, nextDealIn),
-        };
-      } else {
-        room.engine = {
-          ...room.engine,
-          seats: dealIn,
-          button: resolveButtonFor(room.engine.button, dealIn),
-        };
-      }
+      room.engine = {
+        ...room.engine,
+        seats: dealIn,
+        button: resolveButtonFor(previousButton, dealIn),
+      };
     }
 
     if (room.engine === null) return { reason: "hand-not-in-progress" };
