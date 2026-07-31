@@ -77,25 +77,18 @@ export function HandPickerPrototype() {
             onStartHand={() => undefined}
             onNextHand={() => undefined}
             onEndSession={() => undefined}
+            onReviewHands={() => {
+              setOpen(true);
+            }}
           />
-
-          {!open && (
-            <div style={{ position: "absolute", left: "1.5em", top: "50%" }}>
-              <PillButton
-                onClick={() => {
-                  setOpen(true);
-                }}
-              >
-                Review hands
-              </PillButton>
-            </div>
-          )}
 
           {open && (
             <div
               style={{
                 position: "absolute",
-                inset: "2.5em 7em 2.5em 7em",
+                // Clears the 13em control rail on the right, so the picker
+                // never covers the actions it sits alongside.
+                inset: "2.5em 15.5em 2.5em 3em",
                 display: "flex",
                 flexDirection: "column",
                 gap: "1em",
