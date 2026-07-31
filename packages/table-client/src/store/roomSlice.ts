@@ -29,7 +29,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
     set({
       roomCode: view.code,
       seats: view.seats,
-      pendingSeatCount: view.pendingSeatCount ?? null,
+      pendingSeatCount: view.pendingSeatCount,
     });
   },
   clearRoom: () => {

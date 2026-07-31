@@ -12,8 +12,8 @@ The persistent host for a poker night. Created when the table device starts
 it; holds the current seating and button position across hands; ends when
 the table device closes it. A Room hosts exactly one Table and as many
 seated Players as it has Seats. The table device may change the Seat count
-between 2 and 8 while the Room exists; a live-hand shrink waits for the next
-deal-in and repacks claimed positions without evicting anyone (ADR-0004).
+between 2 and 8 while the Room exists; a shrink waits for the next deal-in
+and repacks claimed positions without evicting anyone (ADR-0004).
 _Avoid_: Game, Session — both mean Room.
 
 **Table**:
@@ -21,6 +21,11 @@ The UI role of the central device that displays the shared board and hosts
 the room. Not an engine-level state holder — the state it displays belongs
 to Room. A room has exactly one table.
 _Avoid_: Using "table" for anything other than the central device's role.
+
+**House rules**:
+Settings chosen by the table device for the current Room. The first setting
+is the Room's Seat count; the settings sheet may grow to hold more rules
+without changing the meaning of Room, Table, Player, or Seat.
 
 **Player**:
 The identity of a person seated at the table. Persists for the life of the
@@ -36,9 +41,9 @@ The table device chooses the Room's initial Seat count from 2 (heads-up) to 8
 and may change it later. A shrink repacks claimed Players into the surviving
 positions, so a Seat id is mutable position rather than permanent identity;
 the claim token and seat state move with the Player. The count can never fall
-below the number of claimed Seats, and a live-hand shrink applies at the next
-deal-in (see ADR-0002, ADR-0003, ADR-0004). A Seat is always in one of four
-states: Active, Sitting-out, Disconnected, or Evicted.
+below the number of claimed Seats, and a shrink applies at the next deal-in
+when a hand is displayed (see ADR-0002, ADR-0003, ADR-0004). A Seat is
+always in one of four states: Active, Sitting-out, Disconnected, or Evicted.
 
 **Sitting-out**:
 A Seat state the Player toggles themselves — not dealt in. Distinct from

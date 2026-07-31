@@ -2,6 +2,7 @@ import {
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
   type SeatView,
+  type SeatMove,
 } from "@table-top-poker/protocol";
 import {
   Panel,
@@ -18,14 +19,9 @@ export interface HouseRulesSheetProps {
   readonly seatCount: number;
   readonly pendingSeatCount: number | null;
   readonly seats: readonly SeatView[];
-  readonly handLive: boolean;
+  readonly handInProgress: boolean;
   readonly onApply: (seatCount: number) => void;
   readonly onClose: () => void;
-}
-
-interface SeatMovePreview {
-  readonly from: number;
-  readonly to: number;
 }
 
 function claimedSeats(seats: readonly SeatView[]): readonly number[] {
@@ -38,7 +34,7 @@ function claimedSeats(seats: readonly SeatView[]): readonly number[] {
 function previewMoves(
   seats: readonly SeatView[],
   nextSeatCount: number,
-): readonly SeatMovePreview[] {
+): readonly SeatMove[] {
   if (nextSeatCount >= seats.length) return [];
   return claimedSeats(seats)
     .map((from, index) => ({ from, to: index }))
@@ -69,12 +65,12 @@ function seatLabel(seatId: number): string {
   return `Seat ${String(seatId + 1)}`;
 }
 
-/** Variant A's production House rules sheet — seat count is its first setting. */
+/** The table-device House rules sheet; seat count is its first setting. */
 export function HouseRulesSheet({
   seatCount,
   pendingSeatCount,
   seats,
-  handLive,
+  handInProgress,
   onApply,
   onClose,
 }: HouseRulesSheetProps) {
@@ -83,7 +79,7 @@ export function HouseRulesSheet({
   const floor = Math.max(MIN_SEAT_COUNT, seated);
   const atFloor = draft <= floor;
   const moves = previewMoves(seats, draft);
-  const shrinkIsQueued = handLive && draft < seatCount;
+  const shrinkIsQueued = handInProgress && draft < seatCount;
 
   return (
     <div

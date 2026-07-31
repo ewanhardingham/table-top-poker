@@ -133,6 +133,7 @@ describe("rooms HTTP routes", () => {
     expect(joined.statusCode).toBe(200);
     expect(joined.json<RoomView>()).toEqual({
       code,
+      pendingSeatCount: null,
       seats: unclaimedSeats(),
     });
   });
@@ -342,7 +343,7 @@ describe("seat claim/evict routes", () => {
   });
 });
 
-describe("seat-count settings route", () => {
+describe("table-only seat-count settings route", () => {
   let app: FastifyInstance;
   let rooms: RoomStore;
   let port: number;
@@ -372,6 +373,22 @@ describe("seat-count settings route", () => {
       });
       expect(response.statusCode).toBe(400);
       expect(response.json()).toEqual({ error: "invalid-seat-count" });
+    }
+  });
+
+  it("rejects malformed request bodies separately from invalid counts", async () => {
+    const room = rooms.create();
+    for (const payload of [
+      { seatCount: MIN_SEAT_COUNT, extra: true },
+      undefined,
+    ]) {
+      const response = await app.inject({
+        method: "POST",
+        url: `/rooms/${room.code}/seats/count`,
+        ...(payload === undefined ? {} : { payload }),
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: "invalid-request-body" });
     }
   });
 
@@ -415,7 +432,7 @@ describe("seat-count settings route", () => {
 
     const shrunk = await app.inject({
       method: "POST",
-      url: `/rooms/${room.code}/seat-count`,
+      url: `/rooms/${room.code}/seats/count`,
       payload: { seatCount: 2 },
     });
     expect(shrunk.statusCode).toBe(200);
@@ -505,7 +522,7 @@ describe("seat-count movement over WebSocket", () => {
     });
   }
 
-  it("moves an open player socket with its token and accepts an old-seat reconnect", async () => {
+  it("moves an open player socket and reconnects at its new seat", async () => {
     const room = rooms.create();
     const claim0 = rooms.claimSeat(room.code, 2);
     const claim1 = rooms.claimSeat(room.code, 5);
@@ -534,16 +551,24 @@ describe("seat-count movement over WebSocket", () => {
 
     player.socket.close();
     await new Promise((resolve) => setTimeout(resolve, 10));
-    const reconnect = connect(room.code, 5, token);
+    const reconnect = connect(room.code, 1, token);
     await opened(reconnect.socket);
     await new Promise((resolve) => setTimeout(resolve, 10));
 
-    expect(reconnect.messages).toContainEqual({
-      type: "seat-moved",
-      from: 5,
-      to: 1,
-    });
+    expect(reconnect.messages).not.toContainEqual(
+      expect.objectContaining({ type: "seat-moved" }),
+    );
     reconnect.socket.close();
+
+    const stale = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&seat=5&token=${token}`,
+    );
+    const staleStatus = await new Promise<number>((resolve) => {
+      stale.on("unexpected-response", (_request, response) => {
+        resolve(response.statusCode ?? 0);
+      });
+    });
+    expect(staleStatus).toBe(403);
   });
 });
 
@@ -624,7 +649,11 @@ describe("WebSocket upgrade", () => {
     expect(messages).toHaveLength(1);
     expect(messages[0]).toEqual({
       type: "room-view",
-      view: { code: room.code, seats: unclaimedSeats() },
+      view: {
+        code: room.code,
+        pendingSeatCount: null,
+        seats: unclaimedSeats(),
+      },
     });
 
     await app.inject({

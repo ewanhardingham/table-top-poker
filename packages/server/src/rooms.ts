@@ -14,6 +14,8 @@ import {
   type RejectionReason,
   type RoomView,
   type SeatId,
+  type SeatCountChange,
+  type SeatMove,
 } from "@table-top-poker/protocol";
 import { generateRoomCode } from "./room-code.js";
 
@@ -56,20 +58,8 @@ export type ClaimSeatError =
 
 export type ClaimSeatResult = { seat: Seat } | { error: ClaimSeatError };
 
-export interface SeatMove {
-  readonly from: SeatId;
-  readonly to: SeatId;
-}
-
 export type ChangeSeatCountError =
   "room-not-found" | "invalid-seat-count" | "seat-count-below-floor";
-
-export interface SeatCountChange {
-  readonly seatCount: number;
-  readonly pendingSeatCount: number | null;
-  readonly applied: boolean;
-  readonly moves: readonly SeatMove[];
-}
 
 export type ChangeSeatCountResult =
   | SeatCountChange
@@ -157,72 +147,30 @@ function remapSeatId(
   return mapping.get(seatId) ?? seatId;
 }
 
-/** Remaps the engine's positional references when a completed hand is shown. */
-function remapEngineState(
-  state: EngineState,
-  mapping: ReadonlyMap<SeatId, SeatId>,
-): EngineState {
-  const map = (seatId: SeatId) => remapSeatId(seatId, mapping);
-  const hand = state.hand;
-  if (hand === null) {
-    return {
-      ...state,
-      seats: state.seats.map(map),
-      button: map(state.button),
-    };
-  }
-
-  if (hand.status === "betting") {
-    return {
-      ...state,
-      seats: state.seats.map(map),
-      button: map(state.button),
-      hand: {
-        ...hand,
-        button: map(hand.button),
-        ring: hand.ring.map(map),
-        toAct: hand.toAct.map(map),
-        players: new Map(
-          [...hand.players].map(([seatId, seatState]) => [
-            map(seatId),
-            seatState,
-          ]),
-        ),
-      },
-    };
-  }
-
-  if (hand.reason === "folded-out") {
-    return {
-      ...state,
-      seats: state.seats.map(map),
-      button: map(state.button),
-      hand: { ...hand, button: map(hand.button), winner: map(hand.winner) },
-    };
-  }
-
-  return {
-    ...state,
-    seats: state.seats.map(map),
-    button: map(state.button),
-    hand: {
-      ...hand,
-      button: map(hand.button),
-      results: hand.results.map((result) => ({
-        ...result,
-        seatId: map(result.seatId),
-      })),
-      winners: hand.winners.map(map),
-    },
-  };
+function emptySeatRepack(): SeatRepack {
+  return { moves: [], mapping: new Map() };
 }
 
-function applyShrink(room: Room, seatCount: number): readonly SeatMove[] {
-  const repack = repackSeats(room, seatCount);
-  if (room.engine !== null) {
-    room.engine = remapEngineState(room.engine, repack.mapping);
-  }
-  return repack.moves;
+function applyPendingShrink(room: Room): SeatRepack {
+  if (room.pendingSeatCount === null) return emptySeatRepack();
+  const repack = repackSeats(
+    room,
+    Math.max(room.pendingSeatCount, claimedSeatFloor(room)),
+  );
+  room.pendingSeatCount = null;
+  return repack;
+}
+
+function appliedSeatCountChange(
+  room: Room,
+  moves: readonly SeatMove[] = [],
+): SeatCountChange {
+  return {
+    seatCount: room.seats.length,
+    pendingSeatCount: null,
+    applied: true,
+    moves,
+  };
 }
 
 /** Seats eligible for the next deal-in: claimed, connected, not voluntarily sitting out. */
@@ -330,6 +278,12 @@ export class RoomStore {
     return this.#rooms.get(code);
   }
 
+  findSeatByToken(code: string, token: string): Seat | undefined {
+    return this.#rooms
+      .get(code)
+      ?.seats.find((seat) => seat.claimed && seat.token === token);
+  }
+
   /** The seat currently owed a decision in `code`'s hand, or undefined between/after hands. */
   currentActor(code: string): SeatId | undefined {
     const hand = this.#rooms.get(code)?.engine?.hand;
@@ -371,10 +325,10 @@ export class RoomStore {
 
   /**
    * Changes the room's physical seat count. Growing is always safe and
-   * immediate. A shrink would renumber the live engine ring, so it is queued
-   * until `nextHand` recomputes the deal-in; outside a live hand it applies
-   * immediately. The claimed-seat floor includes disconnected and sitting-out
-   * players because neither state releases a claim.
+   * immediate. A shrink would renumber the engine ring, so it is queued until
+   * the next deal-in recompute; outside a hand it applies immediately. The
+   * claimed-seat floor includes disconnected and sitting-out players because
+   * neither state releases a claim.
    */
   changeSeatCount(code: string, seatCount: number): ChangeSeatCountResult {
     const room = this.#rooms.get(code);
@@ -391,25 +345,15 @@ export class RoomStore {
     if (seatCount > room.seats.length) {
       room.seats.push(...makeSeats(seatCount).slice(room.seats.length));
       room.pendingSeatCount = null;
-      return {
-        seatCount: room.seats.length,
-        pendingSeatCount: null,
-        applied: true,
-        moves: [],
-      };
+      return appliedSeatCountChange(room);
     }
 
     if (seatCount === room.seats.length) {
       room.pendingSeatCount = null;
-      return {
-        seatCount: room.seats.length,
-        pendingSeatCount: null,
-        applied: true,
-        moves: [],
-      };
+      return appliedSeatCountChange(room);
     }
 
-    if (room.engine?.hand?.status === "betting") {
+    if (room.engine !== null) {
       room.pendingSeatCount = seatCount;
       return {
         seatCount: room.seats.length,
@@ -419,19 +363,9 @@ export class RoomStore {
       };
     }
 
-    const moves = applyShrink(room, seatCount);
+    const moves = repackSeats(room, seatCount).moves;
     room.pendingSeatCount = null;
-    return {
-      seatCount: room.seats.length,
-      pendingSeatCount: null,
-      applied: true,
-      moves,
-    };
-  }
-
-  /** Alias for callers that phrase the operation as setting the count. */
-  setSeatCount(code: string, seatCount: number): ChangeSeatCountResult {
-    return this.changeSeatCount(code, seatCount);
+    return appliedSeatCountChange(room, moves);
   }
 
   /** Whether `seatId` reads as "sitting out" in the room's public view — see `isSittingOut`. */
@@ -496,27 +430,31 @@ export class RoomStore {
     if (type === "startHand" && room.engine === null) {
       const dealIn = eligibleSeats(room);
       if (dealIn.length < 2) return { reason: "not-enough-players" };
-      room.engine = createInitialState(dealIn);
-    } else if (
-      type === "nextHand" &&
-      room.engine?.hand?.status === "complete"
-    ) {
+      seatMoves = applyPendingShrink(room).moves;
+      room.engine = createInitialState(eligibleSeats(room));
+    } else if (type === "nextHand" && room.engine !== null) {
       if (eligibleSeats(room).length < 2) {
         return { reason: "not-enough-players" };
       }
-      if (room.pendingSeatCount !== null) {
-        seatMoves = applyShrink(
-          room,
-          Math.max(room.pendingSeatCount, claimedSeatFloor(room)),
-        );
-        room.pendingSeatCount = null;
-      }
+
       const dealIn = eligibleSeats(room);
-      room.engine = {
-        ...room.engine,
-        seats: dealIn,
-        button: resolveButtonFor(room.engine.button, dealIn),
-      };
+      if (room.engine.hand?.status === "complete") {
+        const repack = applyPendingShrink(room);
+        seatMoves = repack.moves;
+        const previousButton = remapSeatId(room.engine.button, repack.mapping);
+        const nextDealIn = eligibleSeats(room);
+        room.engine = {
+          ...room.engine,
+          seats: nextDealIn,
+          button: resolveButtonFor(previousButton, nextDealIn),
+        };
+      } else {
+        room.engine = {
+          ...room.engine,
+          seats: dealIn,
+          button: resolveButtonFor(room.engine.button, dealIn),
+        };
+      }
     }
 
     if (room.engine === null) return { reason: "hand-not-in-progress" };
@@ -554,14 +492,12 @@ export class RoomStore {
 export function toRoomView(room: Room): RoomView {
   return {
     code: room.code,
+    pendingSeatCount: room.pendingSeatCount,
     seats: room.seats.map((seat) => ({
       id: seat.id,
       claimed: seat.claimed,
       sittingOut: isSittingOut(room, seat.id),
       disconnected: seat.disconnected,
     })),
-    ...(room.pendingSeatCount === null
-      ? {}
-      : { pendingSeatCount: room.pendingSeatCount }),
   };
 }

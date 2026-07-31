@@ -1,3 +1,5 @@
+import type { SeatCountChange } from "@table-top-poker/protocol";
+
 export interface CreatedRoom {
   readonly code: string;
   readonly joinUrl: string;
@@ -32,13 +34,6 @@ export async function evictSeat(code: string, seatId: number): Promise<void> {
   if (!response.ok) {
     throw new Error(`failed to evict seat: ${String(response.status)}`);
   }
-}
-
-export interface SeatCountChange {
-  readonly seatCount: number;
-  readonly pendingSeatCount: number | null;
-  readonly applied: boolean;
-  readonly moves: readonly { readonly from: number; readonly to: number }[];
 }
 
 /** The table device's House rules setting for the room seat count. */

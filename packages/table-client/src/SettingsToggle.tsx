@@ -5,7 +5,7 @@ export interface SettingsToggleProps {
   readonly onToggle: () => void;
 }
 
-/** The 52px house-rules burger from the chosen settings prototype. */
+/** The 52px settings toggle in the top-right of the felt. */
 export function SettingsToggle({ open, onToggle }: SettingsToggleProps) {
   return (
     <button
