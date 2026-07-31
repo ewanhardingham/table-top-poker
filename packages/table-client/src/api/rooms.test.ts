@@ -20,16 +20,20 @@ describe("createRoom", () => {
       new Response(JSON.stringify(body), { status: 200 }),
     );
 
-    const room = await createRoom();
+    const room = await createRoom(5);
 
-    expect(fetch).toHaveBeenCalledWith("/rooms", { method: "POST" });
+    expect(fetch).toHaveBeenCalledWith("/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ seatCount: 5 }),
+    });
     expect(room).toEqual(body);
   });
 
   it("throws when the server rejects the request", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(createRoom()).rejects.toThrow("failed to create room: 500");
+    await expect(createRoom(8)).rejects.toThrow("failed to create room: 500");
   });
 });
 

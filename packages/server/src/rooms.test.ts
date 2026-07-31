@@ -1,5 +1,10 @@
+import {
+  DEFAULT_SEAT_COUNT,
+  MAX_SEAT_COUNT,
+  MIN_SEAT_COUNT,
+} from "@table-top-poker/protocol";
 import { describe, expect, it } from "vitest";
-import { type Room, RoomStore, SEAT_COUNT, toRoomView } from "./rooms.js";
+import { type Room, RoomStore, toRoomView } from "./rooms.js";
 
 describe("RoomStore", () => {
   it("creates a room with a fresh code", () => {
@@ -12,11 +17,33 @@ describe("RoomStore", () => {
   it("creates a room with 8 unclaimed seats", () => {
     const store = new RoomStore();
     const room = store.create();
-    expect(room.seats).toHaveLength(SEAT_COUNT);
+    expect(room.seats).toHaveLength(DEFAULT_SEAT_COUNT);
     for (const seat of room.seats) {
       expect(seat.claimed).toBe(false);
       expect(seat.token).toBeNull();
       expect(seat.sittingOut).toBe(false);
+    }
+  });
+
+  it("creates a room with the seat count the creator chose", () => {
+    const store = new RoomStore();
+    for (
+      let seatCount = MIN_SEAT_COUNT;
+      seatCount <= MAX_SEAT_COUNT;
+      seatCount++
+    ) {
+      const room = store.create(seatCount);
+      expect(room.seats).toHaveLength(seatCount);
+      expect(room.seats.map((seat) => seat.id)).toEqual(
+        Array.from({ length: seatCount }, (_, id) => id),
+      );
+    }
+  });
+
+  it("rejects a seat count outside the 2-8 range", () => {
+    const store = new RoomStore();
+    for (const seatCount of [0, 1, 9, 2.5, Number.NaN]) {
+      expect(() => store.create(seatCount)).toThrow(RangeError);
     }
   });
 
@@ -99,7 +126,7 @@ describe("RoomStore", () => {
     it("rejects claiming an out-of-range seat", () => {
       const store = new RoomStore();
       const room = store.create();
-      expect(store.claimSeat(room.code, SEAT_COUNT)).toEqual({
+      expect(store.claimSeat(room.code, DEFAULT_SEAT_COUNT)).toEqual({
         error: "seat-not-found",
       });
       expect(store.claimSeat(room.code, -1)).toEqual({
@@ -286,7 +313,7 @@ describe("RoomStore", () => {
 
     /** Folds every actor in turn until only one live player remains (fold-out). */
     function completeHand(store: RoomStore, room: Room): void {
-      for (let i = 0; i < SEAT_COUNT; i++) {
+      for (let i = 0; i < DEFAULT_SEAT_COUNT; i++) {
         if (room.engine?.hand?.status === "complete") return;
         const actor = store.currentActor(room.code);
         if (actor === undefined) throw new Error("expected a current actor");
@@ -483,7 +510,7 @@ describe("toRoomView", () => {
       code: room.code,
       seats: [
         { id: 0, claimed: true, sittingOut: false, disconnected: false },
-        ...Array.from({ length: SEAT_COUNT - 1 }, (_, i) => ({
+        ...Array.from({ length: DEFAULT_SEAT_COUNT - 1 }, (_, i) => ({
           id: i + 1,
           claimed: false,
           sittingOut: false,

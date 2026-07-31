@@ -4,8 +4,13 @@ export interface CreatedRoom {
   readonly qrCodeDataUrl: string;
 }
 
-export async function createRoom(): Promise<CreatedRoom> {
-  const response = await fetch("/rooms", { method: "POST" });
+/** `seatCount` is the table size the creator picked — 2-8, re-validated server-side. */
+export async function createRoom(seatCount: number): Promise<CreatedRoom> {
+  const response = await fetch("/rooms", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ seatCount }),
+  });
   if (!response.ok) {
     throw new Error(`failed to create room: ${String(response.status)}`);
   }

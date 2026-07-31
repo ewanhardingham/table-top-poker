@@ -1,9 +1,15 @@
-import type { RoomView, ServerMessage } from "@table-top-poker/protocol";
+import {
+  DEFAULT_SEAT_COUNT,
+  MAX_SEAT_COUNT,
+  MIN_SEAT_COUNT,
+  type RoomView,
+  type ServerMessage,
+} from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildApp } from "./app.js";
-import { RoomStore, SEAT_COUNT, toRoomView } from "./rooms.js";
+import { RoomStore, toRoomView } from "./rooms.js";
 
 interface RoomCreatedBody {
   readonly code: string;
@@ -23,7 +29,7 @@ interface SeatClaimBody {
 }
 
 function unclaimedSeats(): RoomView["seats"] {
-  return Array.from({ length: SEAT_COUNT }, (_, id) => ({
+  return Array.from({ length: DEFAULT_SEAT_COUNT }, (_, id) => ({
     id,
     claimed: false,
     sittingOut: false,
@@ -47,6 +53,7 @@ describe("rooms HTTP routes", () => {
       method: "POST",
       url: "/rooms",
       headers: { host: "192.168.1.50:3000" },
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
     });
     expect(response.statusCode).toBe(200);
     const body = response.json<RoomCreatedBody>();
@@ -55,8 +62,68 @@ describe("rooms HTTP routes", () => {
     expect(body.qrCodeDataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
+  it("creates a room with the seat count in the request body", async () => {
+    for (const seatCount of [MIN_SEAT_COUNT, 5, MAX_SEAT_COUNT]) {
+      const created = await app.inject({
+        method: "POST",
+        url: "/rooms",
+        payload: { seatCount },
+      });
+      expect(created.statusCode).toBe(200);
+
+      const { code } = created.json<RoomCreatedBody>();
+      const joined = await app.inject({
+        method: "POST",
+        url: `/rooms/${code}/join`,
+      });
+      expect(joined.json<RoomView>().seats).toHaveLength(seatCount);
+    }
+  });
+
+  it("rejects a seat count outside the 2-8 range", async () => {
+    for (const seatCount of [0, 1, 9, 2.5, "4", null]) {
+      const response = await app.inject({
+        method: "POST",
+        url: "/rooms",
+        payload: { seatCount },
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: "invalid-seat-count" });
+    }
+  });
+
+  it("rejects a create whose body omits the seat count", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: {},
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "invalid-seat-count" });
+  });
+
+  it("rejects a create with no body at all", async () => {
+    const response = await app.inject({ method: "POST", url: "/rooms" });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "invalid-request-body" });
+  });
+
+  it("blames the body, not the count, for an unknown key", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: MIN_SEAT_COUNT, tableName: "kitchen" },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "invalid-request-body" });
+  });
+
   it("joining a known room code returns its room view", async () => {
-    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
     const { code } = created.json<RoomCreatedBody>();
 
     const joined = await app.inject({
@@ -79,7 +146,11 @@ describe("rooms HTTP routes", () => {
   });
 
   it("produces a QR code for a created room, derived from the request host", async () => {
-    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
     const { code } = created.json<RoomCreatedBody>();
 
     const response = await app.inject({
@@ -95,7 +166,11 @@ describe("rooms HTTP routes", () => {
   });
 
   it("ending a session discards the room's in-memory state", async () => {
-    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
     const { code } = created.json<RoomCreatedBody>();
 
     const ended = await app.inject({
@@ -128,7 +203,11 @@ describe("GET /join/:code", () => {
 
   it("serves the same-origin placeholder when no player origin is configured", async () => {
     app = await buildApp();
-    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
     const { code } = created.json<RoomCreatedBody>();
 
     const response = await app.inject({ method: "GET", url: `/join/${code}` });
@@ -140,7 +219,11 @@ describe("GET /join/:code", () => {
   it("redirects to PLAYER_CLIENT_ORIGIN when configured", async () => {
     process.env.PLAYER_CLIENT_ORIGIN = "http://192.168.1.50:5174";
     app = await buildApp();
-    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
     const { code } = created.json<RoomCreatedBody>();
 
     const response = await app.inject({ method: "GET", url: `/join/${code}` });
@@ -166,7 +249,11 @@ describe("seat claim/evict routes", () => {
   });
 
   async function createRoom(): Promise<string> {
-    const created = await app.inject({ method: "POST", url: "/rooms" });
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
     return created.json<RoomCreatedBody>().code;
   }
 
@@ -209,7 +296,7 @@ describe("seat claim/evict routes", () => {
     const code = await createRoom();
     const response = await app.inject({
       method: "POST",
-      url: `/rooms/${code}/seats/${String(SEAT_COUNT)}/claim`,
+      url: `/rooms/${code}/seats/${String(DEFAULT_SEAT_COUNT)}/claim`,
     });
     expect(response.statusCode).toBe(404);
   });

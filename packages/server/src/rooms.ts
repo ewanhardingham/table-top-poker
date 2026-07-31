@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import {
   apply,
   createInitialState,
+  DEFAULT_SEAT_COUNT,
   decide,
+  MAX_SEAT_COUNT,
+  MIN_SEAT_COUNT,
+  SeatCountSchema,
   type ClientCommandType,
   type Command,
   type EngineState,
@@ -12,8 +16,6 @@ import {
   type SeatId,
 } from "@table-top-poker/protocol";
 import { generateRoomCode } from "./room-code.js";
-
-export const SEAT_COUNT = 8;
 
 /**
  * `Seat` and `Room` are `RoomStore`'s internal mutable aggregate state, not
@@ -76,8 +78,8 @@ const TABLE_ONLY_COMMANDS: ReadonlySet<SeatCommandType> = new Set([
   "nextHand",
 ]);
 
-function makeSeats(): Seat[] {
-  return Array.from({ length: SEAT_COUNT }, (_, id) => ({
+function makeSeats(seatCount: number): Seat[] {
+  return Array.from({ length: seatCount }, (_, id) => ({
     id,
     claimed: false,
     token: null,
@@ -157,9 +159,20 @@ export class RoomStore {
     this.#generateSeed = generateSeed;
   }
 
-  create(): Room {
+  /**
+   * Creates a room sized to the creator's chosen seat count (issue #74).
+   * The range is a domain rule, not a UI one, so an out-of-range count is
+   * a caller bug and throws — the HTTP edge parses the untrusted body with
+   * `CreateRoomRequestSchema` and answers 400 before ever reaching here.
+   */
+  create(seatCount: number = DEFAULT_SEAT_COUNT): Room {
+    if (!SeatCountSchema.safeParse(seatCount).success) {
+      throw new RangeError(
+        `seat count must be an integer in ${String(MIN_SEAT_COUNT)}-${String(MAX_SEAT_COUNT)}, got ${String(seatCount)}`,
+      );
+    }
     const code = generateRoomCode((c) => this.#rooms.has(c), this.#random);
-    const room: Room = { code, seats: makeSeats(), engine: null };
+    const room: Room = { code, seats: makeSeats(seatCount), engine: null };
     this.#rooms.set(code, room);
     return room;
   }

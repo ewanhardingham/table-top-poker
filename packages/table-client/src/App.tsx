@@ -1,7 +1,9 @@
-import { PillButton, color } from "@table-top-poker/ui-shared";
+import { DEFAULT_SEAT_COUNT } from "@table-top-poker/protocol";
+import { color } from "@table-top-poker/ui-shared";
 import { useCallback, useState } from "react";
 import { createRoom, endSession, evictSeat } from "./api/rooms.js";
 import { Board } from "./Board.js";
+import { SeatCountPicker } from "./SeatCountPicker.js";
 import { isHandComplete } from "./handComplete.js";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import { JoinPanel } from "./JoinPanel.js";
@@ -46,13 +48,14 @@ export function App() {
     onRoomEnded: clearRoom,
   });
 
+  const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
   const handleCreateRoom = useCallback(() => {
-    createRoom()
+    createRoom(seatCount)
       .then(setRoomCreated)
       .catch((error: unknown) => {
         console.error(error);
       });
-  }, [setRoomCreated]);
+  }, [seatCount, setRoomCreated]);
 
   const handleEndSession = useCallback(() => {
     if (!roomCode) return;
@@ -87,13 +90,11 @@ export function App() {
       <StatusBar roomCode={roomCode} connectionStatus={connectionStatus} />
       <main className="felt">
         {roomCode === null ? (
-          <PillButton
-            size="lg"
-            data-testid="create-room-button"
-            onClick={handleCreateRoom}
-          >
-            Create room
-          </PillButton>
+          <SeatCountPicker
+            seatCount={seatCount}
+            onSeatCountChange={setSeatCount}
+            onCreateRoom={handleCreateRoom}
+          />
         ) : (
           <div
             style={{
