@@ -1,10 +1,18 @@
 import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface StatusBarProps {
   readonly roomCode: string | null;
   readonly connectionStatus: ConnectionStatus;
+  /**
+   * Optional content for the bar's left end — what the device is currently
+   * showing, when that isn't just "the table". Replay puts the hand being
+   * reviewed here (wayfinder #82) rather than floating its own title over
+   * the felt, where it competed with the seat pods. Optional so the live
+   * `App` is unaffected.
+   */
+  readonly leading?: ReactNode;
 }
 
 const badgeTone: Record<
@@ -27,17 +35,25 @@ const badgeStyle: CSSProperties = {
 };
 
 /** No connection badge before a room exists — there's nothing to connect to yet. */
-export function StatusBar({ roomCode, connectionStatus }: StatusBarProps) {
+export function StatusBar({
+  roomCode,
+  connectionStatus,
+  leading,
+}: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
   return (
     <header
       style={{
         flex: "none",
         display: "flex",
-        justifyContent: "flex-end",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "1em",
         padding: "16px 22px 0",
       }}
     >
+      {/* Always present, even when empty, so the badge stays pinned right. */}
+      <span>{leading}</span>
       {roomCode !== null && (
         <span
           data-testid="connection-status"

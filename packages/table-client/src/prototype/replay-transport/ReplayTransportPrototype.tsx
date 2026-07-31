@@ -15,6 +15,7 @@ import { StatusBar } from "../../StatusBar.js";
 import { TableControls } from "../../TableControls.js";
 import { PrototypeSwitcher } from "../PrototypeSwitcher.js";
 import { fixtureHand } from "./hand.js";
+import { ReplayHandLabel } from "./ReplayStage.js";
 import { VariantA, variantAName } from "./VariantA.js";
 import { VariantB, variantBName } from "./VariantB.js";
 import { VariantC, variantCName } from "./VariantC.js";
@@ -72,7 +73,11 @@ export function ReplayTransportPrototype() {
 
   return (
     <div className="app-shell" data-testid="table-client-shell">
-      <StatusBar roomCode="PROTO" connectionStatus="connected" />
+      <StatusBar
+        roomCode="PROTO"
+        connectionStatus="connected"
+        leading={open ? <ReplayHandLabel /> : null}
+      />
       <main className="felt">
         <div
           style={{

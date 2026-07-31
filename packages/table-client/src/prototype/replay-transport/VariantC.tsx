@@ -24,6 +24,12 @@ const beats = toBeats(fixtureHand.events);
 const chapters = chaptersOf(beats);
 const total = beats.length;
 
+/**
+ * Chapter chips (3.4em) + gap (0.8em) + track (4.6em) + bottom margin (1.4em),
+ * in `em` — see `ReplayStage`, which lifts the seat ring clear of this band.
+ */
+const TRANSPORT_HEIGHT = 10.2;
+
 export function VariantC({ onClose }: { readonly onClose: () => void }) {
   const [position, setPosition] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -74,8 +80,12 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
 
   return (
     <>
-      <ReplayStage position={position} caption={current?.caption ?? null} />
-      <ReplayHeader position={position} total={total} onClose={onClose} />
+      <ReplayStage
+        position={position}
+        caption={current?.caption ?? null}
+        transportHeight={TRANSPORT_HEIGHT}
+      />
+      <ReplayHeader onClose={onClose} />
 
       <div
         style={{
@@ -90,7 +100,7 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
         }}
       >
         {/* Street chapters — the named landmarks people actually navigate by. */}
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5em" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.7em" }}>
           <Chip
             active={playing}
             onClick={() => {
@@ -115,7 +125,10 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
         </div>
 
         {/* The track. Ticks are event ordinals, so the hand's *shape* — where
-            the action clustered — is legible before you touch it. */}
+            the action clustered — is legible before you touch it.
+            Sized for a finger, not a cursor: the grab zone is the full height
+            of this row, well past the visible rail, so the scrub can be caught
+            anywhere near it rather than only dead on a 2px line. */}
         <div
           ref={trackRef}
           onPointerDown={(e) => {
@@ -125,7 +138,7 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
           }}
           style={{
             position: "relative",
-            height: "2.6em",
+            height: "4.6em",
             display: "flex",
             alignItems: "center",
             cursor: "pointer",
@@ -137,8 +150,9 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
               position: "absolute",
               left: 0,
               right: 0,
-              height: "2px",
-              background: "rgba(255,255,255,.12)",
+              height: "6px",
+              borderRadius: "999px",
+              background: "rgba(255,255,255,.14)",
             }}
           />
           <div
@@ -146,7 +160,8 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
               position: "absolute",
               left: 0,
               width: `${String(total === 0 ? 0 : (position / total) * 100)}%`,
-              height: "2px",
+              height: "6px",
+              borderRadius: "999px",
               background: color.accent,
             }}
           />
@@ -157,11 +172,12 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
                 position: "absolute",
                 left: `${String((beat.position / total) * 100)}%`,
                 transform: "translateX(-50%)",
-                width: beat.isStreetStart ? "2px" : "1px",
-                height: beat.isStreetStart ? "1.4em" : "0.7em",
+                width: beat.isStreetStart ? "3px" : "2px",
+                height: beat.isStreetStart ? "2.2em" : "1.1em",
+                borderRadius: "999px",
                 background: beat.isStreetStart
                   ? color.textMuted
-                  : "rgba(255,255,255,.3)",
+                  : "rgba(255,255,255,.34)",
               }}
             />
           ))}
@@ -170,11 +186,12 @@ export function VariantC({ onClose }: { readonly onClose: () => void }) {
               position: "absolute",
               left: `${String(total === 0 ? 0 : (position / total) * 100)}%`,
               transform: "translate(-50%, 0)",
-              width: "0.9em",
-              height: "0.9em",
+              width: "1.9em",
+              height: "1.9em",
               borderRadius: "50%",
               background: color.text,
-              boxShadow: "0 4px 14px rgba(0,0,0,.7)",
+              border: `3px solid ${color.accent}`,
+              boxShadow: "0 6px 20px rgba(0,0,0,.8)",
             }}
           />
         </div>
@@ -201,15 +218,19 @@ function Chip({
       }}
       style={{
         fontFamily: font.mono,
-        fontSize: "0.6em",
+        fontSize: "0.78em",
         letterSpacing: "0.12em",
         textTransform: "uppercase",
-        padding: "0.6em 1em",
+        // Comfortably past the ~44px touch-target floor at the table
+        // device's root size, and wide enough to hit without aiming.
+        minHeight: "3.4em",
+        minWidth: "6em",
+        padding: "0.9em 1.6em",
         borderRadius: "999px",
         cursor: "pointer",
-        background: active ? color.controlFill : "transparent",
+        background: active ? color.controlFill : "rgba(6,9,8,.5)",
         border: `1px solid ${active ? color.borderStrong : color.border}`,
-        color: active ? color.text : color.textFaint,
+        color: active ? color.text : color.textMuted,
       }}
     >
       {children}

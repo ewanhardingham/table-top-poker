@@ -1,6 +1,7 @@
 import type { Card as CardType, TableView } from "@table-top-poker/protocol";
 import { Card, color, font } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
+import { useEffect, useRef } from "react";
 
 export interface BoardProps {
   readonly view: TableView;
@@ -10,23 +11,52 @@ function seatLabel(seatId: number): string {
   return `Seat ${String(seatId + 1)}`;
 }
 
-/** The community cards, dealt in one at a time via Motion rather than CSS keyframes. */
+/**
+ * The community cards, dealt in one at a time via Motion rather than CSS
+ * keyframes.
+ *
+ * **Only newly arrived cards animate.** Each card is keyed by its own
+ * rank+suit rather than by board position, so a card already on the felt is
+ * never remounted and never replays its deal — and the stagger is measured
+ * from the first *new* card, so a lone turn card lands immediately instead of
+ * waiting out three flop cards' delays. Keying by index made every re-render
+ * with a changed board re-deal the whole board, which is invisible in live
+ * play (the board only ever grows, one street at a time) but obvious the
+ * moment you scrub a replay backwards and forwards (wayfinder #82).
+ */
 function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
+  // How many cards were already on the felt when this render began; anything
+  // at or beyond it is arriving now.
+  const dealtBefore = useRef(0);
+  const alreadyDealt = dealtBefore.current;
+
+  useEffect(() => {
+    dealtBefore.current = board.length;
+  }, [board.length]);
+
   return (
     <div
       data-testid="community-cards"
       style={{ display: "flex", gap: "0.4em", fontSize: "2.4em" }}
     >
-      {board.map((card, i) => (
-        <motion.div
-          key={i}
-          initial={{ opacity: 0, y: -18, rotate: -6, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
-          transition={{ duration: 0.4, delay: i * 0.08 }}
-        >
-          <Card rank={card.rank} suit={card.suit} />
-        </motion.div>
-      ))}
+      {board.map((card, i) => {
+        const isNew = i >= alreadyDealt;
+        return (
+          <motion.div
+            key={`${card.rank}${card.suit}`}
+            initial={
+              isNew ? { opacity: 0, y: -18, rotate: -6, scale: 0.9 } : false
+            }
+            animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
+            transition={{
+              duration: isNew ? 0.4 : 0,
+              delay: isNew ? (i - alreadyDealt) * 0.08 : 0,
+            }}
+          >
+            <Card rank={card.rank} suit={card.suit} />
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
@@ -107,42 +137,41 @@ export function Board({ view }: BoardProps) {
     );
   }
 
-  if (view.phase === "folded-out") {
-    return (
-      <div data-testid="board" data-phase="folded-out">
-        <HandCompleteBanner
-          text={`${seatLabel(view.winner)} wins — everyone folded`}
-        />
-      </div>
-    );
-  }
+  // One shape for every phase that has a hand, so `CommunityCards` keeps its
+  // position in the tree as the phase changes. Branching per phase used to
+  // return structurally different trees, which remounted the board on the
+  // betting → showdown transition and re-dealt all five cards (wayfinder #82).
+  const winnerResult =
+    view.phase === "showdown"
+      ? view.results.find((result) => view.winners.includes(result.seatId))
+      : undefined;
 
-  if (view.phase === "showdown") {
-    const winnerResult = view.results.find((result) =>
-      view.winners.includes(result.seatId),
-    );
-    return (
-      <div
-        data-testid="board"
-        data-phase="showdown"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.6em",
-        }}
-      >
-        <HandCompleteBanner
-          text={showdownText(view.winners, winnerResult?.description)}
-        />
-        <CommunityCards board={view.board} />
-      </div>
-    );
-  }
+  const banner =
+    view.phase === "folded-out" ? (
+      <HandCompleteBanner
+        text={`${seatLabel(view.winner)} wins — everyone folded`}
+      />
+    ) : view.phase === "showdown" ? (
+      <HandCompleteBanner
+        text={showdownText(view.winners, winnerResult?.description)}
+      />
+    ) : null;
 
   return (
-    <div data-testid="board" data-phase="betting" data-street={view.street}>
-      <CommunityCards board={view.board} />
+    <div
+      data-testid="board"
+      data-phase={view.phase}
+      data-street={view.phase === "betting" ? view.street : undefined}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "0.6em",
+      }}
+    >
+      {banner}
+      {/* A folded-out hand shows no board at all — nobody paid to see it. */}
+      {view.phase !== "folded-out" && <CommunityCards board={view.board} />}
     </div>
   );
 }

@@ -22,6 +22,9 @@ const total = beats.length;
 
 const SPEEDS = [0.5, 1, 2] as const;
 
+/** Speed chips plus the progress hairline, in `em` — see `ReplayStage`. */
+const TRANSPORT_HEIGHT = 5;
+
 export function VariantA({ onClose }: { readonly onClose: () => void }) {
   const [position, setPosition] = useState(0);
   const [playing, setPlaying] = useState(true);
@@ -64,8 +67,12 @@ export function VariantA({ onClose }: { readonly onClose: () => void }) {
         onClick={toggle}
         style={{ position: "absolute", inset: 0, cursor: "pointer", zIndex: 1 }}
       />
-      <ReplayStage position={position} caption={current?.caption ?? null} />
-      <ReplayHeader position={position} total={total} onClose={onClose} />
+      <ReplayStage
+        position={position}
+        caption={current?.caption ?? null}
+        transportHeight={TRANSPORT_HEIGHT}
+      />
+      <ReplayHeader onClose={onClose} />
 
       {/* Progress as a hairline, not a control: it reports, it doesn't invite
           a drag. Scrubbing is variant C's bet, not this one's. */}

@@ -23,6 +23,9 @@ export const variantBName = "Step on tap, no clock";
 const beats = toBeats(fixtureHand.events);
 const total = beats.length;
 
+/** Pip strip plus the back control, in `em` — see `ReplayStage`. */
+const TRANSPORT_HEIGHT = 6;
+
 export function VariantB({ onClose }: { readonly onClose: () => void }) {
   const [position, setPosition] = useState(0);
 
@@ -61,8 +64,12 @@ export function VariantB({ onClose }: { readonly onClose: () => void }) {
         onClick={forward}
         style={{ position: "absolute", inset: 0, cursor: "pointer", zIndex: 1 }}
       />
-      <ReplayStage position={position} caption={current?.caption ?? null} />
-      <ReplayHeader position={position} total={total} onClose={onClose} />
+      <ReplayStage
+        position={position}
+        caption={current?.caption ?? null}
+        transportHeight={TRANSPORT_HEIGHT}
+      />
+      <ReplayHeader onClose={onClose} />
 
       {/* Beat pips: the only sense of "how far through" this variant offers,
           and they double as an honest count of how many taps a hand costs. */}
