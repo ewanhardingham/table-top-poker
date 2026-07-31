@@ -39,7 +39,9 @@ evict players and would leave the positional engine state inconsistent.
    `hand.status === "betting"` is queued and applied at the next successful
    deal-in recompute, after that hand's fixed ring and Button are no longer
    live. A request between hands repacks immediately; the next `nextHand`
-   recompute then gives the engine the new positional state. Growing is safe
+   recompute then gives the engine the new positional state. When a completed
+   hand is displayed, its positional references are remapped with the same
+   move so the felt and reconnect snapshots remain aligned. Growing is safe
    immediately because it only appends empty positions; new claimed seats join
    the next deal-in under ADR-0002.
 

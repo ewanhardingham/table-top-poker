@@ -44,8 +44,9 @@ positions, so a Seat id is mutable position rather than permanent identity;
 the claim token and seat state move with the Player. The count can never fall
 below the number of claimed Seats; a shrink during a live hand applies at the
 next deal-in, while a shrink between hands applies immediately (see ADR-0002,
-ADR-0003, ADR-0004). A Seat is always in one of four states: Active,
-Sitting-out, Disconnected, or Evicted.
+ADR-0003, ADR-0004); a displayed completed hand follows the same positional
+mapping. A Seat is always in one of four states: Active, Sitting-out,
+Disconnected, or Evicted.
 
 **Sitting-out**:
 A Seat state the Player toggles themselves — not dealt in. Distinct from

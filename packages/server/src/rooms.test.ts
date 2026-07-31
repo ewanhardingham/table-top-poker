@@ -357,6 +357,9 @@ describe("RoomStore", () => {
       const started = store.dispatch(room.code, "table", "startHand");
       if (!("steps" in started)) throw new Error("expected dispatch steps");
       completeHand(store, room);
+      const second = store.dispatch(room.code, "table", "nextHand");
+      if (!("steps" in second)) throw new Error("expected dispatch steps");
+      completeHand(store, room);
 
       const applied = store.changeSeatCount(room.code, 3);
 
@@ -371,7 +374,9 @@ describe("RoomStore", () => {
         ],
       });
       expect(room.seats).toHaveLength(3);
-      expect(room.engine?.seats).toEqual([2, 5, 7]);
+      expect(room.engine?.seats).toEqual([0, 1, 2]);
+      expect(room.engine?.button).toBe(2);
+      expect(room.engine?.hand?.status).toBe("complete");
       expect(toRoomView(room).seats.map((seat) => seat.sittingOut)).toEqual([
         false,
         false,
@@ -383,6 +388,7 @@ describe("RoomStore", () => {
       if (!("steps" in next)) throw new Error("expected dispatch steps");
       expect(next.seatMoves).toBeUndefined();
       expect(room.engine?.seats).toEqual([0, 1, 2]);
+      expect(room.engine?.button).toBe(2);
       expect(room.engine?.hand?.status).toBe("betting");
     });
   });
@@ -545,6 +551,21 @@ describe("RoomStore", () => {
         expect(holeCardsDealt.deals.map((d) => d.seatId).sort()).toEqual([
           0, 1, 2,
         ]);
+        expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: false });
+      });
+
+      it("keeps a between-hand joiner sitting out until the next deal-in", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 2);
+        store.dispatch(room.code, "table", "startHand");
+        completeHand(store, room);
+        store.claimSeat(room.code, 2);
+
+        expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: true });
+
+        const result = store.dispatch(room.code, "table", "nextHand");
+
+        if (!("steps" in result)) throw new Error("expected dispatch steps");
         expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: false });
       });
 

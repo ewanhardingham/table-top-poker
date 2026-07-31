@@ -7,6 +7,7 @@ import {
   view,
   type CommandRejectedMessage,
   type HandEvent,
+  isHandComplete,
   type SeatId,
   type SeatCountChangeError,
   type SeatMove,
@@ -111,6 +112,29 @@ function parseSeatId(raw: string): number | undefined {
   return /^\d+$/.test(raw) ? Number(raw) : undefined;
 }
 
+interface AuthenticatedSeat {
+  readonly identity: SeatId;
+  readonly movedFrom: SeatId | undefined;
+}
+
+function authenticateSeat(
+  rooms: RoomStore,
+  code: string,
+  query: WsRoute["Querystring"],
+): AuthenticatedSeat | undefined {
+  const requestedSeat =
+    query.seat === undefined ? undefined : parseSeatId(query.seat);
+  const seat =
+    query.token === undefined
+      ? undefined
+      : rooms.findSeatByToken(code, query.token);
+  if (requestedSeat === undefined || seat === undefined) return undefined;
+  return {
+    identity: seat.id,
+    movedFrom: requestedSeat === seat.id ? undefined : requestedSeat,
+  };
+}
+
 function seatCountBodyError(
   issues: readonly { readonly path: readonly PropertyKey[] }[],
 ): Extract<
@@ -160,6 +184,28 @@ export async function buildApp(
     };
     for (const socket of sockets) {
       send(socket, message);
+    }
+  }
+
+  /** Refreshes the displayed completed hand after an immediate between-hand repack. */
+  function broadcastDisplayedHand(code: string): void {
+    const room = rooms.get(code);
+    const sockets = roomSockets.get(code);
+    if (!room?.engine || !sockets || !isHandComplete(room.engine)) return;
+    for (const socket of sockets) {
+      const identity = socketIdentity.get(socket);
+      if (identity === undefined) continue;
+      if (identity === "table") {
+        send(socket, {
+          type: "view-snapshot",
+          view: view(room.engine, "table"),
+        });
+      } else if (room.engine.seats.includes(identity)) {
+        send(socket, {
+          type: "view-snapshot",
+          view: view(room.engine, identity),
+        });
+      }
     }
   }
 
@@ -359,7 +405,11 @@ export async function buildApp(
     return reply.code(204).send();
   });
 
-  /** Table-device house rules: change the room's seat count (issue #77). */
+  /**
+   * Table-device house rules: change the room's seat count (issue #77). The
+   * HTTP boundary is intentionally the same ungated table-action boundary as
+   * `/end` and `/evict`; role authentication is not part of this transport.
+   */
   const changeSeatCount = (
     request: FastifyRequest<RoomCodeRoute>,
     reply: FastifyReply,
@@ -386,6 +436,7 @@ export async function buildApp(
 
     applySeatMoves(room.code, result.moves);
     broadcastRoomView(room.code);
+    if (result.moves.length > 0) broadcastDisplayedHand(room.code);
     return result;
   };
 
@@ -451,7 +502,7 @@ export async function buildApp(
       {
         websocket: true,
         preValidation: async (request, reply) => {
-          const { room: code, role, seat, token } = request.query;
+          const { room: code, role } = request.query;
           if (!code) {
             await reply.code(400).send({ error: "room-required" });
             return;
@@ -463,12 +514,7 @@ export async function buildApp(
           }
           if (role === "table") return;
 
-          const seatId = seat === undefined ? undefined : parseSeatId(seat);
-          const seatObj =
-            token === undefined
-              ? undefined
-              : rooms.findSeatByToken(code, token);
-          if (!seatObj || seatId === undefined || token === undefined) {
+          if (!authenticateSeat(rooms, code, request.query)) {
             await reply.code(403).send({ error: "invalid-seat-token" });
             return;
           }
@@ -478,20 +524,16 @@ export async function buildApp(
         const code = request.query.room;
         if (code === undefined) return;
 
-        const { role, seat, token } = request.query;
+        const { role } = request.query;
         let identity: SeatId | "table";
         let movedFrom: SeatId | undefined;
         if (role === "table") {
           identity = "table";
         } else {
-          const seatId = seat === undefined ? undefined : parseSeatId(seat);
-          const seatObj =
-            token === undefined
-              ? undefined
-              : rooms.findSeatByToken(code, token);
-          if (seatId === undefined || seatObj === undefined) return;
-          identity = seatObj.id;
-          movedFrom = seatId === identity ? undefined : seatId;
+          const authenticated = authenticateSeat(rooms, code, request.query);
+          if (!authenticated) return;
+          identity = authenticated.identity;
+          movedFrom = authenticated.movedFrom;
         }
         socketIdentity.set(socket, identity);
         socketRoomCode.set(socket, code);

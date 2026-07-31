@@ -522,6 +522,25 @@ describe("seat-count movement over WebSocket", () => {
     });
   }
 
+  async function closed(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.CLOSED) return;
+    await new Promise<void>((resolve) => {
+      socket.once("close", resolve);
+    });
+  }
+
+  async function waitForMessage(
+    messages: readonly ServerMessage[],
+    predicate: (message: ServerMessage) => boolean,
+  ): Promise<ServerMessage> {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const message = messages.find(predicate);
+      if (message !== undefined) return message;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error("timed out waiting for WebSocket message");
+  }
+
   it("moves an open player socket and reconnects at its new seat", async () => {
     const room = rooms.create();
     const claim0 = rooms.claimSeat(room.code, 2);
@@ -534,12 +553,23 @@ describe("seat-count movement over WebSocket", () => {
     const player = connect(room.code, 5, token);
     await opened(player.socket);
 
+    rooms.dispatch(room.code, "table", "startHand");
+    for (let i = 0; i < MAX_SEAT_COUNT; i++) {
+      if (room.engine?.hand?.status === "complete") break;
+      const actor = rooms.currentActor(room.code);
+      if (actor === undefined) throw new Error("expected a current actor");
+      rooms.dispatch(room.code, actor, "fold");
+    }
+
     const response = await app.inject({
       method: "POST",
       url: `/rooms/${room.code}/seats/count`,
       payload: { seatCount: 3 },
     });
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await waitForMessage(
+      player.messages,
+      (message) => message.type === "seat-moved",
+    );
 
     expect(response.statusCode).toBe(200);
     expect(player.messages).toContainEqual({
@@ -547,29 +577,47 @@ describe("seat-count movement over WebSocket", () => {
       from: 5,
       to: 1,
     });
+    const snapshot = player.messages.find(
+      (message) => message.type === "view-snapshot",
+    );
+    if (snapshot?.type !== "view-snapshot") {
+      throw new Error("expected a remapped completed-hand snapshot");
+    }
+    expect(snapshot.view.phase).toBe("folded-out");
     expect(room.seats[1]?.token).toBe(token);
 
     player.socket.close();
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await closed(player.socket);
     const reconnect = connect(room.code, 1, token);
     await opened(reconnect.socket);
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await waitForMessage(
+      reconnect.messages,
+      (message) => message.type === "view-snapshot",
+    );
 
     expect(reconnect.messages).not.toContainEqual(
       expect.objectContaining({ type: "seat-moved" }),
     );
+    expect(reconnect.messages).toContainEqual(
+      expect.objectContaining({ type: "view-snapshot" }),
+    );
     reconnect.socket.close();
+    await closed(reconnect.socket);
 
     const stale = connect(room.code, 5, token);
     await opened(stale.socket);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-
-    expect(stale.messages).toContainEqual({
+    await expect(
+      waitForMessage(
+        stale.messages,
+        (message) => message.type === "seat-moved",
+      ),
+    ).resolves.toEqual({
       type: "seat-moved",
       from: 5,
       to: 1,
     });
     stale.socket.close();
+    await closed(stale.socket);
   });
 });
 

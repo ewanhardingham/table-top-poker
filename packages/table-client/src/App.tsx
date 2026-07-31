@@ -1,4 +1,8 @@
-import { DEFAULT_SEAT_COUNT } from "@table-top-poker/protocol";
+import {
+  DEFAULT_SEAT_COUNT,
+  isHandComplete,
+  isHandLive,
+} from "@table-top-poker/protocol";
 import { color } from "@table-top-poker/ui-shared";
 import { useCallback, useState } from "react";
 import {
@@ -10,7 +14,6 @@ import {
 import { Board } from "./Board.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
 import { SeatCountPicker } from "./SeatCountPicker.js";
-import { isHandComplete } from "./handComplete.js";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
@@ -190,7 +193,7 @@ export function App() {
                 seatCount={seats.length}
                 pendingSeatCount={pendingSeatCount}
                 seats={seats}
-                handInProgress={handView?.phase === "betting"}
+                handInProgress={isHandLive(handView)}
                 onApply={handleChangeSeatCount}
                 onClose={() => {
                   setSettingsOpen(false);
