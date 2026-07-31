@@ -1,4 +1,9 @@
-import type { PlayerView, SeatId, TableView } from "@table-top-poker/engine";
+import type {
+  EngineState,
+  PlayerView,
+  SeatId,
+  TableView,
+} from "@table-top-poker/engine";
 import { z } from "zod";
 import type { CommandRejectedMessage, HandUpdateMessage } from "./hand.js";
 
@@ -46,6 +51,23 @@ export type SeatCountChangeError =
   | "invalid-request-body"
   | "invalid-seat-count"
   | "seat-count-below-floor";
+
+/** The sources from which a client or server can answer whether a hand is live. */
+export type HandStateSource = EngineState | PlayerView | TableView | null;
+
+export function isHandLive(source: HandStateSource): boolean {
+  if (source === null) return false;
+  return "phase" in source
+    ? source.phase === "betting"
+    : source.hand?.status === "betting";
+}
+
+export function isHandComplete(source: HandStateSource): boolean {
+  if (source === null) return false;
+  return "phase" in source
+    ? source.phase === "folded-out" || source.phase === "showdown"
+    : source.hand?.status === "complete";
+}
 
 export interface SeatMove {
   readonly from: SeatId;

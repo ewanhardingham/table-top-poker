@@ -11,6 +11,8 @@ import {
   type Command,
   type EngineState,
   type HandEvent,
+  isHandComplete,
+  isHandLive,
   type RejectionReason,
   type RoomView,
   type SeatId,
@@ -150,6 +152,44 @@ function remapSeatId(
   return mapping.get(seatId) ?? seatId;
 }
 
+/** Keeps a displayed completed hand aligned with an immediate between-hand repack. */
+function remapCompletedEngineState(
+  state: EngineState,
+  mapping: ReadonlyMap<SeatId, SeatId>,
+): EngineState {
+  const hand = state.hand;
+  if (hand?.status !== "complete") return state;
+  const map = (seatId: SeatId) => remapSeatId(seatId, mapping);
+
+  if (hand.reason === "folded-out") {
+    return {
+      ...state,
+      seats: state.seats.map(map),
+      button: map(state.button),
+      hand: {
+        ...hand,
+        button: map(hand.button),
+        winner: map(hand.winner),
+      },
+    };
+  }
+
+  return {
+    ...state,
+    seats: state.seats.map(map),
+    button: map(state.button),
+    hand: {
+      ...hand,
+      button: map(hand.button),
+      results: hand.results.map((result) => ({
+        ...result,
+        seatId: map(result.seatId),
+      })),
+      winners: hand.winners.map(map),
+    },
+  };
+}
+
 function emptySeatRepack(): SeatRepack {
   return { moves: [], mapping: new Map() };
 }
@@ -208,8 +248,7 @@ function freeSeat(seat: Seat): void {
 function isSittingOut(room: Room, seatId: SeatId): boolean {
   const seat = room.seats[seatId];
   if (!seat) return false;
-  const ring =
-    room.engine?.hand?.status === "betting" ? room.engine.seats : undefined;
+  const ring = room.engine?.seats;
   return (
     seat.sittingOut ||
     (seat.claimed &&
@@ -358,7 +397,7 @@ export class RoomStore {
       return appliedSeatCountChange(room);
     }
 
-    if (room.engine?.hand?.status === "betting") {
+    if (isHandLive(room.engine)) {
       room.pendingSeatCount = seatCount;
       return {
         seatCount: room.seats.length,
@@ -368,9 +407,12 @@ export class RoomStore {
       };
     }
 
-    const moves = repackSeats(room, seatCount).moves;
+    const repack = repackSeats(room, seatCount);
+    if (room.engine !== null && isHandComplete(room.engine)) {
+      room.engine = remapCompletedEngineState(room.engine, repack.mapping);
+    }
     room.pendingSeatCount = null;
-    return appliedSeatCountChange(room, moves);
+    return appliedSeatCountChange(room, repack.moves);
   }
 
   /** Whether `seatId` reads as "sitting out" in the room's public view — see `isSittingOut`. */
@@ -441,10 +483,9 @@ export class RoomStore {
         return { reason: "not-enough-players" };
       }
 
-      const repack =
-        room.engine.hand?.status === "complete"
-          ? applyPendingShrink(room)
-          : emptySeatRepack();
+      const repack = isHandComplete(room.engine)
+        ? applyPendingShrink(room)
+        : emptySeatRepack();
       seatMoves = repack.moves;
       const previousButton = remapSeatId(room.engine.button, repack.mapping);
       const dealIn = eligibleSeats(room);
