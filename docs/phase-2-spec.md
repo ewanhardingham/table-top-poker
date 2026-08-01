@@ -141,9 +141,17 @@ There is no existing leak to inherit.
 ### Recording is a Room invariant
 
 Every Room is recorded automatically from creation until it ends. There is no
-opt-in, opt-out, or mid-Room toggle. Raw recordings remain local and
-unredacted; player-facing replay passes through the table-safe projection of
-§4–§5. Phase 1's keep-everything-forever retention remains binding.
+opt-in, no configuration that disables it, and no mid-Room toggle. Raw
+recordings remain local and unredacted; player-facing replay passes through
+the table-safe projection of §4–§5. Phase 1's keep-everything-forever
+retention remains binding — at roughly 10 KB per Hand, a session costs well
+under a megabyte, so retention is not a capacity concern on the Pi.
+
+The invariant is precisely **no *silently* unrecorded play**. Recording can
+only stop by a deliberate human choice, made at the table, in response to a
+failure the table has been told about — see recording-paused below. It can
+never stop by misconfiguration, by an unset environment variable, or by a
+write quietly failing.
 
 A **`@table-top-poker/recording` workspace package** owns the durable
 format. Both `server` and `harness` depend on it; it depends only on engine
@@ -154,10 +162,33 @@ developer CLI.
 > **Reconciliation with `packages/persistence`, already on `main`.** PR #94
 > (§1) has already done the extraction half of this: `packages/persistence`
 > holds `HandLog`, and the server writes through it. **Adopt and evolve that
-> package — do not add a second one.** Whether it keeps the name
-> `persistence` or is renamed `recording` is a build-session call with no
-> decision riding on it; this document uses "recording" because that is the
-> domain term (`CONTEXT.md`).
+> package — do not add a second one.**
+>
+> **Rename it, and rename its vocabulary with it.** This is not a
+> build-session call: `CONTEXT.md` defines **Room recording**, **Hand
+> recording**, **Hand context** and **Room ID**, and says outright *"Avoid:
+> Log."* The merged package contradicts that glossary in every identifier it
+> exports. Align them:
+>
+> | Today | Phase 2 |
+> | --- | --- |
+> | `@table-top-poker/persistence` | `@table-top-poker/recording` |
+> | `HandLog` | the recording type (see the operation API below) |
+> | `handLogPaths`, `HandLogPaths` | recording-path equivalents |
+> | `LoggedCommand`, `LoggedEvent` | `RecordedCommand`, `RecordedEvent` |
+> | `GameManifest`, `game.jsonl` | `room.json` |
+> | `gameId`, `--game-id` | `roomId` |
+> | `HAND_LOG_DIR` | `RECORDINGS_DIR` |
+> | `--log-dir` | `--recordings-dir` |
+>
+> The rename is close to free: `packages/persistence/src/persistence.ts` is
+> 92 lines, and the table below shows every row of it changing anyway. This
+> is a rewrite that reuses a directory, not a refactor of surviving code —
+> renaming during it costs nothing, and renaming after it is churn across
+> `server`, `harness`, the re-export shim, three test files and the Pi's
+> environment file. Delete `packages/harness/src/persistence.ts` (a
+> re-export shim) outright rather than renaming it, and move its tests to
+> the package that now owns the implementation.
 >
 > What is on `main` today does *not* yet satisfy the following, and this is
 > the exact scope of Phase 2's write-path work:
@@ -168,10 +199,12 @@ developer CLI.
 > | Recording is a **Room invariant**; startup fails if the root is unwritable | opt-in — `handLogDir === undefined` silently disables all recording |
 > | Room creation **transactional** with immutable `room.json` (`roomId`, `code`, `createdAt`) | a `game.jsonl` manifest carrying only `v` and `seats`, written lazily on first `HandLog` construction — so the directory appears when the first hand starts, not when the Room is created, and a Room that never deals leaves no trace |
 > | **Hand context sidecar** with `seats`, `button`, `handOrdinal`, `startedAt` | no context file; `startedAt` is nowhere, so §6's picker clock has no source |
-> | Stage → **await append** → commit → broadcast | fire-and-forget after dispatch; a failed write cannot block the commit |
+> | Stage → **await append** → commit → broadcast, via a transaction handle | fire-and-forget after dispatch; a failed write cannot block the commit |
 > | **recording-paused** on append failure | no failure path; a write error cannot pause the Room |
 > | Ordered **async** queue per Room, confirmed offsets | synchronous `appendFileSync`, no offsets, no queue |
-> | `v: 2` | `v: ENGINE_LOG_VERSION`, still `1` |
+> | Injectable filesystem operations, so the failure paths are testable | direct `node:fs` calls, no seam |
+> | Layout version on `room.json` | no `room.json` at all |
+> | Per-record `v: ENGINE_LOG_VERSION` | already correct, and **unchanged** by this work |
 >
 > The gap is real but narrow in kind: what is on `main` is the *file-writing*
 > half, and Phase 2 adds the *durability and identity* half around it.
@@ -183,27 +216,36 @@ A Room receives an opaque UUID **Room ID** at creation, distinct from its
 four-character live join code. Its directory is
 `<RECORDINGS_DIR>/<room-id>/`; `RECORDINGS_DIR` defaults to `./recordings`.
 Server startup creates and verifies that root and **fails to start** if it is
-not writable. The harness retains its explicit `--log-dir` option.
+not writable. The harness retains its explicit `--recordings-dir` option.
 
 PR #94 (§1) already introduced this env var on `main` under the name
 `HAND_LOG_DIR`, wired through `deploy/poker.env.example` and
-`deploy/poker.service`. Renaming it to `RECORDINGS_DIR` is a **deployment
-change, not just a code change** — the Pi's `/etc/poker/poker.env` must be
-updated in the same step or recording silently reverts to the default
-directory. Keeping the existing name is an acceptable alternative; what is
-not acceptable is the current opt-in behaviour, where an unset variable
-disables recording (§3's invariant).
+`deploy/poker.service`. It is renamed to `RECORDINGS_DIR` as part of the
+vocabulary alignment above. That is a **deployment change, not just a code
+change** — the Pi's `/etc/poker/poker.env` must be updated **in the same
+release**, or the server starts against the default `./recordings` and a
+session's hands land somewhere nobody looks. Treat it as a step in
+`docs/deploy-pi.md`, not as a code detail.
+
+Note what does *not* carry over: the current opt-in behaviour, where an unset
+variable disables recording entirely, is gone (§3's invariant).
 
 **The harness writes the same layout.** The dev stepper (§7) reads a Room
 recording directory, and the only Room recordings a developer has locally are
-usually harness-produced — so `--log-dir` runs must emit the v2 layout,
-`room.json` and Hand context sidecars included, or the stepper cannot read
-what the harness just wrote. A harness run has no live Room, so it
-synthesises one: the existing `--game-id` (defaulting to a timestamp) becomes
-the **Room ID**, and `room.json`'s `code` is `null` — a recording that was
-never joinable through a code. This is an assembly-level consequence of two
-decisions meeting, not a fresh choice; if a build session prefers a generated
-UUID with `--game-id` kept as a label, nothing downstream depends on which.
+usually harness-produced — so `--recordings-dir` runs must emit the layout
+below, `room.json` and Hand context sidecars included, or the stepper cannot
+read what the harness just wrote. A harness run has no live Room, so it
+synthesises one: the existing `--game-id`, renamed `--room-id` and still
+defaulting to a timestamp, becomes the **Room ID**, and `room.json`'s `code`
+is `null` — a recording that was never joinable through a code. This is an
+assembly-level consequence of two decisions meeting, not a fresh choice; if a
+build session prefers a generated UUID with `--room-id` kept as a label,
+nothing downstream depends on which.
+
+Recording stays **optional in the harness** — a run with no
+`--recordings-dir` writes nothing, as today. §3's invariant binds the server,
+which hosts players who would not otherwise know whether their session is
+being recorded; it does not bind a developer piping commands through a CLI.
 
 Room creation is **transactional with recording creation**: `room.json` is
 atomically written *before* the Room enters the live store or its code/QR is
@@ -220,20 +262,28 @@ Room.
   …
 ```
 
-- **`room.json`** is immutable metadata: `v`, `roomId`, `code`, `createdAt`.
-  It is *not* a fixed Seat manifest. Seat claims, evictions, presence and
-  sitting-out transitions are not separately recorded.
+- **`room.json`** is immutable metadata: `layoutVersion`, `roomId`, `code`,
+  `createdAt`. It is *not* a fixed Seat manifest. Seat claims, evictions,
+  presence and sitting-out transitions are not separately recorded. It is
+  also the **only** place the layout version appears (see Version tagging).
 - **`hand-NNNN.context.json`** is an immutable single JSON document: `v`,
   `roomId`, `handOrdinal`, `startedAt`, participating `seats`, starting
   `button`. It contains **no cards and no state snapshot**. The dedicated
   context sidecar is what leaves the Command JSONL as an exact Command-only
-  stream.
+  stream. Its `seats` and `button` are engine-typed, so it carries
+  `ENGINE_LOG_VERSION` like the Command and Event records.
 - **`hand-NNNN.commands.jsonl` / `hand-NNNN.events.jsonl`** carry the exact
   engine Command stream and the resulting Event/`Rejection` stream.
 
 Commands and Events remain **untimestamped**, so Replay position stays an
 Event ordinal (§2). `startedAt` on the Hand context is the only clock in the
 recording, and it exists because the picker needs it (§6).
+
+**`startedAt` is captured when the Hand-start operation is *staged*, not when
+its append confirms.** Those are now distinct moments (see the commit seam
+below), and on a stalling disk they could be seconds apart. The timestamp
+records when the Hand began for the players, not when the filesystem caught
+up.
 
 Each Hand is independently replayable: replaying Hand 14 never requires Hands
 1–13, so corruption is isolated to the affected Hand.
@@ -266,13 +316,74 @@ It owns version tagging, serialization, Hand-file selection, ordered
 asynchronous writes, confirmed byte offsets, partial-operation rollback,
 retry, and clean close. Callers never coordinate individual lines.
 
-`RoomStore` (`packages/server/src/rooms.ts`) owns **one operation queue per
-Room** and is the commit seam for gameplay. Socket Commands, clock-driven
-folds and Seat mutations enter it in arrival order. Dispatch stages an engine
-transition *without changing live state*, awaits `recording.append()`, then
-commits and returns broadcast steps. A clock fold carries its expected Actor
-and is re-checked when its queued turn arrives. Other Rooms remain
+**Its filesystem operations are injected**, in the shape `ActionClock`
+(`packages/server/src/action-clock.ts`) already establishes for its timer
+functions. This is not incidental: offset truncation, retained-operation
+replay, the paused-state rejections and the incomplete-Hand handling of §4
+are the most intricate logic in Phase 2 and the least reachable from a real
+disk on demand. Injection makes all of them unit-testable against an
+in-memory fake, and keeps fault-injection out of production code paths — the
+server ships no way to make itself fail.
+
+#### The commit seam: a transaction handle
+
+`RoomStore` (`packages/server/src/rooms.ts`) **produces** the transaction;
+`app.ts` **sequences** it. `dispatch` returns a staged transaction rather
+than a completed result:
+
+```ts
+const tx = rooms.dispatch(code, identity, type); // pure, synchronous
+await recording.append(tx.operation);            // may fail
+tx.commit();                                     // or tx.discard()
+```
+
+This keeps `RoomStore` synchronous, filesystem-free and cheap to test — which
+is where Phase 1's property tests and the engine-adjacent TDD discipline live
+— while putting the `await` exactly where the broadcast already happens. The
+obligation to commit or discard is carried by the returned handle rather than
+by a convention a later edit can quietly drop.
+
+`app.ts` owns **one operation queue per Room**. Socket Commands, clock-driven
+folds and Seat mutations enter it in arrival order. Other Rooms remain
 independent.
+
+**Staging covers more than the engine transition.** On `main` today,
+`dispatch` mutates `room.seats` (via `applyPendingShrink`), clears
+`room.pendingSeatCount`, and reassigns `room.engine` — all *before* `decide`
+runs and therefore before the outcome is known. All three must move behind
+the transaction. A build session that reads "stages an engine transition" and
+leaves `rooms.ts:491-507` where it is has not done this.
+
+That ordering is already a live bug, tracked as
+[#95](https://github.com/ewanhardingham/table-top-poker/issues/95): a
+`nextHand` arriving mid-hand rewrites `room.engine.seats` and `button`, then
+gets rejected `stale-next-hand`, leaving a seated player silently cut off
+from every broadcast and auto-folded by the clock. It may be fixed
+independently and first; the transaction seam is what stops the class of bug
+returning.
+
+#### The action clock across an await
+
+Phase 1's clock is safe by construction, and `app.ts:407-411` says why: *"any
+real action in between would have rescheduled (and thus replaced) this very
+timer."* Synchronous dispatch means nothing can interleave. Awaiting an
+append ends that guarantee, because **a fired timer is no longer a timer** —
+it is a queued operation, and clearing the timer cannot recall it.
+
+- **A queued clock-fold carries a room revision**, not just its expected
+  Actor. The Room holds a monotonic counter bumped on every commit; the fold
+  captures it at schedule time and is **discarded on dequeue if the Room has
+  advanced at all**. Actor-matching alone is insufficient: heads-up, the
+  non-button Seat acts *last* preflop and *first* on the flop
+  (`initialToAct`, `packages/engine/src/table.ts:49-63`), so a stale fold
+  expecting Seat X can find Seat X legitimately on the clock one beat later
+  and fold a hand its owner just voluntarily checked. "Nothing has happened
+  since I was scheduled" is the actual precondition for an auto-fold, and the
+  revision is the only thing that states it exactly.
+- **The clock arms after commit**, not at staging. Appends should be
+  single-digit milliseconds, so this is immaterial normally; on a disk
+  grinding at seconds per append it matters a great deal, and that latency
+  must not be deducted from a player's thinking time.
 
 ### Recording-paused: recoverable failure
 
@@ -289,13 +400,45 @@ into a blocked **recording-paused** state.
   (`packages/engine/src/types.ts`). The engine knows nothing about recording
   and must not learn — a recording failure is not a rule violation, and
   `decide` never sees one.
-- Only the table may choose **Retry recording** or **End session**.
-  Filesystem details stay in operational server logs.
+- Only the table may choose **Retry recording**, **Continue without
+  recording**, or **End session**. Filesystem details stay in operational
+  server logs.
 - **Retry** truncates affected files to their last confirmed offsets, appends
   the retained operation again, and only then commits/broadcasts it and
   restarts the Actor's clock with a **fresh** interval.
 - **Ending a paused Room** discards the uncommitted operation after restoring
   parseable confirmed tails.
+
+**The Actor's clock restarts at its full interval after a Retry.** This is a
+player-facing rule, not an implementation detail of the recovery path: a
+player who lost forty seconds of thinking time to a disk stall is not
+penalised for it.
+
+##### Continue without recording
+
+The third exit exists because the failure this state is most likely to meet
+is **not** transient. A worn SD card does not fail intermittently; it flips
+the filesystem read-only and stays there. Under Retry-or-End alone, every
+retry fails identically and the only working control ends the session — a
+twelve-pound card ends poker night, mid-hand, with no path forward.
+
+Choosing **Continue without recording** resumes play immediately and stops
+recording for the remainder of the Room's life. It does not flap back on: the
+Room does not retry per hand, and there is no automatic resumption if the
+disk recovers. A persistent banner on the table states that hands from here
+are not being recorded.
+
+What is already on disk stays valid and replayable. The Hand that was
+in flight when the append failed is left as it lies — the repairs described
+above (truncate to confirmed offsets, restore parseable tails) are themselves
+**writes**, and cannot run on the filesystem that just refused one. §4's
+incomplete-Hand rule is what handles the result, and the picker does not
+offer that Hand.
+
+This is the boundary of §3's invariant, and it is drawn deliberately: play
+can leave the recorded state, but only through a decision a human made after
+being told. The property that survives is that recording never stops
+*silently*.
 
 Normal Room ending and `SIGINT`/`SIGTERM` stop new operations, drain the
 active operation, restore confirmed tails if paused, close recording handles,
@@ -304,38 +447,43 @@ record, handled by the incomplete-Hand rule in §4.
 
 ### Version tagging
 
-This is **recording format version 2**: the manifest, context, Commands,
-Events and Rejections all carry `v: 2`.
+There are **two version numbers, and they mean different things.**
 
-There is **one** version number, not two. `ENGINE_LOG_VERSION`
-(`packages/engine/src/version.ts`, currently `1`) is the tag every record
-already carries, and it becomes `2` as part of this work — §4's rule that
-every record must carry the running engine's `ENGINE_LOG_VERSION` and §3's
-`v: 2` are the same tag, not a format version layered over an engine version.
-A build session must not introduce a second version field.
+- **`ENGINE_LOG_VERSION`** (`packages/engine/src/version.ts`) **stays `1`.**
+  It is the per-record `v` on every Command, Event, Rejection and Hand
+  context, and it keeps exactly the meaning its own doc comment gives it:
+  *"bumped whenever a change to `HandEvent`/`Command` shapes or the shuffle
+  would break bit-identical replay."*
+- **The layout version** is a single field on **`room.json`**, and nowhere
+  else. It describes the directory shape — `room.json` itself, the context
+  sidecar, the Room ID keying — none of which the engine knows about.
 
-There is no version-1 migration: the server produced no version-1 Room
-recordings, and disposable harness development runs may be cleared during
-implementation. A version-1 file requires its matching older build.
+**Phase 2 does not bump `ENGINE_LOG_VERSION`.** It changes no `HandEvent`
+shape, no `Command` shape and no shuffle. A `v: 1` record read by the Phase 2
+engine replays bit-identically, which is precisely what the constant is for.
+Bumping it would make the engine refuse logs it can replay perfectly.
 
-> **This one-tag reading is an assembly reconciliation, not a map decision.**
+Detecting a pre-Phase-2 directory needs no version comparison at all: it has
+**no `room.json`**. The layouts differ structurally, which is a stronger
+signal than a number.
+
+> **Splitting these is an assembly reconciliation, not a map decision.**
 > [#86](https://github.com/ewanhardingham/table-top-poker/issues/86) said
 > "recording format version 2" and
 > [#80](https://github.com/ewanhardingham/table-top-poker/issues/80) said
 > "the running engine's `ENGINE_LOG_VERSION`"; neither ticket noticed the
-> other, and read separately they invite a second version field. Collapsing
-> them into one tag is the cheaper reading, but it has a known wart: a
-> *recording-format* change now forces an *engine* log version bump even when
-> no engine event shape changed. If that bothers a build session, splitting
-> them later is mechanical — what must not happen is shipping both silently.
+> other. Collapsing them into one tag was the first reading assembled here,
+> and it was wrong on two counts. It contradicted the constant's documented
+> contract, as above. And its stated justification — "the server produced no
+> version-1 Room recordings" — died when
+> [PR #94](https://github.com/ewanhardingham/table-top-poker/pull/94) merged:
+> the server writes `v: 1` today.
 >
-> What the bump invalidates, cheap but easy to miss: every fixture asserting
-> `v: ENGINE_LOG_VERSION` — `persistence.test.ts`, `harness.test.ts` and
-> `replay.test.ts` under `packages/harness/src/` — and any logs the server on
-> `main` has already written, which carry `v: 1` today. Note also that
-> `packages/harness/src/persistence.ts` is now a **re-export shim** over
-> `@table-top-poker/persistence`; the tests still live in `harness` while the
-> implementation does not, which is worth tidying as part of this work.
+> Splitting them costs one field on one file and **no fixture churn** —
+> `persistence.test.ts`, `harness.test.ts` and `replay.test.ts` all keep
+> asserting `v: ENGINE_LOG_VERSION` unchanged, and records already written on
+> `main` stay valid. What must not happen is a build session bumping the
+> engine version out of habit because the recording layout changed.
 
 ## 4. The Replay capability
 ([Replay capability: API, package placement and version-tag handling](https://github.com/ewanhardingham/table-top-poker/issues/80))
@@ -355,6 +503,23 @@ The capability is scoped to **one Hand** and takes parsed, versioned input:
 - its persisted Event/`Rejection` records, **as audit evidence**.
 
 The starting context is not a state snapshot and carries no cards.
+
+**Replay builds its own starting state, and the engine exports nothing new
+for it.** `createInitialState` (`packages/engine/src/room.ts:10-15`)
+hard-codes `button` to `seats[0]`, and the live Button is chosen outside the
+engine by `resolveButtonFor` (`packages/server/src/rooms.ts:505`) — so there
+is no supported way today to construct a state at a recorded Button. Since
+Replay lives *inside* the engine, it constructs `{ seats, button, hand: null }`
+directly and no public constructor is added. A general "state at an arbitrary
+Button" export would be a foot-gun for every caller except this one, and
+would weaken a real invariant for live Rooms.
+
+**A context is valid when** its `button` is a member of its `seats`, and its
+`seats` satisfy the same 2-to-8 bound `createInitialState` enforces
+(`room.ts:11`). §7's exit table promises an "invalid context" failure and
+these are its conditions. Without checking them, a context naming a Button
+that was never dealt in fails somewhere inside `rotateFromButton` instead of
+at the boundary.
 
 ### Authority and validation
 
@@ -404,17 +569,35 @@ policy.
 
 ### Version mismatch and the damaged tail
 
-Every supplied manifest/context, Command, Event and `Rejection` record must
-carry the running engine's `ENGINE_LOG_VERSION` (§3). Any mismatch is an
-immediate **unsupported-version failure** reporting expected version, actual
-version, file and record. Phase 2 has no migration, guessing or force
-override; an old log requires a compatible build.
+Every supplied context, Command, Event and `Rejection` record must carry the
+running engine's `ENGINE_LOG_VERSION`; `room.json` must carry a supported
+layout version (§3). Either mismatch is an immediate **unsupported-version
+failure** reporting expected version, actual version, file and record. Phase
+2 has no migration, guessing or force override; an old log requires a
+compatible build.
 
-The I/O adapter may discard **exactly one clearly torn final JSONL record**
-and mark the replay **incomplete**, reporting its file and line.
+A replay is **incomplete** — not corrupt — in either of two cases:
 
-- The dev stepper may show the recoverable complete prefix with a warning
-  (§7).
+- **Exactly one clearly torn final JSONL record.** The I/O adapter may
+  discard it, reporting its file and line.
+- **An orphaned trailing Command.** The Command log runs past the persisted
+  Event stream: every line in both files parses, nothing disagrees, there is
+  simply less audit evidence than there are Commands. Replay stops at the
+  last fully-corroborated operation and reports the Command ordinal it
+  stopped at.
+
+The second case is the *likely* wreckage, not an exotic one. It is what a
+`SIGKILL` mid-operation leaves, and it is what a filesystem that went
+read-only leaves — including after **Continue without recording** (§3),
+where the repairs that would otherwise tidy the tail cannot run because they
+are themselves writes. Treating a Command with no recorded outcome as
+corruption would make the dev stepper emit nothing in exactly the situation a
+developer most wants to look at.
+
+Either way:
+
+- The dev stepper shows the recoverable complete prefix with a warning and
+  exit `2` (§7).
 - The table hand picker **must not offer an incomplete Hand** (§6).
 
 Invalid data anywhere else, or disagreement between complete generated and
@@ -450,10 +633,23 @@ position 0 carrying `event: null` — mirroring the existing
 inventing a new shape. This is not a fresh choice; it falls out of the
 terminal-view finding in §4.
 
-**The whole hand arrives in one response.** A hand is small — the same size
-class as a live `HandUpdateMessage` repeated a few dozen times — and the
-scrub (§6) needs every position up front to lay out its ticked track and
-street chapters, so partial delivery buys nothing.
+**The whole hand arrives in one response.** A `TableView` is small — `phase`,
+`button`, `street`, a board of at most five cards, `toAct` of at most eight
+ids, and `seats` as at most eight `{ seatId, folded }` pairs
+(`packages/engine/src/view.ts:48-55`) — roughly **250–350 bytes** serialized.
+A typical thirty-five-position hand with its events is therefore **under
+20 KB in one message**. The scrub (§6) needs every position up front to lay
+out its ticked track and street chapters, so partial delivery buys nothing
+and no chunking or pagination is specified.
+
+**Hand length is unbounded, and that is accepted.** `raise` is always legal
+and uncapped (`legalActions`, `packages/engine/src/table.ts:110-115`), and
+Phase 1 has no chips, so nothing but the players' patience ends a re-raise
+war. This does not threaten the wire — a megabyte would take some three
+thousand raises. It degrades the **scrub** long before that, which §6
+addresses. No cap is imposed: §3's whole thrust is that recording never
+refuses to record, and a table capable of producing a four-hundred-event hand
+has a more pressing problem than its replay UI.
 
 The table-facing position type has **no `Rejection` variant** (§2).
 
@@ -471,14 +667,55 @@ Per hand the summary carries:
 - seats dealt in, and survivors;
 - the public **board**;
 - the **street reached**;
-- the **betting shape** — the public `ActionTaken` sequence, or a phrase
-  derived from it server-side;
+- the **betting shape**, as a structured descriptor — see below;
 - the **outcome**, including showdown reveals.
 
-The server pushes a new summary **right after each hand completes** — the
-same moment "Review hands" becomes reachable (§6). The picker therefore opens
-instantly on an already-accumulated list, and each summary is folded from the
-Event stream once, while state is warm, rather than re-derived on demand.
+#### One derivation, shared
+
+The summary is produced by a **pure function over an event array**:
+
+```ts
+summarise(events: readonly HandEvent[], context: HandContext): HandSummary;
+```
+
+No I/O, no clock, no ambient state. The server calls it with the Events it
+just broadcast; anything replaying from disk calls it with the Events it just
+validated. This is the whole point: without a shared function, the same facts
+— board, street, survivors, betting shape, outcome — get derived by two
+independent code paths that can drift silently, so the picker would show a
+summary disagreeing with what the scrub renders when you tap it, and no test
+would catch it.
+
+The server calls `summarise` **right after each hand completes** — the same
+moment "Review hands" becomes reachable (§6) — and holds the accumulated list
+in memory for the Room's life. No disk read is involved. A server restart
+destroys the Room outright (`RoomStore` holds `#rooms` in a plain `Map` with
+no rehydration), so there is no surviving session whose summaries would need
+rebuilding; that is crash recovery, out of scope per §1.
+
+#### The betting shape is structured, not prose
+
+`bettingShape` is a discriminated union, not a sentence:
+
+```ts
+| { kind: "walk" }
+| { kind: "preflop-raise" }
+| { kind: "checked-down" }
+| { kind: "one-raise" }
+| { kind: "raise-war"; raises: number }
+```
+
+The wording lives in `table-client` with the rest of the felt's copy (§6
+gives the phrasing). Derivation — detecting a walk, distinguishing
+checked-down from one-raise, counting raises — is the genuinely testable
+part, and it stays in `summarise` where it is unit-testable without a DOM.
+
+The deciding argument is §7. The dev stepper exists so an agent can drive and
+diff it; shipping `"raise war — 4 raises"` into a JSONL stream forces the
+consumer to parse English back into a number `summarise` already had. Every
+other summary field is structured; prose here would be the sole exception,
+and an artifact of §6 having been settled by a visual prototype in which the
+phrase *was* the deliverable.
 
 **The table also gets the full list on connect.** Incremental pushes alone
 would leave a reloaded or reconnected table device with an empty picker for
@@ -533,9 +770,11 @@ Each row shows, all of it derived from Events the table saw live:
   empties so a preflop walk reads as a visibly short hand rather than a
   broken row.
 - **Survivors and street** — "3 to the turn".
-- **Betting shape** — a phrase derived from public `ActionTaken` events:
-  *walk — folded round*, *preflop raise took it*, *checked down*, *one
-  raise*, *raise war — 4 raises*.
+- **Betting shape** — rendered client-side from the structured descriptor
+  §5 defines: *walk — folded round*, *preflop raise took it*, *checked
+  down*, *one raise*, *raise war — 4 raises*. These strings are this
+  client's copy, not a wire format; changing them is a `table-client`
+  change alone.
 - **Outcome** — showdown winners and their hand description, or "Seat N wins
   — everyone folded".
 - **Button seat**, with the start time on the same line (below).
@@ -593,6 +832,12 @@ with no clock at all.
 - **A ticked track** — one tick per Event ordinal, so the hand's *shape*
   (where the action clustered) is legible before you touch it. Street
   boundaries get taller, heavier ticks.
+  - **Ticks are a visual affordance and may collapse on unusually long
+    hands; street chapters are the navigation contract.** Hand length is
+    unbounded (§5), and one-tick-per-ordinal stops being legible somewhere
+    past a few hundred positions — sub-pixel ticks, a thumb moving many
+    positions per pixel. Chapters remain usable at any length. Do not treat
+    one-tick-per-ordinal as inviolable; do not let chapter seeking degrade.
 - **Street chapters** — Preflop / Flop / Turn / River chips seek directly.
   These are the landmarks people navigate by ("on the turn, when Seat 4
   raised"), and they are what makes getting to a moment one gesture instead
@@ -642,12 +887,17 @@ with no clock at all.
   description otherwise reaches past `posFor`'s 10% and clips the felt's
   edge; the bottom row overlaps the transport for the mirror reason.
 
-**Known seam**: `Board`'s per-card entry animation is keyed on mount, so the
-stage remounts it per position to make a `BoardDealt` read as a *deal* rather
-than as cards that were suddenly always there. That works for stepping and
-autoplay but re-fires the animation on every scrub tick. A build session
-should expect to resolve this properly — key the animation on card identity
-rather than remount.
+**Known seam, already fixed — lift it, do not redesign it.** `Board`'s
+per-card entry animation is keyed on mount, so the prototype stage remounts
+it per position to make a `BoardDealt` read as a *deal* rather than as cards
+that were suddenly always there. That works for stepping and autoplay but
+re-fires the animation on every scrub tick. **The fix already exists**, on
+`prototype/replay-transport` at commit `b5d691e`: cards keyed by rank+suit
+with the per-phase branches unified, which also stops a live hand re-dealing
+all five cards when it crosses betting → showdown. It is entangled in that
+commit with five prototype-only files, so it does not cherry-pick — lift the
+`Board.tsx` and `StatusBar.tsx` changes as part of the replay-stage work that
+consumes them. See §8.
 
 ## 7. The dev stepper CLI
 ([Dev stepper CLI surface](https://github.com/ewanhardingham/table-top-poker/issues/84))
@@ -662,14 +912,34 @@ The current stdin/stdout harness mode remains backward-compatible; Phase 2
 adds no second executable.
 
 ```sh
-harness replay <room-directory> --hand <hand-ordinal>
-harness replay <room-directory> --hand <hand-ordinal> --at <event-ordinal>
-harness replay <room-directory> --hand <hand-ordinal> --from <n> --to <m>
+harness replay <room> --hand <hand-ordinal>
+harness replay <room> --hand <hand-ordinal> --at <event-ordinal>
+harness replay <room> --hand <hand-ordinal> --from <n> --to <m>
 ```
 
-The positional directory is one Room recording in the version-2 layout (§3).
 With no position selector the command emits the whole Hand; `--at` emits one
 position; `--from`/`--to` are a paired, inclusive range.
+
+**The positional `<room>` accepts three forms**, because a Room recording
+directory is named by an opaque UUID and nobody remembers one:
+
+- a **path** to a Room recording directory (§3's layout);
+- a four-character **join code**, resolved by scanning `RECORDINGS_DIR` for a
+  matching `room.json`;
+- the literal **`latest`**, the most recently created recording under
+  `RECORDINGS_DIR`.
+
+`latest` is the form that gets used: the hand you want to debug is nearly
+always from the session you just played — the same argument §6 uses for
+ordering the picker newest-first.
+
+Join codes are **recycled**: `generateRoomCode`
+(`packages/server/src/rooms.ts:320`) tests collisions against live Rooms
+only, so one code names many directories over a Pi's lifetime. A code
+matching several resolves to the most recent, and the CLI prints which
+directory it chose to **stderr** — never stdout, which stays byte-stable and
+diffable (below). This is also why directories are not named or symlinked by
+code, and why the Room ID exists at all.
 
 ### Machine-readable output
 
@@ -720,6 +990,7 @@ stdout**.
 | Complete replay | all selected records | — | `0` |
 | Missing file, malformed complete record, invalid context, unsupported version, or generated-vs-persisted disagreement | nothing | first failure | `1` |
 | Exactly one torn final JSONL record | validated complete prefix | structured `incomplete-hand` warning with file and line | `2` |
+| Orphaned trailing Command — the Command log runs past the persisted Events (§4) | validated complete prefix | structured `incomplete-hand` warning naming the Command ordinal it stopped at | `2` |
 
 An unsupported-version diagnostic includes expected version, actual version,
 file, and line or record. There is no force flag, migration or partial replay
@@ -747,20 +1018,38 @@ in place rather than merely noted here.
    ([PR #94](https://github.com/ewanhardingham/table-top-poker/pull/94) has
    since closed that Phase 1 gap — §1 and §3. The Phase 1 spec was not wrong
    about the *decision*, only about what had been built.)
-3. **One version number, not two.** §3 above reconciles #86's "recording
-   format version 2" with #80's "must carry the running engine's
-   `ENGINE_LOG_VERSION`" — they are the same tag, and `ENGINE_LOG_VERSION`
-   moves `1 → 2`.
+3. **Two version numbers, deliberately separated.** §3 above reconciles
+   #86's "recording format version 2" with #80's "must carry the running
+   engine's `ENGINE_LOG_VERSION`": they are *different* tags with different
+   meanings. `ENGINE_LOG_VERSION` **stays `1`** — Phase 2 changes no event
+   shape, no command shape and no shuffle — and the layout version lives on
+   `room.json` alone.
+4. **A live bug on `main`, found while grilling this spec.** `dispatch`
+   mutates `room.engine` before `decide` runs, so a `nextHand` arriving
+   mid-hand is rejected `stale-next-hand` *after* rewriting the live Hand's
+   seats and button — silently cutting a seated player off from every
+   broadcast and leaving them to be auto-folded. Raised as
+   [#95](https://github.com/ewanhardingham/table-top-poker/issues/95), fixable
+   independently of Phase 2, and structurally prevented by §3's transaction
+   seam.
 
-Also note: the `prototype/hand-picker` branch carries **Phase 1 visual fixes**
-to `TableControls` and `PillButton` (rail grouped into one fixed-width column,
-both pill tones rendering their label as authored), and
-`prototype/replay-transport` carries a **`Board` fix** (cards keyed by
-rank+suit with the per-phase branches unified, so crossing betting → showdown
-no longer re-deals all five cards) plus an optional `StatusBar` `leading`
-slot. None of these are replay-specific; they belong to
-[map #57](https://github.com/ewanhardingham/table-top-poker/issues/57) and are
-currently only on prototype branches.
+Also note: the prototype branches strand **Phase 1 visual fixes** that belong
+to [map #57](https://github.com/ewanhardingham/table-top-poker/issues/57),
+none of them replay-specific. They split by how cleanly they extract:
+
+- **Land before Phase 2 starts** — `aad3d5c` (rail grouped into one
+  fixed-width column), `cfc6006` (both pill tones rendering their label as
+  authored), `636cbf6` (both secondary rail actions sharing a plain outline).
+  Raised as
+  [#96](https://github.com/ewanhardingham/table-top-poker/issues/96). Phase 2
+  adds **Review hands** as a peer of the existing actions in that exact rail
+  (§6), so building against a rail that is about to be regrouped is rework.
+  Note `aad3d5c` also touches a prototype-only file; that hunk must be
+  dropped during the pick.
+- **Lands with the replay work** — the `Board` fix and the `StatusBar`
+  `leading` slot, entangled in `b5d691e` with five prototype-only files. §6's
+  "Known seam" points at them; they are only observably a fix under
+  scrubbing, so they review better alongside the code that needs them.
 
 ## 9. Acceptance
 
@@ -774,31 +1063,54 @@ sitting, on real devices at a real table.
       the server from starting at all.
 - [ ] Playing several hands produces one
       `context.json` / `commands.jsonl` / `events.jsonl` triplet per hand,
-      every record tagged `v: 2`, with no timestamps on Commands or Events.
+      every record tagged `v: ENGINE_LOG_VERSION` (still `1`), with no
+      timestamps on Commands or Events, and the layout version appearing on
+      `room.json` and nowhere else.
 - [ ] A rejected command appears in the hand's `events.jsonl` as a
       `Rejection`, and does not advance the Event ordinal.
-- [ ] Inducing an append failure puts the Room into **recording-paused**:
-      sockets stay up, gameplay is rejected with `recording-paused`, the
-      action clock is cancelled, and **Retry recording** on the table resumes
-      play with a fresh clock and a correctly-truncated, valid file tail.
+- [ ] With a hand in progress, `chmod a-w` on the recordings directory, then
+      act: the Room enters **recording-paused** — sockets stay up, gameplay
+      is rejected with `recording-paused`, the action clock is cancelled.
+      Restore write access, and **Retry recording** resumes play with a fresh
+      clock and a correctly-truncated, valid file tail.
+- [ ] From that same paused state with write access **still revoked**,
+      **Continue without recording** resumes play immediately, the table
+      shows a persistent not-recording banner, recording does not resume on
+      the next hand, and the hands recorded before the failure remain
+      replayable and offered in the picker.
+- [ ] A player whose seat is momentarily `disconnected` mid-hand keeps
+      receiving `hand-update` messages — the regression guarded by
+      [#95](https://github.com/ewanhardingham/table-top-poker/issues/95).
 
 **Replay and the dev stepper**
 
 - [ ] `harness replay <dir> --hand N` emits one JSONL position per Event
       ordinal, exits `0`, and re-running it byte-identically diffs clean.
-- [ ] A hand played through the **harness** with `--log-dir` produces a
-      directory the stepper can read back without any conversion step —
+- [ ] A hand played through the **harness** with `--recordings-dir` produces
+      a directory the stepper can read back without any conversion step —
       `room.json` and context sidecars included.
+- [ ] `harness replay latest --hand N` and `harness replay <join-code> --hand N`
+      both resolve to the expected directory, and the chosen directory is
+      named on **stderr** while stdout stays byte-identical to the
+      path-addressed run.
 - [ ] `--at` and `--from`/`--to` select correctly, and `--at N` also emits
       every Rejection that occurred at position N.
 - [ ] Truncating the last line of an `events.jsonl` yields the complete
       prefix on stdout, an `incomplete-hand` warning on stderr naming file
       and line, and exit `2`.
+- [ ] Deleting the last *whole* line of an `events.jsonl`, so a trailing
+      Command is orphaned, likewise yields the complete prefix, an
+      `incomplete-hand` warning naming the Command ordinal, and exit `2` —
+      **not** a hard failure.
 - [ ] Corrupting a *non-final* record, or making a persisted Event disagree
       with the replayed one, yields **no stdout records**, a diagnostic
       naming the first differing record, and exit `1`.
-- [ ] A record carrying `v: 1` yields an unsupported-version diagnostic
-      naming expected and actual version, file and record — and exit `1`.
+- [ ] A context whose `button` is not among its `seats` yields an
+      invalid-context diagnostic and exit `1`.
+- [ ] A record carrying an unsupported `ENGINE_LOG_VERSION`, or a
+      `room.json` carrying an unsupported layout version, yields an
+      unsupported-version diagnostic naming expected and actual version, file
+      and record — and exit `1`.
 
 **The table review**
 
