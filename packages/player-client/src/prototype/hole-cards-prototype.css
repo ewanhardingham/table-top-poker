@@ -281,6 +281,11 @@
   font-size: 20px;
 }
 
+.gesture-card-curl-index-top-left {
+  inset: 10px 11px auto auto;
+  transform: none;
+}
+
 .gesture-card-pip {
   font-family: Georgia, serif;
   font-size: 64px;
@@ -346,6 +351,19 @@
   border-bottom: 2px solid rgba(255, 236, 226, 0.72);
   border-radius: 0 0 6px 0;
   filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+
+.gesture-card-bend-zone-top-left {
+  inset: -5px auto auto -5px;
+  border-radius: 12px 0 0;
+}
+
+.gesture-card-bend-zone-top-left > span {
+  inset: 11px auto auto 11px;
+  border: 0;
+  border-top: 2px solid rgba(255, 236, 226, 0.72);
+  border-left: 2px solid rgba(255, 236, 226, 0.72);
+  border-radius: 6px 0 0;
 }
 
 .gesture-card-library-surface {
