@@ -104,6 +104,7 @@ interface WsRoute {
 }
 
 type SocketIdentity = SeatId | "table" | "lobby";
+type ActionClockPolicy = "reschedule" | "preserve";
 
 /**
  * Narrows a socket's identity to a seat. Only a seat may be handed
@@ -448,7 +449,9 @@ export async function buildApp(
   function publishDispatch(
     code: string,
     result: DispatchSuccess,
-    options: { readonly resetActionClock?: boolean } = {},
+    options: {
+      readonly actionClock?: ActionClockPolicy;
+    } = {},
   ): void {
     if (result.seatMoves !== undefined) {
       applySeatMoves(code, result.seatMoves);
@@ -457,7 +460,7 @@ export async function buildApp(
     for (const step of result.steps) {
       fanOutHandUpdate(code, step);
     }
-    if (options.resetActionClock === false) {
+    if (options.actionClock === "preserve") {
       if (rooms.currentActor(code) === undefined) actionClock.clear(code);
     } else {
       rescheduleActionClock(code);
@@ -612,7 +615,10 @@ export async function buildApp(
           // A non-current eviction leaves the actor and its existing deadline
           // untouched; a current-seat eviction uses a normal fold command and
           // starts the next actor's clock as usual.
-          resetActionClock: eviction.dispatch.command.type !== "evict",
+          actionClock:
+            eviction.dispatch.command.type === "evict"
+              ? "preserve"
+              : "reschedule",
         });
       }
       broadcastRoomView(request.params.code);

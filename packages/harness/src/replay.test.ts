@@ -56,7 +56,7 @@ describe("replay guarantee", () => {
 
     const commands = [
       { type: "startHand", playerId: 0, seed: "replay-seed" },
-      { type: "evict", playerId: 2 },
+      { type: "evict", seatId: 2 },
       { type: "call", playerId: 1 },
       { type: "call", playerId: 0 },
     ];

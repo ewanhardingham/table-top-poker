@@ -36,12 +36,12 @@ Single-context: one `CONTEXT.md` and one `docs/adr/` at the repo root, both crea
 
 ## Local testing
 
-While iterating locally, run only the test file(s) covering the code you've
-changed (e.g. `npx vitest run packages/server/src/rooms.test.ts`), not the
-full suite — CI runs the full suite on every push. This keeps local
-feedback loops fast. Still run the full suite (`npm test`) before a deploy,
-per the Raspberry Pi workflow below, and before finishing a task, run it once
-to confirm nothing else broke.
+Run only the test file(s) covering the code you've changed locally (e.g.
+`npx vitest run packages/server/src/rooms.test.ts`), never the full suite.
+CI runs the full suite on every push and is the source of truth for the
+complete test run. Before finishing a task, run the relevant targeted tests,
+typecheck/build, and lint as appropriate; do not run `npm test` unless the
+human explicitly asks for a full local run.
 
 ## Raspberry Pi deployment
 
@@ -52,7 +52,8 @@ When the human asks to deploy a new app version to the Raspberry Pi, use the
 1. Work from the checkout containing the requested commit. Inspect `git status`
    and do not deploy unrelated or uncommitted changes without explicit
    approval.
-2. Build and verify locally with `npm ci`, `npm run lint`, `npm test`, and
+2. Confirm the commit's CI full-suite run passed, then build and verify locally
+   with `npm ci`, the relevant targeted test files, `npm run lint`, and
    `npm run build:release`. The release must be built on the development
    machine; do not build TypeScript or run `npm install` on the Pi.
 3. Before restarting, warn that the server keeps rooms and hands in memory, so

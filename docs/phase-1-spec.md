@@ -111,7 +111,7 @@ No uniform envelope — each type declares its own fields:
   engine level; table-device-only is enforced at the server/UI layer.
 - `{ type: 'fold' | 'check' | 'call' | 'raise', playerId }` — engine
   validates `playerId` is the current Actor.
-- `{ type: 'evict', playerId }` — server-synthesized for a table eviction,
+- `{ type: 'evict', seatId }` — server-synthesized for a table eviction,
   never accepted from a player client; it folds a live seat immediately even
   when that seat is not the current Actor.
 - `{ type: 'nextHand', playerId, seed }` — dismisses the showdown reveal and

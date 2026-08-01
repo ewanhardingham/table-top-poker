@@ -594,7 +594,7 @@ export class RoomStore {
     if (room.engine === null) return undefined;
     const result = this.#runEngineCommand(room, room.engine, {
       type: "evict",
-      playerId: seatId,
+      seatId,
     });
     return "steps" in result ? result : undefined;
   }
