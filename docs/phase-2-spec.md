@@ -182,6 +182,26 @@ four-character live join code. Its directory is
 Server startup creates and verifies that root and **fails to start** if it is
 not writable. The harness retains its explicit `--log-dir` option.
 
+The in-flight branch (§1) already introduced this env var under the name
+`HAND_LOG_DIR`, wired through `deploy/poker.env.example` and
+`deploy/poker.service`. Renaming it to `RECORDINGS_DIR` is a **deployment
+change, not just a code change** — the Pi's `/etc/poker/poker.env` must be
+updated in the same step or recording silently reverts to the default
+directory. Keeping the existing name is an acceptable alternative; what is
+not acceptable is the current opt-in behaviour, where an unset variable
+disables recording (§3's invariant).
+
+**The harness writes the same layout.** The dev stepper (§7) reads a Room
+recording directory, and the only Room recordings a developer has locally are
+usually harness-produced — so `--log-dir` runs must emit the v2 layout,
+`room.json` and Hand context sidecars included, or the stepper cannot read
+what the harness just wrote. A harness run has no live Room, so it
+synthesises one: the existing `--game-id` (defaulting to a timestamp) becomes
+the **Room ID**, and `room.json`'s `code` is `null` — a recording that was
+never joinable through a code. This is an assembly-level consequence of two
+decisions meeting, not a fresh choice; if a build session prefers a generated
+UUID with `--game-id` kept as a label, nothing downstream depends on which.
+
 Room creation is **transactional with recording creation**: `room.json` is
 atomically written *before* the Room enters the live store or its code/QR is
 returned. Failure rolls back the empty directory and creates no joinable
@@ -260,7 +280,12 @@ into a blocked **recording-paused** state.
 - Existing sockets stay connected; existing identities may reconnect and
   receive the last committed view; presence may continue changing.
 - Gameplay, new Seat claims, eviction and sitting in/out are rejected with a
-  `recording-paused` reason code.
+  `recording-paused` reason code. **This is a `ServerRejectionReason`**
+  (`packages/protocol/src/hand.ts`, alongside `room-not-found` and
+  `not-permitted`), **not** an engine `RejectionReason`
+  (`packages/engine/src/types.ts`). The engine knows nothing about recording
+  and must not learn — a recording failure is not a rule violation, and
+  `decide` never sees one.
 - Only the table may choose **Retry recording** or **End session**.
   Filesystem details stay in operational server logs.
 - **Retry** truncates affected files to their last confirmed offsets, appends
@@ -289,6 +314,22 @@ A build session must not introduce a second version field.
 There is no version-1 migration: the server produced no version-1 Room
 recordings, and disposable harness development runs may be cleared during
 implementation. A version-1 file requires its matching older build.
+
+> **This one-tag reading is an assembly reconciliation, not a map decision.**
+> [#86](https://github.com/ewanhardingham/table-top-poker/issues/86) said
+> "recording format version 2" and
+> [#80](https://github.com/ewanhardingham/table-top-poker/issues/80) said
+> "the running engine's `ENGINE_LOG_VERSION`"; neither ticket noticed the
+> other, and read separately they invite a second version field. Collapsing
+> them into one tag is the cheaper reading, but it has a known wart: a
+> *recording-format* change now forces an *engine* log version bump even when
+> no engine event shape changed. If that bothers a build session, splitting
+> them later is mechanical — what must not happen is shipping both silently.
+>
+> Two things the bump invalidates, both cheap and both easy to forget: the
+> harness fixtures asserting `v: ENGINE_LOG_VERSION` in
+> `packages/harness/src/persistence.test.ts`, and any logs already written by
+> the in-flight branch (§1), which emits `v: 1` today.
 
 ## 4. The Replay capability
 ([Replay capability: API, package placement and version-tag handling](https://github.com/ewanhardingham/table-top-poker/issues/80))
@@ -432,6 +473,18 @@ The server pushes a new summary **right after each hand completes** — the
 same moment "Review hands" becomes reachable (§6). The picker therefore opens
 instantly on an already-accumulated list, and each summary is folded from the
 Event stream once, while state is warm, rather than re-derived on demand.
+
+**The table also gets the full list on connect.** Incremental pushes alone
+would leave a reloaded or reconnected table device with an empty picker for
+hands it had already seen, and Phase 1's catch-up is deliberately "one fresh
+view snapshot, not event replay" (`docs/phase-1-spec.md` §6) — which carries
+no summaries. Surviving a client reload was one of the reasons this map chose
+a served durable log over client-side buffering in the first place, so the
+server sends the accumulated list when a table identity connects, and pushes
+one summary per hand thereafter. This is what the `list-hands` request shape
+is for; whether the server volunteers the list on connect or the table asks
+once on mount is a build-session call, but the picker must never be
+missing hands the session already played.
 
 Only **complete, valid** Hand recordings enter the listing (§4).
 
@@ -727,6 +780,9 @@ sitting, on real devices at a real table.
 
 - [ ] `harness replay <dir> --hand N` emits one JSONL position per Event
       ordinal, exits `0`, and re-running it byte-identically diffs clean.
+- [ ] A hand played through the **harness** with `--log-dir` produces a
+      directory the stepper can read back without any conversion step —
+      `room.json` and context sidecars included.
 - [ ] `--at` and `--from`/`--to` select correctly, and `--at N` also emits
       every Rejection that occurred at position N.
 - [ ] Truncating the last line of an `events.jsonl` yields the complete
@@ -747,6 +803,9 @@ sitting, on real devices at a real table.
       street, betting shape, outcome, button seat, and a relative start time
       that **visibly re-ticks** while the picker stays open.
 - [ ] An incomplete Hand recording is **not** offered in the picker.
+- [ ] **Reloading the table device mid-session** and reopening the picker
+      still lists every hand played so far — not only those completed after
+      the reload.
 - [ ] Selecting a hand opens the scrub: a ticked track with heavier street
       boundaries, street chapters that seek to each street's `BoardDealt`
       (the flop cards are *seen arriving* when "Flop" is tapped), a draggable
