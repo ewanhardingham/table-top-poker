@@ -46,6 +46,23 @@ describe("loadSeatToken", () => {
     });
   });
 
+  it("persists a display name alongside the reconnect token", () => {
+    const storage = fakeStorage(() => undefined);
+    saveSeatToken(storage, {
+      roomCode: "ABCD",
+      seatId: 3,
+      token: "tok-1",
+      displayName: "Avery",
+    });
+
+    expect(loadSeatToken(storage)).toEqual({
+      roomCode: "ABCD",
+      seatId: 3,
+      token: "tok-1",
+      displayName: "Avery",
+    });
+  });
+
   it("returns null when nothing is stored", () => {
     const storage = fakeStorage(() => undefined);
     expect(loadSeatToken(storage)).toBeNull();

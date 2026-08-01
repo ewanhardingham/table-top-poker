@@ -8,6 +8,7 @@ import {
 
 export interface SeatPanelProps {
   readonly seatId: number;
+  readonly displayName?: string | null;
   readonly sittingOut: boolean;
   readonly toggleDisabled: boolean;
   readonly onToggleSittingOut: () => void;
@@ -15,6 +16,7 @@ export interface SeatPanelProps {
 
 export function SeatPanel({
   seatId,
+  displayName,
   sittingOut,
   toggleDisabled,
   onToggleSittingOut,
@@ -47,7 +49,7 @@ export function SeatPanel({
           color: color.textMuted,
         }}
       >
-        Seat {seatId + 1}
+        {displayName ? `${displayName} · ` : ""}Seat {seatId + 1}
       </div>
       {sittingOut && (
         <div

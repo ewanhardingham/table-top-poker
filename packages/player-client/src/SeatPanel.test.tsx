@@ -6,6 +6,20 @@ import { SeatPanel } from "./SeatPanel.js";
 const noop = () => undefined;
 
 describe("SeatPanel", () => {
+  it("shows the player's name while retaining the seat number", () => {
+    const html = renderToStaticMarkup(
+      <SeatPanel
+        seatId={2}
+        displayName="Avery"
+        sittingOut={false}
+        toggleDisabled={false}
+        onToggleSittingOut={noop}
+      />,
+    );
+
+    expect(html).toContain("Avery · Seat 3");
+  });
+
   it("shows the claimed seat", () => {
     const html = renderToStaticMarkup(
       <SeatPanel

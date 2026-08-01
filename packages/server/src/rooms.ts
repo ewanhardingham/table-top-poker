@@ -5,6 +5,7 @@ import {
   DEFAULT_SEAT_COUNT,
   decide,
   MAX_SEAT_COUNT,
+  MAX_DISPLAY_NAME_LENGTH,
   MIN_SEAT_COUNT,
   SeatCountSchema,
   type ClientCommandType,
@@ -33,6 +34,8 @@ import { generateRoomCode } from "./room-code.js";
 export interface Seat {
   readonly id: SeatId;
   claimed: boolean;
+  /** Required for new claims; absent only for rooms created before names existed. */
+  displayName?: string;
   token: string | null;
   /**
    * Voluntary opt-out only (ADR-0002) — set solely by the `sitOut`/`sitIn`
@@ -58,7 +61,11 @@ export interface Room {
 }
 
 export type ClaimSeatError =
-  "room-not-found" | "seat-not-found" | "seat-already-claimed";
+  | "room-not-found"
+  | "seat-not-found"
+  | "seat-already-claimed"
+  | "invalid-display-name"
+  | "duplicate-display-name";
 
 export type ClaimSeatResult = { seat: Seat } | { error: ClaimSeatError };
 
@@ -150,6 +157,9 @@ function repackSeats(room: Room, seatCount: number): SeatRepack {
     replacement[index] = {
       ...target,
       claimed: true,
+      ...(seat.displayName === undefined
+        ? {}
+        : { displayName: seat.displayName }),
       token: seat.token,
       sittingOut: seat.sittingOut,
       disconnected: seat.disconnected,
@@ -248,6 +258,7 @@ function claimedSeatFloor(room: Room): number {
 /** Resets a seat to its unclaimed default — used by the manual evict action. */
 function freeSeat(seat: Seat): void {
   seat.claimed = false;
+  delete seat.displayName;
   seat.token = null;
   seat.sittingOut = false;
   seat.disconnected = false;
@@ -354,15 +365,38 @@ export class RoomStore {
     this.#rooms.delete(code);
   }
 
-  claimSeat(code: string, seatId: SeatId): ClaimSeatResult {
+  /**
+   * A name is required of every new claim (issue #88) — the seat, not just the
+   * HTTP edge, owns that rule. `Seat.displayName` stays optional only because
+   * rooms created before names existed still have nameless claimed seats.
+   */
+  claimSeat(
+    code: string,
+    seatId: SeatId,
+    displayName: string,
+  ): ClaimSeatResult {
     const room = this.#rooms.get(code);
     if (!room) return { error: "room-not-found" };
 
     const seat = room.seats[seatId];
     if (!seat) return { error: "seat-not-found" };
     if (seat.claimed) return { error: "seat-already-claimed" };
+    const trimmedName = displayName.trim();
+    if (trimmedName === "" || trimmedName.length > MAX_DISPLAY_NAME_LENGTH) {
+      return { error: "invalid-display-name" };
+    }
+    const nameKey = trimmedName.toLowerCase();
+    if (
+      room.seats.some(
+        (candidate) =>
+          candidate.claimed && candidate.displayName?.toLowerCase() === nameKey,
+      )
+    ) {
+      return { error: "duplicate-display-name" };
+    }
 
     seat.claimed = true;
+    seat.displayName = trimmedName;
     seat.token = this.#generateToken();
     seat.sittingOut = false;
     seat.disconnected = false;
@@ -570,6 +604,9 @@ export function toRoomView(room: Room): RoomView {
     seats: room.seats.map((seat) => ({
       id: seat.id,
       claimed: seat.claimed,
+      ...(seat.displayName === undefined
+        ? {}
+        : { displayName: seat.displayName }),
       sittingOut: isSittingOut(room, seat.id),
       disconnected: seat.disconnected,
     })),

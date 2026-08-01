@@ -4,6 +4,8 @@ export interface StoredSeatToken {
   readonly roomCode: string;
   readonly seatId: number;
   readonly token: string;
+  /** Added with named claims; absent tokens still reconnect for migration. */
+  readonly displayName?: string;
 }
 
 /**
@@ -33,15 +35,23 @@ export function loadSeatToken(storage: Storage): StoredSeatToken | null {
       parsed !== null &&
       "roomCode" in parsed &&
       "seatId" in parsed &&
-      "token" in parsed &&
-      typeof parsed.roomCode === "string" &&
-      typeof parsed.seatId === "number" &&
-      typeof parsed.token === "string"
+      "token" in parsed
     ) {
+      const record = parsed as Record<string, unknown>;
+      if (
+        typeof record.roomCode !== "string" ||
+        typeof record.seatId !== "number" ||
+        typeof record.token !== "string"
+      ) {
+        return null;
+      }
       return {
-        roomCode: parsed.roomCode,
-        seatId: parsed.seatId,
-        token: parsed.token,
+        roomCode: record.roomCode,
+        seatId: record.seatId,
+        token: record.token,
+        ...(typeof record.displayName === "string"
+          ? { displayName: record.displayName }
+          : {}),
       };
     }
     return null;

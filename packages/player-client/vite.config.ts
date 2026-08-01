@@ -16,6 +16,8 @@ export default defineConfig(({ command, mode }) => {
     .split(",")
     .map((host) => host.trim())
     .filter(Boolean);
+  const backendOrigin = env.BACKEND_ORIGIN ?? "http://localhost:3000";
+  const backendWebSocketOrigin = backendOrigin.replace(/^http/, "ws");
 
   return {
     plugins: [react()],
@@ -29,10 +31,10 @@ export default defineConfig(({ command, mode }) => {
       allowedHosts,
       proxy: {
         "/ws": {
-          target: "ws://localhost:3000",
+          target: backendWebSocketOrigin,
           ws: true,
         },
-        "/rooms": "http://localhost:3000",
+        "/rooms": backendOrigin,
       },
     },
   };

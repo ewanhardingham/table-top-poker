@@ -22,4 +22,13 @@ describe("getWebSocketUrl", () => {
       ),
     ).toBe("ws://localhost:3000/ws?room=ABCD&seat=2&token=tok");
   });
+
+  it("appends the lobby role for an unclaimed player connection", () => {
+    expect(
+      getWebSocketUrl(
+        { protocol: "http:", host: "localhost:3000" },
+        { room: "ABCD", role: "lobby" },
+      ),
+    ).toBe("ws://localhost:3000/ws?room=ABCD&role=lobby");
+  });
 });

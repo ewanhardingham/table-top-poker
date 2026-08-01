@@ -147,7 +147,11 @@ export function useWebSocket(
                 (candidate) => candidate.id === activeConnection.seatId,
               );
               if (seat?.claimed) {
-                setSeat({ seatId: seat.id, sittingOut: seat.sittingOut });
+                setSeat({
+                  seatId: seat.id,
+                  displayName: seat.displayName ?? null,
+                  sittingOut: seat.sittingOut,
+                });
               }
             }
             break;

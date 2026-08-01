@@ -10,6 +10,7 @@ import { posFor } from "./table/posFor.js";
 export interface SeatMenuProps {
   readonly seatId: number;
   readonly seatCount: number;
+  readonly displayName?: string | null;
   readonly onEvict: () => void;
   readonly onDismiss: () => void;
 }
@@ -23,6 +24,7 @@ export interface SeatMenuProps {
 export function SeatMenu({
   seatId,
   seatCount,
+  displayName,
   onEvict,
   onDismiss,
 }: SeatMenuProps) {
@@ -60,7 +62,7 @@ export function SeatMenu({
             padding: "0 0.2em",
           }}
         >
-          Seat {seatId + 1}
+          {displayName ? `${displayName} · ` : ""}Seat {seatId + 1}
         </div>
         <PillButton
           data-testid={`evict-seat-${String(seatId)}-button`}

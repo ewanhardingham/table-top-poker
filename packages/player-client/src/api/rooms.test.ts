@@ -38,23 +38,42 @@ describe("claimSeat", () => {
   });
 
   it("posts to /rooms/:code/seats/:seatId/claim and returns the claim", async () => {
-    const body = { seatId: 2, token: "tok", sittingOut: false };
+    const body = {
+      seatId: 2,
+      token: "tok",
+      displayName: "Avery",
+      sittingOut: false,
+    };
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(body), { status: 200 }),
     );
 
-    const claim = await claimSeat("ABCD", 2);
+    const claim = await claimSeat("ABCD", 2, "Avery");
 
     expect(fetch).toHaveBeenCalledWith("/rooms/ABCD/seats/2/claim", {
       method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName: "Avery" }),
     });
     expect(claim).toEqual(body);
   });
 
   it("throws when the seat is already claimed", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 409 }));
-    await expect(claimSeat("ABCD", 2)).rejects.toThrow(
+    await expect(claimSeat("ABCD", 2, "Avery")).rejects.toThrow(
       "failed to claim seat: 409",
+    );
+  });
+
+  it("preserves the server error code for a duplicate display name", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "duplicate-display-name" }), {
+        status: 409,
+      }),
+    );
+
+    await expect(claimSeat("ABCD", 2, "Avery")).rejects.toThrow(
+      "duplicate-display-name",
     );
   });
 });

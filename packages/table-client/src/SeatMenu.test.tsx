@@ -18,6 +18,20 @@ describe("SeatMenu", () => {
     expect(html).toContain("Evict");
   });
 
+  it("shows the player's name while retaining the seat number", () => {
+    const html = renderToStaticMarkup(
+      <SeatMenu
+        seatId={2}
+        seatCount={8}
+        displayName="Avery"
+        onEvict={noop}
+        onDismiss={noop}
+      />,
+    );
+
+    expect(html).toContain("Avery · Seat 3");
+  });
+
   it("renders a full-screen backdrop for dismissal", () => {
     const html = renderToStaticMarkup(
       <SeatMenu seatId={0} seatCount={8} onEvict={noop} onDismiss={noop} />,

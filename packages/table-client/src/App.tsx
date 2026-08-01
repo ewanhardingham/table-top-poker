@@ -149,6 +149,10 @@ export function App() {
               <SeatMenu
                 seatId={menuSeatId}
                 seatCount={seats.length}
+                displayName={
+                  seats.find((seat) => seat.id === menuSeatId)?.displayName ??
+                  null
+                }
                 onEvict={handleEvictSeat}
                 onDismiss={dismissSeatMenu}
               />
@@ -164,7 +168,7 @@ export function App() {
                   pointerEvents: "none",
                 }}
               >
-                <Board view={handView} />
+                <Board view={handView} seats={seats} />
               </div>
             )}
             <JoinCodeToggle

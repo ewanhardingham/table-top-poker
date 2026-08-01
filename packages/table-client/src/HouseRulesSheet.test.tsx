@@ -5,12 +5,30 @@ import { describe, expect, it } from "vitest";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
 
 const seats: SeatView[] = [
-  { id: 0, claimed: true, sittingOut: false, disconnected: false },
+  {
+    id: 0,
+    claimed: true,
+    displayName: "Avery",
+    sittingOut: false,
+    disconnected: false,
+  },
   { id: 1, claimed: false, sittingOut: false, disconnected: false },
   { id: 2, claimed: false, sittingOut: false, disconnected: false },
-  { id: 3, claimed: true, sittingOut: true, disconnected: false },
+  {
+    id: 3,
+    claimed: true,
+    displayName: "Blair",
+    sittingOut: true,
+    disconnected: false,
+  },
   { id: 4, claimed: false, sittingOut: false, disconnected: false },
-  { id: 5, claimed: true, sittingOut: false, disconnected: true },
+  {
+    id: 5,
+    claimed: true,
+    displayName: "Casey",
+    sittingOut: false,
+    disconnected: true,
+  },
   { id: 6, claimed: false, sittingOut: false, disconnected: false },
   { id: 7, claimed: false, sittingOut: false, disconnected: false },
 ];
@@ -34,8 +52,8 @@ describe("HouseRulesSheet", () => {
 
     expect(html).toContain('data-testid="house-rules-sheet"');
     expect(html).toContain("House rules");
-    expect(html).toContain("Seat 4→2");
-    expect(html).toContain("Seat 6→3");
+    expect(html).toContain("Blair → Seat 2");
+    expect(html).toContain("Casey → Seat 3");
     expect(html).toContain("Applies from the next hand");
   });
 

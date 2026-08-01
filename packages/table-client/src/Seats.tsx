@@ -184,6 +184,25 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
           </div>
         );
 
+        const nameBlock = seat.claimed && seat.displayName && (
+          <div
+            key="name"
+            data-testid={`seat-pod-${String(seat.id)}-name`}
+            title={seat.displayName}
+            style={{
+              maxWidth: "8em",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: "0.7em",
+              fontWeight: 600,
+              color: color.textBright,
+            }}
+          >
+            {seat.displayName}
+          </div>
+        );
+
         const holeCardsBlock = visual.holeCards && (
           <div
             key="cards"
@@ -258,12 +277,25 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
         // Boundary rule: the avatar is the fixed anchor `posFor` placed —
         // cards and the hand-description caption only ever grow inward,
         // toward the felt's centre, never past the seat toward the rail.
-        // Top row reads avatar → cards → caption top to bottom; bottom row
-        // is the mirror, so the caption always ends up on the table-facing
-        // side, closest to the centre everyone's looking at.
+        // Top row reads avatar → name → cards/status → caption top to bottom;
+        // bottom row is the mirror, so the name, status, and caption always
+        // end up on the table-facing side, closest to the centre everyone's
+        // looking at.
         const stack = isTopRow
-          ? [avatarBlock, holeCardsBlock, sittingOutBlock, captionBlock]
-          : [captionBlock, holeCardsBlock, sittingOutBlock, avatarBlock];
+          ? [
+              avatarBlock,
+              nameBlock,
+              holeCardsBlock,
+              sittingOutBlock,
+              captionBlock,
+            ]
+          : [
+              captionBlock,
+              sittingOutBlock,
+              holeCardsBlock,
+              nameBlock,
+              avatarBlock,
+            ];
 
         return (
           <div

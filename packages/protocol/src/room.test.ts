@@ -1,11 +1,42 @@
 import { describe, expect, it } from "vitest";
 import {
   ChangeSeatCountRequestSchema,
+  ClaimSeatRequestSchema,
   CreateRoomRequestSchema,
   DEFAULT_SEAT_COUNT,
+  MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
 } from "./room.js";
+
+describe("ClaimSeatRequestSchema", () => {
+  it("requires and trims a non-empty display name", () => {
+    expect(ClaimSeatRequestSchema.parse({ displayName: " Avery " })).toEqual({
+      displayName: "Avery",
+    });
+    expect(
+      ClaimSeatRequestSchema.safeParse({
+        displayName: "1234567890",
+      }).success,
+    ).toBe(true);
+    expect(
+      ClaimSeatRequestSchema.safeParse({
+        displayName: "1".repeat(MAX_DISPLAY_NAME_LENGTH + 1),
+      }).success,
+    ).toBe(false);
+    expect(ClaimSeatRequestSchema.safeParse({}).success).toBe(false);
+    expect(
+      ClaimSeatRequestSchema.safeParse({ displayName: "   " }).success,
+    ).toBe(false);
+  });
+
+  it("rejects extra fields", () => {
+    expect(
+      ClaimSeatRequestSchema.safeParse({ displayName: "Avery", public: true })
+        .success,
+    ).toBe(false);
+  });
+});
 
 describe("CreateRoomRequestSchema", () => {
   it("accepts every seat count in the 2-8 range", () => {

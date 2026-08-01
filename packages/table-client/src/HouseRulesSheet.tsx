@@ -61,8 +61,11 @@ const stepperButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
-function seatLabel(seatId: number): string {
-  return `Seat ${String(seatId + 1)}`;
+function seatLabel(seatId: number, seats: readonly SeatView[]): string {
+  return (
+    seats.find((seat) => seat.id === seatId)?.displayName ??
+    `Seat ${String(seatId + 1)}`
+  );
 }
 
 /** The table-device House rules sheet; seat count is its first setting. */
@@ -262,7 +265,10 @@ export function HouseRulesSheet({
                   {moves
                     .map(
                       (move) =>
-                        `${seatLabel(move.from)}→${String(move.to + 1)}`,
+                        // The destination stays labelled: a bare number beside
+                        // a name reads as a score, and numeric names ("7→2")
+                        // would be unreadable otherwise.
+                        `${seatLabel(move.from, seats)} → Seat ${String(move.to + 1)}`,
                     )
                     .join(", ")}
                 </span>
