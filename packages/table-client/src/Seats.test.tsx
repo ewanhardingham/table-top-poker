@@ -167,11 +167,66 @@ describe("Seats", () => {
     expect(html).not.toContain("Winner");
   });
 
+  it("keeps a revealed player in-hand when they sit out for the next hand", () => {
+    const view: TableView = {
+      phase: "showdown",
+      button: 0,
+      board: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "hearts" },
+        { rank: "2", suit: "clubs" },
+        { rank: "7", suit: "diamonds" },
+        { rank: "9", suit: "clubs" },
+      ],
+      winners: [2],
+      results: [
+        {
+          seatId: 2,
+          rank: 1,
+          description: "Pair of Aces",
+          holeCards: [
+            { rank: "A", suit: "clubs" },
+            { rank: "3", suit: "hearts" },
+          ],
+          bestHand: [
+            { rank: "A", suit: "spades" },
+            { rank: "A", suit: "clubs" },
+            { rank: "K", suit: "hearts" },
+            { rank: "9", suit: "clubs" },
+            { rank: "7", suit: "diamonds" },
+          ],
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-2"[^>]*data-status="in-hand"[^>]*data-winner="true"/,
+    );
+    expect(html).toContain('data-testid="seat-pod-2-hole-cards"');
+    expect(html).not.toContain('data-testid="seat-pod-2-sitting-out"');
+    expect(html).not.toContain('data-testid="seat-pod-2-sitting-out-marker"');
+    expect(html).not.toMatch(
+      /data-testid="seat-pod-2-avatar"[^>]*style="[^"]*border:1px dashed/,
+    );
+    expect(html).toMatch(
+      /data-testid="seat-pod-2-surface"[^>]*style="[^"]*opacity:1/,
+    );
+  });
+
   it("marks the sole winner at a fold-out completion, with no reveal", () => {
     const view: TableView = { phase: "folded-out", button: 0, winner: 1 };
-    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+    const sittingOutWinnerSeats = seats.map((seat) =>
+      seat.id === 1 ? { ...seat, sittingOut: true } : seat,
+    );
+    const html = renderToStaticMarkup(
+      <Seats seats={sittingOutWinnerSeats} view={view} />,
+    );
     expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-winner="true"/);
+    expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-status="in-hand"/);
     expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-winner="false"/);
+    expect(html).not.toContain('data-testid="seat-pod-1-sitting-out"');
+    expect(html).not.toContain('data-testid="seat-pod-1-sitting-out-marker"');
     expect(html).not.toContain("hole-cards");
   });
 
