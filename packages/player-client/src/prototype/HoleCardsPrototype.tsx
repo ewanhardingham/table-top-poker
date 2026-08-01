@@ -1,6 +1,6 @@
 /**
- * PROTOTYPE ONLY — two Hole-card bend grammars, switchable with ?variant=A|B
- * on one dev-only route. A bends to reveal; B bends in both directions.
+ * PROTOTYPE ONLY — three Hole-card bend grammars, switchable with
+ * ?variant=A|B|C on one dev-only route.
  */
 import {
   animate,
@@ -18,12 +18,14 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PrototypeSwitcher } from "./PrototypeSwitcher.js";
 
-type VariantKey = "A" | "B";
+type VariantKey = "A" | "B" | "C";
 type TurnDirection = "revealing" | "concealing";
+type BendCorner = "BOTTOM_RIGHT" | "TOP_LEFT";
 
 const VARIANTS = [
   { key: "A", name: "Bend to reveal" },
   { key: "B", name: "Bend both ways" },
+  { key: "C", name: "Two-corner bend" },
 ] as const;
 
 const FOLD_THRESHOLD = -112;
@@ -34,6 +36,7 @@ const REVEAL_FINISH_MS = 520;
 const COACHING: Record<VariantKey, string> = {
   A: "Bend either card past 90% and it will finish turning face-up. Tap a revealed card to conceal it.",
   B: "Bend past 90% to turn a card over. Bend the revealed face again to conceal it.",
+  C: "Bend either marked corner past 90% to reveal or conceal each card.",
 };
 
 interface ActiveGesture {
@@ -42,6 +45,7 @@ interface ActiveGesture {
   readonly startX: number;
   readonly startY: number;
   readonly fromBendZone: boolean;
+  readonly bendCorner: BendCorner;
   readonly startedRevealed: boolean;
   mode: "pressing" | "bending" | "turning" | "folding" | "ignored";
   thresholdCrossed: boolean;
@@ -60,19 +64,18 @@ function vibrate(duration: number) {
 }
 
 function initialVariant(): VariantKey {
-  return new URLSearchParams(window.location.search).get("variant") === "B"
-    ? "B"
-    : "A";
+  const candidate = new URLSearchParams(window.location.search).get("variant");
+  return candidate === "B" || candidate === "C" ? candidate : "A";
 }
 
 function PokerFace({
   rank,
   suit,
-  curlUnderside = false,
+  curlCorner = null,
 }: {
   readonly rank: string;
   readonly suit: string;
-  readonly curlUnderside?: boolean;
+  readonly curlCorner?: BendCorner | null;
 }) {
   return (
     <div
@@ -88,8 +91,14 @@ function PokerFace({
         <strong>{rank}</strong>
         <span>{suit}</span>
       </span>
-      {curlUnderside && (
+      {curlCorner === "BOTTOM_RIGHT" && (
         <span className="gesture-card-curl-index">
+          <strong>{rank}</strong>
+          <span>{suit}</span>
+        </span>
+      )}
+      {curlCorner === "TOP_LEFT" && (
+        <span className="gesture-card-curl-index gesture-card-curl-index-top-left">
           <strong>{rank}</strong>
           <span>{suit}</span>
         </span>
@@ -110,12 +119,14 @@ function ReactPeelCard({
   progress,
   revealed,
   bendToConceal,
+  bendCorner,
   rank,
   suit,
 }: {
   readonly progress: MotionValue<number>;
   readonly revealed: boolean;
   readonly bendToConceal: boolean;
+  readonly bendCorner: BendCorner;
   readonly rank: string;
   readonly suit: string;
 }) {
@@ -123,9 +134,13 @@ function ReactPeelCard({
 
   useEffect(() => {
     const position = (value: number) => {
+      const fromBottomRight = bendCorner === "BOTTOM_RIGHT";
       if (value <= REVEAL_THRESHOLD) {
         const inset = value * 142;
-        peelRef.current?.setPeelPosition(164 - inset, 228 - inset);
+        peelRef.current?.setPeelPosition(
+          fromBottomRight ? 164 - inset : inset,
+          fromBottomRight ? 228 - inset : inset,
+        );
         return;
       }
 
@@ -133,16 +148,21 @@ function ReactPeelCard({
       // carry that same sheet beyond the opposite corner so it completes the
       // turn before the flat face replaces it.
       const finish = clamp((value - REVEAL_THRESHOLD) / (1 - REVEAL_THRESHOLD));
-      const thresholdX = 164 - REVEAL_THRESHOLD * 142;
-      const thresholdY = 228 - REVEAL_THRESHOLD * 142;
+      const thresholdInset = REVEAL_THRESHOLD * 142;
+      const thresholdX = fromBottomRight
+        ? 164 - thresholdInset
+        : thresholdInset;
+      const thresholdY = fromBottomRight
+        ? 228 - thresholdInset
+        : thresholdInset;
       peelRef.current?.setPeelPosition(
-        thresholdX + (-164 - thresholdX) * finish,
-        thresholdY + (-228 - thresholdY) * finish,
+        thresholdX + ((fromBottomRight ? -164 : 328) - thresholdX) * finish,
+        thresholdY + ((fromBottomRight ? -228 : 456) - thresholdY) * finish,
       );
     };
     position(progress.get());
     return progress.on("change", position);
-  }, [progress]);
+  }, [bendCorner, progress]);
 
   if (revealed && !bendToConceal) {
     return (
@@ -160,7 +180,7 @@ function ReactPeelCard({
         ref={peelRef}
         width="100%"
         height="100%"
-        corner="BOTTOM_RIGHT"
+        corner={bendCorner}
         options={{
           topShadowBlur: 3,
           topShadowAlpha: 0.32,
@@ -176,7 +196,7 @@ function ReactPeelCard({
           {revealed ? (
             <CardBack />
           ) : (
-            <PokerFace rank={rank} suit={suit} curlUnderside />
+            <PokerFace rank={rank} suit={suit} curlCorner={bendCorner} />
           )}
         </PeelBack>
         <PeelBottom className="gesture-card-table-underlay" />
@@ -191,6 +211,8 @@ function GestureCard({
   revealed,
   turning,
   bendToConceal,
+  bendCorner,
+  bothCorners,
   rank,
   suit,
 }: {
@@ -199,6 +221,8 @@ function GestureCard({
   readonly revealed: boolean;
   readonly turning: TurnDirection | null;
   readonly bendToConceal: boolean;
+  readonly bendCorner: BendCorner;
+  readonly bothCorners: boolean;
   readonly rank: string;
   readonly suit: string;
 }) {
@@ -211,13 +235,23 @@ function GestureCard({
         progress={progress}
         revealed={revealed}
         bendToConceal={bendToConceal}
+        bendCorner={bendCorner}
         rank={rank}
         suit={suit}
       />
+      {(!revealed || bendToConceal) && !turning && bothCorners && (
+        <span
+          className="gesture-card-bend-zone gesture-card-bend-zone-top-left"
+          data-bend-corner="TOP_LEFT"
+          aria-hidden="true"
+        >
+          <span />
+        </span>
+      )}
       {(!revealed || bendToConceal) && !turning && (
         <span
           className="gesture-card-bend-zone"
-          data-bend-zone="true"
+          data-bend-corner="BOTTOM_RIGHT"
           aria-hidden="true"
         >
           <span />
@@ -235,6 +269,9 @@ export function HoleCardsPrototype() {
   const [turningCards, setTurningCards] = useState<
     readonly [TurnDirection | null, TurnDirection | null]
   >([null, null]);
+  const [bendCorners, setBendCorners] = useState<
+    readonly [BendCorner, BendCorner]
+  >(["BOTTOM_RIGHT", "BOTTOM_RIGHT"]);
   const [mucked, setMucked] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [recognizer, setRecognizer] = useState("idle");
@@ -272,7 +309,17 @@ export function HoleCardsPrototype() {
     [],
   );
 
-  const bendToConceal = variantKey === "B";
+  const bendToConceal = variantKey === "B" || variantKey === "C";
+  const bothCorners = variantKey === "C";
+
+  const setCardBendCorner = useCallback(
+    (cardIndex: 0 | 1, value: BendCorner) => {
+      setBendCorners((current) =>
+        cardIndex === 0 ? [value, current[1]] : [current[0], value],
+      );
+    },
+    [],
+  );
 
   const resetTurnState = useCallback(() => {
     setTurningCards([null, null]);
@@ -444,7 +491,11 @@ export function HoleCardsPrototype() {
     const target = event.target as HTMLElement;
     const cardElement = target.closest<HTMLElement>("[data-card-index]");
     const cardIndex = cardElement?.dataset.cardIndex === "1" ? 1 : 0;
-    const fromBendZone = target.closest("[data-bend-zone]") !== null;
+    const bendZone = target.closest<HTMLElement>("[data-bend-corner]");
+    const fromBendZone = bendZone !== null;
+    const bendCorner: BendCorner =
+      bendZone?.dataset.bendCorner === "TOP_LEFT" ? "TOP_LEFT" : "BOTTOM_RIGHT";
+    if (fromBendZone) setCardBendCorner(cardIndex, bendCorner);
     event.currentTarget.setPointerCapture(event.pointerId);
     const gesture: ActiveGesture = {
       pointerId: event.pointerId,
@@ -452,6 +503,7 @@ export function HoleCardsPrototype() {
       startX: event.clientX,
       startY: event.clientY,
       fromBendZone,
+      bendCorner,
       startedRevealed: revealedCards[cardIndex],
       mode: "pressing",
       thresholdCrossed: false,
@@ -479,10 +531,10 @@ export function HoleCardsPrototype() {
     if (active.mode === "pressing" && distance > MOVE_THRESHOLD) {
       if (active.fromBendZone && (!active.startedRevealed || bendToConceal)) {
         active.mode = "bending";
+        const cornerLabel =
+          active.bendCorner === "TOP_LEFT" ? "top-left" : "bottom-right";
         setRecognizer(
-          active.startedRevealed
-            ? "bending face to conceal"
-            : "bending back to reveal",
+          `${active.startedRevealed ? "bending face to conceal" : "bending back to reveal"} from ${cornerLabel}`,
         );
       } else if (legalFold && dy < 0 && Math.abs(dy) > Math.abs(dx) * 1.05) {
         active.mode = "folding";
@@ -494,7 +546,10 @@ export function HoleCardsPrototype() {
     }
 
     if (active.mode === "bending") {
-      const inward = Math.max(0, -dx) + Math.max(0, -dy);
+      const inward =
+        active.bendCorner === "TOP_LEFT"
+          ? Math.max(0, dx) + Math.max(0, dy)
+          : Math.max(0, -dx) + Math.max(0, -dy);
       const progress = clamp(inward / 176);
       setPeek(active.cardIndex, progress);
       if (progress > REVEAL_THRESHOLD) {
@@ -505,7 +560,7 @@ export function HoleCardsPrototype() {
         finishTurn(active.cardIndex, direction);
         vibrate(10);
         setLastEvent(
-          `Bend crossed 90%; card ${String(active.cardIndex + 1)} is finishing ${direction === "revealing" ? "face-up" : "face-down"}`,
+          `${active.bendCorner === "TOP_LEFT" ? "Top-left" : "Bottom-right"} bend crossed 90%; card ${String(active.cardIndex + 1)} is finishing ${direction === "revealing" ? "face-up" : "face-down"}`,
         );
       }
       event.preventDefault();
@@ -600,7 +655,7 @@ export function HoleCardsPrototype() {
   });
 
   const chooseVariant = (key: string) => {
-    const next: VariantKey = key === "B" ? "B" : "A";
+    const next: VariantKey = key === "C" ? "C" : key === "B" ? "B" : "A";
     const url = new URL(window.location.href);
     url.searchParams.set("variant", next);
     window.history.replaceState(null, "", url);
@@ -609,6 +664,7 @@ export function HoleCardsPrototype() {
     setPendingAction(null);
     setMucked(false);
     setRevealedCards([false, false]);
+    setBendCorners(["BOTTOM_RIGHT", "BOTTOM_RIGHT"]);
     setVariantKey(next);
   };
 
@@ -672,6 +728,8 @@ export function HoleCardsPrototype() {
                 revealed={revealedCards[0]}
                 turning={turningCards[0]}
                 bendToConceal={bendToConceal}
+                bendCorner={bendCorners[0]}
+                bothCorners={bothCorners}
                 rank="A"
                 suit="♠"
               />
@@ -681,6 +739,8 @@ export function HoleCardsPrototype() {
                 revealed={revealedCards[1]}
                 turning={turningCards[1]}
                 bendToConceal={bendToConceal}
+                bendCorner={bendCorners[1]}
+                bothCorners={bothCorners}
                 rank="K"
                 suit="♥"
               />
@@ -764,6 +824,12 @@ export function HoleCardsPrototype() {
             <div>
               <dt>Bend</dt>
               <dd>single-sheet curl</dd>
+            </div>
+            <div>
+              <dt>Corners</dt>
+              <dd>
+                {bothCorners ? "top-left + bottom-right" : "bottom-right"}
+              </dd>
             </div>
             <div>
               <dt>Conceal</dt>
