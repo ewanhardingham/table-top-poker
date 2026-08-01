@@ -214,9 +214,6 @@
 .gesture-card-surface,
 .gesture-card-back,
 .gesture-card-face,
-.gesture-card-face-layer,
-.gesture-card-back-mask,
-.gesture-card-flap,
 .gesture-card-library-surface .peel-layer {
   position: absolute;
   inset: 0;
@@ -323,53 +320,6 @@
     #5b1720;
 }
 
-.gesture-card-face-layer {
-  z-index: 0;
-}
-
-.gesture-card-back-mask {
-  z-index: 1;
-  clip-path: polygon(0 0, 100% 0, 100% 65%, 65% 100%, 0 100%);
-}
-
-.gesture-card-flap {
-  z-index: 3;
-  overflow: hidden;
-  clip-path: polygon(100% 65%, 65% 100%, 100% 100%);
-  transform-origin: 66% 66%;
-  backface-visibility: hidden;
-}
-
-.gesture-card-flap-underside {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: 3px;
-  padding: 0 9px 10px 0;
-  color: #171310;
-  background: linear-gradient(155deg, #fffdf7, #e7dcc8);
-  clip-path: polygon(100% 65%, 65% 100%, 100% 100%);
-  transform: rotate3d(-1, 1, 0, 180deg);
-  backface-visibility: hidden;
-  font:
-    700 22px Georgia,
-    serif;
-}
-
-.gesture-card-fold-shadow {
-  position: absolute;
-  z-index: 2;
-  right: -2px;
-  bottom: -2px;
-  width: 42%;
-  height: 42%;
-  clip-path: polygon(100% 0, 0 100%, 100% 100%);
-  background: linear-gradient(135deg, transparent 36%, rgba(0, 0, 0, 0.6));
-  transform: translate3d(-4px, -4px, 0);
-}
-
 .gesture-card-bend-zone {
   position: absolute;
   z-index: 8;
@@ -406,6 +356,10 @@
 .gesture-card-library-surface .peel-back,
 .gesture-card-library-surface .peel-bottom {
   overflow: hidden;
+}
+
+.gesture-card-library-surface .gesture-card-table-underlay {
+  background: transparent;
 }
 
 .prototype-coaching {
