@@ -2,6 +2,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import {
   ChangeSeatCountRequestSchema,
+  ClaimSeatRequestSchema,
   ClientCommandSchema,
   CreateRoomRequestSchema,
   view,
@@ -78,6 +79,21 @@ interface RoomSeatRoute {
   Params: { code: string; seatId: string };
 }
 
+/**
+ * The two roles that skip seat-token authentication, kept in one place so the
+ * set of unauthenticated connections is reviewable at a glance: `table` is the
+ * shared table device, `lobby` is an unclaimed player watching the room view.
+ * Anything else must present a seat token.
+ */
+const UNAUTHENTICATED_ROLES = ["table", "lobby"] as const;
+type UnauthenticatedRole = (typeof UNAUTHENTICATED_ROLES)[number];
+
+function isUnauthenticatedRole(
+  role: string | undefined,
+): role is UnauthenticatedRole {
+  return UNAUTHENTICATED_ROLES.includes(role as UnauthenticatedRole);
+}
+
 interface WsRoute {
   Querystring: {
     room?: string;
@@ -87,10 +103,24 @@ interface WsRoute {
   };
 }
 
+type SocketIdentity = SeatId | "table" | "lobby";
+
+/**
+ * Narrows a socket's identity to a seat. Only a seat may be handed
+ * `view(state, seatId)` or have its presence tracked; the table and lobby
+ * identities are deliberately excluded, so every per-seat path goes through
+ * this one guard rather than its own `!== "lobby"` check.
+ */
+function isSeat(identity: SocketIdentity | undefined): identity is SeatId {
+  return identity !== undefined && identity !== "table" && identity !== "lobby";
+}
+
 const CLAIM_ERROR_STATUS: Record<ClaimSeatError, number> = {
   "room-not-found": 404,
   "seat-not-found": 404,
   "seat-already-claimed": 409,
+  "invalid-display-name": 400,
+  "duplicate-display-name": 409,
 };
 
 /** Looks up a room, replying 404 and returning undefined when it's not live. */
@@ -177,7 +207,7 @@ export async function buildApp(
   const missedPongLimit = options.missedPongLimit ?? 2;
   const graceWindowMs = options.graceWindowMs ?? 60_000;
   const roomSockets = new Map<string, Set<WebSocket>>();
-  const socketIdentity = new Map<WebSocket, SeatId | "table">();
+  const socketIdentity = new Map<WebSocket, SocketIdentity>();
   const actionClock = new ActionClock(options.actionClockMs);
   const socketRoomCode = new Map<WebSocket, string>();
   const pingMissed = new Map<WebSocket, number>();
@@ -223,7 +253,7 @@ export async function buildApp(
           type: "view-snapshot",
           view: view(room.engine, "table"),
         });
-      } else if (room.engine.seats.includes(identity)) {
+      } else if (isSeat(identity) && room.engine.seats.includes(identity)) {
         send(socket, {
           type: "view-snapshot",
           view: view(room.engine, identity),
@@ -274,9 +304,7 @@ export async function buildApp(
   function markPresence(socket: WebSocket, disconnected: boolean): void {
     const identity = socketIdentity.get(socket);
     const code = socketRoomCode.get(socket);
-    if (identity === undefined || identity === "table" || code === undefined) {
-      return;
-    }
+    if (!isSeat(identity) || code === undefined) return;
     rooms.setSeatDisconnected(code, identity, disconnected);
     broadcastRoomView(code);
   }
@@ -378,7 +406,7 @@ export async function buildApp(
           event: redactEventFor(step.event, "table"),
           view: view(step.state, "table"),
         });
-      } else if (step.state.seats.includes(identity)) {
+      } else if (isSeat(identity) && step.state.seats.includes(identity)) {
         send(socket, {
           type: "hand-update",
           event: redactEventFor(step.event, identity),
@@ -536,7 +564,15 @@ export async function buildApp(
       if (seatId === undefined) {
         return reply.code(400).send({ error: "invalid-seat-id" });
       }
-      const result = rooms.claimSeat(request.params.code, seatId);
+      const body = ClaimSeatRequestSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: "invalid-display-name" });
+      }
+      const result = rooms.claimSeat(
+        request.params.code,
+        seatId,
+        body.data.displayName,
+      );
       if ("error" in result) {
         return reply
           .code(CLAIM_ERROR_STATUS[result.error])
@@ -546,6 +582,7 @@ export async function buildApp(
       return {
         seatId: result.seat.id,
         token: result.seat.token,
+        displayName: result.seat.displayName,
         sittingOut: rooms.isSittingOut(request.params.code, result.seat.id),
       };
     },
@@ -587,7 +624,7 @@ export async function buildApp(
             await reply.code(404).send({ error: "room-not-found" });
             return;
           }
-          if (role === "table") return;
+          if (isUnauthenticatedRole(role)) return;
 
           if (!authenticateSeat(rooms, code, request.query)) {
             await reply.code(403).send({ error: "invalid-seat-token" });
@@ -600,10 +637,10 @@ export async function buildApp(
         if (code === undefined) return;
 
         const { role } = request.query;
-        let identity: SeatId | "table";
+        let identity: SocketIdentity;
         let movedFrom: SeatId | undefined;
-        if (role === "table") {
-          identity = "table";
+        if (isUnauthenticatedRole(role)) {
+          identity = role;
         } else {
           const authenticated = authenticateSeat(rooms, code, request.query);
           if (!authenticated) return;
@@ -627,13 +664,13 @@ export async function buildApp(
             clearTimeout(timer);
             tableGraceTimers.delete(code);
           }
-        } else {
+        } else if (isSeat(identity)) {
           // A reconnecting seat resumes silently, no penalty (§7) — clear
           // any presence badge a prior drop had set.
           rooms.setSeatDisconnected(code, identity, false);
         }
 
-        if (movedFrom !== undefined && identity !== "table") {
+        if (movedFrom !== undefined && isSeat(identity)) {
           // A disconnected player may still have the pre-repack seat in
           // localStorage. The token authenticates the player; this stale
           // position is only the source for the resync notice.
@@ -650,7 +687,10 @@ export async function buildApp(
                 type: "view-snapshot",
                 view: view(room.engine, "table"),
               });
-            } else if (room.engine.seats.includes(identity)) {
+            } else if (
+              isSeat(identity) &&
+              room.engine.seats.includes(identity)
+            ) {
               send(socket, {
                 type: "view-snapshot",
                 view: view(room.engine, identity),
@@ -689,7 +729,7 @@ export async function buildApp(
             parseResult.data.type === "sitIn"
           ) {
             const currentIdentity = socketIdentity.get(socket);
-            if (currentIdentity === undefined || currentIdentity === "table") {
+            if (!isSeat(currentIdentity)) {
               sendRejection(socket, "not-permitted");
               return;
             }
@@ -703,6 +743,10 @@ export async function buildApp(
           }
 
           const currentIdentity = socketIdentity.get(socket);
+          if (currentIdentity === "lobby") {
+            sendRejection(socket, "not-permitted");
+            return;
+          }
           if (currentIdentity === undefined) {
             sendRejection(socket, "invalid-command");
             return;
@@ -755,7 +799,7 @@ export async function buildApp(
                 }, graceWindowMs),
               );
             }
-          } else if (currentIdentity !== undefined) {
+          } else if (isSeat(currentIdentity)) {
             rooms.setSeatDisconnected(code, currentIdentity, true);
             broadcastRoomView(code);
           }

@@ -11,6 +11,47 @@ describe("Hand", () => {
     expect(html).toMatch(/data-testid="hand"[^>]*data-phase="no-hand"/);
   });
 
+  it("uses the named seat in waiting copy", () => {
+    const view: PlayerView = {
+      phase: "betting",
+      button: 0,
+      street: "flop",
+      board: [],
+      toAct: [1],
+      seats: [{ seatId: 0, folded: false }],
+      yourSeatId: 0,
+      yourHoleCards: [
+        { rank: "Q", suit: "diamonds" },
+        { rank: "J", suit: "clubs" },
+      ],
+      legalActions: [],
+    };
+    const html = renderToStaticMarkup(
+      <Hand
+        view={view}
+        seatId={0}
+        seats={[
+          {
+            id: 0,
+            claimed: true,
+            displayName: "Blair",
+            sittingOut: false,
+            disconnected: false,
+          },
+          {
+            id: 1,
+            claimed: true,
+            displayName: "Avery",
+            sittingOut: false,
+            disconnected: false,
+          },
+        ]}
+      />,
+    );
+
+    expect(html).toContain("Waiting on Avery");
+  });
+
   it("reveals own hole cards but never the shared board mid-hand", () => {
     const view: PlayerView = {
       phase: "betting",

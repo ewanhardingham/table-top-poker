@@ -48,6 +48,7 @@ interface RoomQrBody {
 interface SeatClaimBody {
   readonly seatId: number;
   readonly token: string;
+  readonly displayName: string;
   readonly sittingOut: boolean;
 }
 
@@ -331,27 +332,83 @@ describe("seat claim/evict routes", () => {
     return created.json<RoomCreatedBody>().code;
   }
 
+  function claimPayload(displayName = "Avery") {
+    return { payload: { displayName } };
+  }
+
   it("claims a free seat, issuing a token", async () => {
     const code = await createRoom();
 
     const response = await app.inject({
       method: "POST",
       url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload(" Avery "),
     });
 
     expect(response.statusCode).toBe(200);
     const body = response.json<SeatClaimBody>();
     expect(typeof body.token).toBe("string");
-    expect(body).toMatchObject({ seatId: 0, sittingOut: false });
+    expect(body).toMatchObject({
+      seatId: 0,
+      displayName: "Avery",
+      sittingOut: false,
+    });
+  });
+
+  it("requires a display name of 1 to 10 characters", async () => {
+    const code = await createRoom();
+
+    const missing = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+    });
+    const blank = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("   "),
+    });
+    const tooLong = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("12345678901"),
+    });
+
+    expect(missing.statusCode).toBe(400);
+    expect(blank.statusCode).toBe(400);
+    expect(tooLong.statusCode).toBe(400);
+    expect(blank.json()).toEqual({ error: "invalid-display-name" });
+  });
+
+  it("rejects a case-insensitive duplicate display name", async () => {
+    const code = await createRoom();
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Avery"),
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/1/claim`,
+      ...claimPayload("aVERY"),
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ error: "duplicate-display-name" });
   });
 
   it("rejects claiming an already-claimed seat", async () => {
     const code = await createRoom();
-    await app.inject({ method: "POST", url: `/rooms/${code}/seats/0/claim` });
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Avery"),
+    });
 
     const response = await app.inject({
       method: "POST",
       url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Blair"),
     });
 
     expect(response.statusCode).toBe(409);
@@ -362,6 +419,7 @@ describe("seat claim/evict routes", () => {
     const response = await app.inject({
       method: "POST",
       url: "/rooms/ZZZZ/seats/0/claim",
+      ...claimPayload(),
     });
     expect(response.statusCode).toBe(404);
   });
@@ -371,6 +429,7 @@ describe("seat claim/evict routes", () => {
     const response = await app.inject({
       method: "POST",
       url: `/rooms/${code}/seats/${String(DEFAULT_SEAT_COUNT)}/claim`,
+      ...claimPayload(),
     });
     expect(response.statusCode).toBe(404);
   });
@@ -386,13 +445,14 @@ describe("seat claim/evict routes", () => {
 
   it("marks a seat claimed mid-hand as sitting out", async () => {
     const code = await createRoom();
-    rooms.claimSeat(code, 0);
-    rooms.claimSeat(code, 1);
+    rooms.claimSeat(code, 0, "P0");
+    rooms.claimSeat(code, 1, "P1");
     rooms.dispatch(code, "table", "startHand");
 
     const response = await app.inject({
       method: "POST",
       url: `/rooms/${code}/seats/2/claim`,
+      ...claimPayload("Casey"),
     });
 
     expect(response.json<SeatClaimBody>().sittingOut).toBe(true);
@@ -400,7 +460,11 @@ describe("seat claim/evict routes", () => {
 
   it("evicts a seat so it can be reclaimed (ADR-0003)", async () => {
     const code = await createRoom();
-    await app.inject({ method: "POST", url: `/rooms/${code}/seats/0/claim` });
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Avery"),
+    });
 
     const evicted = await app.inject({
       method: "POST",
@@ -411,6 +475,7 @@ describe("seat claim/evict routes", () => {
     const reclaimed = await app.inject({
       method: "POST",
       url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Avery"),
     });
     expect(reclaimed.statusCode).toBe(200);
   });
@@ -467,9 +532,9 @@ describe("seat-count settings route", () => {
 
   it("rejects a count below the live claimed-seat floor", async () => {
     const room = rooms.create();
-    rooms.claimSeat(room.code, 0);
-    rooms.claimSeat(room.code, 4);
-    rooms.claimSeat(room.code, 7);
+    rooms.claimSeat(room.code, 0, "P0");
+    rooms.claimSeat(room.code, 4, "P4");
+    rooms.claimSeat(room.code, 7, "P7");
 
     const response = await app.inject({
       method: "POST",
@@ -487,8 +552,8 @@ describe("seat-count settings route", () => {
 
   it("grows and shrinks the room, returning the repack moves", async () => {
     const room = rooms.create(4);
-    rooms.claimSeat(room.code, 0);
-    const moved = rooms.claimSeat(room.code, 3);
+    rooms.claimSeat(room.code, 0, "P0");
+    const moved = rooms.claimSeat(room.code, 3, "P3");
     if (!("seat" in moved)) throw new Error("expected a claimed seat");
 
     const grown = await app.inject({
@@ -519,8 +584,8 @@ describe("seat-count settings route", () => {
 
   it("broadcasts a queued shrink in the room view", async () => {
     const room = rooms.create();
-    rooms.claimSeat(room.code, 0);
-    rooms.claimSeat(room.code, 1);
+    rooms.claimSeat(room.code, 0, "P0");
+    rooms.claimSeat(room.code, 1, "P1");
     rooms.dispatch(room.code, "table", "startHand");
 
     const table = new WebSocket(
@@ -616,9 +681,9 @@ describe("seat-count movement over WebSocket", () => {
 
   it("moves an open player socket and reconnects at its new seat", async () => {
     const room = rooms.create();
-    const claim0 = rooms.claimSeat(room.code, 2);
-    const claim1 = rooms.claimSeat(room.code, 5);
-    const claim2 = rooms.claimSeat(room.code, 7);
+    const claim0 = rooms.claimSeat(room.code, 2, "P2");
+    const claim1 = rooms.claimSeat(room.code, 5, "P5");
+    const claim2 = rooms.claimSeat(room.code, 7, "P7");
     if (!("seat" in claim0) || !("seat" in claim1) || !("seat" in claim2)) {
       throw new Error("expected claimed seats");
     }
@@ -752,6 +817,59 @@ describe("WebSocket upgrade", () => {
     socket.close();
   });
 
+  it("pushes seat-count changes to an unclaimed player connection", async () => {
+    const room = rooms.create(4);
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&role=lobby`,
+    );
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const initial = messages[0];
+    if (initial?.type !== "room-view") throw new Error("expected a room view");
+    expect(initial.view.code).toBe(room.code);
+    expect(initial.view.seats).toHaveLength(4);
+
+    socket.send(JSON.stringify({ type: "startHand" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(messages).toContainEqual({
+      type: "command-rejected",
+      reason: "not-permitted",
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/count`,
+      payload: { seatCount: 6 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const latest = messages.findLast((message) => message.type === "room-view");
+    if (latest?.type !== "room-view") throw new Error("expected a room view");
+    expect(latest.view.seats).toHaveLength(6);
+
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/count`,
+      payload: { seatCount: 2 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const shrunk = messages.findLast((message) => message.type === "room-view");
+    if (shrunk?.type !== "room-view") throw new Error("expected a room view");
+    expect(shrunk.view.seats).toHaveLength(2);
+
+    socket.close();
+  });
+
   it("pushes a fresh room view on connect and on every seat claim", async () => {
     const room = rooms.create();
     const socket = new WebSocket(
@@ -781,6 +899,7 @@ describe("WebSocket upgrade", () => {
     await app.inject({
       method: "POST",
       url: `/rooms/${room.code}/seats/0/claim`,
+      payload: { displayName: "Avery" },
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
@@ -789,6 +908,7 @@ describe("WebSocket upgrade", () => {
     expect((messages[1] as { view: RoomView }).view.seats[0]).toEqual({
       id: 0,
       claimed: true,
+      displayName: "Avery",
       sittingOut: false,
       disconnected: false,
     });
@@ -811,7 +931,7 @@ describe("WebSocket upgrade", () => {
 
   it("accepts a player connection with a valid seat token", async () => {
     const room = rooms.create();
-    const claim = rooms.claimSeat(room.code, 0);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
 
     const socket = new WebSocket(
@@ -874,7 +994,7 @@ describe("hand command dispatch over WebSocket", () => {
     code: string,
     seatId: number,
   ): Promise<{ socket: WebSocket; messages: ServerMessage[] }> {
-    const claim = rooms.claimSeat(code, seatId);
+    const claim = rooms.claimSeat(code, seatId, `P${String(seatId)}`);
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
     const conn = connect(
       `room=${code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
@@ -935,6 +1055,41 @@ describe("hand command dispatch over WebSocket", () => {
       (m) => m.type === "hand-update" && m.event.type === "StreetStarted",
     );
     expect(tableStreetStarted).toBeDefined();
+  });
+
+  it("never sends hand views to a lobby socket, mid-hand or on reconnect", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    const lobby = connect(`room=${room.code}&role=lobby`);
+    await opened(lobby.socket);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    // A socket that joins mid-hand takes the connect-time snapshot path,
+    // which is the other place a seat view is handed out.
+    const lateLobby = connect(`room=${room.code}&role=lobby`);
+    await opened(lateLobby.socket);
+    await settle();
+
+    for (const watcher of [lobby, lateLobby]) {
+      expect(watcher.messages.length).toBeGreaterThan(0);
+      expect(
+        watcher.messages.every((message) => message.type === "room-view"),
+      ).toBe(true);
+      expect(JSON.stringify(watcher.messages)).not.toContain("yourHoleCards");
+    }
+
+    // The seat itself still got its cards — the guard is about identity, not
+    // about the hand having failed to start.
+    expect(JSON.stringify(seat0.messages)).toContain("yourHoleCards");
+
+    lobby.socket.close();
+    lateLobby.socket.close();
   });
 
   it("excludes a sitting-out seat from the deal and it stays sitting out", async () => {
@@ -1309,8 +1464,8 @@ describe("hand persistence", () => {
     const table = new WebSocket(
       `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&role=table`,
     );
-    const seat0Claim = rooms.claimSeat(room.code, 0);
-    const seat1Claim = rooms.claimSeat(room.code, 1);
+    const seat0Claim = rooms.claimSeat(room.code, 0, "P0");
+    const seat1Claim = rooms.claimSeat(room.code, 1, "P1");
     if (!("seat" in seat0Claim) || !("seat" in seat1Claim)) {
       throw new Error("expected both seats to be claimed");
     }
@@ -1470,7 +1625,7 @@ describe("action clock", () => {
     code: string,
     seatId: number,
   ): Promise<{ socket: WebSocket; messages: ServerMessage[] }> {
-    const claim = rooms.claimSeat(code, seatId);
+    const claim = rooms.claimSeat(code, seatId, `P${String(seatId)}`);
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
     const conn = connect(
       `room=${code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
@@ -1517,7 +1672,8 @@ describe("action clock", () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
-    for (const seatId of [0, 1, 2]) rooms.claimSeat(room.code, seatId);
+    for (const seatId of [0, 1, 2])
+      rooms.claimSeat(room.code, seatId, `P${String(seatId)}`);
     await settle();
 
     table.socket.send(JSON.stringify({ type: "startHand" }));
@@ -1711,7 +1867,7 @@ describe("presence and reconnection", () => {
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
 
-    const claim = rooms.claimSeat(room.code, 0);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
     const seat0 = connect(
       `room=${room.code}&seat=0&token=${claim.seat.token ?? ""}`,
@@ -1732,7 +1888,7 @@ describe("presence and reconnection", () => {
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
 
-    const claim = rooms.claimSeat(room.code, 0);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
     const token = claim.seat.token ?? "";
     const seat0 = connect(`room=${room.code}&seat=0&token=${token}`);
@@ -1755,8 +1911,8 @@ describe("presence and reconnection", () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
-    const claim0 = rooms.claimSeat(room.code, 0);
-    const claim1 = rooms.claimSeat(room.code, 1);
+    const claim0 = rooms.claimSeat(room.code, 0, "P0");
+    const claim1 = rooms.claimSeat(room.code, 1, "P1");
     if (!("seat" in claim0) || !("seat" in claim1)) {
       throw new Error("expected claimed seats");
     }
@@ -1792,9 +1948,9 @@ describe("presence and reconnection", () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
-    const claim0 = rooms.claimSeat(room.code, 0);
-    const claim1 = rooms.claimSeat(room.code, 1);
-    const claim2 = rooms.claimSeat(room.code, 2);
+    const claim0 = rooms.claimSeat(room.code, 0, "P0");
+    const claim1 = rooms.claimSeat(room.code, 1, "P1");
+    const claim2 = rooms.claimSeat(room.code, 2, "P2");
     if (!("seat" in claim0) || !("seat" in claim1) || !("seat" in claim2)) {
       throw new Error("expected claimed seats");
     }
@@ -1847,7 +2003,7 @@ describe("presence and reconnection", () => {
 
   it("rejects a WS connect with a stale token after the seat is evicted", async () => {
     const room = rooms.create();
-    const claim = rooms.claimSeat(room.code, 0);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
     const token = claim.seat.token ?? "";
     rooms.evictSeat(room.code, 0);
@@ -1867,7 +2023,7 @@ describe("presence and reconnection", () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
-    const claim = rooms.claimSeat(room.code, 0);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
     if (!("seat" in claim)) throw new Error("expected a claimed seat");
     const seat0 = connect(
       `room=${room.code}&seat=0&token=${claim.seat.token ?? ""}`,

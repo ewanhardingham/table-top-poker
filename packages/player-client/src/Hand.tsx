@@ -1,4 +1,8 @@
-import type { Card as CardType, PlayerView } from "@table-top-poker/protocol";
+import type {
+  Card as CardType,
+  PlayerView,
+  SeatView,
+} from "@table-top-poker/protocol";
 import {
   Card,
   color,
@@ -13,6 +17,7 @@ import type { ConnectionStatus } from "./store/connectionSlice.js";
 export interface HandProps {
   readonly view: PlayerView;
   readonly seatId: number;
+  readonly seats?: readonly SeatView[];
   readonly connectionStatus?: ConnectionStatus;
 }
 
@@ -83,8 +88,11 @@ function isDealtIn(view: PlayerViewBetting): boolean {
   return view.seats.some((s) => s.seatId === view.yourSeatId);
 }
 
-function seatLabel(seatId: number): string {
-  return `Seat ${String(seatId + 1)}`;
+function seatLabel(seatId: number, seats: readonly SeatView[]): string {
+  return (
+    seats.find((seat) => seat.id === seatId)?.displayName ??
+    `Seat ${String(seatId + 1)}`
+  );
 }
 
 /**
@@ -99,6 +107,7 @@ function bannerFor(
   view: PlayerView,
   connectionStatus: ConnectionStatus,
   seatId: number,
+  seats: readonly SeatView[],
 ): Banner {
   if (connectionStatus !== "connected") {
     return {
@@ -127,7 +136,9 @@ function bannerFor(
         tone: "win",
       };
     }
-    const winnerNames = view.winners.map(seatLabel).join(" & ");
+    const winnerNames = view.winners
+      .map((winner) => seatLabel(winner, seats))
+      .join(" & ");
     const winClause = winnerResult
       ? `${winnerNames} wins with ${winnerResult.description}`
       : `${winnerNames} wins`;
@@ -148,7 +159,7 @@ function bannerFor(
       kicker: "Hand complete",
       text: iWon
         ? "You win — everyone folded"
-        : `${seatLabel(view.winner)} wins — everyone folded`,
+        : `${seatLabel(view.winner, seats)} wins — everyone folded`,
       tone: iWon ? "win" : "loss",
     };
   }
@@ -174,7 +185,7 @@ function bannerFor(
       kicker: view.street,
       text:
         waitingOn !== undefined
-          ? `Waiting on Seat ${String(waitingOn + 1)}`
+          ? `Waiting on ${seatLabel(waitingOn, seats)}`
           : "Waiting on other players",
       tone: "idle",
     };
@@ -371,6 +382,7 @@ function EmptyHoleCards({ text }: { readonly text: string }) {
 export function Hand({
   view,
   seatId,
+  seats = [],
   connectionStatus = "connected",
 }: HandProps) {
   if (view.phase === "no-hand") {
@@ -386,7 +398,7 @@ export function Hand({
           gap: "1em",
         }}
       >
-        <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
+        <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
         <EmptyHoleCards text="Waiting for the next hand." />
       </div>
     );
@@ -406,7 +418,7 @@ export function Hand({
           gap: "1em",
         }}
       >
-        <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
+        <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
         <EmptyHoleCards
           text={
             iWon
@@ -432,7 +444,7 @@ export function Hand({
           gap: "1em",
         }}
       >
-        <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
+        <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
         {myResult ? (
           <HoleCards
             cards={myResult.holeCards}
@@ -458,7 +470,7 @@ export function Hand({
         gap: "1em",
       }}
     >
-      <TurnBanner banner={bannerFor(view, connectionStatus, seatId)} />
+      <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
       {view.yourHoleCards ? (
         <HoleCards
           cards={view.yourHoleCards}

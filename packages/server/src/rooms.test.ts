@@ -1,5 +1,6 @@
 import {
   DEFAULT_SEAT_COUNT,
+  MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
 } from "@table-top-poker/protocol";
@@ -88,12 +89,13 @@ describe("RoomStore", () => {
       );
       const room = store.create();
 
-      const result = store.claimSeat(room.code, 0);
+      const result = store.claimSeat(room.code, 0, "P0");
 
       expect(result).toEqual({
         seat: {
           id: 0,
           claimed: true,
+          displayName: "P0",
           token: "token-0",
           sittingOut: false,
           disconnected: false,
@@ -102,18 +104,60 @@ describe("RoomStore", () => {
       expect(room.seats[0]).toEqual({
         id: 0,
         claimed: true,
+        displayName: "P0",
         token: "token-0",
         sittingOut: false,
         disconnected: false,
       });
     });
 
+    it("stores the display name in the seat and public room view", () => {
+      const store = new RoomStore();
+      const room = store.create();
+
+      const result = store.claimSeat(room.code, 0, " Avery ");
+
+      if (!("seat" in result)) throw new Error("expected a claimed seat");
+      expect(result.seat.displayName).toBe("Avery");
+      expect(toRoomView(room).seats[0]).toMatchObject({
+        claimed: true,
+        displayName: "Avery",
+      });
+    });
+
+    it("rejects a blank or over-long display name without claiming the seat", () => {
+      const store = new RoomStore();
+      const room = store.create();
+
+      expect(store.claimSeat(room.code, 0, "   ")).toEqual({
+        error: "invalid-display-name",
+      });
+      expect(
+        store.claimSeat(room.code, 0, "1".repeat(MAX_DISPLAY_NAME_LENGTH + 1)),
+      ).toEqual({ error: "invalid-display-name" });
+      expect(room.seats[0]?.claimed).toBe(false);
+    });
+
+    it("rejects a case-insensitive duplicate among claimed seats", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      store.claimSeat(room.code, 0, "Avery");
+
+      expect(store.claimSeat(room.code, 1, " aVERY ")).toEqual({
+        error: "duplicate-display-name",
+      });
+      expect(room.seats[1]?.claimed).toBe(false);
+
+      store.evictSeat(room.code, 0);
+      expect(store.claimSeat(room.code, 1, "Avery")).toHaveProperty("seat");
+    });
+
     it("rejects claiming an already-claimed seat", () => {
       const store = new RoomStore();
       const room = store.create();
-      store.claimSeat(room.code, 0);
+      store.claimSeat(room.code, 0, "P0");
 
-      const result = store.claimSeat(room.code, 0);
+      const result = store.claimSeat(room.code, 0, "P0");
 
       expect(result).toEqual({ error: "seat-already-claimed" });
     });
@@ -121,7 +165,7 @@ describe("RoomStore", () => {
     it("finds a claimed seat by its token", () => {
       const store = new RoomStore(Math.random, () => "token");
       const room = store.create();
-      const claim = store.claimSeat(room.code, 2);
+      const claim = store.claimSeat(room.code, 2, "P2");
 
       if (!("seat" in claim)) throw new Error("expected a claimed seat");
       expect(store.findSeatByToken(room.code, "token")).toBe(claim.seat);
@@ -130,16 +174,18 @@ describe("RoomStore", () => {
 
     it("rejects claiming a seat in an unknown room", () => {
       const store = new RoomStore();
-      expect(store.claimSeat("ZZZZ", 0)).toEqual({ error: "room-not-found" });
+      expect(store.claimSeat("ZZZZ", 0, "Avery")).toEqual({
+        error: "room-not-found",
+      });
     });
 
     it("rejects claiming an out-of-range seat", () => {
       const store = new RoomStore();
       const room = store.create();
-      expect(store.claimSeat(room.code, DEFAULT_SEAT_COUNT)).toEqual({
+      expect(store.claimSeat(room.code, DEFAULT_SEAT_COUNT, "Avery")).toEqual({
         error: "seat-not-found",
       });
-      expect(store.claimSeat(room.code, -1)).toEqual({
+      expect(store.claimSeat(room.code, -1, "Avery")).toEqual({
         error: "seat-not-found",
       });
     });
@@ -147,11 +193,11 @@ describe("RoomStore", () => {
     it("claims a seat mid-hand with sittingOut false internally, shown as sitting out in the room view", () => {
       const store = new RoomStore();
       const room = store.create();
-      store.claimSeat(room.code, 0);
-      store.claimSeat(room.code, 1);
+      store.claimSeat(room.code, 0, "P0");
+      store.claimSeat(room.code, 1, "P1");
       store.dispatch(room.code, "table", "startHand");
 
-      const result = store.claimSeat(room.code, 2);
+      const result = store.claimSeat(room.code, 2, "P2");
 
       if (!("seat" in result)) throw new Error("expected a claimed seat");
       expect(typeof result.seat.token).toBe("string");
@@ -166,7 +212,7 @@ describe("RoomStore", () => {
     it("evicts a claimed seat so it can be reclaimed (ADR-0003)", () => {
       const store = new RoomStore();
       const room = store.create();
-      store.claimSeat(room.code, 0);
+      store.claimSeat(room.code, 0, "P0");
 
       store.evictSeat(room.code, 0);
 
@@ -177,7 +223,7 @@ describe("RoomStore", () => {
         sittingOut: false,
         disconnected: false,
       });
-      const reclaimed = store.claimSeat(room.code, 0);
+      const reclaimed = store.claimSeat(room.code, 0, "P0");
       if (!("seat" in reclaimed)) throw new Error("expected a claimed seat");
       expect(typeof reclaimed.seat.token).toBe("string");
       expect(reclaimed.seat).toMatchObject({
@@ -185,6 +231,22 @@ describe("RoomStore", () => {
         claimed: true,
         sittingOut: false,
       });
+    });
+
+    it("carries names through a repack and clears them on eviction", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      store.claimSeat(room.code, 3, "Blair");
+      store.changeSeatCount(room.code, 4);
+
+      expect(room.seats[0]).toMatchObject({
+        claimed: true,
+        displayName: "Blair",
+      });
+
+      store.evictSeat(room.code, 0);
+
+      expect(room.seats[0]).not.toHaveProperty("displayName");
     });
 
     it("evicting a seat in an unknown room is a no-op", () => {
@@ -198,7 +260,7 @@ describe("RoomStore", () => {
   describe("seat-count changes", () => {
     function claimSeats(store: RoomStore, room: Room, ids: readonly number[]) {
       for (const seatId of ids) {
-        const result = store.claimSeat(room.code, seatId);
+        const result = store.claimSeat(room.code, seatId, `P${String(seatId)}`);
         if (!("seat" in result)) throw new Error("expected a claimed seat");
       }
     }
@@ -239,7 +301,7 @@ describe("RoomStore", () => {
     it("grows immediately and appends only fresh unclaimed seats", () => {
       const store = new RoomStore();
       const room = store.create(4);
-      const claimed = store.claimSeat(room.code, 1);
+      const claimed = store.claimSeat(room.code, 1, "P1");
       if (!("seat" in claimed)) throw new Error("expected a claimed seat");
 
       const result = store.changeSeatCount(room.code, 6);
@@ -397,7 +459,7 @@ describe("RoomStore", () => {
     function roomWithClaimedSeats(store: RoomStore, count: number) {
       const room = store.create();
       for (let seatId = 0; seatId < count; seatId++) {
-        store.claimSeat(room.code, seatId);
+        store.claimSeat(room.code, seatId, `P${String(seatId)}`);
       }
       return room;
     }
@@ -471,7 +533,7 @@ describe("RoomStore", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
       store.dispatch(room.code, "table", "startHand");
-      const midHandJoin = store.claimSeat(room.code, 2);
+      const midHandJoin = store.claimSeat(room.code, 2, "P2");
       if (!("seat" in midHandJoin)) throw new Error("expected a claim");
 
       const foldResult = store.dispatch(room.code, 2, "fold");
@@ -558,7 +620,7 @@ describe("RoomStore", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);
         store.dispatch(room.code, "table", "startHand");
-        store.claimSeat(room.code, 2);
+        store.claimSeat(room.code, 2, "P2");
         completeHand(store, room);
 
         const result = store.dispatch(room.code, "table", "nextHand");
@@ -581,7 +643,7 @@ describe("RoomStore", () => {
         const room = roomWithClaimedSeats(store, 2);
         store.dispatch(room.code, "table", "startHand");
         completeHand(store, room);
-        store.claimSeat(room.code, 2);
+        store.claimSeat(room.code, 2, "P2");
 
         expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: true });
 
@@ -756,7 +818,7 @@ describe("RoomStore", () => {
     function roomWithClaimedSeats(store: RoomStore, count: number) {
       const room = store.create();
       for (let seatId = 0; seatId < count; seatId++) {
-        store.claimSeat(room.code, seatId);
+        store.claimSeat(room.code, seatId, `P${String(seatId)}`);
       }
       return room;
     }
@@ -803,7 +865,7 @@ describe("toRoomView", () => {
   it("projects seats without their tokens", () => {
     const store = new RoomStore();
     const room = store.create();
-    store.claimSeat(room.code, 0);
+    store.claimSeat(room.code, 0, "P0");
 
     const view = toRoomView(room);
 
@@ -811,7 +873,13 @@ describe("toRoomView", () => {
       code: room.code,
       pendingSeatCount: null,
       seats: [
-        { id: 0, claimed: true, sittingOut: false, disconnected: false },
+        {
+          id: 0,
+          claimed: true,
+          displayName: "P0",
+          sittingOut: false,
+          disconnected: false,
+        },
         ...Array.from({ length: DEFAULT_SEAT_COUNT - 1 }, (_, i) => ({
           id: i + 1,
           claimed: false,

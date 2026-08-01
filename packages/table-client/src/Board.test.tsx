@@ -36,11 +36,25 @@ describe("Board", () => {
 
   it("names the winner in a hand-complete banner after everyone else folds", () => {
     const view: TableView = { phase: "folded-out", button: 0, winner: 1 };
-    const html = renderToStaticMarkup(<Board view={view} />);
+    const html = renderToStaticMarkup(
+      <Board
+        view={view}
+        seats={[
+          { id: 0, claimed: false, sittingOut: false, disconnected: false },
+          {
+            id: 1,
+            claimed: true,
+            displayName: "Avery",
+            sittingOut: false,
+            disconnected: false,
+          },
+        ]}
+      />,
+    );
 
     expect(html).toMatch(/data-testid="board"[^>]*data-phase="folded-out"/);
     expect(html).toContain('data-testid="hand-complete-banner"');
-    expect(html).toContain("Seat 2 wins — everyone folded");
+    expect(html).toContain("Avery wins — everyone folded");
     expect(html).not.toContain('data-testid="community-cards"');
   });
 

@@ -17,6 +17,8 @@ export const MIN_SEAT_COUNT = 2;
 export const MAX_SEAT_COUNT = 8;
 /** What the picker starts on, and the size a room gets absent any choice — a full table. */
 export const DEFAULT_SEAT_COUNT = MAX_SEAT_COUNT;
+/** Maximum display-name length accepted during a seat claim. */
+export const MAX_DISPLAY_NAME_LENGTH = 10;
 
 /**
  * The one definition of "a size a room may have". Both the HTTP edge and
@@ -35,6 +37,13 @@ export const CreateRoomRequestSchema = z.strictObject({
 });
 
 export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>;
+
+/** Body of a player's required display-name seat claim. */
+export const ClaimSeatRequestSchema = z.strictObject({
+  displayName: z.string().trim().min(1).max(MAX_DISPLAY_NAME_LENGTH),
+});
+
+export type ClaimSeatRequest = z.infer<typeof ClaimSeatRequestSchema>;
 
 /** Body of the table-only room settings request (issue #77). */
 export const ChangeSeatCountRequestSchema = z.strictObject({
@@ -85,6 +94,8 @@ export interface SeatCountChange {
 export interface SeatView {
   readonly id: SeatId;
   readonly claimed: boolean;
+  /** The required display name for newer claims; absent on pre-name seats. */
+  readonly displayName?: string | null;
   readonly sittingOut: boolean;
   /** Presence-only badge (ticket 33 §7) — never affects folding or legal actions. */
   readonly disconnected: boolean;

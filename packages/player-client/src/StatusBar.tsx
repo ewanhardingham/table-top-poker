@@ -9,6 +9,7 @@ export interface StatusBarProps {
   readonly onToggleSittingOut: () => void;
   readonly seat: {
     readonly seatId: number;
+    readonly displayName?: string | null;
     readonly sittingOut: boolean;
   } | null;
 }
@@ -53,6 +54,7 @@ export function StatusBar({
       {seat && (
         <SeatPanel
           seatId={seat.seatId}
+          displayName={seat.displayName ?? null}
           sittingOut={seat.sittingOut}
           toggleDisabled={connectionStatus !== "connected"}
           onToggleSittingOut={onToggleSittingOut}

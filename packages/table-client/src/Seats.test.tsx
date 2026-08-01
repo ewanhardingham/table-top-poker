@@ -12,6 +12,27 @@ const seats: SeatView[] = [
 ];
 
 describe("Seats", () => {
+  it("shows a claimed player's display name as a small seat caption", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={[
+          {
+            id: 0,
+            claimed: true,
+            displayName: "Avery",
+            sittingOut: false,
+            disconnected: false,
+          },
+          ...seats.slice(1),
+        ]}
+        view={null}
+      />,
+    );
+
+    expect(html).toContain('data-testid="seat-pod-0-name"');
+    expect(html).toContain("Avery");
+  });
+
   it("shows every seat as open or sitting-out before any hand exists", () => {
     const html = renderToStaticMarkup(<Seats seats={seats} view={null} />);
     expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-status="in-hand"/);

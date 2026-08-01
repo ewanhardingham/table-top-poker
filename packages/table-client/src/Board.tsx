@@ -1,13 +1,21 @@
-import type { Card as CardType, TableView } from "@table-top-poker/protocol";
+import type {
+  Card as CardType,
+  SeatView,
+  TableView,
+} from "@table-top-poker/protocol";
 import { Card, color, font } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
 
 export interface BoardProps {
   readonly view: TableView;
+  readonly seats?: readonly SeatView[];
 }
 
-function seatLabel(seatId: number): string {
-  return `Seat ${String(seatId + 1)}`;
+function seatLabel(seatId: number, seats: readonly SeatView[]): string {
+  return (
+    seats.find((seat) => seat.id === seatId)?.displayName ??
+    `Seat ${String(seatId + 1)}`
+  );
 }
 
 /** The community cards, dealt in one at a time via Motion rather than CSS keyframes. */
@@ -84,8 +92,9 @@ function HandCompleteBanner({ text }: { readonly text: string }) {
 function showdownText(
   winners: readonly number[],
   description: string | undefined,
+  seats: readonly SeatView[],
 ): string {
-  const names = winners.map(seatLabel).join(" & ");
+  const names = winners.map((winner) => seatLabel(winner, seats)).join(" & ");
   const verb = winners.length > 1 ? "split" : "wins";
   return description ? `${names} ${verb} — ${description}` : `${names} ${verb}`;
 }
@@ -98,11 +107,11 @@ function showdownText(
  * (once here, once at the pod) was most of what made the felt unreadable
  * at a full 8-player table.
  */
-export function Board({ view }: BoardProps) {
+export function Board({ view, seats = [] }: BoardProps) {
   if (view.phase === "no-hand") {
     return (
       <div data-testid="board" data-phase="no-hand">
-        Waiting to deal — button on Seat {view.button + 1}.
+        Waiting to deal — button on {seatLabel(view.button, seats)}.
       </div>
     );
   }
@@ -111,7 +120,7 @@ export function Board({ view }: BoardProps) {
     return (
       <div data-testid="board" data-phase="folded-out">
         <HandCompleteBanner
-          text={`${seatLabel(view.winner)} wins — everyone folded`}
+          text={`${seatLabel(view.winner, seats)} wins — everyone folded`}
         />
       </div>
     );
@@ -133,7 +142,7 @@ export function Board({ view }: BoardProps) {
         }}
       >
         <HandCompleteBanner
-          text={showdownText(view.winners, winnerResult?.description)}
+          text={showdownText(view.winners, winnerResult?.description, seats)}
         />
         <CommunityCards board={view.board} />
       </div>

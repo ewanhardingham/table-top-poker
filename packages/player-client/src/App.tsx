@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionBar } from "./ActionBar.js";
 import { claimSeat, joinRoom } from "./api/rooms.js";
 import { useActionIntent } from "./actions/useActionIntent.js";
+import { claimErrorCode } from "./claimError.js";
 import { Hand } from "./Hand.js";
 import { JoinForm } from "./JoinForm.js";
 import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
@@ -15,6 +16,7 @@ import {
   saveSeatToken,
 } from "./storage/seatToken.js";
 import { usePlayerStore } from "./store/store.js";
+import { useLobbyWebSocket } from "./ws/useLobbyWebSocket.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
 export function App() {
@@ -22,6 +24,7 @@ export function App() {
   const seats = usePlayerStore((state) => state.seats);
   const joinError = usePlayerStore((state) => state.joinError);
   const seatId = usePlayerStore((state) => state.seatId);
+  const displayName = usePlayerStore((state) => state.displayName);
   const connectionStatus = usePlayerStore((state) => state.connectionStatus);
   const handView = usePlayerStore((state) => state.handView);
   const setRoomView = usePlayerStore((state) => state.setRoomView);
@@ -54,6 +57,7 @@ export function App() {
         setSeat({
           seatId: stored.seatId,
           sittingOut: seat?.sittingOut ?? false,
+          displayName: seat?.displayName ?? stored.displayName ?? null,
         });
         setSeatToken(stored.token);
       })
@@ -96,10 +100,11 @@ export function App() {
           roomCode,
           seatId: to,
           token: seatToken,
+          ...(displayName === null ? {} : { displayName }),
         });
       }
     },
-    [moveSeat, roomCode, seatToken],
+    [displayName, moveSeat, roomCode, seatToken],
   );
 
   const wsParams = useMemo(() => {
@@ -108,6 +113,9 @@ export function App() {
     }
     return { roomCode, seatId, token: seatToken };
   }, [roomCode, seatId, seatToken]);
+  useLobbyWebSocket(roomCode !== null && seatId === null ? roomCode : null, {
+    onRoomEnded: handleRoomEnded,
+  });
   const { send } = useWebSocket(wsParams, {
     onRejected: handleRejected,
     onEvicted: handleEvicted,
@@ -138,23 +146,28 @@ export function App() {
   );
 
   const handleClaim = useCallback(
-    (seat: number) => {
+    (seat: number, name: string) => {
       if (roomCode === null) return;
-      claimSeat(roomCode, seat)
+      claimSeat(roomCode, seat, name)
         .then((claim) => {
           setClaimError(null);
           setEvictionMessage(null);
           setSeatMoveMessage(null);
-          setSeat({ seatId: claim.seatId, sittingOut: claim.sittingOut });
+          setSeat({
+            seatId: claim.seatId,
+            sittingOut: claim.sittingOut,
+            displayName: claim.displayName,
+          });
           setSeatToken(claim.token);
           saveSeatToken(window.localStorage, {
             roomCode,
             seatId: claim.seatId,
             token: claim.token,
+            displayName: claim.displayName,
           });
         })
-        .catch(() => {
-          setClaimError("seat-already-claimed");
+        .catch((error: unknown) => {
+          setClaimError(claimErrorCode(error));
         });
     },
     [roomCode, setSeat],
@@ -185,6 +198,7 @@ export function App() {
           <Hand
             view={handView}
             seatId={seatId}
+            seats={seats}
             connectionStatus={connectionStatus}
           />
         )}
@@ -211,7 +225,11 @@ export function App() {
         onToggleSittingOut={handleToggleSittingOut}
         seat={
           playerSeat
-            ? { seatId: playerSeat.id, sittingOut: playerSeat.sittingOut }
+            ? {
+                seatId: playerSeat.id,
+                displayName: playerSeat.displayName ?? null,
+                sittingOut: playerSeat.sittingOut,
+              }
             : null
         }
       />
