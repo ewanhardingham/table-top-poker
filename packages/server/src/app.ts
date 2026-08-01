@@ -417,6 +417,15 @@ export async function buildApp(
     });
   }
 
+  /** Publishes an accepted engine dispatch and moves the room's action clock. */
+  function publishDispatch(code: string, result: DispatchSuccess): void {
+    logDispatch(code, result);
+    for (const step of result.steps) {
+      fanOutHandUpdate(code, step);
+    }
+    rescheduleActionClock(code);
+  }
+
   // `index: false` — the explicit "/" route below owns index resolution
   // (placeholder vs. a staged table build), so the static plugin only ever
   // serves fingerprinted assets (`/table/assets/*`, `/player/assets/*`),
@@ -550,7 +559,10 @@ export async function buildApp(
       }
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      rooms.evictSeat(request.params.code, seatId);
+      const eviction = rooms.evictSeat(request.params.code, seatId);
+      if (eviction.dispatch !== undefined) {
+        publishDispatch(request.params.code, eviction.dispatch);
+      }
       broadcastRoomView(request.params.code);
       closeSeatSockets(request.params.code, seatId);
       return reply.code(204).send();
@@ -711,11 +723,7 @@ export async function buildApp(
           if (dispatchResult.seatMoves !== undefined) {
             applySeatMoves(code, dispatchResult.seatMoves);
           }
-          logDispatch(code, dispatchResult);
-          for (const step of dispatchResult.steps) {
-            fanOutHandUpdate(code, step);
-          }
-          rescheduleActionClock(code);
+          publishDispatch(code, dispatchResult);
           // A fresh deal-in (new join, reconnect) changes seat state the
           // routine hand-update fan-out above doesn't cover.
           if (
