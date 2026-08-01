@@ -1,0 +1,674 @@
+/* PROTOTYPE ONLY: tactile Hole-card interaction grammar for issue 108. */
+
+.prototype-shell {
+  --prototype-red: #e85047;
+  --prototype-ink: #f3ece1;
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+  height: 100svh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: max(10px, env(safe-area-inset-top))
+    max(14px, env(safe-area-inset-right)) max(82px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
+  color: var(--prototype-ink);
+  background:
+    radial-gradient(
+      circle at 50% 26%,
+      rgba(104, 29, 35, 0.82),
+      transparent 42%
+    ),
+    linear-gradient(180deg, #180d0f, #070505 78%);
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+  user-select: none;
+  -webkit-touch-callout: none;
+  overscroll-behavior: none;
+}
+
+.prototype-header {
+  z-index: 6;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.prototype-header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.prototype-header span,
+.prototype-turn-banner small,
+.prototype-lab small {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ad918c;
+}
+
+.prototype-header strong {
+  font-family: "Archivo", system-ui, sans-serif;
+  font-size: 21px;
+}
+
+.prototype-header button,
+.prototype-lab button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  color: #f5ded9;
+  background: rgba(255, 255, 255, 0.06);
+  font: inherit;
+}
+
+.prototype-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.prototype-turn-banner {
+  min-height: 55px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(232, 80, 71, 0.35);
+  border-radius: 17px;
+  background: linear-gradient(
+    120deg,
+    rgba(232, 80, 71, 0.2),
+    rgba(232, 80, 71, 0.05)
+  );
+}
+
+.prototype-turn-banner > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #f66a61;
+  box-shadow: 0 0 16px rgba(232, 80, 71, 0.8);
+}
+
+.prototype-turn-banner > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.prototype-turn-banner strong {
+  font-size: 14px;
+}
+
+.prototype-turn-banner output {
+  color: #927b75;
+  font:
+    10px "IBM Plex Mono",
+    monospace;
+}
+
+.prototype-card-stage {
+  position: relative;
+  flex: 1;
+  min-height: 290px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  overflow: visible;
+}
+
+.prototype-threshold {
+  position: absolute;
+  z-index: 1;
+  top: 16%;
+  left: 6%;
+  right: 6%;
+  height: 1px;
+  border-top: 1px dashed rgba(244, 171, 162, 0.42);
+  opacity: 0.55;
+}
+
+.prototype-threshold span {
+  position: absolute;
+  top: -17px;
+  left: 50%;
+  padding: 2px 8px;
+  transform: translateX(-50%);
+  color: rgba(244, 190, 181, 0.68);
+  background: #1c0d0f;
+  font:
+    8px "IBM Plex Mono",
+    monospace;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.prototype-card-pair {
+  position: relative;
+  z-index: 2;
+  width: 338px;
+  height: 234px;
+  touch-action: none;
+  cursor: grab;
+  transform-origin: center bottom;
+}
+
+.prototype-card-pair:active {
+  cursor: grabbing;
+}
+
+.gesture-card {
+  position: absolute;
+  width: 164px;
+  height: 228px;
+  contain: layout paint;
+  transform-origin: center 88%;
+}
+
+.prototype-layout-fan .gesture-card:first-child {
+  left: 13px;
+  transform: rotate(-7deg) translateY(4px);
+}
+
+.prototype-layout-fan .gesture-card:last-child {
+  right: 13px;
+  transform: rotate(7deg) translateY(4px);
+}
+
+.prototype-layout-overlap {
+  width: 255px;
+}
+
+.prototype-layout-overlap .gesture-card:first-child {
+  left: 9px;
+  z-index: 1;
+  transform: rotate(-5deg) translateY(5px);
+}
+
+.prototype-layout-overlap .gesture-card:last-child {
+  right: 8px;
+  z-index: 2;
+  transform: rotate(6deg);
+}
+
+.prototype-layout-side-by-side .gesture-card:first-child {
+  left: 1px;
+}
+
+.prototype-layout-side-by-side .gesture-card:last-child {
+  right: 1px;
+}
+
+.gesture-card-surface,
+.gesture-card-back,
+.gesture-card-face,
+.gesture-card-face-layer,
+.gesture-card-back-mask,
+.gesture-card-flap,
+.gesture-card-library-surface .peel-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+}
+
+.gesture-card-surface {
+  overflow: visible;
+  transform: translateZ(0);
+}
+
+.gesture-card-face,
+.gesture-card-back {
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.gesture-card-face {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #171310;
+  background: linear-gradient(155deg, #fffdf7, #e7dcc8);
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  box-shadow: 0 20px 32px -20px rgba(0, 0, 0, 0.92);
+}
+
+.gesture-card-face::after {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 1px solid rgba(114, 87, 67, 0.16);
+  border-radius: 6px;
+}
+
+.gesture-card-index {
+  position: absolute;
+  z-index: 1;
+  top: 10px;
+  left: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: inherit;
+  font-family: Georgia, serif;
+  font-size: 24px;
+  line-height: 0.78;
+}
+
+.gesture-card-index span {
+  margin-top: 5px;
+  font-size: 18px;
+}
+
+.gesture-card-index-bottom {
+  inset: auto 11px 10px auto;
+  transform: rotate(180deg);
+}
+
+.gesture-card-pip {
+  font-family: Georgia, serif;
+  font-size: 64px;
+  opacity: 0.86;
+}
+
+.gesture-card-face.is-red {
+  color: #ba302b;
+}
+
+.gesture-card-back {
+  padding: 6px;
+  background: linear-gradient(160deg, #751e27, #321015);
+  border: 1px solid rgba(252, 225, 215, 0.5);
+  box-shadow:
+    inset 0 0 0 2px rgba(55, 9, 14, 0.78),
+    0 20px 32px -20px rgba(0, 0, 0, 0.92);
+}
+
+.gesture-card-back-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 2px solid rgba(244, 212, 198, 0.5);
+  border-radius: 6px;
+  background:
+    linear-gradient(
+        45deg,
+        transparent 45%,
+        rgba(255, 225, 211, 0.17) 45% 55%,
+        transparent 55%
+      )
+      0 0 / 15px 15px,
+    linear-gradient(
+        -45deg,
+        transparent 45%,
+        rgba(255, 225, 211, 0.11) 45% 55%,
+        transparent 55%
+      )
+      0 0 / 15px 15px,
+    radial-gradient(circle, rgba(248, 221, 207, 0.18) 1px, transparent 2px) 0
+      0 / 10px 10px,
+    #5b1720;
+}
+
+.gesture-card-face-layer {
+  z-index: 0;
+}
+
+.gesture-card-back-mask {
+  z-index: 1;
+  clip-path: polygon(0 0, 100% 0, 100% 65%, 65% 100%, 0 100%);
+}
+
+.gesture-card-flap {
+  z-index: 3;
+  overflow: hidden;
+  clip-path: polygon(100% 65%, 65% 100%, 100% 100%);
+  transform-origin: 66% 66%;
+  backface-visibility: hidden;
+}
+
+.gesture-card-flap-underside {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 0 9px 10px 0;
+  color: #171310;
+  background: linear-gradient(155deg, #fffdf7, #e7dcc8);
+  clip-path: polygon(100% 65%, 65% 100%, 100% 100%);
+  transform: rotate3d(-1, 1, 0, 180deg);
+  backface-visibility: hidden;
+  font:
+    700 22px Georgia,
+    serif;
+}
+
+.gesture-card-fold-shadow {
+  position: absolute;
+  z-index: 2;
+  right: -2px;
+  bottom: -2px;
+  width: 42%;
+  height: 42%;
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
+  background: linear-gradient(135deg, transparent 36%, rgba(0, 0, 0, 0.6));
+  transform: translate3d(-4px, -4px, 0);
+}
+
+.gesture-card-bend-zone {
+  position: absolute;
+  z-index: 8;
+  right: -5px;
+  bottom: -5px;
+  width: 74px;
+  height: 74px;
+  border-radius: 0 0 12px 0;
+}
+
+.gesture-card-bend-zone > span {
+  position: absolute;
+  right: 11px;
+  bottom: 11px;
+  width: 24px;
+  height: 24px;
+  border-right: 2px solid rgba(255, 236, 226, 0.72);
+  border-bottom: 2px solid rgba(255, 236, 226, 0.72);
+  border-radius: 0 0 6px 0;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+
+.gesture-card-library-surface {
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.gesture-card-library-surface .peel,
+.gesture-card-library-surface .peel-layer {
+  border-radius: 10px;
+}
+
+.gesture-card-library-surface .peel-top,
+.gesture-card-library-surface .peel-back,
+.gesture-card-library-surface .peel-bottom {
+  overflow: hidden;
+}
+
+.prototype-coaching {
+  z-index: 4;
+  min-height: 31px;
+  max-width: 340px;
+  margin: 0;
+  text-align: center;
+  color: #c9afa4;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.prototype-readout {
+  z-index: 4;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.prototype-readout span {
+  padding: 3px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  color: #927f78;
+  background: rgba(0, 0, 0, 0.18);
+  font:
+    8px "IBM Plex Mono",
+    monospace;
+}
+
+.prototype-mucked {
+  z-index: 3;
+  width: 260px;
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  color: #927f78;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 20px;
+}
+
+.prototype-mucked strong {
+  color: #b9a098;
+}
+
+.prototype-mucked span {
+  font-size: 11px;
+}
+
+.prototype-actions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 7px;
+}
+
+.prototype-actions button {
+  min-width: 0;
+  min-height: 57px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 14px;
+  color: #f1dfda;
+  background: rgba(255, 255, 255, 0.055);
+  font: inherit;
+}
+
+.prototype-actions button:last-child {
+  color: #241012;
+  background: linear-gradient(180deg, #fff9f5, #dfc8c0);
+}
+
+.prototype-actions .action-fold {
+  color: #f0ada4;
+  border-color: rgba(232, 139, 125, 0.38);
+  background: rgba(232, 139, 125, 0.11);
+}
+
+.prototype-actions button:disabled {
+  opacity: 0.32;
+}
+
+.prototype-actions strong {
+  font-size: 14px;
+}
+
+.prototype-actions span {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font:
+    7px "IBM Plex Mono",
+    monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.68;
+}
+
+.prototype-lab {
+  position: absolute;
+  z-index: 10;
+  top: 66px;
+  right: 12px;
+  left: 12px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 20px;
+  background: rgba(15, 9, 10, 0.96);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.prototype-lab-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.prototype-lab-heading > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.prototype-lab-heading strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.prototype-lab dl {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin: 12px 0;
+}
+
+.prototype-lab dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font:
+    9px "IBM Plex Mono",
+    monospace;
+}
+
+.prototype-lab dt {
+  color: #917c77;
+}
+
+.prototype-lab dd {
+  margin: 0;
+  color: #e6cbc5;
+}
+
+.prototype-lab label {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d2bbb5;
+  font-size: 11px;
+}
+
+.prototype-lab input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--prototype-red);
+}
+
+.prototype-lab-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.prototype-lab-buttons button {
+  min-height: 38px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-size: 10px;
+}
+
+.prototype-lab button:disabled {
+  opacity: 0.32;
+}
+
+.prototype-lab > p {
+  margin: 10px 0 0;
+  color: #947d77;
+  font-size: 9px;
+}
+
+.prototype-switcher {
+  position: fixed;
+  z-index: 20;
+  right: 50%;
+  bottom: max(12px, env(safe-area-inset-bottom));
+  width: min(350px, calc(100vw - 28px));
+  min-height: 50px;
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  transform: translateX(50%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  color: #fff8f5;
+  background: rgba(12, 8, 9, 0.96);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.68);
+  font:
+    10px "IBM Plex Mono",
+    monospace;
+  text-align: center;
+}
+
+.prototype-switcher button {
+  align-self: stretch;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: 20px inherit;
+}
+
+.prototype-switcher span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-height: 720px) {
+  .prototype-card-stage {
+    min-height: 250px;
+  }
+
+  .prototype-card-pair {
+    scale: 0.84;
+    margin-block: -20px;
+  }
+
+  .prototype-header {
+    min-height: 46px;
+  }
+}
+
+@media (max-width: 370px) {
+  .prototype-card-pair {
+    scale: 0.88;
+  }
+
+  .prototype-actions {
+    gap: 4px;
+  }
+}
