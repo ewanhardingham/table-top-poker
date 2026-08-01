@@ -1369,6 +1369,52 @@ describe("hand command dispatch over WebSocket", () => {
     );
   });
 
+  it("auto-folds an evicted later seat immediately and preserves the current actor", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    const engine = rooms.get(room.code)?.engine;
+    if (engine?.hand?.status !== "betting") {
+      throw new Error("expected a betting hand");
+    }
+    const actor = engine.hand.toAct[0];
+    const evicted = engine.hand.toAct[1];
+    if (actor === undefined || evicted === undefined) {
+      throw new Error("expected two seats to be awaiting action");
+    }
+
+    const before = table.messages.filter(
+      (message) => message.type === "hand-update",
+    ).length;
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/${String(evicted)}/evict`,
+    });
+    await settle();
+
+    expect(response.statusCode).toBe(204);
+    expect(table.messages.slice(before)).toContainEqual(
+      expect.objectContaining({
+        type: "hand-update",
+        event: { type: "ActionTaken", seatId: evicted, action: "fold" },
+      }),
+    );
+    expect(rooms.currentActor(room.code)).toBe(actor);
+    const updated = rooms.get(room.code)?.engine;
+    if (updated?.hand?.status !== "betting") {
+      throw new Error("expected the hand to continue");
+    }
+    expect(updated.hand.toAct[0]).toBe(actor);
+    expect(updated.hand.toAct).not.toContain(evicted);
+  });
+
   it("rejects an out-of-turn action, visible only to the sender", async () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);

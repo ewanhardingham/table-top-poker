@@ -714,6 +714,37 @@ describe("RoomStore", () => {
         expect(room.engine.hand.players.get(actor)?.folded).toBe(true);
       });
 
+      it("auto-folds a later in-hand seat without moving the current actor", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 3);
+        store.dispatch(room.code, "table", "startHand");
+        if (room.engine?.hand?.status !== "betting") {
+          throw new Error("expected a betting hand");
+        }
+        const actor = room.engine.hand.toAct[0];
+        const evicted = room.engine.hand.toAct[1];
+        if (actor === undefined || evicted === undefined) {
+          throw new Error("expected two seats to be awaiting action");
+        }
+
+        const result = store.evictSeat(room.code, evicted);
+
+        if (result.dispatch === undefined) {
+          throw new Error("expected the eviction fold to dispatch");
+        }
+        expect(result.dispatch.command).toEqual({
+          type: "evict",
+          playerId: evicted,
+        });
+        expect(result.dispatch.steps.map((step) => step.event)).toEqual([
+          { type: "ActionTaken", seatId: evicted, action: "fold" },
+        ]);
+        expect(room.seats[evicted]).toMatchObject({ claimed: false });
+        expect(store.currentActor(room.code)).toBe(actor);
+        expect(room.engine.hand.toAct).not.toContain(evicted);
+        expect(room.engine.hand.players.get(evicted)?.folded).toBe(true);
+      });
+
       it("completes a heads-up hand when evicting the current actor", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);

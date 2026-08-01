@@ -87,7 +87,10 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
       }
       const raiseOccurred = hand.raiseOccurred || event.action === "raise";
 
-      let toAct = hand.toAct.slice(1);
+      // Ordinary actions always belong to `toAct[0]`; an eviction may fold a
+      // live seat later in the queue, so remove the event's seat by identity
+      // and leave the current actor at the head of the queue.
+      let toAct = hand.toAct.filter((seat) => seat !== event.seatId);
       let bbOptionPending = hand.bbOptionPending;
 
       if (event.action === "raise") {

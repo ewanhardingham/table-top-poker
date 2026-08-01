@@ -111,6 +111,9 @@ No uniform envelope — each type declares its own fields:
   engine level; table-device-only is enforced at the server/UI layer.
 - `{ type: 'fold' | 'check' | 'call' | 'raise', playerId }` — engine
   validates `playerId` is the current Actor.
+- `{ type: 'evict', playerId }` — server-synthesized for a table eviction,
+  never accepted from a player client; it folds a live seat immediately even
+  when that seat is not the current Actor.
 - `{ type: 'nextHand', playerId, seed }` — dismisses the showdown reveal and
   starts the next hand in one step; carries the new seed.
 
@@ -356,7 +359,10 @@ network round trip.
   (active, sitting-out, or disconnected) at any time; there is no
   missed-hands counter or threshold. On eviction: the seat's token is
   invalidated server-side, the seat is freed into the join picker, and the
-  eviction is broadcast to the table.
+  eviction is broadcast to the table. If the seat was dealt into the live
+  hand, the server also records and broadcasts its immediate fold; when that
+  seat is not the current Actor, the current Actor and its action-clock
+  deadline are preserved.
 
 ## 8. Deployment
 ([Research: hosting on a Pi](https://github.com/ewanhardingham/table-top-poker/issues/7),

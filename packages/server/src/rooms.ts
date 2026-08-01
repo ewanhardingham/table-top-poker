@@ -69,7 +69,7 @@ export type ClaimSeatError =
 
 export type ClaimSeatResult = { seat: Seat } | { error: ClaimSeatError };
 
-/** The engine fold, when evicting the seat currently owed a decision. */
+/** The engine dispatch, when eviction resolves a seat during a live hand. */
 export interface EvictSeatResult {
   readonly dispatch?: DispatchSuccess;
 }
@@ -407,28 +407,48 @@ export class RoomStore {
    * Frees any claimed seat — active, sitting-out, or disconnected alike —
    * back into the join picker and invalidates its token. The table
    * device's manual "evict" action (ADR-0003); there is no automatic trigger.
-   * An actor evicted during a live hand is folded first so the engine can
-   * advance to the next decision.
+   * Any live seat evicted during a live hand is folded first. If it is not the
+   * current actor, the engine removes it from the outstanding queue without
+   * disturbing whoever is currently to act.
    */
   evictSeat(code: string, seatId: SeatId): EvictSeatResult {
     const room = this.#rooms.get(code);
     const seat = room?.seats[seatId];
     if (!seat) return {};
 
-    if (this.currentActor(code) !== seatId) {
+    if (this.currentActor(code) === seatId) {
+      const result = this.dispatch(code, seatId, "fold");
+      // `currentActor` was read as the live actor, and fold is unconditionally
+      // legal for that seat. If that invariant ever breaks, leave the seat
+      // claimed so the action clock can recover instead of freeing an actor the
+      // engine is still waiting on.
+      if (!("steps" in result)) return {};
+
       freeSeat(seat);
-      return {};
+      return { dispatch: result };
     }
 
-    const result = this.dispatch(code, seatId, "fold");
-    // `currentActor` was read as the live actor, and fold is unconditionally
-    // legal for that seat. If that invariant ever breaks, leave the seat
-    // claimed so the action clock can recover instead of freeing an actor the
-    // engine is still waiting on.
-    if (!("steps" in result)) return {};
+    const hand = room.engine?.hand;
+    const player =
+      hand?.status === "betting" ? hand.players.get(seatId) : undefined;
+    if (
+      hand?.status === "betting" &&
+      hand.ring.includes(seatId) &&
+      player !== undefined &&
+      !player.folded
+    ) {
+      const result = this.#dispatchEviction(room, seatId);
+      // The engine must accept a live in-hand seat eviction. If that invariant
+      // ever breaks, leave the claim intact so a later action-clock fold can
+      // recover rather than freeing a seat the engine still considers live.
+      if (result === undefined) return {};
+
+      freeSeat(seat);
+      return { dispatch: result };
+    }
 
     freeSeat(seat);
-    return { dispatch: result };
+    return {};
   }
 
   /**
@@ -564,6 +584,26 @@ export class RoomStore {
     if (candidateEngine === null) return { reason: "hand-not-in-progress" };
 
     const command = this.#buildCommand(identity, type);
+    const result = this.#runEngineCommand(room, candidateEngine, command);
+    if (!("steps" in result)) return result;
+
+    return seatMoves.length > 0 ? { ...result, seatMoves } : result;
+  }
+
+  #dispatchEviction(room: Room, seatId: SeatId): DispatchSuccess | undefined {
+    if (room.engine === null) return undefined;
+    const result = this.#runEngineCommand(room, room.engine, {
+      type: "evict",
+      playerId: seatId,
+    });
+    return "steps" in result ? result : undefined;
+  }
+
+  #runEngineCommand(
+    room: Room,
+    candidateEngine: EngineState,
+    command: Command,
+  ): DispatchSuccess | DispatchRejection {
     const result = decide(candidateEngine, command);
     if (!Array.isArray(result)) {
       return { reason: result.reason, command, rejection: result };
@@ -576,10 +616,7 @@ export class RoomStore {
       steps.push({ event, state });
     }
     room.engine = state;
-
-    return seatMoves.length > 0
-      ? { command, steps, seatMoves }
-      : { command, steps };
+    return { command, steps };
   }
 
   /**

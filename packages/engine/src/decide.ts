@@ -58,6 +58,9 @@ export function decide(
     case "call":
     case "raise":
       return decideAction(state, command);
+
+    case "evict":
+      return decideEviction(state, command);
   }
 }
 
@@ -108,13 +111,39 @@ function decideAction(
     return reject("action-not-legal", command);
   }
 
+  return decideActionEvents(state, currentActor, command.type);
+}
+
+function decideEviction(
+  state: EngineState,
+  command: Extract<Command, { type: "evict" }>,
+): HandEvent[] | Rejection {
+  if (state.hand?.status !== "betting") {
+    return reject("hand-not-in-progress", command);
+  }
+  const player = state.hand.players.get(command.playerId);
+  if (player === undefined || player.folded) {
+    return reject("action-not-legal", command);
+  }
+
+  return decideActionEvents(state, command.playerId, "fold");
+}
+
+function decideActionEvents(
+  state: EngineState,
+  seatId: SeatId,
+  action: ActionType,
+): HandEvent[] {
+  const hand = state.hand;
+  if (hand?.status !== "betting") {
+    throw new Error("expected a betting hand while resolving an action");
+  }
   const events: HandEvent[] = [];
-  const actorSeat = command.playerId;
 
   const actionTaken: HandEvent = {
     type: "ActionTaken",
-    seatId: actorSeat,
-    action: command.type,
+    seatId,
+    action,
   };
   events.push(actionTaken);
   let scratch = apply(state, actionTaken);
