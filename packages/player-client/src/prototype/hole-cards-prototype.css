@@ -275,6 +275,29 @@
   transform: rotate(180deg);
 }
 
+/* peel.js mirrors the underside clip horizontally before rotating it. This
+ * remapped copy is the physical bottom-right index travelling with that sheet;
+ * the ordinary bottom-right coordinate falls outside the visible curl. */
+.gesture-card-curl-index {
+  position: absolute;
+  z-index: 3;
+  bottom: 10px;
+  left: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: inherit;
+  font-family: Georgia, serif;
+  font-size: 27px;
+  line-height: 0.78;
+  transform: rotate(180deg);
+}
+
+.gesture-card-curl-index span {
+  margin-top: 5px;
+  font-size: 20px;
+}
+
 .gesture-card-pip {
   font-family: Georgia, serif;
   font-size: 64px;
