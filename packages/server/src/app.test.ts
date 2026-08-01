@@ -1173,6 +1173,47 @@ describe("hand command dispatch over WebSocket", () => {
     expect(lastView.view.seats[1]).toMatchObject({ claimed: false });
   });
 
+  it("auto-folds an evicted current actor and broadcasts the turn advance", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seatSockets = [
+      await claimAndConnect(room.code, 0),
+      await claimAndConnect(room.code, 1),
+      await claimAndConnect(room.code, 2),
+    ];
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    const actor = rooms.currentActor(room.code);
+    if (actor === undefined) throw new Error("expected a current actor");
+
+    const closed = new Promise<void>((resolve) => {
+      seatSockets[actor]?.socket.once("close", () => {
+        resolve();
+      });
+    });
+    const evicted = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/${String(actor)}/evict`,
+    });
+    await closed;
+    await settle();
+
+    expect(evicted.statusCode).toBe(204);
+    expect(rooms.get(room.code)?.seats[actor]).toMatchObject({
+      claimed: false,
+    });
+    expect(rooms.currentActor(room.code)).not.toBe(actor);
+    expect(table.messages).toContainEqual(
+      expect.objectContaining({
+        type: "hand-update",
+        event: { type: "ActionTaken", seatId: actor, action: "fold" },
+      }),
+    );
+  });
+
   it("rejects an out-of-turn action, visible only to the sender", async () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
@@ -1470,6 +1511,31 @@ describe("action clock", () => {
         action: "fold",
       }),
     ]);
+  });
+
+  it("does not reset the current actor's clock for a different seat's eviction", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    for (const seatId of [0, 1, 2]) rooms.claimSeat(room.code, seatId);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    const actor = rooms.currentActor(room.code);
+    if (actor === undefined) throw new Error("expected a current actor");
+
+    await settle(150);
+    const evicted = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/seats/${String((actor + 1) % 3)}/evict`,
+    });
+    await settle(120);
+
+    expect(evicted.statusCode).toBe(204);
+    expect(actionsSeen(table.messages)).toContainEqual(
+      expect.objectContaining({ seatId: actor, action: "fold" }),
+    );
   });
 
   it("does not auto-fold a seat that acts before the clock elapses", async () => {

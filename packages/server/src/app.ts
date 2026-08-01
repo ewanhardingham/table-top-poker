@@ -406,15 +406,26 @@ export async function buildApp(
       // `actor` was read as the live current actor at schedule time, and
       // any real action in between would have rescheduled (and thus
       // replaced) this very timer — so `dispatch` rejecting the
-      // synthesized fold isn't expected to happen. `for` runs zero times
-      // if it somehow does, and the clock still re-arms below.
+      // synthesized fold isn't expected to happen. If it somehow does, the
+      // clock still re-arms below.
       if ("steps" in result) {
-        for (const step of result.steps) {
-          fanOutHandUpdate(code, step);
-        }
+        publishDispatch(code, result);
+        return;
       }
       rescheduleActionClock(code);
     });
+  }
+
+  /** Publishes an accepted dispatch, including any positional seat moves. */
+  function publishDispatch(code: string, result: DispatchSuccess): void {
+    if (result.seatMoves !== undefined) {
+      applySeatMoves(code, result.seatMoves);
+    }
+    logDispatch(code, result);
+    for (const step of result.steps) {
+      fanOutHandUpdate(code, step);
+    }
+    rescheduleActionClock(code);
   }
 
   // `index: false` — the explicit "/" route below owns index resolution
@@ -550,7 +561,10 @@ export async function buildApp(
       }
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      rooms.evictSeat(request.params.code, seatId);
+      const eviction = rooms.evictSeat(request.params.code, seatId);
+      if (eviction.dispatch !== undefined) {
+        publishDispatch(request.params.code, eviction.dispatch);
+      }
       broadcastRoomView(request.params.code);
       closeSeatSockets(request.params.code, seatId);
       return reply.code(204).send();
@@ -708,14 +722,7 @@ export async function buildApp(
             return;
           }
 
-          if (dispatchResult.seatMoves !== undefined) {
-            applySeatMoves(code, dispatchResult.seatMoves);
-          }
-          logDispatch(code, dispatchResult);
-          for (const step of dispatchResult.steps) {
-            fanOutHandUpdate(code, step);
-          }
-          rescheduleActionClock(code);
+          publishDispatch(code, dispatchResult);
           // A fresh deal-in (new join, reconnect) changes seat state the
           // routine hand-update fan-out above doesn't cover.
           if (

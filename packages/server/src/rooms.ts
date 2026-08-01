@@ -62,6 +62,11 @@ export type ClaimSeatError =
 
 export type ClaimSeatResult = { seat: Seat } | { error: ClaimSeatError };
 
+/** The engine fold, when evicting the seat currently owed a decision. */
+export interface EvictSeatResult {
+  readonly dispatch?: DispatchSuccess;
+}
+
 export type ChangeSeatCountError = Exclude<
   SeatCountChangeError,
   "invalid-request-body"
@@ -367,14 +372,29 @@ export class RoomStore {
   /**
    * Frees any claimed seat — active, sitting-out, or disconnected alike —
    * back into the join picker and invalidates its token. The table
-   * device's manual "evict" action (ADR-0003); there is no automatic
-   * trigger.
+   * device's manual "evict" action (ADR-0003); there is no automatic trigger.
+   * An actor evicted during a live hand is folded first so the engine can
+   * advance to the next decision.
    */
-  evictSeat(code: string, seatId: SeatId): void {
+  evictSeat(code: string, seatId: SeatId): EvictSeatResult {
     const room = this.#rooms.get(code);
     const seat = room?.seats[seatId];
-    if (!seat) return;
+    if (!seat) return {};
+
+    if (this.currentActor(code) !== seatId) {
+      freeSeat(seat);
+      return {};
+    }
+
+    const result = this.dispatch(code, seatId, "fold");
+    // `currentActor` was read as the live actor, and fold is unconditionally
+    // legal for that seat. If that invariant ever breaks, leave the seat
+    // claimed so the action clock can recover instead of freeing an actor the
+    // engine is still waiting on.
+    if (!("steps" in result)) return {};
+
     freeSeat(seat);
+    return { dispatch: result };
   }
 
   /**
