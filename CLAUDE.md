@@ -34,6 +34,15 @@ The five canonical triage roles, each using its default label string (`needs-tri
 
 Single-context: one `CONTEXT.md` and one `docs/adr/` at the repo root, both created lazily. See `docs/agents/domain.md`.
 
+## Local testing
+
+While iterating locally, run only the test file(s) covering the code you've
+changed (e.g. `npx vitest run packages/server/src/rooms.test.ts`), not the
+full suite — CI runs the full suite on every push. This keeps local
+feedback loops fast. Still run the full suite (`npm test`) before a deploy,
+per the Raspberry Pi workflow below, and before finishing a task, run it once
+to confirm nothing else broke.
+
 ## Raspberry Pi deployment
 
 When the human asks to deploy a new app version to the Raspberry Pi, use the
