@@ -1525,12 +1525,12 @@ describe("action clock", () => {
     const actor = rooms.currentActor(room.code);
     if (actor === undefined) throw new Error("expected a current actor");
 
-    await settle(120);
+    await settle(150);
     const evicted = await app.inject({
       method: "POST",
       url: `/rooms/${room.code}/seats/${String((actor + 1) % 3)}/evict`,
     });
-    await settle(130);
+    await settle(120);
 
     expect(evicted.statusCode).toBe(204);
     expect(actionsSeen(table.messages)).toContainEqual(

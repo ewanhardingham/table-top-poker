@@ -652,6 +652,28 @@ describe("RoomStore", () => {
         expect(room.engine.hand.players.get(actor)?.folded).toBe(true);
       });
 
+      it("completes a heads-up hand when evicting the current actor", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 2);
+        store.dispatch(room.code, "table", "startHand");
+        const actor = store.currentActor(room.code);
+        if (actor === undefined) throw new Error("expected a current actor");
+
+        const result = store.evictSeat(room.code, actor);
+
+        if (result.dispatch === undefined) {
+          throw new Error("expected the eviction fold to dispatch");
+        }
+        expect(result.dispatch.steps.map((step) => step.event.type)).toEqual([
+          "ActionTaken",
+          "HandFoldedOut",
+          "HandComplete",
+        ]);
+        expect(room.seats[actor]).toMatchObject({ claimed: false });
+        expect(store.currentActor(room.code)).toBeUndefined();
+        expect(room.engine?.hand?.status).toBe("complete");
+      });
+
       it("frees a claimed seat via evictSeat regardless of connection status", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
