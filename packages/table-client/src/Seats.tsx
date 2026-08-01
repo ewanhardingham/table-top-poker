@@ -37,6 +37,18 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
     view?.phase === "betting"
       ? view.seats.find((s) => s.seatId === seat.id)
       : undefined;
+  const showdownResult =
+    view?.phase === "showdown"
+      ? view.results.find((r) => r.seatId === seat.id)
+      : undefined;
+  const participatedInCurrentHand =
+    view?.phase === "betting"
+      ? handSeat !== undefined
+      : view?.phase === "showdown"
+        ? showdownResult !== undefined
+        : view?.phase === "folded-out"
+          ? view.winner === seat.id
+          : false;
 
   let status: SeatStatus = "open";
   if (seat.claimed) {
@@ -46,6 +58,10 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
         : handSeat.folded
           ? "folded"
           : "in-hand";
+    } else if (participatedInCurrentHand) {
+      // `SeatView.sittingOut` may change during a hand, but the hand view is
+      // authoritative about whether this seat is still in that hand.
+      status = "in-hand";
     } else {
       status = seat.sittingOut ? "sitting-out" : "in-hand";
     }
@@ -72,11 +88,6 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
       : status === "sitting-out"
         ? color.seatAvatarSittingOutText
         : color.pillInk;
-
-  const showdownResult =
-    view?.phase === "showdown"
-      ? view.results.find((r) => r.seatId === seat.id)
-      : undefined;
 
   return {
     status,
@@ -283,6 +294,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
             }}
           >
             <motion.div
+              data-testid={`seat-pod-${String(seat.id)}-surface`}
               animate={{
                 boxShadow: visual.isActor
                   ? [...shadow.seatActorGlow]
