@@ -34,9 +34,9 @@ cat commands.jsonl | npx harness --seats 0,1,2,3
 Each line of `commands.jsonl` is a JSON-encoded `Command`, e.g.:
 
 ```jsonl
-{"type":"startHand","playerId":0,"seed":"seed-1"}
-{"type":"call","playerId":1}
-{"type":"raise","playerId":2}
+{"type":"startHand","seatId":0,"seed":"seed-1"}
+{"type":"call","seatId":1}
+{"type":"raise","seatId":2}
 ```
 
 Output is one JSON `HandEvent` or `Rejection` per line — a `Rejection` is

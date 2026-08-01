@@ -595,6 +595,10 @@ export async function buildApp(
         token: result.seat.token,
         displayName: result.seat.displayName,
         sittingOut: rooms.isSittingOut(request.params.code, result.seat.id),
+        sittingOutReason: rooms.sittingOutReason(
+          request.params.code,
+          result.seat.id,
+        ),
       };
     },
   );

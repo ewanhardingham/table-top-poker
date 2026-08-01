@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Wire-level shape of a command a client sends over the room WebSocket —
- * deliberately thinner than the engine's `Command` type. `playerId` is
+ * deliberately thinner than the engine's `Command` type. `seatId` is
  * never trusted from the client: the server derives it from the
  * authenticated socket (room/seat/token query params, §6). `seed` is
  * never client-supplied either: the server generates it via CSPRNG

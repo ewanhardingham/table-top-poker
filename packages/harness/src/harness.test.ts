@@ -24,8 +24,8 @@ function collectingWritable(): { writable: Writable; lines: () => string[] } {
 describe("runHarness", () => {
   it("folds each event into state and writes one JSON line per event", async () => {
     const commands = [
-      { type: "startHand", playerId: 0, seed: "seed-1" },
-      { type: "call", playerId: 1 },
+      { type: "startHand", seatId: 0, seed: "seed-1" },
+      { type: "call", seatId: 1 },
     ];
     const input = Readable.from(
       commands.map((command) => JSON.stringify(command) + "\n"),
@@ -50,7 +50,7 @@ describe("runHarness", () => {
   });
 
   it("writes a Rejection line, distinguishable from events, without throwing", async () => {
-    const commands = [{ type: "call", playerId: 1 }];
+    const commands = [{ type: "call", seatId: 1 }];
     const input = Readable.from(
       commands.map((command) => JSON.stringify(command) + "\n"),
     );
@@ -71,7 +71,7 @@ describe("runHarness", () => {
   it("skips blank lines in the input", async () => {
     const input = Readable.from([
       "\n",
-      JSON.stringify({ type: "startHand", playerId: 0, seed: "seed-1" }) + "\n",
+      JSON.stringify({ type: "startHand", seatId: 0, seed: "seed-1" }) + "\n",
       "\n",
     ]);
     const { writable, lines } = collectingWritable();
@@ -87,9 +87,9 @@ describe("runHarness", () => {
 
   it("is deterministic: replaying the same command stream twice produces byte-identical output", async () => {
     const commandLines = [
-      JSON.stringify({ type: "startHand", playerId: 0, seed: "seed-1" }),
-      JSON.stringify({ type: "call", playerId: 1 }),
-      JSON.stringify({ type: "raise", playerId: 2 }),
+      JSON.stringify({ type: "startHand", seatId: 0, seed: "seed-1" }),
+      JSON.stringify({ type: "call", seatId: 1 }),
+      JSON.stringify({ type: "raise", seatId: 2 }),
     ];
 
     async function run(): Promise<string> {
@@ -123,7 +123,7 @@ describe("runHarness", () => {
 
   it("fails fast on a command type the engine doesn't recognize", async () => {
     const input = Readable.from([
-      JSON.stringify({ type: "bogus", playerId: 0 }) + "\n",
+      JSON.stringify({ type: "bogus", seatId: 0 }) + "\n",
     ]);
     const { writable } = collectingWritable();
 
@@ -140,7 +140,7 @@ describe("runHarness", () => {
     const input = Readable.from([
       JSON.stringify({
         type: "startHand",
-        playerId: 0,
+        seatId: 0,
         seed: "seed-1",
         v: ENGINE_LOG_VERSION,
       }) + "\n",
@@ -177,8 +177,8 @@ describe("runHarness", () => {
       const logDir = tempLogDir();
       const log = new HandLog(logDir, "game-1", [0, 1, 2]);
       const commandLines = [
-        JSON.stringify({ type: "startHand", playerId: 0, seed: "seed-1" }),
-        JSON.stringify({ type: "call", playerId: 1 }),
+        JSON.stringify({ type: "startHand", seatId: 0, seed: "seed-1" }),
+        JSON.stringify({ type: "call", seatId: 1 }),
       ];
       const input = Readable.from(commandLines.map((line) => line + "\n"));
       const { writable, lines } = collectingWritable();
@@ -217,8 +217,8 @@ describe("runHarness", () => {
       const log = new HandLog(logDir, "game-1", [0, 1, 2]);
       const input = Readable.from(
         [
-          { type: "startHand", playerId: 0, seed: "seed-1" },
-          { type: "check", playerId: 1 },
+          { type: "startHand", seatId: 0, seed: "seed-1" },
+          { type: "check", seatId: 1 },
         ].map((command) => JSON.stringify(command) + "\n"),
       );
       const { writable } = collectingWritable();

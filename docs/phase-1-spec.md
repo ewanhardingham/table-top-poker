@@ -107,14 +107,14 @@ CSPRNG at the server, explicit in a test or harness invocation.
 
 No uniform envelope — each type declares its own fields:
 
-- `{ type: 'startHand', playerId, seed }` — no issuer restriction at the
+- `{ type: 'startHand', seatId, seed }` — no issuer restriction at the
   engine level; table-device-only is enforced at the server/UI layer.
-- `{ type: 'fold' | 'check' | 'call' | 'raise', playerId }` — engine
-  validates `playerId` is the current Actor.
+- `{ type: 'fold' | 'check' | 'call' | 'raise', seatId }` — engine
+  validates `seatId` is the current Actor.
 - `{ type: 'evict', seatId }` — server-synthesized for a table eviction,
   never accepted from a player client; it folds a live seat immediately even
   when that seat is not the current Actor.
-- `{ type: 'nextHand', playerId, seed }` — dismisses the showdown reveal and
+- `{ type: 'nextHand', seatId, seed }` — dismisses the showdown reveal and
   starts the next hand in one step; carries the new seed.
 
 No `advance` command. Ordinary street transitions auto-cascade within the
@@ -262,7 +262,7 @@ network round trip.
 > The durable server-side write path is delivered by Phase 2 —
 > [`docs/phase-2-spec.md`](phase-2-spec.md) §3 — which also supersedes the
 > "partitioned by game and by hand" layout above with the Room-ID-keyed
-> version-2 layout, and the version tag above with `ENGINE_LOG_VERSION: 2`.
+> version-2 layout, and the version tag above with `ENGINE_LOG_VERSION: 3`.
 
 ## 6. Transport and wire contract
 ([Transport and server framework](https://github.com/ewanhardingham/table-top-poker/issues/12))

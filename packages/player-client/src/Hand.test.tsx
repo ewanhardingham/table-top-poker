@@ -36,6 +36,7 @@ describe("Hand", () => {
             claimed: true,
             displayName: "Blair",
             sittingOut: false,
+            sittingOutReason: null,
             disconnected: false,
           },
           {
@@ -43,6 +44,7 @@ describe("Hand", () => {
             claimed: true,
             displayName: "Avery",
             sittingOut: false,
+            sittingOutReason: null,
             disconnected: false,
           },
         ]}

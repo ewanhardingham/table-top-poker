@@ -83,6 +83,9 @@ export interface SeatMove {
   readonly to: SeatId;
 }
 
+/** Why a claimed seat is currently absent from the next deal-in. */
+export type SittingOutReason = "voluntary" | "waiting-for-next-hand";
+
 export interface SeatCountChange {
   readonly seatCount: number;
   readonly pendingSeatCount: number | null;
@@ -97,6 +100,8 @@ export interface SeatView {
   /** The required display name for newer claims; absent on pre-name seats. */
   readonly displayName?: string | null;
   readonly sittingOut: boolean;
+  /** Why a claimed seat is absent from the current/next deal-in. */
+  readonly sittingOutReason: SittingOutReason | null;
   /** Presence-only badge (ticket 33 §7) — never affects folding or legal actions. */
   readonly disconnected: boolean;
 }

@@ -57,6 +57,7 @@ export function App() {
         setSeat({
           seatId: stored.seatId,
           sittingOut: seat?.sittingOut ?? false,
+          sittingOutReason: seat?.sittingOutReason ?? null,
           displayName: seat?.displayName ?? stored.displayName ?? null,
         });
         setSeatToken(stored.token);
@@ -156,6 +157,7 @@ export function App() {
           setSeat({
             seatId: claim.seatId,
             sittingOut: claim.sittingOut,
+            sittingOutReason: claim.sittingOutReason,
             displayName: claim.displayName,
           });
           setSeatToken(claim.token);
@@ -229,6 +231,7 @@ export function App() {
                 seatId: playerSeat.id,
                 displayName: playerSeat.displayName ?? null,
                 sittingOut: playerSeat.sittingOut,
+                sittingOutReason: playerSeat.sittingOutReason,
               }
             : null
         }

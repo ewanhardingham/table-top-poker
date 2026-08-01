@@ -104,7 +104,7 @@ function decideAction(
     hand.toAct[0],
     "a betting hand always has an actor",
   );
-  if (command.playerId !== currentActor) {
+  if (command.seatId !== currentActor) {
     return reject("not-your-turn", command);
   }
   if (!isLegal(hand, currentActor, command.type)) {

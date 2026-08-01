@@ -8,6 +8,7 @@ describe("selectionLostMessage", () => {
     id: 2,
     claimed: false,
     sittingOut: false,
+    sittingOutReason: null,
     disconnected: false,
   } as const;
 
@@ -35,8 +36,20 @@ describe("SeatPicker", () => {
         error={null}
         onClaim={() => undefined}
         seats={[
-          { id: 0, claimed: false, sittingOut: false, disconnected: false },
-          { id: 1, claimed: true, sittingOut: false, disconnected: false },
+          {
+            id: 0,
+            claimed: false,
+            sittingOut: false,
+            sittingOutReason: null,
+            disconnected: false,
+          },
+          {
+            id: 1,
+            claimed: true,
+            sittingOut: false,
+            sittingOutReason: null,
+            disconnected: false,
+          },
         ]}
       />,
     );
@@ -56,6 +69,7 @@ describe("SeatPicker", () => {
           id,
           claimed: false,
           sittingOut: false,
+          sittingOutReason: null,
           disconnected: false,
         }))}
       />,

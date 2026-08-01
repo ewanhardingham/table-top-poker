@@ -21,6 +21,7 @@ import {
   type SeatCountChange,
   type SeatCountChangeError,
   type SeatMove,
+  type SittingOutReason,
 } from "@table-top-poker/protocol";
 import { generateRoomCode } from "./room-code.js";
 
@@ -265,23 +266,29 @@ function freeSeat(seat: Seat): void {
 }
 
 /**
- * Whether `seatId` reads as "sitting out" to a client: a voluntary opt-out,
- * or a claim that arrived after the room's current ring was fixed and
- * hasn't been swept into a live hand's deal-in recompute yet (issue #13).
- * Shared by `toRoomView` and any single-seat lookup that needs the same
- * derivation.
+ * Derives the public lifecycle reason for a seat omitted from the current
+ * deal-in: a voluntary opt-out, or a claim made after the live hand's ring
+ * was fixed (issue #13). Shared by `toRoomView` and single-seat lookups.
  */
-function isSittingOut(room: Room, seatId: SeatId): boolean {
+function sittingOutReason(room: Room, seatId: SeatId): SittingOutReason | null {
   const seat = room.seats[seatId];
-  if (!seat) return false;
+  if (!seat) return null;
+  if (seat.sittingOut) return "voluntary";
+
   const ring = room.engine?.seats;
-  return (
-    seat.sittingOut ||
-    (seat.claimed &&
-      !seat.disconnected &&
-      ring !== undefined &&
-      !ring.includes(seatId))
-  );
+  if (
+    seat.claimed &&
+    !seat.disconnected &&
+    ring !== undefined &&
+    !ring.includes(seatId)
+  ) {
+    return "waiting-for-next-hand";
+  }
+  return null;
+}
+
+function isSittingOut(room: Room, seatId: SeatId): boolean {
+  return sittingOutReason(room, seatId) !== null;
 }
 
 /**
@@ -505,6 +512,12 @@ export class RoomStore {
     return room ? isSittingOut(room, seatId) : false;
   }
 
+  /** The public lifecycle reason for a seat omitted from the next deal-in. */
+  sittingOutReason(code: string, seatId: SeatId): SittingOutReason | null {
+    const room = this.#rooms.get(code);
+    return room ? sittingOutReason(room, seatId) : null;
+  }
+
   /**
    * Voluntary seat-state toggle (ADR-0002), driven by the `sitOut`/`sitIn`
    * commands. Never reaches the engine — a sitting-out seat is simply
@@ -620,16 +633,16 @@ export class RoomStore {
   }
 
   /**
-   * `playerId` is unused by the engine for `startHand`/`nextHand` (no
+   * `seatId` is unused by the engine for `startHand`/`nextHand` (no
    * issuer restriction at that layer, per docs/phase-1-spec.md §3) — the
    * table isn't a seat, so there's no meaningful id to supply; `0` is an
    * arbitrary placeholder.
    */
   #buildCommand(identity: SeatId | "table", type: SeatCommandType): Command {
     if (type === "startHand" || type === "nextHand") {
-      return { type, playerId: 0, seed: this.#generateSeed() };
+      return { type, seatId: 0, seed: this.#generateSeed() };
     }
-    return { type, playerId: identity as SeatId };
+    return { type, seatId: identity as SeatId };
   }
 }
 
@@ -638,14 +651,18 @@ export function toRoomView(room: Room): RoomView {
   return {
     code: room.code,
     pendingSeatCount: room.pendingSeatCount,
-    seats: room.seats.map((seat) => ({
-      id: seat.id,
-      claimed: seat.claimed,
-      ...(seat.displayName === undefined
-        ? {}
-        : { displayName: seat.displayName }),
-      sittingOut: isSittingOut(room, seat.id),
-      disconnected: seat.disconnected,
-    })),
+    seats: room.seats.map((seat) => {
+      const reason = sittingOutReason(room, seat.id);
+      return {
+        id: seat.id,
+        claimed: seat.claimed,
+        ...(seat.displayName === undefined
+          ? {}
+          : { displayName: seat.displayName }),
+        sittingOut: reason !== null,
+        sittingOutReason: reason,
+        disconnected: seat.disconnected,
+      };
+    }),
   };
 }

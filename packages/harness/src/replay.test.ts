@@ -55,10 +55,10 @@ describe("replay guarantee", () => {
     const log = new HandLog(logDir, "game-1", seats);
 
     const commands = [
-      { type: "startHand", playerId: 0, seed: "replay-seed" },
+      { type: "startHand", seatId: 0, seed: "replay-seed" },
       { type: "evict", seatId: 2 },
-      { type: "call", playerId: 1 },
-      { type: "call", playerId: 0 },
+      { type: "call", seatId: 1 },
+      { type: "call", seatId: 0 },
     ];
     const original = collectingWritable();
     await runHarness({

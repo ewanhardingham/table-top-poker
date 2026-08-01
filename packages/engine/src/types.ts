@@ -26,11 +26,11 @@ export type ActionType = "fold" | "check" | "call" | "raise";
 export type HandRank = number;
 
 export type Command =
-  | { type: "startHand"; playerId: SeatId; seed: string }
-  | { type: ActionType; playerId: SeatId }
+  | { type: "startHand"; seatId: SeatId; seed: string }
+  | { type: ActionType; seatId: SeatId }
   /** Server-synthesized table action; never accepted from a player client. */
   | { type: "evict"; seatId: SeatId }
-  | { type: "nextHand"; playerId: SeatId; seed: string };
+  | { type: "nextHand"; seatId: SeatId; seed: string };
 
 export type HandEvent =
   | { type: "HandStarted"; seed: string; button: SeatId }

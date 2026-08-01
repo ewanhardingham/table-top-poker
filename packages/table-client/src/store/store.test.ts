@@ -33,11 +33,25 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
-      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
     });
     expect(useTableStore.getState().roomCode).toBe("ABCD");
     expect(useTableStore.getState().seats).toEqual([
-      { id: 0, claimed: true, sittingOut: false, disconnected: false },
+      {
+        id: 0,
+        claimed: true,
+        sittingOut: false,
+        sittingOutReason: null,
+        disconnected: false,
+      },
     ]);
   });
 
@@ -45,7 +59,15 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: 4,
-      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
     });
 
     expect(useTableStore.getState().pendingSeatCount).toBe(4);
@@ -55,7 +77,15 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
-      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
     });
     useTableStore.getState().clearRoom();
     expect(useTableStore.getState().roomCode).toBeNull();
