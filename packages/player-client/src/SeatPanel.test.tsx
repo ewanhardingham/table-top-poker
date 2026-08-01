@@ -39,11 +39,13 @@ describe("SeatPanel", () => {
       <SeatPanel
         seatId={2}
         sittingOut={true}
+        sittingOutReason="waiting-for-next-hand"
         toggleDisabled={false}
         onToggleSittingOut={noop}
       />,
     );
     expect(html).toContain('data-testid="sitting-out-badge"');
+    expect(html).toContain("Waiting for next hand");
   });
 
   it("offers sit out while active and sit in while sitting out", () => {

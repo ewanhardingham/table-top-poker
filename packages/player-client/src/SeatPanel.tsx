@@ -5,11 +5,13 @@ import {
   fontSize,
   radius,
 } from "@table-top-poker/ui-shared";
+import type { SittingOutReason } from "@table-top-poker/protocol";
 
 export interface SeatPanelProps {
   readonly seatId: number;
   readonly displayName?: string | null;
   readonly sittingOut: boolean;
+  readonly sittingOutReason?: SittingOutReason | null;
   readonly toggleDisabled: boolean;
   readonly onToggleSittingOut: () => void;
 }
@@ -18,6 +20,7 @@ export function SeatPanel({
   seatId,
   displayName,
   sittingOut,
+  sittingOutReason = null,
   toggleDisabled,
   onToggleSittingOut,
 }: SeatPanelProps) {
@@ -67,7 +70,9 @@ export function SeatPanel({
             color: color.textFaint,
           }}
         >
-          Sitting out
+          {sittingOutReason === "waiting-for-next-hand"
+            ? "Waiting for next hand"
+            : "Sitting out"}
         </div>
       )}
       <PillButton

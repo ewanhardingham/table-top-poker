@@ -44,7 +44,7 @@ describe("HandLog", () => {
     const logDir = tempLogDir();
     const log = new HandLog(logDir, "game-1", [0, 1, 2]);
 
-    const startHand1: Command = { type: "startHand", playerId: 0, seed: "s1" };
+    const startHand1: Command = { type: "startHand", seatId: 0, seed: "s1" };
     log.logCommand(startHand1);
     const handStarted1: HandEvent = {
       type: "HandStarted",
@@ -53,7 +53,7 @@ describe("HandLog", () => {
     };
     log.logEvent(handStarted1);
 
-    const nextHand: Command = { type: "nextHand", playerId: 1, seed: "s2" };
+    const nextHand: Command = { type: "nextHand", seatId: 1, seed: "s2" };
     log.logCommand(nextHand);
     const handStarted2: HandEvent = {
       type: "HandStarted",
@@ -83,7 +83,7 @@ describe("HandLog", () => {
     const logDir = tempLogDir();
     const log = new HandLog(logDir, "game-1", [0, 1, 2]);
 
-    log.logCommand({ type: "call", playerId: 1 });
+    log.logCommand({ type: "call", seatId: 1 });
 
     const hand0 = handLogPaths(path.join(logDir, "game-1"), 0);
     expect(existsSync(hand0.commandsPath)).toBe(false);
@@ -93,9 +93,9 @@ describe("HandLog", () => {
     const logDir = tempLogDir();
     const log = new HandLog(logDir, "game-1", [0, 1, 2]);
 
-    log.logCommand({ type: "startHand", playerId: 0, seed: "s1" });
-    log.logCommand({ type: "call", playerId: 1 });
-    log.logCommand({ type: "raise", playerId: 2 });
+    log.logCommand({ type: "startHand", seatId: 0, seed: "s1" });
+    log.logCommand({ type: "call", seatId: 1 });
+    log.logCommand({ type: "raise", seatId: 2 });
 
     const hand1 = handLogPaths(path.join(logDir, "game-1"), 1);
     const text = await readFile(hand1.commandsPath, { encoding: "utf8" });

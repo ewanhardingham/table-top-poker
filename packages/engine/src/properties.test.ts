@@ -47,7 +47,7 @@ describe("property: same seed produces the same deal", () => {
             const state = createInitialState(seats);
             const result = decide(state, {
               type: "startHand",
-              playerId: must(seats[0]),
+              seatId: must(seats[0]),
               seed,
             });
             if (!Array.isArray(result)) throw new Error("unexpected rejection");
@@ -70,9 +70,9 @@ describe("property: a rejected command never mutates state", () => {
         seatsArb,
         actionArb,
         fc.integer({ min: 0, max: 7 }),
-        (seats, action, playerId) => {
+        (seats, action, seatId) => {
           const before = deepFreeze(createInitialState(seats));
-          const result = decide(before, { type: action, playerId });
+          const result = decide(before, { type: action, seatId });
           expect(Array.isArray(result)).toBe(false);
         },
       ),
@@ -85,7 +85,7 @@ describe("property: a rejected command never mutates state", () => {
         let state: EngineState = createInitialState(seats);
         const started = decide(state, {
           type: "startHand",
-          playerId: must(seats[0]),
+          seatId: must(seats[0]),
           seed: "prop-seed",
         });
         if (!Array.isArray(started)) throw new Error("unexpected rejection");
@@ -100,7 +100,7 @@ describe("property: a rejected command never mutates state", () => {
         const wrongPlayer = must(seats.find((seat) => seat !== actor));
 
         const frozen = deepFreeze(state);
-        const result = decide(frozen, { type: action, playerId: wrongPlayer });
+        const result = decide(frozen, { type: action, seatId: wrongPlayer });
 
         expect(Array.isArray(result)).toBe(false);
         if (!Array.isArray(result)) {
@@ -136,7 +136,7 @@ describe("property: decide/apply keep the betting invariants across a random han
           let state: EngineState = createInitialState(seats);
           const started = decide(state, {
             type: "startHand",
-            playerId: must(seats[0]),
+            seatId: must(seats[0]),
             seed,
           });
           if (!Array.isArray(started)) throw new Error("unexpected rejection");
@@ -152,7 +152,7 @@ describe("property: decide/apply keep the betting invariants across a random han
             const options = legalActions(hand, actor);
             const action = must(options[choice % options.length]);
 
-            const result = decide(state, { type: action, playerId: actor });
+            const result = decide(state, { type: action, seatId: actor });
             if (!Array.isArray(result)) {
               throw new Error(`unexpected rejection: ${result.reason}`);
             }

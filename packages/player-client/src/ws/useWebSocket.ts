@@ -151,6 +151,7 @@ export function useWebSocket(
                   seatId: seat.id,
                   displayName: seat.displayName ?? null,
                   sittingOut: seat.sittingOut,
+                  sittingOutReason: seat.sittingOutReason,
                 });
               }
             }

@@ -21,10 +21,10 @@ describe("ClientCommandSchema", () => {
     expect(result.success).toBe(false);
   });
 
-  it("rejects a client-supplied playerId or seed", () => {
+  it("rejects a client-supplied seatId or seed", () => {
     const result = ClientCommandSchema.safeParse({
       type: "startHand",
-      playerId: 3,
+      seatId: 3,
       seed: "attacker-chosen",
     });
     expect(result.success).toBe(false);

@@ -23,14 +23,14 @@ function playAndCollect(state: EngineState, commands: Command[]): HandEvent[] {
 // Both scenarios play a heads-up hand with no raises (call/check throughout)
 // so the only thing that varies between seeds is the dealt cards.
 const headsUpToRiver: Command[] = [
-  { type: "call", playerId: 0 },
-  { type: "check", playerId: 1 },
-  { type: "check", playerId: 1 },
-  { type: "check", playerId: 0 },
-  { type: "check", playerId: 1 },
-  { type: "check", playerId: 0 },
-  { type: "check", playerId: 1 },
-  { type: "check", playerId: 0 },
+  { type: "call", seatId: 0 },
+  { type: "check", seatId: 1 },
+  { type: "check", seatId: 1 },
+  { type: "check", seatId: 0 },
+  { type: "check", seatId: 1 },
+  { type: "check", seatId: 0 },
+  { type: "check", seatId: 1 },
+  { type: "check", seatId: 0 },
 ];
 
 function showdownFor(
@@ -38,7 +38,7 @@ function showdownFor(
 ): Extract<HandEvent, { type: "ShowdownReached" }> {
   const state = createInitialState([0, 1]);
   const events = playAndCollect(state, [
-    { type: "startHand", playerId: 0, seed },
+    { type: "startHand", seatId: 0, seed },
     ...headsUpToRiver,
   ]);
   const showdown = events.find((e) => e.type === "ShowdownReached");
@@ -78,20 +78,20 @@ describe("ShowdownReached omits folded seats", () => {
   it("never reveals a seat that folded, even though it was live earlier", () => {
     const state = createInitialState([0, 1, 2]);
     const events = playAndCollect(state, [
-      { type: "startHand", playerId: 0, seed: "seed-1" },
-      { type: "call", playerId: 1 },
-      { type: "raise", playerId: 2 },
-      { type: "call", playerId: 0 },
-      { type: "call", playerId: 1 },
-      { type: "check", playerId: 1 },
-      { type: "check", playerId: 2 },
-      { type: "check", playerId: 0 },
-      { type: "fold", playerId: 1 },
-      { type: "check", playerId: 2 },
-      { type: "check", playerId: 0 },
-      { type: "check", playerId: 2 },
-      { type: "raise", playerId: 0 },
-      { type: "call", playerId: 2 },
+      { type: "startHand", seatId: 0, seed: "seed-1" },
+      { type: "call", seatId: 1 },
+      { type: "raise", seatId: 2 },
+      { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
+      { type: "check", seatId: 1 },
+      { type: "check", seatId: 2 },
+      { type: "check", seatId: 0 },
+      { type: "fold", seatId: 1 },
+      { type: "check", seatId: 2 },
+      { type: "check", seatId: 0 },
+      { type: "check", seatId: 2 },
+      { type: "raise", seatId: 0 },
+      { type: "call", seatId: 2 },
     ]);
     const showdown = events.find((e) => e.type === "ShowdownReached");
     if (showdown?.type !== "ShowdownReached") {

@@ -9,10 +9,10 @@ const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const cliPath = path.join(repoRoot, "packages/harness/dist/cli.js");
 
 const commands = [
-  { type: "startHand", playerId: 0, seed: "durability-seed" },
-  { type: "call", playerId: 1 },
-  { type: "raise", playerId: 2 },
-  { type: "call", playerId: 0 },
+  { type: "startHand", seatId: 0, seed: "durability-seed" },
+  { type: "call", seatId: 1 },
+  { type: "raise", seatId: 2 },
+  { type: "call", seatId: 0 },
 ];
 
 function readJsonLines(filePath: string): unknown[] {

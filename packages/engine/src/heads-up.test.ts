@@ -10,7 +10,7 @@ function betting(state: ReturnType<typeof createInitialState>) {
 describe("heads-up (2 live players)", () => {
   it("has the button act first preflop, last on every later street", () => {
     let state = createInitialState([0, 1]);
-    state = playAll(state, [{ type: "startHand", playerId: 0, seed: "hu" }]);
+    state = playAll(state, [{ type: "startHand", seatId: 0, seed: "hu" }]);
 
     // Button (0) is also the Small Blind and acts first preflop — they face
     // the BB's post, so they must call/fold/raise, not check; only the BB
@@ -19,8 +19,8 @@ describe("heads-up (2 live players)", () => {
     expect(betting(state).toAct).toEqual([0, 1]);
 
     state = playAll(state, [
-      { type: "call", playerId: 0 },
-      { type: "check", playerId: 1 },
+      { type: "call", seatId: 0 },
+      { type: "check", seatId: 1 },
     ]);
 
     // Postflop: the non-button seat (BB) now acts first, button last.
@@ -28,8 +28,8 @@ describe("heads-up (2 live players)", () => {
     expect(betting(state).toAct).toEqual([1, 0]);
 
     state = playAll(state, [
-      { type: "check", playerId: 1 },
-      { type: "check", playerId: 0 },
+      { type: "check", seatId: 1 },
+      { type: "check", seatId: 0 },
     ]);
     expect(betting(state).street).toBe("turn");
     expect(betting(state).toAct).toEqual([1, 0]);
