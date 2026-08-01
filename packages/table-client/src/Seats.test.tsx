@@ -21,6 +21,15 @@ describe("Seats", () => {
     expect(html).toMatch(/data-testid="seat-pod-3"[^>]*data-status="open"/);
   });
 
+  it("gives a sitting-out seat a quiet local treatment and next-hand copy", () => {
+    const html = renderToStaticMarkup(<Seats seats={seats} view={null} />);
+
+    expect(html).toContain('data-testid="seat-pod-2-sitting-out"');
+    expect(html).toContain("Sitting out");
+    expect(html).toContain("Next hand");
+    expect(html).not.toContain('data-testid="seat-pod-0-sitting-out"');
+  });
+
   it("marks the button seat once a hand exists, even with no active betting", () => {
     const view: TableView = { phase: "no-hand", button: 1 };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);

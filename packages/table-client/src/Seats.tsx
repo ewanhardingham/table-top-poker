@@ -62,12 +62,16 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
     ? color.seatAvatarOpen
     : status === "folded"
       ? color.seatAvatarFolded
-      : color.text;
+      : status === "sitting-out"
+        ? color.seatAvatarSittingOut
+        : color.text;
   const avatarColor = !seat.claimed
     ? color.seatAvatarOpenText
     : status === "folded"
       ? color.seatAvatarFoldedText
-      : color.pillInk;
+      : status === "sitting-out"
+        ? color.seatAvatarSittingOutText
+        : color.pillInk;
 
   const showdownResult =
     view?.phase === "showdown"
@@ -118,10 +122,28 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                 fontSize: "1.1em",
                 background: visual.avatarBackground,
                 color: visual.avatarColor,
+                border:
+                  visual.status === "sitting-out"
+                    ? `1px dashed ${color.seatSittingOutBorder}`
+                    : undefined,
               }}
             >
               {seat.id + 1}
             </div>
+            {visual.status === "sitting-out" && (
+              <span
+                aria-hidden="true"
+                style={{
+                  position: "absolute",
+                  left: "0.1em",
+                  right: "0.1em",
+                  top: "50%",
+                  height: "1px",
+                  transform: "rotate(-34deg)",
+                  background: color.textFaint,
+                }}
+              />
+            )}
             {visual.isButton && (
               <span
                 data-testid={`seat-pod-${String(seat.id)}-button`}
@@ -190,6 +212,36 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
           </div>
         );
 
+        const sittingOutBlock = visual.status === "sitting-out" && (
+          <div
+            key="sitting-out"
+            data-testid={`seat-pod-${String(seat.id)}-sitting-out`}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "0.15em",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: font.mono,
+                fontSize: "0.6em",
+                fontWeight: 700,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: color.textMuted,
+              }}
+            >
+              Sitting out
+            </span>
+            <span style={{ fontSize: "0.6em", color: color.textFaint }}>
+              Next hand
+            </span>
+          </div>
+        );
+
         // Boundary rule: the avatar is the fixed anchor `posFor` placed —
         // cards and the hand-description caption only ever grow inward,
         // toward the felt's centre, never past the seat toward the rail.
@@ -197,8 +249,8 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
         // is the mirror, so the caption always ends up on the table-facing
         // side, closest to the centre everyone's looking at.
         const stack = isTopRow
-          ? [avatarBlock, holeCardsBlock, captionBlock]
-          : [captionBlock, holeCardsBlock, avatarBlock];
+          ? [avatarBlock, holeCardsBlock, sittingOutBlock, captionBlock]
+          : [captionBlock, holeCardsBlock, sittingOutBlock, avatarBlock];
 
         return (
           <div
@@ -251,15 +303,24 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                   ? color.seatWinnerBackground
                   : visual.isActor
                     ? color.seatActorBackground
-                    : "transparent",
+                    : visual.status === "sitting-out"
+                      ? color.seatSittingOutBackground
+                      : "transparent",
                 border: `1px solid ${
                   visual.isWinner
                     ? color.seatWinnerBorder
                     : visual.isActor
                       ? color.accent
-                      : "transparent"
+                      : visual.status === "sitting-out"
+                        ? color.seatSittingOutBorder
+                        : "transparent"
                 }`,
-                opacity: visual.status === "folded" ? 0.34 : 1,
+                opacity:
+                  visual.status === "folded"
+                    ? 0.34
+                    : visual.status === "sitting-out"
+                      ? 0.82
+                      : 1,
               }}
             >
               {stack}
