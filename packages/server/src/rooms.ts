@@ -381,13 +381,20 @@ export class RoomStore {
     const seat = room?.seats[seatId];
     if (!seat) return {};
 
-    let fold: DispatchSuccess | undefined;
-    if (this.currentActor(code) === seatId) {
-      const result = this.dispatch(code, seatId, "fold");
-      if ("steps" in result) fold = result;
+    if (this.currentActor(code) !== seatId) {
+      freeSeat(seat);
+      return {};
     }
+
+    const result = this.dispatch(code, seatId, "fold");
+    // `currentActor` was read as the live actor, and fold is unconditionally
+    // legal for that seat. If that invariant ever breaks, leave the seat
+    // claimed so the action clock can recover instead of freeing an actor the
+    // engine is still waiting on.
+    if (!("steps" in result)) return {};
+
     freeSeat(seat);
-    return fold === undefined ? {} : { dispatch: fold };
+    return { dispatch: result };
   }
 
   /**
