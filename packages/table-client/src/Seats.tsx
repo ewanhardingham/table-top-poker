@@ -14,7 +14,8 @@ export interface SeatsProps {
   readonly onSeatClick?: (seatId: number) => void;
 }
 
-type SeatStatus = "open" | "sitting-out" | "folded" | "in-hand";
+type SeatStatus =
+  "open" | "sitting-out" | "disconnected" | "folded" | "in-hand";
 
 interface SeatVisual {
   readonly status: SeatStatus;
@@ -54,7 +55,9 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
   if (seat.claimed) {
     if (view?.phase === "betting") {
       status = !handSeat
-        ? "sitting-out"
+        ? seat.disconnected
+          ? "disconnected"
+          : "sitting-out"
         : handSeat.folded
           ? "folded"
           : "in-hand";
@@ -63,7 +66,11 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
       // authoritative about whether this seat is still in that hand.
       status = "in-hand";
     } else {
-      status = seat.sittingOut ? "sitting-out" : "in-hand";
+      status = seat.disconnected
+        ? "disconnected"
+        : seat.sittingOut
+          ? "sitting-out"
+          : "in-hand";
     }
   }
 
@@ -266,10 +273,14 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                 color: color.textMuted,
               }}
             >
-              Sitting out
+              {seat.sittingOutReason === "waiting-for-next-hand"
+                ? "Waiting for next hand"
+                : "Sitting out"}
             </span>
             <span style={{ fontSize: "0.6em", color: color.textFaint }}>
-              Not in hand
+              {seat.sittingOutReason === "waiting-for-next-hand"
+                ? "Claimed after the deal"
+                : "Until you sit in"}
             </span>
           </div>
         );

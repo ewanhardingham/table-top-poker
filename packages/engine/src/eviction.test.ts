@@ -29,7 +29,7 @@ describe("eviction command", () => {
           }
           let state = createInitialState(seats);
           state = playAll(state, [
-            { type: "startHand", playerId: firstSeat, seed },
+            { type: "startHand", seatId: firstSeat, seed },
           ]);
           if (state.hand?.status !== "betting") {
             throw new Error("expected a betting hand");
@@ -60,7 +60,7 @@ describe("eviction command", () => {
   it("folds a later seat without moving the current actor", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "eviction" },
+      { type: "startHand", seatId: 0, seed: "eviction" },
     ]);
     if (state.hand?.status !== "betting") {
       throw new Error("expected a betting hand");
@@ -91,7 +91,7 @@ describe("eviction command", () => {
     if (currentAction === undefined) {
       throw new Error("expected the current actor to retain legal actions");
     }
-    expect(decide(state, { type: currentAction, playerId: actor })).toEqual(
+    expect(decide(state, { type: currentAction, seatId: actor })).toEqual(
       expect.any(Array),
     );
   });
@@ -99,7 +99,7 @@ describe("eviction command", () => {
   it("completes a heads-up hand when the non-current seat is evicted", () => {
     let state = createInitialState([0, 1]);
     state = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "eviction-heads-up" },
+      { type: "startHand", seatId: 0, seed: "eviction-heads-up" },
     ]);
     if (state.hand?.status !== "betting") {
       throw new Error("expected a betting hand");
