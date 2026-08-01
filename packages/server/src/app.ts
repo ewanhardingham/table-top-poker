@@ -63,7 +63,7 @@ export interface BuildAppOptions {
   readonly handLogDir?: string;
   /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
   readonly actionClockMs?: number;
-  /** How often the server pings every open socket (docs/phase-1-spec.md §7). */
+  /** How often the server pings every open socket (Phase 1 spec #130 §7). */
   readonly pingIntervalMs?: number;
   /** Missed pongs before a seat's badge flips to "disconnected". */
   readonly missedPongLimit?: number;
@@ -140,7 +140,7 @@ function findRoomOrReject(
 
 /**
  * `HandEvent` is the engine's full, unredacted truth by design (secrecy
- * lives solely in `view` — docs/phase-1-spec.md §3/§4). The *wire* event
+ * lives solely in `view` — Phase 1 spec #130 §3/§4). The *wire* event
  * carried alongside that view is a transport-level exception: `HoleCardsDealt`
  * must be redacted per recipient before it ever leaves the server, or the
  * "raw event for audit/animation" bullet in §6 would leak every seat's cards
@@ -312,7 +312,7 @@ export async function buildApp(
 
   /**
    * Ends a room the same way whether triggered by "End session" or the
-   * table device's own reconnect grace window elapsing (docs/phase-1-spec.md
+   * table device's own reconnect grace window elapsing (Phase 1 spec #130
    * §7): notify every socket, close them, discard the transport bookkeeping,
    * then discard the room itself. Hand logs on disk are untouched — this
    * only ever touches in-memory state.
@@ -393,7 +393,7 @@ export async function buildApp(
    * table gets `view(state, 'table')`, a seat gets `view(state, seatId)`
    * only if it was actually dealt into the hand that produced this state —
    * a sitting-out seat's socket gets nothing, never another seat's cards
-   * (docs/phase-1-spec.md §4, §6).
+   * (Phase 1 spec #130 §4, §6).
    */
   function fanOutHandUpdate(code: string, step: DispatchStep): void {
     const sockets = roomSockets.get(code);
@@ -422,7 +422,7 @@ export async function buildApp(
    * called after every command a room accepts, real or synthesized, so the
    * clock always reflects the live actor. A disconnected socket plays no
    * part here; only `dispatch` outcomes move this clock, per
-   * docs/phase-1-spec.md §7.
+   * Phase 1 spec #130 §7.
    */
   function rescheduleActionClock(code: string): void {
     const actor = rooms.currentActor(code);

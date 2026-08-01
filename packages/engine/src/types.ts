@@ -103,7 +103,7 @@ export interface ShowdownResult {
  * A live seat's showdown result with its hole cards attached — the only
  * place another seat's hole cards are structurally reachable, and only
  * ever for a seat that actually reached showdown live (see
- * docs/phase-1-spec.md §4, Visibility). Built once, in `apply`, from the
+ * Phase 1 spec #130 §4, Visibility). Built once, in `apply`, from the
  * betting hand's players map; nothing downstream needs that map again.
  */
 export interface RevealedResult extends ShowdownResult {

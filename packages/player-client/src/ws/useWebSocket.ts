@@ -19,7 +19,7 @@ export interface UseWebSocketOptions {
    * The socket closed before ever opening — an upgrade-time rejection (a
    * bad or stale seat token), not a network blip. Retrying would spin
    * forever against a seat that's gone, so the caller drops back to the
-   * seat picker instead (docs/phase-1-spec.md §7 — a cleared token never
+   * seat picker instead (Phase 1 spec #130 §7 — a cleared token never
    * auto-reclaims a seat).
    */
   readonly onRejected?: () => void;
@@ -49,7 +49,7 @@ const RETRY_DELAY_MS = 1500;
  * reflects its lifecycle into the connection slice. Every `room-view` push
  * replaces the seat list; every `hand-update`/`view-snapshot` replaces the
  * hand slice with the fresh `view(state, seatId)` the server just computed
- * for this seat — the view is source of truth (docs/phase-1-spec.md §6),
+ * for this seat — the view is source of truth (Phase 1 spec #130 §6),
  * never rebuilt from the raw event locally. That same snapshot also clears
  * any pending/rejected action, since the view is what "next legal action or
  * next view snapshot" (§9) resolves against. `command-rejected` is

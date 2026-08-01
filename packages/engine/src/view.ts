@@ -63,7 +63,7 @@ export type TableView =
 /**
  * Builds the restricted view for one seat, or the table device via the
  * `"table"` sentinel. Both are derived from the same authoritative state so
- * the table is never privileged over a player — see docs/phase-1-spec.md §4.
+ * the table is never privileged over a player — see Phase 1 spec #130 §4.
  */
 export function view(state: EngineState, seatId: SeatId): PlayerView;
 export function view(state: EngineState, seatId: "table"): TableView;

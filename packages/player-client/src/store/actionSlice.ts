@@ -9,7 +9,7 @@ export interface ActionRejection {
   /**
    * The action `reason` was rejecting, or `null` if a `command-rejected`
    * arrived with nothing pending — `command-rejected` carries no
-   * correlation id (docs/phase-1-spec.md §6), so this is a best-effort
+   * correlation id (Phase 1 spec #130 §6), so this is a best-effort
    * attribution, not a guarantee.
    */
   readonly action: ActionType | null;
@@ -31,7 +31,7 @@ export interface ActionSlice {
  * clears any stale rejection, so pressing another button dismisses the old
  * failure message even before a fresh view arrives — matching the "clears
  * on the player's next legal action or next view snapshot" rule in
- * docs/phase-1-spec.md §9.
+ * Phase 1 spec #130 §9.
  */
 export const createActionSlice: StateCreator<ActionSlice> = (set) => ({
   pendingAction: null,

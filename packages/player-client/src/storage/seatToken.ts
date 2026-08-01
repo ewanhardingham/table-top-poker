@@ -23,7 +23,7 @@ export function saveSeatToken(
 /**
  * Reads back a stored seat token for auto-reconnect on mount. Malformed or
  * absent storage both read as "nothing to reclaim" — a cleared/corrupted
- * localStorage must never fall back to any other seat (docs/phase-1-spec.md §7).
+ * localStorage must never fall back to any other seat (Phase 1 spec #130 §7).
  */
 export function loadSeatToken(storage: Storage): StoredSeatToken | null {
   const raw = storage.getItem(KEY);

@@ -6,7 +6,7 @@ import { z } from "zod";
  * never trusted from the client: the server derives it from the
  * authenticated socket (room/seat/token query params, §6). `seed` is
  * never client-supplied either: the server generates it via CSPRNG
- * (docs/phase-1-spec.md §3). Both fields get filled in server-side before
+ * (Phase 1 spec #130 §3). Both fields get filled in server-side before
  * reaching `decide`.
  */
 export const ClientCommandSchema = z.discriminatedUnion("type", [

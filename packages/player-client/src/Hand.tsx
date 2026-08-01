@@ -370,7 +370,7 @@ function EmptyHoleCards({ text }: { readonly text: string }) {
 
 /**
  * Own hole cards, mirrored straight from the seat's `view` — nothing
- * rebuilt from the raw event locally (docs/phase-1-spec.md §9). Hidden
+ * rebuilt from the raw event locally (Phase 1 spec #130 §9). Hidden
  * again once folded, a burn-pile per §4: `yourHoleCards` is already `null`
  * in that view, this never redacts. The shared board is deliberately never
  * shown here, showdown included — the player device stays hole-cards-only,

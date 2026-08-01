@@ -29,7 +29,7 @@ export function canAct(
 }
 
 /**
- * The action-intent module (docs/phase-1-spec.md §9): `fold`/`check`/
+ * The action-intent module (Phase 1 spec #130 §9): `fold`/`check`/
  * `call`/`raise`, plus `legalActions` derived from the latest view
  * snapshot.
  */

@@ -537,7 +537,7 @@ export class RoomStore {
   /**
    * Runs one command through the engine on behalf of an authenticated
    * socket. `identity` is derived server-side from the WS connection, never
-   * from the message payload — see docs/phase-1-spec.md §6. `startHand` and
+   * from the message payload — see Phase 1 spec #130 §6. `startHand` and
    * `nextHand` are table-only at this layer (the engine itself places no
    * such restriction); everything else is seat-only. Every `startHand`/
    * `nextHand` recomputes deal-in from the seats currently claimed,
@@ -621,7 +621,7 @@ export class RoomStore {
 
   /**
    * `playerId` is unused by the engine for `startHand`/`nextHand` (no
-   * issuer restriction at that layer, per docs/phase-1-spec.md §3) — the
+   * issuer restriction at that layer, per Phase 1 spec #130 §3) — the
    * table isn't a seat, so there's no meaningful id to supply; `0` is an
    * arbitrary placeholder.
    */

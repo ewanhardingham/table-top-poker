@@ -2,7 +2,7 @@
 
 A line-delimited JSON CLI over the engine: commands in via stdin (one per
 line), events/rejections out via stdout (one per line), folding each event
-into state via `apply` as it's produced. See `docs/phase-1-spec.md` §3.
+into state via `apply` as it's produced. See Phase 1 spec #130 §3.
 
 ## Build
 
@@ -69,7 +69,7 @@ diff run1.jsonl run2.jsonl && echo "identical"
 
 Pass `--log-dir` to have the harness write both the command stream (ground
 truth for replay) and the event stream (audit trail) to disk as it plays,
-append-as-you-go — see `docs/phase-1-spec.md` §5:
+append-as-you-go — see Phase 1 spec #130 §5:
 
 ```sh
 cat commands.jsonl | npx harness --log-dir ./logs --game-id friday-game
