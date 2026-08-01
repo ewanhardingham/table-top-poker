@@ -484,10 +484,11 @@ export class RoomStore {
     }
 
     let seatMoves: readonly SeatMove[] = [];
+    let candidateEngine = room.engine;
     if (type === "startHand" && room.engine === null) {
       const dealIn = eligibleSeats(room);
       if (dealIn.length < 2) return { reason: "not-enough-players" };
-      room.engine = createInitialState(dealIn);
+      candidateEngine = createInitialState(dealIn);
     } else if (type === "nextHand" && room.engine !== null) {
       if (eligibleSeats(room).length < 2) {
         return { reason: "not-enough-players" };
@@ -499,23 +500,23 @@ export class RoomStore {
       seatMoves = repack.moves;
       const previousButton = remapSeatId(room.engine.button, repack.mapping);
       const dealIn = eligibleSeats(room);
-      room.engine = {
+      candidateEngine = {
         ...room.engine,
         seats: dealIn,
         button: resolveButtonFor(previousButton, dealIn),
       };
     }
 
-    if (room.engine === null) return { reason: "hand-not-in-progress" };
+    if (candidateEngine === null) return { reason: "hand-not-in-progress" };
 
     const command = this.#buildCommand(identity, type);
-    const result = decide(room.engine, command);
+    const result = decide(candidateEngine, command);
     if (!Array.isArray(result)) {
       return { reason: result.reason, command, rejection: result };
     }
 
     const steps: DispatchStep[] = [];
-    let state = room.engine;
+    let state = candidateEngine;
     for (const event of result) {
       state = apply(state, event);
       steps.push({ event, state });

@@ -615,6 +615,23 @@ describe("RoomStore", () => {
           reason: "not-enough-players",
         });
       });
+
+      it("rejects nextHand as stale-next-hand while a hand is still live, leaving seats and button untouched", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 3);
+        store.dispatch(room.code, "table", "startHand");
+        store.setSeatDisconnected(room.code, 2, true);
+
+        const seatsBefore = room.engine?.seats;
+        const buttonBefore = room.engine?.button;
+
+        const result = store.dispatch(room.code, "table", "nextHand");
+
+        expect(result).toMatchObject({ reason: "stale-next-hand" });
+        expect(room.engine?.seats).toBe(seatsBefore);
+        expect(room.engine?.button).toBe(buttonBefore);
+        expect(room.engine?.hand?.status).toBe("betting");
+      });
     });
 
     describe("ADR-0003: manual eviction", () => {
