@@ -57,8 +57,12 @@ export const color = {
 
   seatAvatarOpen: "rgba(255,255,255,.06)",
   seatAvatarOpenText: "rgba(250,240,238,.5)",
+  seatAvatarSittingOut: "rgba(255,255,255,.035)",
+  seatAvatarSittingOutText: "rgba(250,240,238,.45)",
   seatAvatarFolded: "rgba(255,255,255,.1)",
   seatAvatarFoldedText: "rgba(250,240,238,.45)",
+  seatSittingOutBackground: "rgba(10,6,7,.32)",
+  seatSittingOutBorder: "rgba(125,106,104,.8)",
   seatWinnerBorder: "rgba(250,234,231,.7)",
   seatWinnerBackground: "rgba(250,234,231,.14)",
   seatActorBackground: "rgba(20,7,8,.72)",
