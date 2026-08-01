@@ -245,12 +245,15 @@ network round trip.
 - **Retention**: keep everything, forever. No rotation or size cap for
   Phase 1.
 
-> **Correction — this section specifies a write path Phase 1 never shipped
-> in production.** As built, the only writer is `HandLog`
+> **Correction — this section specifies a write path Phase 1 did not ship in
+> production.** As merged on `main`, the only writer is `HandLog`
 > (`packages/harness/src/persistence.ts`), used by the harness CLI alone.
 > `packages/server` has no `harness` dependency and performs no filesystem
 > write of any kind, so a Room played through the server left nothing on
-> disk. Discovered while charting
+> disk — which is why §11's last acceptance box is still unchecked
+> ([#35](https://github.com/ewanhardingham/table-top-poker/issues/35)).
+> Branch `fix/issue-35-hand-persistence` is closing that gap. Discovered
+> while charting
 > [map #79](https://github.com/ewanhardingham/table-top-poker/issues/79).
 > The durable server-side write path is delivered by Phase 2 —
 > [`docs/phase-2-spec.md`](phase-2-spec.md) §3 — which also supersedes the

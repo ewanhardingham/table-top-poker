@@ -38,6 +38,16 @@ harness only.
 So Phase 2 opens a read path **and** a write path. The write path is the
 larger of the two.
 
+**But a first write path is already in flight.** Branch
+`fix/issue-35-hand-persistence` (commit `ff9ae12`, on `origin`, **no PR, not
+merged**) closes the last unchecked box of Phase 1's acceptance run
+([#35](https://github.com/ewanhardingham/table-top-poker/issues/35)) by
+lifting `HandLog` out of `harness` into a new
+`@table-top-poker/persistence` package and calling it from the server. A
+build session must reconcile with it rather than discover it — see §3's
+reconciliation note. It does not change any decision on this map; it changes
+what the ground looks like when the work starts.
+
 **Mechanical replay already works.** `packages/harness/src/replay.test.ts`
 proves that re-piping a persisted command log through the harness reproduces
 the persisted event log exactly. Phase 2 is not building replay; it is
@@ -133,11 +143,36 @@ opt-in, opt-out, or mid-Room toggle. Raw recordings remain local and
 unredacted; player-facing replay passes through the table-safe projection of
 §4–§5. Phase 1's keep-everything-forever retention remains binding.
 
-A new **`@table-top-poker/recording` workspace package** owns the durable
+A **`@table-top-poker/recording` workspace package** owns the durable
 format. Both `server` and `harness` depend on it; it depends only on engine
 types. The pure engine keeps all filesystem I/O out. This replaces the
-misleading harness-owned `HandLog` rather than making production depend on
-the developer CLI.
+harness-owned `HandLog` rather than making production depend on the
+developer CLI.
+
+> **Reconciliation with `fix/issue-35-hand-persistence`.** That branch
+> (§1) has already done the extraction half of this: it creates
+> `@table-top-poker/persistence` holding `HandLog`, and the server writes
+> through it. **Adopt and evolve that package — do not add a third.** Whether
+> it keeps the name `persistence` or is renamed `recording` is a build-session
+> call with no decision riding on it; this document uses "recording" because
+> that is the domain term (`CONTEXT.md`).
+>
+> What that branch does *not* yet satisfy, and what Phase 2 must add:
+>
+> | §3 requires | `ff9ae12` as built |
+> | --- | --- |
+> | Directory keyed by durable **Room ID** | keyed by the four-character **join code**, which is re-rolled on collision and not durable |
+> | Recording is a **Room invariant**; startup fails if the root is unwritable | opt-in — `handLogDir === undefined` silently disables all recording |
+> | Room creation **transactional** with `room.json` | no manifest; the directory appears when the first hand is logged |
+> | **Hand context sidecar** with `seats`, `button`, `handOrdinal`, `startedAt` | no context file; `startedAt` is nowhere, so §6's picker clock has no source |
+> | Stage → **await append** → commit → broadcast | fire-and-forget after dispatch; a failed write cannot block the commit |
+> | **recording-paused** on append failure | no failure path; a write error cannot pause the Room |
+> | Ordered **async** queue per Room, confirmed offsets | synchronous `appendFileSync`, no offsets, no queue |
+> | `v: 2` | `v: ENGINE_LOG_VERSION`, still `1` |
+>
+> The gap is real but narrow in kind: the branch is the *file-writing* half,
+> and Phase 2 adds the *durability and identity* half around it. Nothing in
+> the branch needs to be reverted.
 
 ### Durable identity and layout
 
@@ -648,8 +683,11 @@ in place rather than merely noted here.
    part of this assembly.
 2. **`docs/phase-1-spec.md` §4 and §5 describe a server-side log the server
    never wrote.** §4's "the raw event log is server-side only in Phase 1" and
-   §5's persistence section specify a write path that shipped only in the
-   harness. Corrected in place with a pointer to §3 here, which delivers it.
+   §5's persistence section specify a write path that, on `main`, shipped
+   only in the harness. Corrected in place with a pointer to §3 here.
+   (`fix/issue-35-hand-persistence` is closing that Phase 1 gap in parallel —
+   §1 and §3. The Phase 1 spec was not wrong about the *decision*, only about
+   what had been built.)
 3. **One version number, not two.** §3 above reconciles #86's "recording
    format version 2" with #80's "must carry the running engine's
    `ENGINE_LOG_VERSION`" — they are the same tag, and `ENGINE_LOG_VERSION`
