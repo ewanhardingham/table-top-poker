@@ -145,8 +145,10 @@ _Avoid_: Using the join code as a durable identifier.
 **Room recording**:
 The durable, unredacted, local record of a Room — an immutable `room.json`
 manifest plus one Hand recording per Hand, under the Room ID's directory.
-Written by the server for every Room, always, from creation until the Room
-ends. Owned by the `recording` package; the engine holds no I/O.
+Written by the server for every Room, from creation until the Room ends. It
+cannot be disabled by configuration and never stops silently; it stops only
+where the table is told a write failed and deliberately chooses to carry on
+without it. Owned by the `recording` package; the engine holds no I/O.
 _Avoid_: Log — a Room recording is the whole directory, not one file.
 
 **Hand context**:
