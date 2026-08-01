@@ -26,27 +26,29 @@ outrank them, and it depends on neither.
 
 ### Where this starts from
 
-**Phase 1 does not persist a live Room at all.** This is the single most
-important premise correction on the map, and it is worth stating plainly
-because both `docs/phase-1-spec.md` §5 and the Phase 2 map's own opening
-assumed otherwise. The log writer `HandLog` lives in
-`packages/harness/src/persistence.ts` and is used only by the harness CLI;
-`packages/server` has no `harness` dependency and performs no filesystem
-write of any kind. Phase 1 specified persistence and shipped it in the
+**Until very recently, Phase 1 did not persist a live Room at all.** This was
+the single most important premise correction on the map: for the whole time
+this map was being charted, the log writer `HandLog` lived in
+`packages/harness/src/persistence.ts` and was used only by the harness CLI —
+`packages/server` had no `harness` dependency and performed no filesystem
+write of any kind. Both `docs/phase-1-spec.md` §5 and this map's own opening
+assumed otherwise. Phase 1 specified persistence and shipped it in the
 harness only.
 
-So Phase 2 opens a read path **and** a write path. The write path is the
-larger of the two.
+**That gap is now closed on `main`.**
+[PR #94](https://github.com/ewanhardingham/table-top-poker/pull/94) (merged
+as `a23f5c7`) lifts `HandLog` out of `harness` into a
+`@table-top-poker/persistence` package and calls it from the server, closing
+the last unchecked box of Phase 1's acceptance run
+([#35](https://github.com/ewanhardingham/table-top-poker/issues/35)). A build
+session starting Phase 2 therefore inherits a working — if shallow — server
+write path rather than a blank slate.
 
-**But a first write path is already in flight.** Branch
-`fix/issue-35-hand-persistence` (commit `ff9ae12`, on `origin`, **no PR, not
-merged**) closes the last unchecked box of Phase 1's acceptance run
-([#35](https://github.com/ewanhardingham/table-top-poker/issues/35)) by
-lifting `HandLog` out of `harness` into a new
-`@table-top-poker/persistence` package and calling it from the server. A
-build session must reconcile with it rather than discover it — see §3's
-reconciliation note. It does not change any decision on this map; it changes
-what the ground looks like when the work starts.
+So Phase 2 still opens a read path **and** a write path, and the write path
+is still the larger of the two. But it is now an **evolution of
+`packages/persistence`**, not a greenfield build: §3's reconciliation table
+is the exact delta. None of this changed a decision on this map; it changed
+what the ground looks like underneath it.
 
 **Mechanical replay already works.** `packages/harness/src/replay.test.ts`
 proves that re-piping a persisted command log through the harness reproduces
@@ -149,30 +151,31 @@ types. The pure engine keeps all filesystem I/O out. This replaces the
 harness-owned `HandLog` rather than making production depend on the
 developer CLI.
 
-> **Reconciliation with `fix/issue-35-hand-persistence`.** That branch
-> (§1) has already done the extraction half of this: it creates
-> `@table-top-poker/persistence` holding `HandLog`, and the server writes
-> through it. **Adopt and evolve that package — do not add a third.** Whether
-> it keeps the name `persistence` or is renamed `recording` is a build-session
-> call with no decision riding on it; this document uses "recording" because
-> that is the domain term (`CONTEXT.md`).
+> **Reconciliation with `packages/persistence`, already on `main`.** PR #94
+> (§1) has already done the extraction half of this: `packages/persistence`
+> holds `HandLog`, and the server writes through it. **Adopt and evolve that
+> package — do not add a second one.** Whether it keeps the name
+> `persistence` or is renamed `recording` is a build-session call with no
+> decision riding on it; this document uses "recording" because that is the
+> domain term (`CONTEXT.md`).
 >
-> What that branch does *not* yet satisfy, and what Phase 2 must add:
+> What is on `main` today does *not* yet satisfy the following, and this is
+> the exact scope of Phase 2's write-path work:
 >
-> | §3 requires | `ff9ae12` as built |
+> | §3 requires | `packages/persistence` as merged (`a23f5c7`) |
 > | --- | --- |
 > | Directory keyed by durable **Room ID** | keyed by the four-character **join code**, which is re-rolled on collision and not durable |
 > | Recording is a **Room invariant**; startup fails if the root is unwritable | opt-in — `handLogDir === undefined` silently disables all recording |
-> | Room creation **transactional** with `room.json` | no manifest; the directory appears when the first hand is logged |
+> | Room creation **transactional** with immutable `room.json` (`roomId`, `code`, `createdAt`) | a `game.jsonl` manifest carrying only `v` and `seats`, written lazily on first `HandLog` construction — so the directory appears when the first hand starts, not when the Room is created, and a Room that never deals leaves no trace |
 > | **Hand context sidecar** with `seats`, `button`, `handOrdinal`, `startedAt` | no context file; `startedAt` is nowhere, so §6's picker clock has no source |
 > | Stage → **await append** → commit → broadcast | fire-and-forget after dispatch; a failed write cannot block the commit |
 > | **recording-paused** on append failure | no failure path; a write error cannot pause the Room |
 > | Ordered **async** queue per Room, confirmed offsets | synchronous `appendFileSync`, no offsets, no queue |
 > | `v: 2` | `v: ENGINE_LOG_VERSION`, still `1` |
 >
-> The gap is real but narrow in kind: the branch is the *file-writing* half,
-> and Phase 2 adds the *durability and identity* half around it. Nothing in
-> the branch needs to be reverted.
+> The gap is real but narrow in kind: what is on `main` is the *file-writing*
+> half, and Phase 2 adds the *durability and identity* half around it.
+> Nothing already merged needs to be reverted.
 
 ### Durable identity and layout
 
@@ -182,7 +185,7 @@ four-character live join code. Its directory is
 Server startup creates and verifies that root and **fails to start** if it is
 not writable. The harness retains its explicit `--log-dir` option.
 
-The in-flight branch (§1) already introduced this env var under the name
+PR #94 (§1) already introduced this env var on `main` under the name
 `HAND_LOG_DIR`, wired through `deploy/poker.env.example` and
 `deploy/poker.service`. Renaming it to `RECORDINGS_DIR` is a **deployment
 change, not just a code change** — the Pi's `/etc/poker/poker.env` must be
@@ -326,10 +329,13 @@ implementation. A version-1 file requires its matching older build.
 > no engine event shape changed. If that bothers a build session, splitting
 > them later is mechanical — what must not happen is shipping both silently.
 >
-> Two things the bump invalidates, both cheap and both easy to forget: the
-> harness fixtures asserting `v: ENGINE_LOG_VERSION` in
-> `packages/harness/src/persistence.test.ts`, and any logs already written by
-> the in-flight branch (§1), which emits `v: 1` today.
+> What the bump invalidates, cheap but easy to miss: every fixture asserting
+> `v: ENGINE_LOG_VERSION` — `persistence.test.ts`, `harness.test.ts` and
+> `replay.test.ts` under `packages/harness/src/` — and any logs the server on
+> `main` has already written, which carry `v: 1` today. Note also that
+> `packages/harness/src/persistence.ts` is now a **re-export shim** over
+> `@table-top-poker/persistence`; the tests still live in `harness` while the
+> implementation does not, which is worth tidying as part of this work.
 
 ## 4. The Replay capability
 ([Replay capability: API, package placement and version-tag handling](https://github.com/ewanhardingham/table-top-poker/issues/80))
@@ -738,9 +744,9 @@ in place rather than merely noted here.
    never wrote.** §4's "the raw event log is server-side only in Phase 1" and
    §5's persistence section specify a write path that, on `main`, shipped
    only in the harness. Corrected in place with a pointer to §3 here.
-   (`fix/issue-35-hand-persistence` is closing that Phase 1 gap in parallel —
-   §1 and §3. The Phase 1 spec was not wrong about the *decision*, only about
-   what had been built.)
+   ([PR #94](https://github.com/ewanhardingham/table-top-poker/pull/94) has
+   since closed that Phase 1 gap — §1 and §3. The Phase 1 spec was not wrong
+   about the *decision*, only about what had been built.)
 3. **One version number, not two.** §3 above reconciles #86's "recording
    format version 2" with #80's "must carry the running engine's
    `ENGINE_LOG_VERSION`" — they are the same tag, and `ENGINE_LOG_VERSION`

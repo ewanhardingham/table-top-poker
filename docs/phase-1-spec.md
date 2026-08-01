@@ -250,10 +250,11 @@ network round trip.
 > (`packages/harness/src/persistence.ts`), used by the harness CLI alone.
 > `packages/server` has no `harness` dependency and performs no filesystem
 > write of any kind, so a Room played through the server left nothing on
-> disk — which is why §11's last acceptance box is still unchecked
+> disk — which is why §11's last acceptance box went unchecked
 > ([#35](https://github.com/ewanhardingham/table-top-poker/issues/35)).
-> Branch `fix/issue-35-hand-persistence` is closing that gap. Discovered
-> while charting
+> [PR #94](https://github.com/ewanhardingham/table-top-poker/pull/94) has
+> since closed that gap: the server now writes through
+> `packages/persistence`. Discovered while charting
 > [map #79](https://github.com/ewanhardingham/table-top-poker/issues/79).
 > The durable server-side write path is delivered by Phase 2 —
 > [`docs/phase-2-spec.md`](phase-2-spec.md) §3 — which also supersedes the
