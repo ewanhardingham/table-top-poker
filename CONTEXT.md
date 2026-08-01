@@ -82,6 +82,20 @@ River (1).
 A Player's private two cards, dealt once at the start of a Hand and pushed
 to their Device at deal time (not fetched later at reveal).
 
+**Hole-card reveal**:
+Turning a Player's own Hole cards persistently face-up on their own Device.
+Local presentation only: it does not change poker visibility, server state, or
+Showdown. Distinct from the Showdown reveal, which is a Hand event.
+
+**Hole-card peek**:
+Temporarily lifting a corner of a Player's own Hole cards to read them, closing
+again on release or cancellation. Like reveal, purely local presentation. Peek
+and reveal are one gesture at two depths, not two gestures.
+
+**Hole-card conceal**:
+Returning revealed Hole cards to face-down. Player-facing copy says "hide";
+*conceal* is the domain term.
+
 **Action**:
 A completed poker decision for a Seat — fold, check, call, or raise — whether
 chosen by its Player or synthesized by the server when the Seat cannot act.

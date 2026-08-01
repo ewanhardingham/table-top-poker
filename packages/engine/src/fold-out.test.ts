@@ -7,15 +7,13 @@ import { playAll } from "./test-utils.js";
 describe("fold-out early exit", () => {
   it("jumps straight to HAND_COMPLETE mid-street when only one live player remains", () => {
     let state = createInitialState([0, 1, 2]);
-    state = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "foldout" },
-    ]);
+    state = playAll(state, [{ type: "startHand", seatId: 0, seed: "foldout" }]);
 
     // Preflop: 1 folds, 2 (BB) folds — only seat 0 remains live, mid-street.
-    state = playAll(state, [{ type: "fold", playerId: 1 }]);
+    state = playAll(state, [{ type: "fold", seatId: 1 }]);
     expect(state.hand?.status).toBe("betting");
 
-    const result = decide(state, { type: "fold", playerId: 2 });
+    const result = decide(state, { type: "fold", seatId: 2 });
     if (!Array.isArray(result)) throw new Error("expected events");
 
     expect(result.some((e) => e.type === "StreetClosed")).toBe(false);

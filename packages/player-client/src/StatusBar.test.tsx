@@ -37,7 +37,7 @@ describe("StatusBar", () => {
         showBadge={true}
         connectionStatus="connected"
         onToggleSittingOut={noop}
-        seat={{ seatId: 0, sittingOut: false }}
+        seat={{ seatId: 0, sittingOut: false, sittingOutReason: null }}
       />,
     );
 

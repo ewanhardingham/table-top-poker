@@ -11,16 +11,16 @@ import { view } from "./view.js";
 
 function headsUpToRiver(seed: string): EngineState {
   let state = createInitialState([0, 1]);
-  state = playAll(state, [{ type: "startHand", playerId: 0, seed }]);
+  state = playAll(state, [{ type: "startHand", seatId: 0, seed }]);
   state = playAll(state, [
-    { type: "call", playerId: 0 },
-    { type: "check", playerId: 1 },
-    { type: "check", playerId: 1 },
-    { type: "check", playerId: 0 },
-    { type: "check", playerId: 1 },
-    { type: "check", playerId: 0 },
-    { type: "check", playerId: 1 },
-    { type: "check", playerId: 0 },
+    { type: "call", seatId: 0 },
+    { type: "check", seatId: 1 },
+    { type: "check", seatId: 1 },
+    { type: "check", seatId: 0 },
+    { type: "check", seatId: 1 },
+    { type: "check", seatId: 0 },
+    { type: "check", seatId: 1 },
+    { type: "check", seatId: 0 },
   ]);
   return state;
 }
@@ -28,15 +28,15 @@ function headsUpToRiver(seed: string): EngineState {
 /** Three-way, preflop action closed and the flop dealt — a non-trivial board. */
 function onTheFlopThreeWay(): EngineState {
   let state = createInitialState([0, 1, 2]);
-  state = playAll(state, [{ type: "startHand", playerId: 0, seed: "mid" }]);
+  state = playAll(state, [{ type: "startHand", seatId: 0, seed: "mid" }]);
   // ring (button 0) = [1, 2, 0], BB = seat 2. Only the BB can check preflop
   // absent a raise; everyone else calls. No raise, so the BB also gets its
   // one-time option turn after the lap closes back around.
   state = playAll(state, [
-    { type: "call", playerId: 1 },
-    { type: "check", playerId: 2 },
-    { type: "call", playerId: 0 },
-    { type: "check", playerId: 2 },
+    { type: "call", seatId: 1 },
+    { type: "check", seatId: 2 },
+    { type: "call", seatId: 0 },
+    { type: "check", seatId: 2 },
   ]);
   if (state.hand?.status !== "betting" || state.hand.street !== "flop") {
     throw new Error("expected to reach the flop");
@@ -104,7 +104,7 @@ describe("view: other seats' hole cards mid-hand", () => {
 describe("view: folded seats", () => {
   it("a folded seat no longer sees its own hole cards", () => {
     let state = onTheFlopThreeWay();
-    state = playAll(state, [{ type: "fold", playerId: 1 }]);
+    state = playAll(state, [{ type: "fold", seatId: 1 }]);
 
     const mine = view(state, 1);
     if (mine.phase !== "betting") throw new Error("expected betting phase");
@@ -150,23 +150,21 @@ describe("view: post-showdown", () => {
 
   it("never reveals a folded seat, even at a normal showdown", () => {
     let state = createInitialState([0, 1, 2]);
+    state = playAll(state, [{ type: "startHand", seatId: 0, seed: "seed-1" }]);
     state = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "seed-1" },
-    ]);
-    state = playAll(state, [
-      { type: "call", playerId: 1 },
-      { type: "raise", playerId: 2 },
-      { type: "call", playerId: 0 },
-      { type: "call", playerId: 1 },
-      { type: "check", playerId: 1 },
-      { type: "check", playerId: 2 },
-      { type: "check", playerId: 0 },
-      { type: "fold", playerId: 1 },
-      { type: "check", playerId: 2 },
-      { type: "check", playerId: 0 },
-      { type: "check", playerId: 2 },
-      { type: "raise", playerId: 0 },
-      { type: "call", playerId: 2 },
+      { type: "call", seatId: 1 },
+      { type: "raise", seatId: 2 },
+      { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
+      { type: "check", seatId: 1 },
+      { type: "check", seatId: 2 },
+      { type: "check", seatId: 0 },
+      { type: "fold", seatId: 1 },
+      { type: "check", seatId: 2 },
+      { type: "check", seatId: 0 },
+      { type: "check", seatId: 2 },
+      { type: "raise", seatId: 0 },
+      { type: "call", seatId: 2 },
     ]);
     if (state.hand?.status !== "complete" || state.hand.reason !== "showdown") {
       throw new Error("expected a showdown completion");
@@ -263,7 +261,7 @@ describe("property: view never leaks a hole card it isn't entitled to", () => {
           const firstPlayer = must(seats[0]);
           const startEvents = decide(state, {
             type: "startHand",
-            playerId: firstPlayer,
+            seatId: firstPlayer,
             seed,
           });
           if (!Array.isArray(startEvents)) {
@@ -292,7 +290,7 @@ describe("property: view never leaks a hole card it isn't entitled to", () => {
               : action === "call"
                 ? "check"
                 : action;
-            const result = decide(state, { type: legal, playerId: actor });
+            const result = decide(state, { type: legal, seatId: actor });
             if (!Array.isArray(result)) continue;
             for (const event of result) state = apply(state, event);
             assertNoLeak(state, dealtCards, seats);

@@ -22,9 +22,14 @@ describe("usePlayerStore", () => {
 
   it("updates the seat slice independently of the connection slice", () => {
     usePlayerStore.getState().setConnectionStatus("connected");
-    usePlayerStore.getState().setSeat({ seatId: 3, sittingOut: true });
+    usePlayerStore.getState().setSeat({
+      seatId: 3,
+      sittingOut: true,
+      sittingOutReason: "voluntary",
+    });
     expect(usePlayerStore.getState().seatId).toBe(3);
     expect(usePlayerStore.getState().sittingOut).toBe(true);
+    expect(usePlayerStore.getState().sittingOutReason).toBe("voluntary");
     expect(usePlayerStore.getState().connectionStatus).toBe("connected");
   });
 
@@ -41,7 +46,15 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
-      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
     });
     usePlayerStore.getState().setSeat({ seatId: 0, sittingOut: false });
 
@@ -55,11 +68,25 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
-      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
     });
     expect(usePlayerStore.getState().roomCode).toBe("ABCD");
     expect(usePlayerStore.getState().seats).toEqual([
-      { id: 0, claimed: true, sittingOut: false, disconnected: false },
+      {
+        id: 0,
+        claimed: true,
+        sittingOut: false,
+        sittingOutReason: null,
+        disconnected: false,
+      },
     ]);
   });
 
@@ -73,7 +100,15 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
-      seats: [{ id: 0, claimed: true, sittingOut: false, disconnected: false }],
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
     });
     usePlayerStore.getState().clearRoom();
     expect(usePlayerStore.getState().roomCode).toBeNull();

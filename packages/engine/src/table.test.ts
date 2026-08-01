@@ -7,7 +7,7 @@ describe("legalActions", () => {
   it("offers fold/call/raise to a seat facing a bet preflop", () => {
     const state = createInitialState([0, 1, 2]);
     const started = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "s" },
+      { type: "startHand", seatId: 0, seed: "s" },
     ]);
     if (started.hand?.status !== "betting") {
       throw new Error("expected betting");
@@ -19,16 +19,16 @@ describe("legalActions", () => {
   it("offers fold/check/raise to the big blind on an unraised preflop", () => {
     const state = createInitialState([0, 1, 2]);
     const started = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "s" },
+      { type: "startHand", seatId: 0, seed: "s" },
     ]);
     if (started.hand?.status !== "betting") {
       throw new Error("expected betting");
     }
     // BB is seat 2 here — its own post already matches, so it may check.
     const afterLap = playAll(started, [
-      { type: "call", playerId: 1 },
-      { type: "check", playerId: 2 },
-      { type: "call", playerId: 0 },
+      { type: "call", seatId: 1 },
+      { type: "check", seatId: 2 },
+      { type: "call", seatId: 0 },
     ]);
     if (afterLap.hand?.status !== "betting") {
       throw new Error("expected betting");

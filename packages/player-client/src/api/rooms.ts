@@ -1,4 +1,4 @@
-import type { RoomView } from "@table-top-poker/protocol";
+import type { RoomView, SittingOutReason } from "@table-top-poker/protocol";
 
 export async function joinRoom(code: string): Promise<RoomView> {
   const response = await fetch(`/rooms/${code}/join`, { method: "POST" });
@@ -13,6 +13,7 @@ export interface SeatClaim {
   readonly token: string;
   readonly displayName: string;
   readonly sittingOut: boolean;
+  readonly sittingOutReason: SittingOutReason | null;
 }
 
 export async function claimSeat(

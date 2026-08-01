@@ -40,12 +40,19 @@ describe("Board", () => {
       <Board
         view={view}
         seats={[
-          { id: 0, claimed: false, sittingOut: false, disconnected: false },
+          {
+            id: 0,
+            claimed: false,
+            sittingOut: false,
+            sittingOutReason: null,
+            disconnected: false,
+          },
           {
             id: 1,
             claimed: true,
             displayName: "Avery",
             sittingOut: false,
+            sittingOutReason: null,
             disconnected: false,
           },
         ]}

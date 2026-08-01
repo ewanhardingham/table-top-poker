@@ -50,6 +50,7 @@ interface SeatClaimBody {
   readonly token: string;
   readonly displayName: string;
   readonly sittingOut: boolean;
+  readonly sittingOutReason: "voluntary" | "waiting-for-next-hand" | null;
 }
 
 function unclaimedSeats(): RoomView["seats"] {
@@ -57,6 +58,7 @@ function unclaimedSeats(): RoomView["seats"] {
     id,
     claimed: false,
     sittingOut: false,
+    sittingOutReason: null,
     disconnected: false,
   }));
 }
@@ -352,6 +354,7 @@ describe("seat claim/evict routes", () => {
       seatId: 0,
       displayName: "Avery",
       sittingOut: false,
+      sittingOutReason: null,
     });
   });
 
@@ -455,7 +458,10 @@ describe("seat claim/evict routes", () => {
       ...claimPayload("Casey"),
     });
 
-    expect(response.json<SeatClaimBody>().sittingOut).toBe(true);
+    expect(response.json<SeatClaimBody>()).toMatchObject({
+      sittingOut: true,
+      sittingOutReason: "waiting-for-next-hand",
+    });
   });
 
   it("evicts a seat so it can be reclaimed (ADR-0003)", async () => {
@@ -910,6 +916,7 @@ describe("WebSocket upgrade", () => {
       claimed: true,
       displayName: "Avery",
       sittingOut: false,
+      sittingOutReason: null,
       disconnected: false,
     });
 
@@ -1111,7 +1118,10 @@ describe("hand command dispatch over WebSocket", () => {
     expect(handUpdates).toHaveLength(0);
 
     const view = rooms.get(room.code);
-    expect(view && toRoomView(view).seats[2]?.sittingOut).toBe(true);
+    expect(view && toRoomView(view).seats[2]).toMatchObject({
+      sittingOut: true,
+      sittingOutReason: "waiting-for-next-hand",
+    });
   });
 
   it("lets a seat voluntarily sit out and back in over the WebSocket (ADR-0002)", async () => {
@@ -1129,13 +1139,22 @@ describe("hand command dispatch over WebSocket", () => {
     });
     const roomView = table.messages.findLast((m) => m.type === "room-view");
     if (roomView?.type !== "room-view") throw new Error("expected a view");
-    expect(roomView.view.seats[0]).toMatchObject({ sittingOut: true });
+    expect(roomView.view.seats[0]).toMatchObject({
+      sittingOut: true,
+      sittingOutReason: "voluntary",
+    });
 
     seat0.socket.send(JSON.stringify({ type: "sitIn" }));
     await settle();
 
     expect(rooms.get(room.code)?.seats[0]).toMatchObject({
       sittingOut: false,
+    });
+    const satInView = table.messages.findLast((m) => m.type === "room-view");
+    if (satInView?.type !== "room-view") throw new Error("expected a view");
+    expect(satInView.view.seats[0]).toMatchObject({
+      sittingOut: false,
+      sittingOutReason: null,
     });
   });
 
@@ -1588,7 +1607,7 @@ describe("hand persistence", () => {
           .map((line) => JSON.parse(line) as unknown);
       const commands = readJsonLines(commandsPath) as {
         type: string;
-        playerId: number;
+        seatId: number;
         seed?: string;
         v: number;
       }[];
@@ -1604,7 +1623,7 @@ describe("hand persistence", () => {
         "fold",
       ]);
       expect(commands[0]?.type).toBe("startHand");
-      expect(commands[0]?.playerId).toBe(0);
+      expect(commands[0]?.seatId).toBe(0);
       expect(typeof commands[0]?.seed).toBe("string");
       expect(Number.isInteger(commands[0]?.v)).toBe(true);
       expect(events.at(-1)?.type).toBe("HandComplete");
