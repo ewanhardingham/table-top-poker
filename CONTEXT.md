@@ -83,18 +83,19 @@ A Player's private two cards, dealt once at the start of a Hand and pushed
 to their Device at deal time (not fetched later at reveal).
 
 **Action**:
-A completed decision by a Player — fold, check, call, or raise. Logged as
-an Event. Distinct from *to act* / the *Actor* (see below), which is about
-whose turn it is, not a decision that has happened.
+A completed poker decision for a Seat — fold, check, call, or raise — whether
+chosen by its Player or synthesized by the server when the Seat cannot act.
+Logged as an Event. Distinct from *to act* / the *Actor* (see below), which is
+about whose turn it is, not a decision that has happened.
 
 **Actor**:
 The Player whose turn it currently is. A derived property of Hand state,
 not a persistent identity.
 
 **Command**:
-The input a Player sends proposing an Action, before it is validated and
-turned into an Event. Matches the engine shape `decide(state, command) ->
-Event[] | Rejection`.
+An input proposing or directing a Hand transition, before it is validated and
+turned into Events. It may come from a Player or be synthesized by the server
+for a trusted Table action or action-clock decision.
 
 **Button**:
 The Seat marked as dealer for the current Hand — a positional marker that

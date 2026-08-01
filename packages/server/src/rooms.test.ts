@@ -734,7 +734,7 @@ describe("RoomStore", () => {
         }
         expect(result.dispatch.command).toEqual({
           type: "evict",
-          playerId: evicted,
+          seatId: evicted,
         });
         expect(result.dispatch.steps.map((step) => step.event)).toEqual([
           { type: "ActionTaken", seatId: evicted, action: "fold" },

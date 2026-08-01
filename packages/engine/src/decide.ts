@@ -121,12 +121,12 @@ function decideEviction(
   if (state.hand?.status !== "betting") {
     return reject("hand-not-in-progress", command);
   }
-  const player = state.hand.players.get(command.playerId);
+  const player = state.hand.players.get(command.seatId);
   if (player === undefined || player.folded) {
     return reject("action-not-legal", command);
   }
 
-  return decideActionEvents(state, command.playerId, "fold");
+  return decideActionEvents(state, command.seatId, "fold");
 }
 
 function decideActionEvents(

@@ -40,7 +40,7 @@ describe("eviction command", () => {
           if (actor === undefined || evicted === undefined) {
             throw new Error("expected two seats to be awaiting action");
           }
-          const result = decide(state, { type: "evict", playerId: evicted });
+          const result = decide(state, { type: "evict", seatId: evicted });
           if (!Array.isArray(result)) {
             throw new Error("expected eviction events");
           }
@@ -72,7 +72,7 @@ describe("eviction command", () => {
       throw new Error("expected two seats to be awaiting action");
     }
 
-    const result = decide(state, { type: "evict", playerId: evicted });
+    const result = decide(state, { type: "evict", seatId: evicted });
     if (!Array.isArray(result)) throw new Error("expected eviction events");
 
     expect(result).toEqual([
@@ -111,7 +111,7 @@ describe("eviction command", () => {
       throw new Error("expected both seats to be awaiting action");
     }
 
-    const result = decide(state, { type: "evict", playerId: evicted });
+    const result = decide(state, { type: "evict", seatId: evicted });
     if (!Array.isArray(result)) throw new Error("expected eviction events");
 
     expect(result.map((event) => event.type)).toEqual([
