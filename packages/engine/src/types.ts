@@ -28,6 +28,8 @@ export type HandRank = number;
 export type Command =
   | { type: "startHand"; playerId: SeatId; seed: string }
   | { type: ActionType; playerId: SeatId }
+  /** Server-synthesized table action; never accepted from a player client. */
+  | { type: "evict"; playerId: SeatId }
   | { type: "nextHand"; playerId: SeatId; seed: string };
 
 export type HandEvent =

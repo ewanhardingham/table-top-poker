@@ -445,7 +445,11 @@ export async function buildApp(
   }
 
   /** Publishes an accepted dispatch, including any positional seat moves. */
-  function publishDispatch(code: string, result: DispatchSuccess): void {
+  function publishDispatch(
+    code: string,
+    result: DispatchSuccess,
+    options: { readonly resetActionClock?: boolean } = {},
+  ): void {
     if (result.seatMoves !== undefined) {
       applySeatMoves(code, result.seatMoves);
     }
@@ -453,7 +457,11 @@ export async function buildApp(
     for (const step of result.steps) {
       fanOutHandUpdate(code, step);
     }
-    rescheduleActionClock(code);
+    if (options.resetActionClock === false) {
+      if (rooms.currentActor(code) === undefined) actionClock.clear(code);
+    } else {
+      rescheduleActionClock(code);
+    }
   }
 
   // `index: false` — the explicit "/" route below owns index resolution
@@ -600,7 +608,12 @@ export async function buildApp(
       if (!room) return;
       const eviction = rooms.evictSeat(request.params.code, seatId);
       if (eviction.dispatch !== undefined) {
-        publishDispatch(request.params.code, eviction.dispatch);
+        publishDispatch(request.params.code, eviction.dispatch, {
+          // A non-current eviction leaves the actor and its existing deadline
+          // untouched; a current-seat eviction uses a normal fold command and
+          // starts the next actor's clock as usual.
+          resetActionClock: eviction.dispatch.command.type !== "evict",
+        });
       }
       broadcastRoomView(request.params.code);
       closeSeatSockets(request.params.code, seatId);
