@@ -104,9 +104,11 @@ function initialVariant(): VariantKey {
 function PokerFace({
   rank,
   suit,
+  curlUnderside = false,
 }: {
   readonly rank: string;
   readonly suit: string;
+  readonly curlUnderside?: boolean;
 }) {
   return (
     <div
@@ -122,6 +124,12 @@ function PokerFace({
         <strong>{rank}</strong>
         <span>{suit}</span>
       </span>
+      {curlUnderside && (
+        <span className="gesture-card-curl-index">
+          <strong>{rank}</strong>
+          <span>{suit}</span>
+        </span>
+      )}
     </div>
   );
 }
@@ -183,7 +191,7 @@ function ReactPeelCard({
           <CardBack />
         </PeelTop>
         <PeelBack>
-          <PokerFace rank={rank} suit={suit} />
+          <PokerFace rank={rank} suit={suit} curlUnderside />
         </PeelBack>
         <PeelBottom className="gesture-card-table-underlay" />
       </PeelWrapper>
