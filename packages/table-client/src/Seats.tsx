@@ -110,6 +110,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
         const avatarBlock = (
           <div key="avatar" style={{ position: "relative" }}>
             <div
+              data-testid={`seat-pod-${String(seat.id)}-avatar`}
               style={{
                 width: "3em",
                 height: "3em",
@@ -133,6 +134,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
             {visual.status === "sitting-out" && (
               <span
                 aria-hidden="true"
+                data-testid={`seat-pod-${String(seat.id)}-sitting-out-marker`}
                 style={{
                   position: "absolute",
                   left: "0.1em",
@@ -237,7 +239,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
               Sitting out
             </span>
             <span style={{ fontSize: "0.6em", color: color.textFaint }}>
-              Next hand
+              Not in hand
             </span>
           </div>
         );
