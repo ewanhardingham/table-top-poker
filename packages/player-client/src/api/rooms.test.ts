@@ -43,6 +43,7 @@ describe("claimSeat", () => {
       token: "tok",
       displayName: "Avery",
       sittingOut: false,
+      sittingOutReason: null,
     };
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(body), { status: 200 }),

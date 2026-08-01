@@ -5,10 +5,34 @@ import { describe, expect, it } from "vitest";
 import { Seats } from "./Seats.js";
 
 const seats: SeatView[] = [
-  { id: 0, claimed: true, sittingOut: false, disconnected: false },
-  { id: 1, claimed: true, sittingOut: false, disconnected: false },
-  { id: 2, claimed: true, sittingOut: true, disconnected: false },
-  { id: 3, claimed: false, sittingOut: false, disconnected: false },
+  {
+    id: 0,
+    claimed: true,
+    sittingOut: false,
+    sittingOutReason: null,
+    disconnected: false,
+  },
+  {
+    id: 1,
+    claimed: true,
+    sittingOut: false,
+    sittingOutReason: null,
+    disconnected: false,
+  },
+  {
+    id: 2,
+    claimed: true,
+    sittingOut: true,
+    sittingOutReason: "voluntary",
+    disconnected: false,
+  },
+  {
+    id: 3,
+    claimed: false,
+    sittingOut: false,
+    sittingOutReason: null,
+    disconnected: false,
+  },
 ];
 
 describe("Seats", () => {
@@ -21,6 +45,7 @@ describe("Seats", () => {
             claimed: true,
             displayName: "Avery",
             sittingOut: false,
+            sittingOutReason: null,
             disconnected: false,
           },
           ...seats.slice(1),
@@ -42,17 +67,45 @@ describe("Seats", () => {
     expect(html).toMatch(/data-testid="seat-pod-3"[^>]*data-status="open"/);
   });
 
-  it("gives a sitting-out seat a quiet local treatment and neutral copy", () => {
+  it("gives a voluntary sit-out a quiet local treatment", () => {
     const html = renderToStaticMarkup(<Seats seats={seats} view={null} />);
 
     expect(html).toMatch(
-      /data-testid="seat-pod-2-sitting-out"[^>]*>[\s\S]*Sitting out[\s\S]*Not in hand[\s\S]*<\/div>/,
+      /data-testid="seat-pod-2-sitting-out"[^>]*>[\s\S]*Sitting out[\s\S]*Until you sit in[\s\S]*<\/div>/,
     );
     expect(html).toContain('data-testid="seat-pod-2-sitting-out-marker"');
     expect(html).toMatch(
       /data-testid="seat-pod-2-avatar"[^>]*style="[^"]*border:1px dashed/,
     );
     expect(html).not.toContain('data-testid="seat-pod-0-sitting-out"');
+  });
+
+  it("renders state-specific copy for voluntary and waiting seats", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={[
+          {
+            id: 0,
+            claimed: true,
+            sittingOut: true,
+            sittingOutReason: "voluntary",
+            disconnected: false,
+          },
+          {
+            id: 1,
+            claimed: true,
+            sittingOut: true,
+            sittingOutReason: "waiting-for-next-hand",
+            disconnected: false,
+          },
+        ]}
+        view={null}
+      />,
+    );
+
+    expect(html).toContain("Until you sit in");
+    expect(html).toContain("Waiting for next hand");
+    expect(html).toContain("Claimed after the deal");
   });
 
   it("shows a claimed seat absent from a live hand as sitting out", () => {
@@ -67,16 +120,63 @@ describe("Seats", () => {
         { seatId: 1, folded: false },
       ],
     };
-    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats.map((seat) =>
+          seat.id === 2
+            ? { ...seat, sittingOutReason: "waiting-for-next-hand" as const }
+            : seat,
+        )}
+        view={view}
+      />,
+    );
 
     expect(html).toMatch(
       /data-testid="seat-pod-2"[^>]*data-status="sitting-out"/,
     );
     expect(html).toMatch(
-      /data-testid="seat-pod-2-sitting-out"[^>]*>[\s\S]*Sitting out[\s\S]*Not in hand[\s\S]*<\/div>/,
+      /data-testid="seat-pod-2-sitting-out"[^>]*>[\s\S]*Waiting for next hand[\s\S]*Claimed after the deal[\s\S]*<\/div>/,
     );
     expect(html).toContain('data-testid="seat-pod-2-sitting-out-marker"');
     expect(html).not.toContain('data-testid="seat-pod-0-sitting-out"');
+  });
+
+  it("does not describe a disconnected seat as sitting out", () => {
+    const view: TableView = {
+      phase: "betting",
+      button: 0,
+      street: "flop",
+      board: [],
+      toAct: [0],
+      seats: [{ seatId: 0, folded: false }],
+    };
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={[
+          {
+            id: 0,
+            claimed: true,
+            sittingOut: false,
+            sittingOutReason: null,
+            disconnected: false,
+          },
+          {
+            id: 1,
+            claimed: true,
+            sittingOut: false,
+            sittingOutReason: null,
+            disconnected: true,
+          },
+        ]}
+        view={view}
+      />,
+    );
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-1"[^>]*data-status="disconnected"/,
+    );
+    expect(html).not.toContain('data-testid="seat-pod-1-sitting-out"');
+    expect(html).toContain('data-testid="seat-pod-1-disconnected"');
   });
 
   it("marks the button seat once a hand exists, even with no active betting", () => {
@@ -134,8 +234,20 @@ describe("Seats", () => {
 
   it("shows a disconnected badge for a presence-dropped seat", () => {
     const disconnectedSeats: SeatView[] = [
-      { id: 0, claimed: true, sittingOut: false, disconnected: false },
-      { id: 1, claimed: true, sittingOut: false, disconnected: true },
+      {
+        id: 0,
+        claimed: true,
+        sittingOut: false,
+        sittingOutReason: null,
+        disconnected: false,
+      },
+      {
+        id: 1,
+        claimed: true,
+        sittingOut: false,
+        sittingOutReason: null,
+        disconnected: true,
+      },
     ];
     const html = renderToStaticMarkup(
       <Seats seats={disconnectedSeats} view={null} />,
