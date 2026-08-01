@@ -21,12 +21,40 @@ describe("Seats", () => {
     expect(html).toMatch(/data-testid="seat-pod-3"[^>]*data-status="open"/);
   });
 
-  it("gives a sitting-out seat a quiet local treatment and next-hand copy", () => {
+  it("gives a sitting-out seat a quiet local treatment and neutral copy", () => {
     const html = renderToStaticMarkup(<Seats seats={seats} view={null} />);
 
-    expect(html).toContain('data-testid="seat-pod-2-sitting-out"');
-    expect(html).toContain("Sitting out");
-    expect(html).toContain("Next hand");
+    expect(html).toMatch(
+      /data-testid="seat-pod-2-sitting-out"[^>]*>[\s\S]*Sitting out[\s\S]*Not in hand[\s\S]*<\/div>/,
+    );
+    expect(html).toContain('data-testid="seat-pod-2-sitting-out-marker"');
+    expect(html).toMatch(
+      /data-testid="seat-pod-2-avatar"[^>]*style="[^"]*border:1px dashed/,
+    );
+    expect(html).not.toContain('data-testid="seat-pod-0-sitting-out"');
+  });
+
+  it("shows a claimed seat absent from a live hand as sitting out", () => {
+    const view: TableView = {
+      phase: "betting",
+      button: 0,
+      street: "flop",
+      board: [],
+      toAct: [0],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 1, folded: false },
+      ],
+    };
+    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-2"[^>]*data-status="sitting-out"/,
+    );
+    expect(html).toMatch(
+      /data-testid="seat-pod-2-sitting-out"[^>]*>[\s\S]*Sitting out[\s\S]*Not in hand[\s\S]*<\/div>/,
+    );
+    expect(html).toContain('data-testid="seat-pod-2-sitting-out-marker"');
     expect(html).not.toContain('data-testid="seat-pod-0-sitting-out"');
   });
 
