@@ -1,9 +1,21 @@
 name: CI
 
+# Documentation-only changes skip the suite entirely. `ci` is a required
+# status check on main, and a workflow skipped by path filtering leaves its
+# check pending forever — so ci-skip.yml carries the inverse filter and
+# reports the same `ci` context. Keep the two path lists in sync.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - LICENSE
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - LICENSE
 
 jobs:
   ci:

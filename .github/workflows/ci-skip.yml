@@ -1,0 +1,31 @@
+name: CI (docs only)
+
+# Companion to ci.yml. `ci` is a required status check on main, and GitHub
+# leaves the check of a path-skipped workflow pending rather than passing —
+# which would make documentation-only pull requests unmergeable. This
+# workflow carries the inverse path filter and defines a job with the same
+# `ci` name, so the required context still reports green when the real suite
+# has nothing to build or test.
+#
+# The path list below is the exact inverse of ci.yml's `paths-ignore`. Keep
+# the two in sync: a path present in neither runs nothing, and a path present
+# in both runs the suite and this no-op together.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.md"
+      - "docs/**"
+      - LICENSE
+  pull_request:
+    paths:
+      - "**/*.md"
+      - "docs/**"
+      - LICENSE
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Documentation-only change
+        run: echo "No buildable or testable files changed; skipping lint, build and test."
