@@ -11,18 +11,16 @@ describe("a full hand, 3 seats, start to showdown", () => {
     expect(state.button).toBe(0);
 
     // ring (button 0) = [1, 2, 0]; preflop order = [1, 2, 0], BB = seat 2.
-    state = playAll(state, [
-      { type: "startHand", playerId: 0, seed: "seed-1" },
-    ]);
+    state = playAll(state, [{ type: "startHand", seatId: 0, seed: "seed-1" }]);
     expect(state.hand?.status).toBe("betting");
 
     // Preflop: 1 calls the BB (not free to check — only the BB itself is),
     // 2 (BB) raises, 0 calls, 1 calls (closes back to raiser).
     state = playAll(state, [
-      { type: "call", playerId: 1 },
-      { type: "raise", playerId: 2 },
-      { type: "call", playerId: 0 },
-      { type: "call", playerId: 1 },
+      { type: "call", seatId: 1 },
+      { type: "raise", seatId: 2 },
+      { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
     ]);
     expect(state.hand?.status).toBe("betting");
     expect(
@@ -31,9 +29,9 @@ describe("a full hand, 3 seats, start to showdown", () => {
 
     // Flop: everyone checks around (order = [1, 2, 0], no BB special-case).
     state = playAll(state, [
-      { type: "check", playerId: 1 },
-      { type: "check", playerId: 2 },
-      { type: "check", playerId: 0 },
+      { type: "check", seatId: 1 },
+      { type: "check", seatId: 2 },
+      { type: "check", seatId: 0 },
     ]);
     expect(
       state.hand && "street" in state.hand ? state.hand.street : null,
@@ -41,9 +39,9 @@ describe("a full hand, 3 seats, start to showdown", () => {
 
     // Turn: 1 folds, 2 and 0 remain live, betting continues.
     state = playAll(state, [
-      { type: "fold", playerId: 1 },
-      { type: "check", playerId: 2 },
-      { type: "check", playerId: 0 },
+      { type: "fold", seatId: 1 },
+      { type: "check", seatId: 2 },
+      { type: "check", seatId: 0 },
     ]);
     expect(
       state.hand && "street" in state.hand ? state.hand.street : null,
@@ -52,9 +50,9 @@ describe("a full hand, 3 seats, start to showdown", () => {
     // River: 2 checks, 0 raises, 2 calls -> showdown.
     const beforeRiver = state;
     const riverEvents = playAndCollect(beforeRiver, [
-      { type: "check", playerId: 2 },
-      { type: "raise", playerId: 0 },
-      { type: "call", playerId: 2 },
+      { type: "check", seatId: 2 },
+      { type: "raise", seatId: 0 },
+      { type: "call", seatId: 2 },
     ]);
 
     expect(riverEvents.filter((e) => e.type === "StreetClosed")).toHaveLength(
@@ -74,7 +72,7 @@ describe("a full hand, 3 seats, start to showdown", () => {
 
 function playAndCollect(
   state: EngineState,
-  commands: { type: "fold" | "check" | "call" | "raise"; playerId: number }[],
+  commands: { type: "fold" | "check" | "call" | "raise"; seatId: number }[],
 ): HandEvent[] {
   const all: HandEvent[] = [];
   let current = state;
@@ -96,7 +94,7 @@ describe("HoleCardsDealt", () => {
     const state = createInitialState([0, 1, 2, 3]);
     const outcome = play(state, {
       type: "startHand",
-      playerId: 0,
+      seatId: 0,
       seed: "abc",
     });
     if (!("events" in outcome)) throw new Error("expected events");

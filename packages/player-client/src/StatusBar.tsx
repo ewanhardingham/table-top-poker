@@ -1,4 +1,5 @@
 import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
+import type { SittingOutReason } from "@table-top-poker/protocol";
 import type { CSSProperties } from "react";
 import { SeatPanel } from "./SeatPanel.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
@@ -11,6 +12,7 @@ export interface StatusBarProps {
     readonly seatId: number;
     readonly displayName?: string | null;
     readonly sittingOut: boolean;
+    readonly sittingOutReason: SittingOutReason | null;
   } | null;
 }
 
@@ -56,6 +58,7 @@ export function StatusBar({
           seatId={seat.seatId}
           displayName={seat.displayName ?? null}
           sittingOut={seat.sittingOut}
+          sittingOutReason={seat.sittingOutReason}
           toggleDisabled={connectionStatus !== "connected"}
           onToggleSittingOut={onToggleSittingOut}
         />

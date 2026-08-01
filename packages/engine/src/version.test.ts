@@ -6,4 +6,8 @@ describe("ENGINE_LOG_VERSION", () => {
     expect(Number.isInteger(ENGINE_LOG_VERSION)).toBe(true);
     expect(ENGINE_LOG_VERSION).toBeGreaterThan(0);
   });
+
+  it("uses the next version for the seat-addressed command schema", () => {
+    expect(ENGINE_LOG_VERSION).toBe(3);
+  });
 });

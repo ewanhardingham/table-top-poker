@@ -540,7 +540,7 @@ describe("RoomStore", () => {
 
       expect(foldResult).toMatchObject({
         reason: "not-your-turn",
-        command: { type: "fold", playerId: 2 },
+        command: { type: "fold", seatId: 2 },
         rejection: { type: "Rejection", reason: "not-your-turn" },
       });
       expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: true });
@@ -566,7 +566,7 @@ describe("RoomStore", () => {
         reason: "hand-already-in-progress",
         command: {
           type: "startHand",
-          playerId: 0,
+          seatId: 0,
         },
         rejection: {
           type: "Rejection",
@@ -597,7 +597,7 @@ describe("RoomStore", () => {
       expect(store.dispatch(room.code, outOfTurnSeat.id, "fold")).toMatchObject(
         {
           reason: "not-your-turn",
-          command: { type: "fold", playerId: outOfTurnSeat.id },
+          command: { type: "fold", seatId: outOfTurnSeat.id },
           rejection: { type: "Rejection", reason: "not-your-turn" },
         },
       );
@@ -909,12 +909,14 @@ describe("toRoomView", () => {
           claimed: true,
           displayName: "P0",
           sittingOut: false,
+          sittingOutReason: null,
           disconnected: false,
         },
         ...Array.from({ length: DEFAULT_SEAT_COUNT - 1 }, (_, i) => ({
           id: i + 1,
           claimed: false,
           sittingOut: false,
+          sittingOutReason: null,
           disconnected: false,
         })),
       ],

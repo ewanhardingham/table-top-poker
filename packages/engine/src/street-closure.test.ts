@@ -16,30 +16,30 @@ describe("street closure — limped-around preflop", () => {
 
     let state = createInitialState([BUTTON, SB, BB]);
     state = playAll(state, [
-      { type: "startHand", playerId: BUTTON, seed: "limp" },
+      { type: "startHand", seatId: BUTTON, seed: "limp" },
     ]);
 
     // SB calls the BB's post (only the BB may check an unraised preflop) —
     // BB hasn't acted yet even though it's technically their normal turn
     // next — confirm the street is still open after the SB.
-    state = playAll(state, [{ type: "call", playerId: SB }]);
+    state = playAll(state, [{ type: "call", seatId: SB }]);
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct[0]).toBe(BB);
 
     // BB checks its first (normal) turn — button hasn't acted yet, so the
     // street must still be open, and BB gets a second "option" visit later.
-    state = playAll(state, [{ type: "check", playerId: BB }]);
+    state = playAll(state, [{ type: "check", seatId: BB }]);
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct[0]).toBe(BUTTON);
 
     // Button calls — completes the first lap. Nobody raised, so the BB's
     // option is still outstanding: the street must NOT close here.
-    state = playAll(state, [{ type: "call", playerId: BUTTON }]);
+    state = playAll(state, [{ type: "call", seatId: BUTTON }]);
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct).toEqual([BB]);
 
     // BB's option: checking now finally closes preflop.
-    state = playAll(state, [{ type: "check", playerId: BB }]);
+    state = playAll(state, [{ type: "check", seatId: BB }]);
     expect(street(state).street).toBe("flop");
   });
 });
@@ -52,22 +52,22 @@ describe("street closure — raised and called", () => {
 
     let state = createInitialState([BUTTON, SB, BB]);
     state = playAll(state, [
-      { type: "startHand", playerId: BUTTON, seed: "raised" },
+      { type: "startHand", seatId: BUTTON, seed: "raised" },
     ]);
 
     // SB calls, BB raises — action must return to BB to close, skipping the
     // BB-option mechanic entirely since a real raise already happened.
     state = playAll(state, [
-      { type: "call", playerId: SB },
-      { type: "raise", playerId: BB },
+      { type: "call", seatId: SB },
+      { type: "raise", seatId: BB },
     ]);
     expect(street(state).toAct).toEqual([BUTTON, SB]);
 
-    state = playAll(state, [{ type: "call", playerId: BUTTON }]);
+    state = playAll(state, [{ type: "call", seatId: BUTTON }]);
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct).toEqual([SB]);
 
-    state = playAll(state, [{ type: "call", playerId: SB }]);
+    state = playAll(state, [{ type: "call", seatId: SB }]);
     expect(street(state).street).toBe("flop");
   });
 
@@ -78,20 +78,20 @@ describe("street closure — raised and called", () => {
 
     let state = createInitialState([BUTTON, SB, BB]);
     state = playAll(state, [
-      { type: "startHand", playerId: BUTTON, seed: "reraise" },
+      { type: "startHand", seatId: BUTTON, seed: "reraise" },
     ]);
 
     state = playAll(state, [
-      { type: "call", playerId: SB },
-      { type: "raise", playerId: BB },
-      { type: "raise", playerId: BUTTON },
+      { type: "call", seatId: SB },
+      { type: "raise", seatId: BB },
+      { type: "raise", seatId: BUTTON },
     ]);
     // Button re-raised: only SB and BB owe a response now, in that order.
     expect(street(state).toAct).toEqual([SB, BB]);
 
     state = playAll(state, [
-      { type: "call", playerId: SB },
-      { type: "call", playerId: BB },
+      { type: "call", seatId: SB },
+      { type: "call", seatId: BB },
     ]);
     expect(street(state).street).toBe("flop");
   });
@@ -105,12 +105,12 @@ describe("street closure — raised and called", () => {
 
     let state = createInitialState([BUTTON, SB, BB, UTG]);
     state = playAll(state, [
-      { type: "startHand", playerId: BUTTON, seed: "bb-raise" },
+      { type: "startHand", seatId: BUTTON, seed: "bb-raise" },
     ]);
 
     state = playAll(state, [
-      { type: "fold", playerId: SB },
-      { type: "raise", playerId: BB },
+      { type: "fold", seatId: SB },
+      { type: "raise", seatId: BB },
     ]);
     // SB already folded, so only UTG and the button owe a response — the
     // BB-option flag is also moot now, since a real raise already happened.
@@ -118,8 +118,8 @@ describe("street closure — raised and called", () => {
     expect(street(state).bbOptionPending).toBe(false);
 
     state = playAll(state, [
-      { type: "call", playerId: UTG },
-      { type: "call", playerId: BUTTON },
+      { type: "call", seatId: UTG },
+      { type: "call", seatId: BUTTON },
     ]);
     expect(street(state).street).toBe("flop");
   });
