@@ -7,7 +7,6 @@ import {
   motion,
   type MotionValue,
   useMotionValue,
-  useTransform,
 } from "motion/react";
 import {
   PeelBack,
@@ -23,12 +22,10 @@ type VariantKey = "A" | "B" | "C";
 type RevealTrigger = "long-press" | "single-tap";
 type Layout = "fan" | "overlap" | "side-by-side";
 type PeekScope = "card" | "pair";
-type Mechanic = "rigid-bend" | "react-peel";
 
 interface Variant {
   readonly key: VariantKey;
   readonly name: string;
-  readonly mechanic: Mechanic;
   readonly revealTrigger: RevealTrigger;
   readonly layout: Layout;
   readonly peekScope: PeekScope;
@@ -39,19 +36,17 @@ interface Variant {
 const VARIANTS: readonly [Variant, Variant, Variant] = [
   {
     key: "A",
-    name: "Corner bend",
-    mechanic: "rigid-bend",
+    name: "Curl one card",
     revealTrigger: "long-press",
     layout: "fan",
     peekScope: "card",
     gestureActions: true,
     coaching:
-      "Pull either marked corner inward to bend that card. Hold still to reveal. Flick the card body up to fold.",
+      "Pull either marked corner inward to curl that card. Hold still to reveal. Flick the card body up to fold.",
   },
   {
     key: "B",
     name: "Curl the pair",
-    mechanic: "react-peel",
     revealTrigger: "single-tap",
     layout: "overlap",
     peekScope: "pair",
@@ -62,7 +57,6 @@ const VARIANTS: readonly [Variant, Variant, Variant] = [
   {
     key: "C",
     name: "Buttons first",
-    mechanic: "rigid-bend",
     revealTrigger: "long-press",
     layout: "side-by-side",
     peekScope: "card",
@@ -140,62 +134,6 @@ function CardBack() {
   );
 }
 
-function RigidBendCard({
-  progress,
-  revealed,
-  rank,
-  suit,
-}: {
-  readonly progress: MotionValue<number>;
-  readonly revealed: boolean;
-  readonly rank: string;
-  readonly suit: string;
-}) {
-  const flapTransform = useTransform(progress, (value) => {
-    const angle = value * 148;
-    const lift = value * -7;
-    return `translate3d(${String(lift)}px, ${String(lift)}px, 0) rotate3d(-1, 1, 0, ${String(angle)}deg)`;
-  });
-  const shadowOpacity = useTransform(progress, [0, 0.08, 1], [0, 0.25, 0.75]);
-  const faceOpacity = useTransform(progress, [0, 0.05], [0.72, 1]);
-
-  if (revealed) {
-    return (
-      <div className="gesture-card-surface gesture-card-fully-revealed">
-        <PokerFace rank={rank} suit={suit} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="gesture-card-surface gesture-card-bend-surface">
-      <motion.div
-        className="gesture-card-face-layer"
-        style={{ opacity: faceOpacity }}
-      >
-        <PokerFace rank={rank} suit={suit} />
-      </motion.div>
-      <div className="gesture-card-back-mask">
-        <CardBack />
-      </div>
-      <motion.div
-        className="gesture-card-fold-shadow"
-        style={{ opacity: shadowOpacity }}
-      />
-      <motion.div
-        className="gesture-card-flap"
-        style={{ transform: flapTransform }}
-      >
-        <CardBack />
-        <div className="gesture-card-flap-underside">
-          <span>{rank}</span>
-          <span>{suit}</span>
-        </div>
-      </motion.div>
-    </div>
-  );
-}
-
 function ReactPeelCard({
   progress,
   revealed,
@@ -247,9 +185,7 @@ function ReactPeelCard({
         <PeelBack>
           <PokerFace rank={rank} suit={suit} />
         </PeelBack>
-        <PeelBottom>
-          <PokerFace rank={rank} suit={suit} />
-        </PeelBottom>
+        <PeelBottom className="gesture-card-table-underlay" />
       </PeelWrapper>
     </div>
   );
@@ -257,14 +193,12 @@ function ReactPeelCard({
 
 function GestureCard({
   cardIndex,
-  mechanic,
   progress,
   revealed,
   rank,
   suit,
 }: {
   readonly cardIndex: 0 | 1;
-  readonly mechanic: Mechanic;
   readonly progress: MotionValue<number>;
   readonly revealed: boolean;
   readonly rank: string;
@@ -272,21 +206,12 @@ function GestureCard({
 }) {
   return (
     <div className="gesture-card" data-card-index={cardIndex}>
-      {mechanic === "react-peel" ? (
-        <ReactPeelCard
-          progress={progress}
-          revealed={revealed}
-          rank={rank}
-          suit={suit}
-        />
-      ) : (
-        <RigidBendCard
-          progress={progress}
-          revealed={revealed}
-          rank={rank}
-          suit={suit}
-        />
-      )}
+      <ReactPeelCard
+        progress={progress}
+        revealed={revealed}
+        rank={rank}
+        suit={suit}
+      />
       {!revealed && (
         <span
           className="gesture-card-bend-zone"
@@ -684,7 +609,6 @@ export function HoleCardsPrototype() {
             >
               <GestureCard
                 cardIndex={0}
-                mechanic={variant.mechanic}
                 progress={peekLeft}
                 revealed={revealed}
                 rank="A"
@@ -692,7 +616,6 @@ export function HoleCardsPrototype() {
               />
               <GestureCard
                 cardIndex={1}
-                mechanic={variant.mechanic}
                 progress={peekRight}
                 revealed={revealed}
                 rank="K"
@@ -773,7 +696,7 @@ export function HoleCardsPrototype() {
             </div>
             <div>
               <dt>Bend</dt>
-              <dd>{variant.mechanic}</dd>
+              <dd>single-sheet curl</dd>
             </div>
             <div>
               <dt>Peek</dt>
