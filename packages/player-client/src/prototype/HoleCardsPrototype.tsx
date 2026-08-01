@@ -1,6 +1,6 @@
 /**
- * PROTOTYPE ONLY — the chosen Hole-card bend grammar on one dev-only route.
- * Earlier alternatives remain available in the prototype branch history.
+ * PROTOTYPE ONLY — two Hole-card bend grammars, switchable with ?variant=A|B
+ * on one dev-only route. A bends to reveal; B bends in both directions.
  */
 import {
   animate,
@@ -16,14 +16,25 @@ import {
   type PeelRef,
 } from "react-peel";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PrototypeSwitcher } from "./PrototypeSwitcher.js";
+
+type VariantKey = "A" | "B";
+type TurnDirection = "revealing" | "concealing";
+
+const VARIANTS = [
+  { key: "A", name: "Bend to reveal" },
+  { key: "B", name: "Bend both ways" },
+] as const;
 
 const FOLD_THRESHOLD = -112;
 const MOVE_THRESHOLD = 9;
 const DOUBLE_TAP_MS = 280;
 const REVEAL_THRESHOLD = 0.9;
 const REVEAL_FINISH_MS = 520;
-const COACHING =
-  "Bend either card past 90% and it will finish turning face-up. Release below 90% for a temporary Peek. Tap a revealed card to conceal it.";
+const COACHING: Record<VariantKey, string> = {
+  A: "Bend either card past 90% and it will finish turning face-up. Tap a revealed card to conceal it.",
+  B: "Bend past 90% to turn a card over. Bend the revealed face again to conceal it.",
+};
 
 interface ActiveGesture {
   readonly pointerId: number;
@@ -31,7 +42,8 @@ interface ActiveGesture {
   readonly startX: number;
   readonly startY: number;
   readonly fromBendZone: boolean;
-  mode: "pressing" | "bending" | "revealing" | "folding" | "ignored";
+  readonly startedRevealed: boolean;
+  mode: "pressing" | "bending" | "turning" | "folding" | "ignored";
   thresholdCrossed: boolean;
   interruptTimer: ReturnType<typeof setTimeout> | null;
 }
@@ -45,6 +57,12 @@ function vibrate(duration: number) {
   if (typeof vibration === "function") {
     Reflect.apply(vibration, navigator, [duration]);
   }
+}
+
+function initialVariant(): VariantKey {
+  return new URLSearchParams(window.location.search).get("variant") === "B"
+    ? "B"
+    : "A";
 }
 
 function PokerFace({
@@ -91,11 +109,13 @@ function CardBack() {
 function ReactPeelCard({
   progress,
   revealed,
+  bendToConceal,
   rank,
   suit,
 }: {
   readonly progress: MotionValue<number>;
   readonly revealed: boolean;
+  readonly bendToConceal: boolean;
   readonly rank: string;
   readonly suit: string;
 }) {
@@ -124,7 +144,7 @@ function ReactPeelCard({
     return progress.on("change", position);
   }, [progress]);
 
-  if (revealed) {
+  if (revealed && !bendToConceal) {
     return (
       <div className="gesture-card-surface gesture-card-fully-revealed">
         <PokerFace rank={rank} suit={suit} />
@@ -133,7 +153,9 @@ function ReactPeelCard({
   }
 
   return (
-    <div className="gesture-card-surface gesture-card-library-surface">
+    <div
+      className={`gesture-card-surface gesture-card-library-surface${revealed ? " gesture-card-fully-revealed" : ""}`}
+    >
       <PeelWrapper
         ref={peelRef}
         width="100%"
@@ -148,10 +170,14 @@ function ReactPeelCard({
         }}
       >
         <PeelTop>
-          <CardBack />
+          {revealed ? <PokerFace rank={rank} suit={suit} /> : <CardBack />}
         </PeelTop>
         <PeelBack>
-          <PokerFace rank={rank} suit={suit} curlUnderside />
+          {revealed ? (
+            <CardBack />
+          ) : (
+            <PokerFace rank={rank} suit={suit} curlUnderside />
+          )}
         </PeelBack>
         <PeelBottom className="gesture-card-table-underlay" />
       </PeelWrapper>
@@ -163,29 +189,32 @@ function GestureCard({
   cardIndex,
   progress,
   revealed,
-  revealing,
+  turning,
+  bendToConceal,
   rank,
   suit,
 }: {
   readonly cardIndex: 0 | 1;
   readonly progress: MotionValue<number>;
   readonly revealed: boolean;
-  readonly revealing: boolean;
+  readonly turning: TurnDirection | null;
+  readonly bendToConceal: boolean;
   readonly rank: string;
   readonly suit: string;
 }) {
   return (
     <div
-      className={`gesture-card${revealing ? " is-finishing-reveal" : ""}`}
+      className={`gesture-card${turning ? " is-finishing-turn" : ""}`}
       data-card-index={cardIndex}
     >
       <ReactPeelCard
         progress={progress}
         revealed={revealed}
+        bendToConceal={bendToConceal}
         rank={rank}
         suit={suit}
       />
-      {!revealed && !revealing && (
+      {(!revealed || bendToConceal) && !turning && (
         <span
           className="gesture-card-bend-zone"
           data-bend-zone="true"
@@ -199,12 +228,13 @@ function GestureCard({
 }
 
 export function HoleCardsPrototype() {
+  const [variantKey, setVariantKey] = useState<VariantKey>(initialVariant);
   const [revealedCards, setRevealedCards] = useState<
     readonly [boolean, boolean]
   >([false, false]);
-  const [revealingCards, setRevealingCards] = useState<
-    readonly [boolean, boolean]
-  >([false, false]);
+  const [turningCards, setTurningCards] = useState<
+    readonly [TurnDirection | null, TurnDirection | null]
+  >([null, null]);
   const [mucked, setMucked] = useState(false);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [recognizer, setRecognizer] = useState("idle");
@@ -233,10 +263,19 @@ export function HoleCardsPrototype() {
     );
   }, []);
 
-  const setCardRevealing = useCallback((cardIndex: 0 | 1, value: boolean) => {
-    setRevealingCards((current) =>
-      cardIndex === 0 ? [value, current[1]] : [current[0], value],
-    );
+  const setCardTurning = useCallback(
+    (cardIndex: 0 | 1, value: TurnDirection | null) => {
+      setTurningCards((current) =>
+        cardIndex === 0 ? [value, current[1]] : [current[0], value],
+      );
+    },
+    [],
+  );
+
+  const bendToConceal = variantKey === "B";
+
+  const resetTurnState = useCallback(() => {
+    setTurningCards([null, null]);
   }, []);
 
   const cancelRevealAnimations = useCallback(() => {
@@ -246,8 +285,8 @@ export function HoleCardsPrototype() {
     revealAnimationsRef.current = [null, null];
     revealTokensRef.current[0] += 1;
     revealTokensRef.current[1] += 1;
-    setRevealingCards([false, false]);
-  }, []);
+    resetTurnState();
+  }, [resetTurnState]);
 
   const clearGestureTimers = useCallback(() => {
     if (activeRef.current?.interruptTimer) {
@@ -319,11 +358,11 @@ export function HoleCardsPrototype() {
     cancelInteraction("New hand dealt face-down");
     pairY.set(0);
     setRevealedCards([false, false]);
-    setRevealingCards([false, false]);
+    resetTurnState();
     setMucked(false);
     setPendingAction(null);
     setServerRevision((revision) => revision + 1);
-  }, [cancelInteraction, pairY]);
+  }, [cancelInteraction, pairY, resetTurnState]);
 
   const resolveFold = (resolution: "acknowledge" | "reject") => {
     if (pendingAction !== "fold") return;
@@ -350,12 +389,15 @@ export function HoleCardsPrototype() {
     setPeekPercent(Math.round(value * 100));
   };
 
-  const finishReveal = (cardIndex: 0 | 1) => {
+  const finishTurn = (cardIndex: 0 | 1, direction: TurnDirection) => {
+    const willReveal = direction === "revealing";
     const progress = cardIndex === 0 ? peekLeft : peekRight;
     const token = revealTokensRef.current[cardIndex] + 1;
     revealTokensRef.current[cardIndex] = token;
-    setCardRevealing(cardIndex, true);
-    setRecognizer(`turning card ${String(cardIndex + 1)} face-up`);
+    setCardTurning(cardIndex, direction);
+    setRecognizer(
+      `turning card ${String(cardIndex + 1)} ${willReveal ? "face-up" : "face-down"}`,
+    );
 
     const animation = animate(progress, 1, {
       duration: REVEAL_FINISH_MS / 1000,
@@ -367,11 +409,11 @@ export function HoleCardsPrototype() {
       revealAnimationsRef.current[cardIndex] = null;
       progress.set(0);
       setPeekPercent(0);
-      setCardRevealing(cardIndex, false);
-      setCardRevealed(cardIndex, true);
+      setCardTurning(cardIndex, null);
+      setCardRevealed(cardIndex, willReveal);
       setRecognizer("idle");
       setLastEvent(
-        `Card ${String(cardIndex + 1)} finished turning and settled face-up`,
+        `Card ${String(cardIndex + 1)} finished turning and settled ${willReveal ? "face-up" : "face-down"}`,
       );
     });
   };
@@ -387,7 +429,7 @@ export function HoleCardsPrototype() {
       sendCheck("double-tap");
       return;
     }
-    if (revealedCards[cardIndex]) {
+    if (!bendToConceal && revealedCards[cardIndex]) {
       if (singleTapTimerRef.current) clearTimeout(singleTapTimerRef.current);
       singleTapTimerRef.current = setTimeout(() => {
         setCardRevealed(cardIndex, false);
@@ -410,6 +452,7 @@ export function HoleCardsPrototype() {
       startX: event.clientX,
       startY: event.clientY,
       fromBendZone,
+      startedRevealed: revealedCards[cardIndex],
       mode: "pressing",
       thresholdCrossed: false,
       interruptTimer: null,
@@ -434,9 +477,13 @@ export function HoleCardsPrototype() {
     const distance = Math.hypot(dx, dy);
 
     if (active.mode === "pressing" && distance > MOVE_THRESHOLD) {
-      if (active.fromBendZone && !revealedCards[active.cardIndex]) {
+      if (active.fromBendZone && (!active.startedRevealed || bendToConceal)) {
         active.mode = "bending";
-        setRecognizer("bending card");
+        setRecognizer(
+          active.startedRevealed
+            ? "bending face to conceal"
+            : "bending back to reveal",
+        );
       } else if (legalFold && dy < 0 && Math.abs(dy) > Math.abs(dx) * 1.05) {
         active.mode = "folding";
         setRecognizer("fold drag");
@@ -451,11 +498,14 @@ export function HoleCardsPrototype() {
       const progress = clamp(inward / 176);
       setPeek(active.cardIndex, progress);
       if (progress > REVEAL_THRESHOLD) {
-        active.mode = "revealing";
-        finishReveal(active.cardIndex);
+        const direction: TurnDirection = active.startedRevealed
+          ? "concealing"
+          : "revealing";
+        active.mode = "turning";
+        finishTurn(active.cardIndex, direction);
         vibrate(10);
         setLastEvent(
-          `Bend crossed 90%; card ${String(active.cardIndex + 1)} is finishing its turn`,
+          `Bend crossed 90%; card ${String(active.cardIndex + 1)} is finishing ${direction === "revealing" ? "face-up" : "face-down"}`,
         );
       }
       event.preventDefault();
@@ -481,7 +531,7 @@ export function HoleCardsPrototype() {
     if (active?.pointerId !== event.pointerId) return;
     clearGestureTimers();
     activeRef.current = null;
-    if (active.mode === "revealing") return;
+    if (active.mode === "turning") return;
     if (cancelled) {
       settlePeek();
       animate(pairY, 0, { type: "spring", stiffness: 480, damping: 36 });
@@ -549,8 +599,21 @@ export function HoleCardsPrototype() {
     };
   });
 
+  const chooseVariant = (key: string) => {
+    const next: VariantKey = key === "B" ? "B" : "A";
+    const url = new URL(window.location.href);
+    url.searchParams.set("variant", next);
+    window.history.replaceState(null, "", url);
+    cancelInteraction(`Switched to variant ${next}`);
+    pairY.set(0);
+    setPendingAction(null);
+    setMucked(false);
+    setRevealedCards([false, false]);
+    setVariantKey(next);
+  };
+
   return (
-    <div className="prototype-shell" data-grammar="side-by-side-bend">
+    <div className="prototype-shell" data-variant={variantKey}>
       <header className="prototype-header">
         <div>
           <span>ISSUE 108 · THROWAWAY PROTOTYPE</span>
@@ -607,7 +670,8 @@ export function HoleCardsPrototype() {
                 cardIndex={0}
                 progress={peekLeft}
                 revealed={revealedCards[0]}
-                revealing={revealingCards[0]}
+                turning={turningCards[0]}
+                bendToConceal={bendToConceal}
                 rank="A"
                 suit="♠"
               />
@@ -615,18 +679,19 @@ export function HoleCardsPrototype() {
                 cardIndex={1}
                 progress={peekRight}
                 revealed={revealedCards[1]}
-                revealing={revealingCards[1]}
+                turning={turningCards[1]}
+                bendToConceal={bendToConceal}
                 rank="K"
                 suit="♥"
               />
             </motion.div>
           )}
-          <p className="prototype-coaching">{COACHING}</p>
+          <p className="prototype-coaching">{COACHING[variantKey]}</p>
           <div className="prototype-readout" aria-live="polite">
             <span>{recognizer}</span>
             <span>
-              {revealingCards[0] || revealingCards[1]
-                ? `turning ${revealingCards[0] ? "A" : ""}${revealingCards[1] ? "K" : ""}`
+              {turningCards[0] || turningCards[1]
+                ? `${String(turningCards[0] ?? turningCards[1])} ${turningCards[0] ? "A" : ""}${turningCards[1] ? "K" : ""}`
                 : revealedCards[0] || revealedCards[1]
                   ? `revealed ${revealedCards[0] ? "A" : ""}${revealedCards[1] ? "K" : ""}`
                   : `peek ${String(peekPercent)}%`}
@@ -701,8 +766,8 @@ export function HoleCardsPrototype() {
               <dd>single-sheet curl</dd>
             </div>
             <div>
-              <dt>Peek</dt>
-              <dd>per card</dd>
+              <dt>Conceal</dt>
+              <dd>{bendToConceal ? "bend > 90%" : "tap"}</dd>
             </div>
             <div>
               <dt>Layout</dt>
@@ -774,6 +839,14 @@ export function HoleCardsPrototype() {
             work too.
           </p>
         </aside>
+      )}
+
+      {import.meta.env.DEV && (
+        <PrototypeSwitcher
+          variants={VARIANTS}
+          current={variantKey}
+          onChange={chooseVariant}
+        />
       )}
     </div>
   );
