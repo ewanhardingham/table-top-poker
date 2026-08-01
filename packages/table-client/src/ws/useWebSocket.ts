@@ -20,7 +20,7 @@ const RETRY_DELAY_MS = 1500;
  * its lifecycle into the connection slice. Every `room-view` push replaces
  * the seat slice; every `hand-update`/`view-snapshot` replaces the hand
  * slice with the fresh `view(state, 'table')` the server just computed —
- * the view is source of truth (docs/phase-1-spec.md §6), never rebuilt from
+ * the view is source of truth (Phase 1 spec #130 §6), never rebuilt from
  * the raw event locally. `command-rejected` renders nothing on the table
  * device by design (§9 — only the rejecting player ever sees a rejection).
  *

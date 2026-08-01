@@ -9,7 +9,7 @@ import type {
  * Pushed once per domain event produced by a command, to every socket
  * entitled to see it. Carries both the raw event (future audit/animation)
  * and a fresh per-recipient view — the view is source of truth
- * (docs/phase-1-spec.md §6), the event is not replayed against local state.
+ * (Phase 1 spec #130 §6), the event is not replayed against local state.
  */
 export interface HandUpdateMessage {
   readonly type: "hand-update";

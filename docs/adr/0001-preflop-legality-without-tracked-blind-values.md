@@ -8,7 +8,7 @@ Accepted
 
 The wayfinder map (issue #1) closed Small Blind / Big Blind as "purely
 positional Seat labels, no values posted" — Phase 1 tracks no chip amount,
-no Pot, no stakes (`CONTEXT.md`, `docs/phase-1-spec.md` §1–§2). Issue #20's
+no Pot, no stakes (`CONTEXT.md`, Phase 1 spec #130 §1–§2). Issue #20's
 first implementation took that literally: `check` was legal for every seat
 on an unraised preflop, including the Small Blind and everyone after it.
 
@@ -48,7 +48,7 @@ feature. Postflop is unaffected: nobody has a standing post there, so
   street closure (the existing "BB option" flag) and for legality, and had
   to be generalized to heads-up, where the non-Button seat is the Big
   Blind rather than `ring[1]`.
-- `CONTEXT.md` and `docs/phase-1-spec.md`'s "no values posted" wording is
+- `CONTEXT.md` and Phase 1 spec #130's "no values posted" wording is
   updated to distinguish "no chip *amount* tracked" from "preflop legality
   ignores that a bet exists" — the former stands, the latter doesn't.
 - Phase 4's chip/stake/Pot tracking (conditional, per the roadmap) remains

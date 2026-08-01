@@ -75,7 +75,7 @@ const rejectionStyle: CSSProperties = {
 };
 
 /**
- * Fold/check/call/raise as the permanent base layer (docs/phase-1-spec.md
+ * Fold/check/call/raise as the permanent base layer (Phase 1 spec #130
  * §9) — always rendered during a betting phase, never swapped out for
  * gestures. Disabled unless the action is in `legalActions` and nothing
  * else is pending; the pressed button carries `data-pending` until its
@@ -109,7 +109,7 @@ export function ActionBar({
       }}
     >
       {/* No pending command to attribute the reject to (no correlation id
-          on the wire, docs/phase-1-spec.md §6) — falls back to a bar-level
+          on the wire, Phase 1 spec #130 §6) — falls back to a bar-level
           message rather than guessing which button triggered it. */}
       {rejection !== null && rejection.action === null && (
         <div

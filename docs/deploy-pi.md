@@ -8,7 +8,7 @@ condensed how-to; that doc is the why.
 `npm run build:release` (root) builds every package, builds `table-client` and
 `player-client` against their production base paths (`/table/`, `/player/`), and stages
 both bundles under `packages/server/public/` so one Fastify process serves everything
-same-origin — plain HTTP, no certificate (docs/phase-1-spec.md §8).
+same-origin — plain HTTP, no certificate (Phase 1 spec #130 §8).
 
 After it runs, `.release/` is a self-contained deployable unit. The release
 script copies workspace symlink targets into its `node_modules`, so the Pi does not need a

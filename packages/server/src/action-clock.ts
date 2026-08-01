@@ -2,7 +2,7 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 
 /**
  * Per-room "you have N ms to act" timer, fully decoupled from WebSocket
- * connection state — see docs/phase-1-spec.md §7 (folding stays strictly
+ * connection state — see Phase 1 spec #130 §7 (folding stays strictly
  * clock-driven). Scheduling and clearing functions are injectable so tests
  * can run this at real-but-tiny durations instead of faking global timers.
  */

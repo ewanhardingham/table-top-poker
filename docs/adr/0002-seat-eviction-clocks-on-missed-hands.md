@@ -10,7 +10,7 @@ still stands.
 
 ## Context
 
-`docs/phase-1-spec.md` §7 (from issue #13) covers disconnect detection and
+Phase 1 spec #130 §7 (from issue #13) covers disconnect detection and
 the cosmetic "disconnected" badge, but leaves no path to free a seat that
 never reconnects — it stays occupied, dealt in, clock-timed-out, and folded
 every hand, indefinitely. Issue #56 proposed closing that gap with a fourth

@@ -127,7 +127,7 @@ export interface SeatMovedMessage extends SeatMove {
 /**
  * Pushed once, right after a socket opens (fresh join or reconnect), when a
  * hand is already in progress — a snapshot only, never replayed events
- * (docs/phase-1-spec.md §7, §9).
+ * (Phase 1 spec #130 §7, §9).
  */
 export interface ViewSnapshotMessage {
   readonly type: "view-snapshot";

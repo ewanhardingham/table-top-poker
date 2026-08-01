@@ -45,7 +45,7 @@ export function App() {
   const [seatMoveMessage, setSeatMoveMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Silently reclaim a stored seat on mount (docs/phase-1-spec.md §7) — a
+    // Silently reclaim a stored seat on mount (Phase 1 spec #130 §7) — a
     // cleared/absent token just falls through to the normal join flow.
     const stored = loadSeatToken(window.localStorage);
     if (stored === null) return;

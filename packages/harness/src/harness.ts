@@ -13,7 +13,7 @@ export interface RunHarnessOptions {
   readonly state: EngineState;
   readonly input: Readable;
   readonly output: Writable;
-  /** Optional append-as-you-go persistence — see docs/phase-1-spec.md §5. */
+  /** Optional append-as-you-go persistence — see Phase 1 spec #130 §5. */
   readonly log?: HandLog;
 }
 
