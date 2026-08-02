@@ -37,6 +37,12 @@ export interface GestureSession {
    * again, and the player can always change their mind by putting them down.
    */
   readonly armed: boolean;
+  /**
+   * A view-driven disarm blocks re-arming until the pointer comes back below
+   * the threshold, so legality returning under a held finger cannot commit the
+   * old offer without a fresh crossing.
+   */
+  readonly armingBlocked: boolean;
 }
 
 /** Continuous peel values, destined for `MotionValue`s rather than state. */
@@ -82,6 +88,7 @@ export function beginGesture(press: {
     classification: null,
     crossed: false,
     armed: false,
+    armingBlocked: false,
   };
 }
 
@@ -91,7 +98,7 @@ export function beginGesture(press: {
  * used by `endGesture` in agreement without ending the drag.
  */
 function disarmGesture(session: GestureSession): GestureSession {
-  return session.armed ? { ...session, armed: false } : session;
+  return { ...session, armed: false, armingBlocked: true };
 }
 
 /**
@@ -212,11 +219,19 @@ function foldStep(
   // back below where it started must not shove them down the screen.
   const offset = Math.min(0, dy);
   const fold: FoldMotion = { offset };
-  const armed = ctx.foldLegal && -offset >= ctx.foldThresholdPx;
-  if (armed === session.armed) return { session, events, bend: null, fold };
+  const aboveThreshold = -offset >= ctx.foldThresholdPx;
+  const armingBlocked =
+    aboveThreshold && (session.armingBlocked || !ctx.foldLegal);
+  const armed = ctx.foldLegal && aboveThreshold && !armingBlocked;
+  if (armed === session.armed && armingBlocked === session.armingBlocked) {
+    return { session, events, bend: null, fold };
+  }
   return {
-    session: { ...session, armed },
-    events: [...events, { type: armed ? "FOLD_ARMED" : "FOLD_DISARMED" }],
+    session: { ...session, armed, armingBlocked },
+    events:
+      armed === session.armed
+        ? events
+        : [...events, { type: armed ? "FOLD_ARMED" : "FOLD_DISARMED" }],
     bend: null,
     fold,
   };
