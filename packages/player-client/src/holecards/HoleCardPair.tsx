@@ -4,6 +4,7 @@ import { motion, useTransform, type MotionValue } from "motion/react";
 import type { CSSProperties } from "react";
 import { BendableCard } from "./BendableCard.js";
 import type { Presentation } from "./cardState.js";
+import { CheckStamp } from "./CheckStamp.js";
 import {
   selectHint,
   type Hint,
@@ -197,73 +198,79 @@ export function HoleCardPair(props: HoleCardPairProps) {
         gap: "0.55em",
       }}
     >
-      <button
-        type="button"
-        data-testid="hole-cards"
-        data-presentation={presentation}
-        // A locked pair is inert but stays in the tab order and keeps its
-        // accessible name: at showdown that name is where a screen-reader user
-        // reads their own hand, and `disabled` would take it away.
-        onClick={locked ? undefined : activate}
-        // Long-press must not raise the OS callout menu over the cards (§16).
-        onContextMenu={preventDefault}
-        {...(locked ? {} : handlers)}
-        aria-disabled={locked}
-        aria-label={accessibleName(shown, presentation, locked)}
-        style={{
-          display: "flex",
-          padding: 0,
-          border: "none",
-          background: "none",
-          color: "inherit",
-          cursor: locked ? "default" : "pointer",
-          // Handling cards must not raise the OS text-selection or callout
-          // menu over them, and the browser must not claim the vertical drag
-          // as a pan or the second tap as a zoom (§16). The app shell is fixed
-          // and non-scrolling, so nothing is lost by taking the whole gesture.
-          userSelect: "none",
-          WebkitTouchCallout: "none",
-          WebkitUserSelect: "none",
-          touchAction: "none",
-        }}
-      >
-        <motion.span
-          // Keyed on card identity so a new hand replays the deal-in: the cards
-          // arrive face-down (§17), replacing `Hand`'s per-card face-up deal
-          // animation. The key is on the motion element, not the component, so
-          // it restarts an animation without discarding lifecycle state —
-          // `DEALT` stays the one thing that resets presentation.
-          key={cardKey(shown)}
-          initial={{ opacity: 0, y: "-18%" }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: DEAL_IN_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
-          style={{ display: "flex", fontSize: "2.6em" }}
+      <div className="hole-cards-surface">
+        <button
+          type="button"
+          data-testid="hole-cards"
+          data-presentation={presentation}
+          // A locked pair is inert but stays in the tab order and keeps its
+          // accessible name: at showdown that name is where a screen-reader user
+          // reads their own hand, and `disabled` would take it away.
+          onClick={locked ? undefined : activate}
+          // Long-press must not raise the OS callout menu over the cards (§16).
+          onContextMenu={preventDefault}
+          {...(locked ? {} : handlers)}
+          aria-disabled={locked}
+          aria-label={accessibleName(shown, presentation, locked)}
+          style={{
+            display: "flex",
+            padding: 0,
+            border: "none",
+            background: "none",
+            color: "inherit",
+            cursor: locked ? "default" : "pointer",
+            // Handling cards must not raise the OS text-selection or callout
+            // menu over them, and the browser must not claim the vertical drag
+            // as a pan or the second tap as a zoom (§16). The app shell is fixed
+            // and non-scrolling, so nothing is lost by taking the whole gesture.
+            userSelect: "none",
+            WebkitTouchCallout: "none",
+            WebkitUserSelect: "none",
+            touchAction: "none",
+          }}
         >
-          {/* A layer of its own, so the fold drag and the muck flight can drive
-           * `y` and `opacity` from `MotionValue`s while the deal-in above keeps
-           * animating the same two properties declaratively. The two would
-           * fight on one element; nested, they simply compose. */}
           <motion.span
-            style={{
-              display: "flex",
-              gap: "0.5em",
-              y: foldOffset,
-              opacity: foldFade,
+            // Keyed on card identity so a new hand replays the deal-in: the cards
+            // arrive face-down (§17), replacing `Hand`'s per-card face-up deal
+            // animation. The key is on the motion element, not the component, so
+            // it restarts an animation without discarding lifecycle state —
+            // `DEALT` stays the one thing that resets presentation.
+            key={cardKey(shown)}
+            initial={{ opacity: 0, y: "-18%" }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: DEAL_IN_MS / 1000,
+              ease: [0.2, 0.8, 0.2, 1],
             }}
+            style={{ display: "flex", fontSize: "2.6em" }}
           >
-            {shown.map((card, index) => (
-              <BendableCard
-                key={index}
-                card={card}
-                tiltDegrees={index === 0 ? -3 : 3}
-                presentation={presentation}
-                bend={bend}
-                leavingFaceUp={leavingFaceUp}
-              />
-            ))}
+            {/* A layer of its own, so the fold drag and the muck flight can drive
+             * `y` and `opacity` from `MotionValue`s while the deal-in above keeps
+             * animating the same two properties declaratively. The two would
+             * fight on one element; nested, they simply compose. */}
+            <motion.span
+              style={{
+                display: "flex",
+                gap: "0.5em",
+                y: foldOffset,
+                opacity: foldFade,
+              }}
+            >
+              {shown.map((card, index) => (
+                <BendableCard
+                  key={index}
+                  card={card}
+                  tiltDegrees={index === 0 ? -3 : 3}
+                  presentation={presentation}
+                  bend={bend}
+                  leavingFaceUp={leavingFaceUp}
+                />
+              ))}
+            </motion.span>
           </motion.span>
-        </motion.span>
-      </button>
+        </button>
+        {checkConfirmed && <CheckStamp />}
+      </div>
       <GestureHint
         dragLeft={hintDragLeft}
         dragUp={hintDragUp}
@@ -339,6 +346,11 @@ function GestureHint({
   const upOpacity = useTransform(axis, (value) => (value === "up" ? 1 : 0));
 
   if (dragLeft === null || dragUp === null) return null;
+
+  // Check confirmation is painted as a stamp over the cards. Keep the
+  // selected hint alive for the status announcer below, but do not render its
+  // old two-line sighted copy beneath the pair.
+  if (dragLeft.id === "checked") return null;
 
   // One hint, not two: the axis is only a distinction while a bend is live.
   if (dragLeft.id === dragUp.id) return <HintBlock hint={dragLeft} />;
