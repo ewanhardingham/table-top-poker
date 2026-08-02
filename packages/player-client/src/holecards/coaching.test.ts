@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { CardState, Presentation, Recognizer } from "./cardState.js";
+import type {
+  CardEvent,
+  CardState,
+  Presentation,
+  Recognizer,
+} from "./cardState.js";
 import {
+  discoveredBy,
+  nextTeachable,
   selectHint,
   type HintContext,
   type TeachableGesture,
@@ -41,6 +48,7 @@ function ctx(overrides: Partial<HintContext> = {}): HintContext {
     foldLegal: true,
     pending: false,
     locked: false,
+    coarsePointer: true,
     quiet: true,
     checkConfirmed: false,
     ...overrides,
@@ -210,10 +218,10 @@ describe("selectHint", () => {
     });
   });
 
-  it("shows nothing when no gesture is running", () => {
+  it("shows nothing when no gesture is running and there is nothing left to teach", () => {
     for (const presentation of ["FaceDown", "Revealed", "Turning"] as const) {
       expect(
-        selectHint(idle(presentation), nothingDiscovered, ctx()),
+        selectHint(idle(presentation), everythingDiscovered, ctx()),
       ).toBeNull();
     }
   });
@@ -222,5 +230,232 @@ describe("selectHint", () => {
     expect(
       selectHint(idle("FaceDown", "Ignored"), nothingDiscovered, ctx()),
     ).toBeNull();
+  });
+});
+
+describe("selectHint, teaching hints", () => {
+  const discovered = (...gestures: TeachableGesture[]) =>
+    new Set<TeachableGesture>(gestures);
+
+  it("teaches the bend first, both outcomes on one line", () => {
+    expect(selectHint(idle("FaceDown"), nothingDiscovered, ctx())).toEqual({
+      id: "teach-bend",
+      line1: "Bend the bottom-right corner",
+      line2: "release to peek · keep bending to reveal",
+      announce: false,
+    });
+  });
+
+  it("teaches the conceal tap next, and only while the pair is face-up", () => {
+    expect(selectHint(idle("Revealed"), discovered("bend"), ctx())).toEqual({
+      id: "teach-conceal",
+      line1: "Tap to hide your cards",
+      line2: "one tap is enough",
+      announce: false,
+    });
+    expect(selectHint(idle("FaceDown"), discovered("bend"), ctx())?.id).toBe(
+      "teach-check",
+    );
+  });
+
+  it("teaches the double-tap Check next", () => {
+    expect(
+      selectHint(idle("FaceDown"), discovered("bend", "conceal"), ctx()),
+    ).toEqual({
+      id: "teach-check",
+      line1: "Double-tap to Check",
+      line2: "passes your turn to the next player",
+      announce: false,
+    });
+  });
+
+  it("teaches the fold swipe last", () => {
+    expect(
+      selectHint(
+        idle("FaceDown"),
+        discovered("bend", "conceal", "check"),
+        ctx(),
+      ),
+    ).toEqual({
+      id: "teach-fold",
+      line1: "Swipe your cards up to Fold",
+      line2: "release once they lift away",
+      announce: false,
+    });
+  });
+
+  it("puts the bend above the conceal where both are eligible", () => {
+    expect(selectHint(idle("Revealed"), nothingDiscovered, ctx())?.id).toBe(
+      "teach-bend",
+    );
+  });
+
+  it("puts Check above Fold in the overlap", () => {
+    // Quieter than it looks: a legal Check means no bet to face, and teaching
+    // someone to fold for free is bad advice.
+    expect(
+      selectHint(idle("FaceDown"), discovered("bend", "conceal"), ctx())?.id,
+    ).toBe("teach-check");
+  });
+
+  it("offers Check and Fold only where the Action is legal", () => {
+    const known = discovered("bend", "conceal");
+    expect(
+      selectHint(idle("FaceDown"), known, ctx({ checkLegal: false }))?.id,
+    ).toBe("teach-fold");
+    expect(
+      selectHint(
+        idle("FaceDown"),
+        known,
+        ctx({ checkLegal: false, foldLegal: false }),
+      ),
+    ).toBeNull();
+  });
+
+  it("offers the bend and the conceal off-turn, where neither Action is legal", () => {
+    // They are local presentation, and off-turn is most of the time a player is
+    // holding cards.
+    const offTurn = ctx({ checkLegal: false, foldLegal: false });
+    expect(selectHint(idle("FaceDown"), nothingDiscovered, offTurn)?.id).toBe(
+      "teach-bend",
+    );
+    expect(selectHint(idle("Revealed"), discovered("bend"), offTurn)?.id).toBe(
+      "teach-conceal",
+    );
+  });
+
+  it("never re-offers a gesture the player has already found", () => {
+    for (const presentation of ["FaceDown", "Revealed"] as const) {
+      expect(
+        selectHint(idle(presentation), everythingDiscovered, ctx()),
+      ).toBeNull();
+    }
+  });
+
+  it("shows nothing at all where the primary pointer is not coarse", () => {
+    // A keyboard player is not told to bend corners; the pair is a focusable
+    // button and every Action keeps its own.
+    expect(
+      selectHint(
+        idle("FaceDown"),
+        nothingDiscovered,
+        ctx({ coarsePointer: false }),
+      ),
+    ).toBeNull();
+  });
+
+  it("shows nothing before the quiet interval", () => {
+    // The player gets the chance to find the gesture themselves first, and a
+    // hint yields the instant a finger lands.
+    expect(
+      selectHint(idle("FaceDown"), nothingDiscovered, ctx({ quiet: false })),
+    ).toBeNull();
+  });
+
+  it("shows nothing while an Action is pending, at showdown, or with no cards", () => {
+    expect(
+      selectHint(idle("FaceDown"), nothingDiscovered, ctx({ pending: true })),
+    ).toBeNull();
+    expect(
+      selectHint(idle("FaceDown"), nothingDiscovered, ctx({ locked: true })),
+    ).toBeNull();
+    expect(selectHint(idle("Absent"), nothingDiscovered, ctx())).toBeNull();
+  });
+
+  it("yields to a gesture already underway, and to the pair leaving", () => {
+    // Instruction about a different gesture must never outrank feedback on the
+    // motion a finger is making right now.
+    expect(selectHint(bending("left"), nothingDiscovered, ctx())?.id).toBe(
+      "bending-left",
+    );
+    expect(
+      selectHint(idle("FaceDown", "Pressing"), nothingDiscovered, ctx()),
+    ).toBeNull();
+    expect(selectHint(idle("Leaving"), nothingDiscovered, ctx())).toBeNull();
+    expect(selectHint(idle("Turning"), nothingDiscovered, ctx())).toBeNull();
+  });
+});
+
+describe("nextTeachable", () => {
+  it("names the gesture whose eligibility the quiet interval is measured from", () => {
+    // The identity the hint timer restarts on: it is what makes the wait an
+    // interval rather than a one-time delay, so Fold does not appear the
+    // instant a turn makes it legal.
+    const legal = { checkLegal: true, foldLegal: true };
+    expect(nextTeachable(idle("FaceDown"), nothingDiscovered, legal)).toBe(
+      "bend",
+    );
+    expect(
+      nextTeachable(
+        idle("Revealed"),
+        new Set<TeachableGesture>(["bend"]),
+        legal,
+      ),
+    ).toBe("conceal");
+    expect(
+      nextTeachable(idle("FaceDown"), everythingDiscovered, legal),
+    ).toBeNull();
+  });
+
+  it("skips the Actions that are not legal right now", () => {
+    const known = new Set<TeachableGesture>(["bend", "conceal"]);
+    expect(
+      nextTeachable(idle("FaceDown"), known, {
+        checkLegal: false,
+        foldLegal: true,
+      }),
+    ).toBe("fold");
+    expect(
+      nextTeachable(idle("FaceDown"), known, {
+        checkLegal: false,
+        foldLegal: false,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("discoveredBy", () => {
+  const faceDown = idle("FaceDown");
+
+  it("counts a bend, a fold swipe, a conceal tap and a double-tap Check", () => {
+    expect(discoveredBy({ type: "CLASSIFIED", as: "Bending" }, faceDown)).toBe(
+      "bend",
+    );
+    expect(
+      discoveredBy({ type: "CLASSIFIED", as: "FoldDragging" }, faceDown),
+    ).toBe("fold");
+    expect(discoveredBy({ type: "TAPPED" }, idle("Revealed"))).toBe("conceal");
+    expect(discoveredBy({ type: "DOUBLE_TAPPED" }, faceDown)).toBe("check");
+  });
+
+  it("counts a tap only where it actually hides the cards", () => {
+    // The conceal hint is only ever offered on a face-up pair, so a tap on a
+    // face-down one retires a hint the player has not seen do anything.
+    expect(discoveredBy({ type: "TAPPED" }, faceDown)).toBeNull();
+  });
+
+  it("does not count a drag the recognizer ignored", () => {
+    expect(
+      discoveredBy({ type: "CLASSIFIED", as: "Ignored" }, faceDown),
+    ).toBeNull();
+  });
+
+  it("does not count an Action taken from a button", () => {
+    // Discovery is on-pair, never on a button: pressing Fold or Check in the
+    // `ActionBar` reaches this module only as a prop change, and the hint
+    // exists to move the player off the button in the first place.
+    const fromButtons: readonly CardEvent[] = [
+      { type: "PENDING_RESOLVED", hasCards: false },
+      { type: "PENDING_RESOLVED", hasCards: true },
+      { type: "CARDS_GONE" },
+      { type: "DEALT" },
+      { type: "SHOWDOWN_REVEAL" },
+      // Enter, Space or a mouse click on the pair: a semantic activation, not
+      // the tap gesture the conceal hint teaches.
+      { type: "ACTIVATED" },
+    ];
+    for (const event of fromButtons) {
+      expect(discoveredBy(event, idle("Revealed"))).toBeNull();
+    }
   });
 });

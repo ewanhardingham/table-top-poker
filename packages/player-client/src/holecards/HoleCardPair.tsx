@@ -4,12 +4,7 @@ import { motion, useTransform, type MotionValue } from "motion/react";
 import type { CSSProperties } from "react";
 import { BendableCard } from "./BendableCard.js";
 import type { Presentation } from "./cardState.js";
-import {
-  selectHint,
-  type Hint,
-  type HintContext,
-  type TeachableGesture,
-} from "./coaching.js";
+import { selectHint, type Hint } from "./coaching.js";
 import { DEAL_IN_MS } from "./constants.js";
 import type { BendAxis } from "./geometry.js";
 import type { CardActions } from "./ports.js";
@@ -122,7 +117,7 @@ function Absent() {
  * bend to peek, tap to conceal, double-tap to Check, and swipe up to Fold.
  */
 export function HoleCardPair(props: HoleCardPairProps) {
-  const { cards, actions } = props;
+  const { cards } = props;
   const {
     state,
     activate,
@@ -133,7 +128,8 @@ export function HoleCardPair(props: HoleCardPairProps) {
     foldFade,
     leavingFaceUp,
     departing,
-    checkConfirmed,
+    hintContext,
+    discovered,
   } = useHoleCards(props);
   // The lifecycle's lock, not the prop: the prop is the *input* the adapter
   // turns into `SHOWDOWN_REVEAL`, and once locked the pair stays locked until
@@ -161,27 +157,17 @@ export function HoleCardPair(props: HoleCardPairProps) {
         ? "FaceDown"
         : state.presentation;
 
-  const hintContext: HintContext = {
-    checkLegal: actions.checkLegal,
-    foldLegal: actions.foldLegal,
-    pending: actions.pending,
-    locked,
-    // The quiet interval only gates the teaching hints, which arrive with the
-    // discovery set they retire against (#147). In-gesture prompts never wait.
-    quiet: false,
-    checkConfirmed,
-  };
   // Both variants of the live hint, because the axis they swap on is a
   // **continuous** value: choosing between them in React would re-render the
   // pair every time a bend wandered across the diagonal (§13).
   const hintDragLeft = selectHint(
     { ...state, presentation, bendAxis: "left" },
-    nothingDiscovered,
+    discovered,
     hintContext,
   );
   const hintDragUp = selectHint(
     { ...state, presentation, bendAxis: "up" },
-    nothingDiscovered,
+    discovered,
     hintContext,
   );
   // An announced hint is news, and news does not depend on which way a finger
@@ -308,8 +294,6 @@ const visuallyHidden: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const nothingDiscovered: ReadonlySet<TeachableGesture> = new Set();
-
 function preventDefault(event: { preventDefault: () => void }) {
   event.preventDefault();
 }
@@ -360,7 +344,13 @@ function GestureHint({
   );
 }
 
-function HintBlock({ hint }: { readonly hint: Hint }) {
+/**
+ * One hint, as it appears under the pair. Exported **within the module** so the
+ * component test can assert that what is rendered is what the selector chose —
+ * the copy lives in `coaching.ts` and this block is the only thing that prints
+ * it, so the two cannot say different things.
+ */
+export function HintBlock({ hint }: { readonly hint: Hint }) {
   return (
     <p
       data-testid="hole-cards-hint"
