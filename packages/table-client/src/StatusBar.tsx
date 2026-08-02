@@ -7,8 +7,7 @@ export interface StatusBarProps {
   readonly roomCode: string | null;
   readonly connectionStatus: ConnectionStatus;
   readonly showRoomCode: boolean;
-  readonly joinOpen: boolean;
-  readonly onToggleJoin: () => void;
+  readonly onOpenJoin: () => void;
 }
 
 const badgeTone: Record<
@@ -35,8 +34,7 @@ export function StatusBar({
   roomCode,
   connectionStatus,
   showRoomCode,
-  joinOpen,
-  onToggleJoin,
+  onOpenJoin,
 }: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
   return (
@@ -53,12 +51,7 @@ export function StatusBar({
       }}
     >
       {roomCode !== null && showRoomCode && (
-        <JoinCodeToggle
-          roomCode={roomCode}
-          open={joinOpen}
-          onToggle={onToggleJoin}
-          placement="status-bar"
-        />
+        <JoinCodeToggle roomCode={roomCode} onOpen={onOpenJoin} />
       )}
       {roomCode !== null && (
         <span

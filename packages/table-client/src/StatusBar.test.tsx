@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { StatusBar } from "./StatusBar.js";
 
+const noop = () => {
+  /* unused in these tests */
+};
+
 describe("StatusBar", () => {
   it("hides the connection badge before a room exists", () => {
     const html = renderToStaticMarkup(
@@ -10,10 +14,7 @@ describe("StatusBar", () => {
         roomCode={null}
         connectionStatus="disconnected"
         showRoomCode={false}
-        joinOpen={false}
-        onToggleJoin={() => {
-          /* unused in this test */
-        }}
+        onOpenJoin={noop}
       />,
     );
     expect(html).not.toContain('data-testid="connection-status"');
@@ -26,10 +27,7 @@ describe("StatusBar", () => {
         roomCode="ABCD"
         connectionStatus="connected"
         showRoomCode={true}
-        joinOpen={false}
-        onToggleJoin={() => {
-          /* unused in this test */
-        }}
+        onOpenJoin={noop}
       />,
     );
     expect(html).toContain('data-testid="connection-status"');
@@ -55,10 +53,7 @@ describe("StatusBar", () => {
         roomCode="ABCD"
         connectionStatus="connected"
         showRoomCode={false}
-        joinOpen={false}
-        onToggleJoin={() => {
-          /* unused in this test */
-        }}
+        onOpenJoin={noop}
       />,
     );
     expect(html).not.toContain('data-testid="join-code-toggle"');
