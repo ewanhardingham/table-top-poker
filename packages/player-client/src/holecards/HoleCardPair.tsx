@@ -1,6 +1,7 @@
 import type { Card as CardType, Rank, Suit } from "@table-top-poker/protocol";
 import { color, fontSize, radius } from "@table-top-poker/ui-shared";
 import { motion, useTransform, type MotionValue } from "motion/react";
+import type { CSSProperties } from "react";
 import { BendableCard } from "./BendableCard.js";
 import type { Presentation } from "./cardState.js";
 import {
@@ -161,6 +162,9 @@ export function HoleCardPair(props: HoleCardPairProps) {
     nothingDiscovered,
     hintContext,
   );
+  // An announced hint is news, and news does not depend on which way a finger
+  // is going: the selector returns the same hint on both axes for it.
+  const announced = hintDragLeft?.announce === true ? hintDragLeft : null;
 
   return (
     <div
@@ -229,9 +233,44 @@ export function HoleCardPair(props: HoleCardPairProps) {
         dragUp={hintDragUp}
         axis={bendAxis}
       />
+      <Announcer hint={announced} />
     </div>
   );
 }
+
+/**
+ * The live region the announced hints speak through — mounted for the pair's
+ * lifetime and empty until there is news.
+ *
+ * It cannot be the visible hint's own element: a live region inserted into the
+ * document *together with* its text is not reliably announced, because there
+ * was no region there to observe the change. The region has to already exist
+ * when the text arrives, which means it outlives every hint that passes
+ * through it. The visible copy is hidden from assistive technology, so the
+ * news is read once rather than twice.
+ */
+function Announcer({ hint }: { readonly hint: Hint | null }) {
+  return (
+    <span role="status" style={visuallyHidden}>
+      {hint === null
+        ? ""
+        : [hint.line1, hint.line2].filter((line) => line !== null).join(", ")}
+    </span>
+  );
+}
+
+/** Present to a screen reader, absent to everything else. */
+const visuallyHidden: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  border: 0,
+  overflow: "hidden",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+};
 
 const nothingDiscovered: ReadonlySet<TeachableGesture> = new Set();
 
@@ -292,8 +331,9 @@ function HintBlock({ hint }: { readonly hint: Hint }) {
       data-hint={hint.id}
       // News is announced; advice is not. A live region over the in-gesture
       // prompts would read a bend out loud as the finger wandered across the
-      // diagonal, so only the Check confirmation asks for it.
-      {...(hint.announce ? { role: "status" } : {})}
+      // diagonal, so only the Check confirmation asks for it — and it is
+      // `Announcer` that speaks it, leaving this copy purely visual.
+      {...(hint.announce ? { "aria-hidden": true } : {})}
       style={{
         margin: 0,
         display: "grid",
