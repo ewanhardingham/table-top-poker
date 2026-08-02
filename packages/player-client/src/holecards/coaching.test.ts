@@ -41,6 +41,7 @@ function ctx(overrides: Partial<HintContext> = {}): HintContext {
     pending: false,
     locked: false,
     quiet: true,
+    checkConfirmed: false,
     ...overrides,
   };
 }
@@ -60,6 +61,7 @@ describe("selectHint", () => {
         id: "bending-left",
         line1: "Release to peek",
         line2: "keep bending to reveal both",
+        announce: false,
       });
     });
 
@@ -68,6 +70,7 @@ describe("selectHint", () => {
         id: "bending-up",
         line1: "Release to peek",
         line2: "drag left to keep your finger clear",
+        announce: false,
       });
     });
 
@@ -95,6 +98,47 @@ describe("selectHint", () => {
       expect(
         selectHint(bending("left"), nothingDiscovered, ctx({ quiet: false })),
       ).not.toBeNull();
+    });
+  });
+
+  describe("the Check confirmation", () => {
+    it("says the Action landed, and says it to a screen reader too", () => {
+      expect(
+        selectHint(
+          idle("FaceDown"),
+          nothingDiscovered,
+          ctx({
+            checkConfirmed: true,
+          }),
+        ),
+      ).toEqual({
+        id: "checked",
+        line1: "Checked",
+        line2: "your turn passed on",
+        announce: true,
+      });
+    });
+
+    it("survives the pending Action it is confirming", () => {
+      // Sending the Check is what makes an Action pending, so a confirmation
+      // that deferred to the pending gate could never appear at all.
+      expect(
+        selectHint(
+          idle("FaceDown"),
+          everythingDiscovered,
+          ctx({ checkConfirmed: true, pending: true }),
+        )?.id,
+      ).toBe("checked");
+    });
+
+    it("outranks an in-gesture prompt, and never retires", () => {
+      expect(
+        selectHint(
+          bending("left"),
+          everythingDiscovered,
+          ctx({ checkConfirmed: true }),
+        )?.id,
+      ).toBe("checked");
     });
   });
 

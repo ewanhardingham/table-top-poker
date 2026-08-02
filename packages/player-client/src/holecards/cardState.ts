@@ -14,8 +14,8 @@
  *
  * Answered so far: the deal-in, the emptying and the keyboard reveal/conceal
  * toggle (#139), the showdown reveal and lock (#140), the press, the
- * classification and the release that make up a bend (#141), and cancellation
- * and resets (#143).
+ * classification and the release that make up a bend (#141), cancellation
+ * and resets (#143), and the tap and double-tap that conceal and Check (#144).
  */
 
 import type { Classification } from "./classify.js";
@@ -278,13 +278,34 @@ export function reduce(state: CardState, event: CardEvent): CardState {
       if (state.presentation === "Absent") return state;
       return idle("FaceDown");
 
+    case "TAPPED":
+      // One tap hides the hand the moment someone leans over (story 5), and
+      // does nothing at all to a pair that is already face-down — which is
+      // what makes the first tap of a double-tap Check free (§5). A revealing
+      // tap would put a face-up frame between the two taps and charge the
+      // commonest free Action a reveal.
+      //
+      // Mid-turn it is dropped rather than queued, for the same reason
+      // `ACTIVATED` is: the flip is a point of no return.
+      return state.presentation === "Revealed"
+        ? { ...state, presentation: "FaceDown" }
+        : state;
+
+    case "DOUBLE_TAPPED":
+      // Presentation-wise, nothing: the first tap already concealed, and the
+      // second one buys a Check rather than a card movement. The Action itself
+      // is an **effect**, which this function cannot have — the hook sends it
+      // through `actions.check`, so a gesture and the button reach
+      // `intent.check` by the identical route and `canAct` stays the single
+      // legality gate (§2). Reducing it here anyway is what makes the event
+      // inert against a decided hand for free, through `survivesLock`.
+      return state;
+
     // Declared in the union so the shape is settled up front, and answered by
-    // the slices that own them: tap-conceal (#142), the double-tap Check
-    // (#144), the fold drag (#145) and fold disarming (#146).
+    // the slices that own them: the fold drag (#145) and fold disarming
+    // (#146).
     case "FOLD_ARMED":
     case "FOLD_DISARMED":
-    case "TAPPED":
-    case "DOUBLE_TAPPED":
     case "PENDING_RESOLVED":
       return state;
 

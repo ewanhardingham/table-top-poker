@@ -112,15 +112,16 @@ function Absent() {
  * the reducer, the hook, the bendable card — is module-internal, so nothing
  * outside can reach a lifecycle state and no consumer learns what a pointer is.
  *
- * The pair is a real focusable `button`: Enter, Space or a click toggles
- * reveal and conceal, so reading your own cards never depends on getting a
- * gesture's timing right (§12). The pointer recognizer layered on top of this
- * — bend to peek, swipe to fold, double-tap to check — arrives in later
- * tickets; this establishes the seam it grows inside.
+ * The pair is a real focusable `button`: Enter and Space toggle reveal and
+ * conceal, so reading your own cards never depends on getting a gesture's
+ * timing right (§12). A pointer, by contrast, is answered by the recognizer —
+ * bend to peek, tap to conceal, double-tap to Check, and the swipe to Fold
+ * that arrives with #145.
  */
 export function HoleCardPair(props: HoleCardPairProps) {
   const { cards, actions } = props;
-  const { state, activate, handlers, bend, bendAxis } = useHoleCards(props);
+  const { state, activate, handlers, bend, bendAxis, checkConfirmed } =
+    useHoleCards(props);
   // The lifecycle's lock, not the prop: the prop is the *input* the adapter
   // turns into `SHOWDOWN_REVEAL`, and once locked the pair stays locked until
   // the next hand deals it back in. Rendering off the prop would let the two
@@ -145,6 +146,7 @@ export function HoleCardPair(props: HoleCardPairProps) {
     // The quiet interval only gates the teaching hints, which arrive with the
     // discovery set they retire against (#147). In-gesture prompts never wait.
     quiet: false,
+    checkConfirmed,
   };
   // Both variants of the live hint, because the axis they swap on is a
   // **continuous** value: choosing between them in React would re-render the
@@ -288,6 +290,10 @@ function HintBlock({ hint }: { readonly hint: Hint }) {
     <p
       data-testid="hole-cards-hint"
       data-hint={hint.id}
+      // News is announced; advice is not. A live region over the in-gesture
+      // prompts would read a bend out loud as the finger wandered across the
+      // diagonal, so only the Check confirmation asks for it.
+      {...(hint.announce ? { role: "status" } : {})}
       style={{
         margin: 0,
         display: "grid",
