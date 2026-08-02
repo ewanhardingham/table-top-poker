@@ -295,12 +295,39 @@ describe("the fold drag", () => {
     expect(moved.session.armed).toBe(false);
   });
 
+  it("stays disarmed until the pointer crosses the threshold again", () => {
+    const armed = moveGesture(
+      dragging(FOLD_THRESHOLD_PX).session,
+      to(0, -(FOLD_THRESHOLD_PX + 40)),
+      onTurn,
+    ).session;
+    const disarmed = applyViewEvent(armed, { type: "FOLD_DISARMED" });
+    if (disarmed === null) throw new Error("expected a live fold drag");
+
+    const legalAgain = moveGesture(
+      disarmed,
+      to(0, -(FOLD_THRESHOLD_PX + 80)),
+      onTurn,
+    );
+    expect(legalAgain.events).toEqual([]);
+    expect(legalAgain.session.armed).toBe(false);
+
+    const belowThreshold = moveGesture(legalAgain.session, to(0, -20), onTurn);
+    const recrossed = moveGesture(
+      belowThreshold.session,
+      to(0, -FOLD_THRESHOLD_PX),
+      onTurn,
+    );
+    expect(recrossed.events).toEqual([{ type: "FOLD_ARMED" }]);
+  });
+
   it("updates or ends the pointer session when the view changes it", () => {
     const armed = dragging(FOLD_THRESHOLD_PX).session;
 
     expect(applyViewEvent(armed, { type: "FOLD_DISARMED" })).toEqual({
       ...armed,
       armed: false,
+      armingBlocked: true,
     });
 
     for (const event of [
