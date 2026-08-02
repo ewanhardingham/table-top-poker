@@ -1,4 +1,5 @@
-import { PillButton } from "@table-top-poker/ui-shared";
+import { PillButton, color } from "@table-top-poker/ui-shared";
+import type { CSSProperties } from "react";
 
 export interface TableControlsProps {
   readonly canStartHand: boolean;
@@ -6,6 +7,7 @@ export interface TableControlsProps {
   readonly onStartHand: () => void;
   readonly onNextHand: () => void;
   readonly onEndSession: () => void;
+  readonly placement?: "rail" | "join-panel";
   /**
    * PROTOTYPE (wayfinder #81) — opens the session hand picker. Optional so
    * the live `App` is unaffected; Phase 2 makes it a peer of the other rail
@@ -16,10 +18,11 @@ export interface TableControlsProps {
 }
 
 /**
- * The right-hand control rail — every table action the device offers, as one
- * group. Deal hand / Next hand are mutually exclusive with the felt's hand
- * state; Review hands and End session are always available once a room exists
- * (this component is only mounted then).
+ * The table action group — a right-hand control rail during a hand, or a
+ * group below the join panel while the room is waiting to start. Deal hand /
+ * Next hand are mutually exclusive with the felt's hand state; Review hands
+ * and End session are always available once a room exists (this component is
+ * only mounted then).
  *
  * The rail is a fixed-width column and every button fills it, so the actions
  * share one left and right edge instead of ragging off the right margin at
@@ -37,26 +40,54 @@ export function TableControls({
   onStartHand,
   onNextHand,
   onEndSession,
+  placement = "rail",
   onReviewHands,
 }: TableControlsProps) {
+  const layoutStyle: CSSProperties =
+    placement === "join-panel"
+      ? {
+          position: "relative",
+          zIndex: 15,
+          display: "flex",
+          flexDirection: "row",
+          width: "26em",
+          maxWidth: "calc(100vw - 2em)",
+          gap: "0.6em",
+          pointerEvents: "auto",
+        }
+      : {
+          position: "absolute",
+          right: "1.5em",
+          top: "50%",
+          transform: "translateY(-50%)",
+          display: "flex",
+          flexDirection: "column",
+          width: "13em",
+          gap: "0.6em",
+        };
+  const actionButtonStyle: CSSProperties =
+    placement === "join-panel"
+      ? { flex: "1 1 0", minWidth: 0 }
+      : { width: "100%" };
+  const disabledStartStyle: CSSProperties =
+    placement === "join-panel" && !canStartHand
+      ? {
+          background: color.controlFill,
+          color: color.disabledText,
+          border: `1px solid ${color.border}`,
+          boxShadow: "none",
+          cursor: "default",
+        }
+      : {};
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        right: "1.5em",
-        top: "50%",
-        transform: "translateY(-50%)",
-        display: "flex",
-        flexDirection: "column",
-        width: "13em",
-        gap: "0.6em",
-      }}
-    >
-      {canStartHand && (
+    <div data-placement={placement} style={layoutStyle}>
+      {(placement === "join-panel" || canStartHand) && (
         <PillButton
           data-testid="start-hand-button"
+          disabled={placement === "join-panel" && !canStartHand}
           onClick={onStartHand}
-          style={{ width: "100%" }}
+          style={{ ...actionButtonStyle, ...disabledStartStyle }}
         >
           Deal hand
         </PillButton>
@@ -65,7 +96,7 @@ export function TableControls({
         <PillButton
           data-testid="next-hand-button"
           onClick={onNextHand}
-          style={{ width: "100%" }}
+          style={actionButtonStyle}
         >
           Next hand
         </PillButton>
@@ -75,7 +106,7 @@ export function TableControls({
           tone="outline"
           data-testid="review-hands-button"
           onClick={onReviewHands}
-          style={{ width: "100%" }}
+          style={actionButtonStyle}
         >
           Review hands
         </PillButton>
@@ -84,7 +115,7 @@ export function TableControls({
         tone="outline"
         data-testid="end-session-button"
         onClick={onEndSession}
-        style={{ width: "100%" }}
+        style={actionButtonStyle}
       >
         End session
       </PillButton>
