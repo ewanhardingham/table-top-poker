@@ -124,8 +124,7 @@ export function App() {
         roomCode={roomCode}
         connectionStatus={connectionStatus}
         showRoomCode={handInProgress && !joinOpen}
-        joinOpen={joinOpen}
-        onToggleJoin={toggleJoin}
+        onOpenJoin={toggleJoin}
       />
       <main className="felt">
         {roomCode === null ? (
