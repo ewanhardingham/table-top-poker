@@ -16,6 +16,9 @@ export default defineConfig(({ command, mode }) => {
     .split(",")
     .map((host) => host.trim())
     .filter(Boolean);
+  const devServerHost =
+    process.env.DEV_SERVER_HOST ??
+    (allowedHosts.length > 0 ? "0.0.0.0" : "127.0.0.1");
   const backendOrigin = env.BACKEND_ORIGIN ?? "http://localhost:3000";
   const backendWebSocketOrigin = backendOrigin.replace(/^http/, "ws");
 
@@ -27,7 +30,7 @@ export default defineConfig(({ command, mode }) => {
     },
     server: {
       port: 5173,
-      host: allowedHosts.length > 0,
+      host: devServerHost,
       allowedHosts,
       proxy: {
         "/ws": {
