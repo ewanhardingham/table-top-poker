@@ -21,11 +21,12 @@ import { REVEAL_FINISH_MS } from "./constants.js";
 export function BendableCard({
   card,
   presentation,
-  index,
+  tiltDegrees,
 }: {
   readonly card: CardType;
   readonly presentation: Presentation;
-  readonly index: 0 | 1;
+  /** The card's resting angle in the overlapped pair. */
+  readonly tiltDegrees: number;
 }) {
   const turning = presentation === "Turning";
   const revealed = presentation === "Revealed";
@@ -44,7 +45,7 @@ export function BendableCard({
       style={{
         position: "relative",
         display: "grid",
-        transform: `rotate(${index === 0 ? "-3" : "3"}deg)`,
+        transform: `rotate(${String(tiltDegrees)}deg)`,
       }}
     >
       {showBack && (

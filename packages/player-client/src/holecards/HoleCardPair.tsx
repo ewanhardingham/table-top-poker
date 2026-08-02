@@ -42,6 +42,11 @@ function cardWords(card: CardType): string {
   return `${rankWords[card.rank]} of ${suitWords[card.suit]}`;
 }
 
+/** A pair's identity as a value — a hand's cards, never their position. */
+function cardKey(cards: readonly [CardType, CardType]): string {
+  return cards.map((card) => `${card.rank}${card.suit}`).join("-");
+}
+
 /**
  * The accessible name carries the state and the outcome of activating, and —
  * once revealed — the cards themselves, since a screen-reader user reads them
@@ -119,23 +124,18 @@ export function HoleCardPair(props: HoleCardPairProps) {
     state.presentation === "Absent" ? "FaceDown" : state.presentation;
 
   return (
-    <motion.button
+    <button
       type="button"
       data-testid="hole-cards"
       data-presentation={presentation}
-      // Remounting on a new deal replays the deal-in: the cards arrive
-      // face-down (§17), replacing `Hand`'s per-card face-up deal animation.
-      key={`${cards[0].rank}${cards[0].suit}-${cards[1].rank}${cards[1].suit}`}
-      onClick={activate}
-      disabled={locked}
+      // A locked pair is inert but stays in the tab order and keeps its
+      // accessible name: at showdown that name is where a screen-reader user
+      // reads their own hand, and `disabled` would take it away.
+      onClick={locked ? undefined : activate}
+      aria-disabled={locked}
       aria-label={accessibleName(cards, presentation, locked)}
-      initial={{ opacity: 0, y: "-18%" }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: DEAL_IN_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
       style={{
         display: "flex",
-        gap: "0.5em",
-        fontSize: "2.6em",
         padding: 0,
         border: "none",
         background: "none",
@@ -148,14 +148,27 @@ export function HoleCardPair(props: HoleCardPairProps) {
         touchAction: "manipulation",
       }}
     >
-      {cards.map((card, index) => (
-        <BendableCard
-          key={index}
-          card={card}
-          index={index === 0 ? 0 : 1}
-          presentation={presentation}
-        />
-      ))}
-    </motion.button>
+      <motion.span
+        // Keyed on card identity so a new hand replays the deal-in: the cards
+        // arrive face-down (§17), replacing `Hand`'s per-card face-up deal
+        // animation. The key is on the motion element, not the component, so
+        // it restarts an animation without discarding lifecycle state —
+        // `DEALT` stays the one thing that resets presentation.
+        key={cardKey(cards)}
+        initial={{ opacity: 0, y: "-18%" }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: DEAL_IN_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
+        style={{ display: "flex", gap: "0.5em", fontSize: "2.6em" }}
+      >
+        {cards.map((card, index) => (
+          <BendableCard
+            key={index}
+            card={card}
+            tiltDegrees={index === 0 ? -3 : 3}
+            presentation={presentation}
+          />
+        ))}
+      </motion.span>
+    </button>
   );
 }

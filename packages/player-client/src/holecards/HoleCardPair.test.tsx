@@ -60,7 +60,10 @@ describe("HoleCardPair", () => {
     expect(html).toContain('data-rank="Q"');
     expect(html).toContain('data-rank="J"');
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(2);
-    expect(html).toContain("disabled");
+    expect(html).toContain('aria-disabled="true"');
+    // Inert, but still in the tab order with its name intact: at showdown
+    // that name is where a screen-reader user reads their own hand.
+    expect(html).not.toMatch(/<button[^>]*\sdisabled/);
   });
 
   it("renders the Absent presentation and no card pair for a seat holding nothing", () => {
