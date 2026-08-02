@@ -17,7 +17,7 @@ import {
   type GestureSession,
 } from "./gesture.js";
 import type { HoleCardPairProps } from "./HoleCardPair.js";
-import { eventsForPropChange } from "./viewEvents.js";
+import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
 
 /**
  * `useLayoutEffect` warns when it is called during server rendering, and the
@@ -132,6 +132,29 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
       bend.set(0);
     }
   }, [state.presentation, bend]);
+
+  // The one disturbance that is not a prop change (§8): the app leaving the
+  // foreground resets the pair face-down, cancelling any gesture in flight.
+  // Subscribed once for the pair's lifetime — `dispatch` is stable, and what
+  // "hidden" means is `eventsForVisibility`'s decision, not this effect's.
+  //
+  // §9's other two resets need no subscription: a new hand arrives as `DEALT`,
+  // and a reload mounts through `initialCardState`. A socket reconnect while
+  // the page stays in the foreground is the gap — the pair stays mounted with
+  // unchanged props, and §2 fixes those props to `cards`, `locked` and
+  // `actions`, so no signal for it exists inside the seam. Backgrounding, the
+  // way a phone actually loses its socket, is covered here.
+  useEffect(() => {
+    const onVisibilityChange = () => {
+      for (const event of eventsForVisibility(document.visibilityState)) {
+        dispatch(event);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
 
   const activate = useCallback(() => {
     if (Date.now() < disownClicksUntil.current) return;
