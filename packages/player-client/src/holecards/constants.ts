@@ -52,6 +52,21 @@ export const HINT_QUIET_MS = 2000;
 export const CLICK_DISOWN_MS = 350;
 
 /**
+ * How long the confirmation of a gesture Check stays up, in ms. Not a §15
+ * constant — the prototype ran the cue at this length and it is carried
+ * forward: long enough to be read after the eyes come back off the cards,
+ * short enough to be gone before the next Player's Action lands.
+ */
+export const CHECK_CONFIRM_MS = 2400;
+
+/**
+ * Length of the optional threshold pulse, in ms. Not a §15 constant — §16 asks
+ * for a pulse and sets no length; this is the prototype's, short enough to read
+ * as a tick against the fingertip rather than as a buzz.
+ */
+export const HAPTIC_PULSE_MS = 10;
+
+/**
  * Duration of the face-down deal-in, in ms. Not a §15 constant — the deal-in
  * motion is §17 and had no prototype value; this matches the per-card deal
  * animation it replaces in `Hand`.

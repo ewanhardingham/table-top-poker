@@ -112,4 +112,14 @@ describe("HoleCardPair", () => {
 
     expect(html).not.toContain('data-testid="hole-cards-hint"');
   });
+
+  it("mounts the live region empty, before there is any news to put in it", () => {
+    const html = renderToStaticMarkup(
+      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+    );
+
+    // A live region inserted along with its own text is not reliably
+    // announced, so the region has to be here first — with nothing in it.
+    expect(html).toMatch(/<span role="status"[^>]*><\/span>/);
+  });
 });

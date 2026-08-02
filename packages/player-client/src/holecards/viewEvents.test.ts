@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CardState } from "./cardState.js";
 import type { CardActions } from "./ports.js";
 import type { HoleCardPairProps } from "./HoleCardPair.js";
-import { eventsForPropChange } from "./viewEvents.js";
+import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
 
 const actions: CardActions = {
   foldLegal: false,
@@ -34,11 +34,26 @@ const absent: CardState = {
   armed: false,
   locked: false,
 };
-const revealed: CardState = {
+/** A pair the showdown has decided: face-up and inert. */
+const lockedRevealed: CardState = {
   presentation: "Revealed",
   recognizer: "Idle",
   armed: false,
   locked: true,
+};
+/** A bend in progress: the state an incoming view must not disturb. */
+const peeking: CardState = {
+  presentation: "Peeking",
+  recognizer: "Bending",
+  armed: false,
+  locked: false,
+};
+/** The same pair, still live: the Player turned it over themselves. */
+const revealed: CardState = {
+  presentation: "Revealed",
+  recognizer: "Idle",
+  armed: false,
+  locked: false,
 };
 
 describe("eventsForPropChange", () => {
@@ -62,6 +77,28 @@ describe("eventsForPropChange", () => {
       actions: { ...actions, foldLegal: true, checkLegal: true },
     });
     expect(eventsForPropChange(before, after, faceDown)).toEqual([]);
+  });
+
+  it("leaves a peek in flight alone when a server update arrives", () => {
+    // `fanOutHandUpdate` sends a view for every event in the hand, and peeking
+    // at your cards is exactly what you do while others act. A new board card
+    // or another player's bet reaches this module as an identical pair of
+    // props; nothing may touch the recognizer.
+    const before = props({ cards: queenJack });
+    const after = props({ cards: queenJack });
+    expect(eventsForPropChange(before, after, peeking)).toEqual([]);
+  });
+
+  it("produces nothing when the player acts — a button sends an Action, not a presentation change", () => {
+    // Pressing Call, Raise or Check changes the view (stack, pot, `toAct`) and
+    // hands the turn on, so legality goes away. The cards stay exactly as they
+    // were.
+    const before = props({
+      cards: queenJack,
+      actions: { ...actions, foldLegal: true, checkLegal: true },
+    });
+    const after = props({ cards: queenJack });
+    expect(eventsForPropChange(before, after, revealed)).toEqual([]);
   });
 
   it("deals in when cards arrive from nothing", () => {
@@ -128,6 +165,57 @@ describe("eventsForPropChange", () => {
     ).toEqual([]);
   });
 
+  describe("a resolving Action", () => {
+    const pending = { ...actions, pending: true };
+    /** The pair mid-flight to the muck, waiting on the server's answer. */
+    const leaving: CardState = {
+      presentation: "Leaving",
+      recognizer: "Idle",
+      armed: false,
+      locked: false,
+    };
+
+    it("acknowledges the Fold: the cards are gone and stay gone", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, actions: pending }),
+          props(),
+          leaving,
+        ),
+      ).toEqual([
+        { type: "CARDS_GONE" },
+        { type: "PENDING_RESOLVED", hasCards: false },
+      ]);
+    });
+
+    it("rejects the Fold: the cards are still in hand, so they come back", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, actions: pending }),
+          props({ cards: queenJack }),
+          leaving,
+        ),
+      ).toEqual([{ type: "PENDING_RESOLVED", hasCards: true }]);
+    });
+
+    it("produces nothing while the Action is still in flight", () => {
+      const before = props({ cards: queenJack, actions: pending });
+      expect(eventsForPropChange(before, { ...before }, leaving)).toEqual([]);
+    });
+
+    it("produces nothing when an Action *starts* — sending is not a lifecycle event", () => {
+      // The pair moved itself to `Leaving` on the release that sent the Fold;
+      // the prop going true afterwards has nothing left to say.
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack }),
+          props({ cards: queenJack, actions: pending }),
+          leaving,
+        ),
+      ).toEqual([]);
+    });
+  });
+
   describe("showdown", () => {
     it("reveals when locked goes false → true", () => {
       expect(
@@ -142,7 +230,7 @@ describe("eventsForPropChange", () => {
     it("produces nothing while locked is unchanged, true or false", () => {
       const stillLocked = props({ cards: queenJack, locked: true });
       expect(
-        eventsForPropChange(stillLocked, { ...stillLocked }, revealed),
+        eventsForPropChange(stillLocked, { ...stillLocked }, lockedRevealed),
       ).toEqual([]);
 
       const stillLive = props({ cards: queenJack });
@@ -156,7 +244,7 @@ describe("eventsForPropChange", () => {
         eventsForPropChange(
           props({ cards: queenJack, locked: true }),
           props({ cards: queenJack }),
-          revealed,
+          lockedRevealed,
         ),
       ).toEqual([]);
     });
@@ -178,5 +266,18 @@ describe("eventsForPropChange", () => {
         eventsForPropChange(props(), props({ locked: true }), absent),
       ).toEqual([]);
     });
+  });
+});
+
+describe("eventsForVisibility", () => {
+  it("resets when the app leaves the foreground", () => {
+    expect(eventsForVisibility("hidden")).toEqual([{ type: "RESET" }]);
+  });
+
+  it("produces nothing on return to the foreground", () => {
+    // The reset already happened on the way out; coming back is not a second
+    // disturbance, and re-hiding cards the Player has since turned over would
+    // be one.
+    expect(eventsForVisibility("visible")).toEqual([]);
   });
 });

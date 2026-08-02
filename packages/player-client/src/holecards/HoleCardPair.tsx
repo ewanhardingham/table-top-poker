@@ -1,6 +1,7 @@
 import type { Card as CardType, Rank, Suit } from "@table-top-poker/protocol";
 import { color, fontSize, radius } from "@table-top-poker/ui-shared";
 import { motion, useTransform, type MotionValue } from "motion/react";
+import type { CSSProperties } from "react";
 import { BendableCard } from "./BendableCard.js";
 import type { Presentation } from "./cardState.js";
 import {
@@ -65,6 +66,9 @@ function accessibleName(
   locked: boolean,
 ): string {
   const faces = `${cardWords(cards[0])} and ${cardWords(cards[1])}`;
+  // Inert, and there is no undo once the Fold is sent — so the name says what
+  // is happening and offers nothing to activate.
+  if (presentation === "Leaving") return "Your hole cards, folding";
   if (locked) return `Your hole cards, ${faces}`;
   if (presentation === "Revealed" || presentation === "Turning") {
     return `Your hole cards, ${faces}. Activate to hide them.`;
@@ -112,15 +116,25 @@ function Absent() {
  * the reducer, the hook, the bendable card — is module-internal, so nothing
  * outside can reach a lifecycle state and no consumer learns what a pointer is.
  *
- * The pair is a real focusable `button`: Enter, Space or a click toggles
- * reveal and conceal, so reading your own cards never depends on getting a
- * gesture's timing right (§12). The pointer recognizer layered on top of this
- * — bend to peek, swipe to fold, double-tap to check — arrives in later
- * tickets; this establishes the seam it grows inside.
+ * The pair is a real focusable `button`: Enter and Space toggle reveal and
+ * conceal, so reading your own cards never depends on getting a gesture's
+ * timing right (§12). A pointer, by contrast, is answered by the recognizer —
+ * bend to peek, tap to conceal, double-tap to Check, and swipe up to Fold.
  */
 export function HoleCardPair(props: HoleCardPairProps) {
   const { cards, actions } = props;
-  const { state, activate, handlers, bend, bendAxis } = useHoleCards(props);
+  const {
+    state,
+    activate,
+    handlers,
+    bend,
+    bendAxis,
+    foldOffset,
+    foldFade,
+    leavingFaceUp,
+    departing,
+    checkConfirmed,
+  } = useHoleCards(props);
   // The lifecycle's lock, not the prop: the prop is the *input* the adapter
   // turns into `SHOWDOWN_REVEAL`, and once locked the pair stays locked until
   // the next hand deals it back in. Rendering off the prop would let the two
@@ -129,13 +143,23 @@ export function HoleCardPair(props: HoleCardPairProps) {
   // company either.
   const { locked } = state;
 
-  if (cards === null) return <Absent />;
+  // A committed pair outlives the prop that carried it, for exactly as long as
+  // its flight to the muck runs: the server usually takes the cards away tens
+  // of milliseconds in, and the departure the player was promised must not be a
+  // blink (§7, story 20).
+  const shown = cards ?? departing;
+  if (shown === null) return <Absent />;
 
   // A render can land between cards arriving and the deal being observed;
   // face-down is the entry state for every hand, so it is also the honest
-  // presentation for that gap.
+  // presentation for that gap. A pair still in the air is the mirror case: the
+  // lifecycle has resolved past it, and the flight is what is on screen.
   const presentation =
-    state.presentation === "Absent" ? "FaceDown" : state.presentation;
+    cards === null
+      ? "Leaving"
+      : state.presentation === "Absent"
+        ? "FaceDown"
+        : state.presentation;
 
   const hintContext: HintContext = {
     checkLegal: actions.checkLegal,
@@ -145,6 +169,7 @@ export function HoleCardPair(props: HoleCardPairProps) {
     // The quiet interval only gates the teaching hints, which arrive with the
     // discovery set they retire against (#147). In-gesture prompts never wait.
     quiet: false,
+    checkConfirmed,
   };
   // Both variants of the live hint, because the axis they swap on is a
   // **continuous** value: choosing between them in React would re-render the
@@ -159,6 +184,9 @@ export function HoleCardPair(props: HoleCardPairProps) {
     nothingDiscovered,
     hintContext,
   );
+  // An announced hint is news, and news does not depend on which way a finger
+  // is going: the selector returns the same hint on both axes for it.
+  const announced = hintDragLeft?.announce === true ? hintDragLeft : null;
 
   return (
     <div
@@ -181,7 +209,7 @@ export function HoleCardPair(props: HoleCardPairProps) {
         onContextMenu={preventDefault}
         {...(locked ? {} : handlers)}
         aria-disabled={locked}
-        aria-label={accessibleName(cards, presentation, locked)}
+        aria-label={accessibleName(shown, presentation, locked)}
         style={{
           display: "flex",
           padding: 0,
@@ -205,21 +233,35 @@ export function HoleCardPair(props: HoleCardPairProps) {
           // animation. The key is on the motion element, not the component, so
           // it restarts an animation without discarding lifecycle state —
           // `DEALT` stays the one thing that resets presentation.
-          key={cardKey(cards)}
+          key={cardKey(shown)}
           initial={{ opacity: 0, y: "-18%" }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: DEAL_IN_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
-          style={{ display: "flex", gap: "0.5em", fontSize: "2.6em" }}
+          style={{ display: "flex", fontSize: "2.6em" }}
         >
-          {cards.map((card, index) => (
-            <BendableCard
-              key={index}
-              card={card}
-              tiltDegrees={index === 0 ? -3 : 3}
-              presentation={presentation}
-              bend={bend}
-            />
-          ))}
+          {/* A layer of its own, so the fold drag and the muck flight can drive
+           * `y` and `opacity` from `MotionValue`s while the deal-in above keeps
+           * animating the same two properties declaratively. The two would
+           * fight on one element; nested, they simply compose. */}
+          <motion.span
+            style={{
+              display: "flex",
+              gap: "0.5em",
+              y: foldOffset,
+              opacity: foldFade,
+            }}
+          >
+            {shown.map((card, index) => (
+              <BendableCard
+                key={index}
+                card={card}
+                tiltDegrees={index === 0 ? -3 : 3}
+                presentation={presentation}
+                bend={bend}
+                leavingFaceUp={leavingFaceUp}
+              />
+            ))}
+          </motion.span>
         </motion.span>
       </button>
       <GestureHint
@@ -227,9 +269,44 @@ export function HoleCardPair(props: HoleCardPairProps) {
         dragUp={hintDragUp}
         axis={bendAxis}
       />
+      <Announcer hint={announced} />
     </div>
   );
 }
+
+/**
+ * The live region the announced hints speak through — mounted for the pair's
+ * lifetime and empty until there is news.
+ *
+ * It cannot be the visible hint's own element: a live region inserted into the
+ * document *together with* its text is not reliably announced, because there
+ * was no region there to observe the change. The region has to already exist
+ * when the text arrives, which means it outlives every hint that passes
+ * through it. The visible copy is hidden from assistive technology, so the
+ * news is read once rather than twice.
+ */
+function Announcer({ hint }: { readonly hint: Hint | null }) {
+  return (
+    <span role="status" style={visuallyHidden}>
+      {hint === null
+        ? ""
+        : [hint.line1, hint.line2].filter((line) => line !== null).join(", ")}
+    </span>
+  );
+}
+
+/** Present to a screen reader, absent to everything else. */
+const visuallyHidden: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  border: 0,
+  overflow: "hidden",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+};
 
 const nothingDiscovered: ReadonlySet<TeachableGesture> = new Set();
 
@@ -288,6 +365,11 @@ function HintBlock({ hint }: { readonly hint: Hint }) {
     <p
       data-testid="hole-cards-hint"
       data-hint={hint.id}
+      // News is announced; advice is not. A live region over the in-gesture
+      // prompts would read a bend out loud as the finger wandered across the
+      // diagonal, so only the Check confirmation asks for it — and it is
+      // `Announcer` that speaks it, leaving this copy purely visual.
+      {...(hint.announce ? { "aria-hidden": true } : {})}
       style={{
         margin: 0,
         display: "grid",

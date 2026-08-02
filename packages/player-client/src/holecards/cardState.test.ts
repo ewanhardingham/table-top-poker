@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   initialCardState,
   reduce,
+  releaseCommitsFold,
+  type CardEvent,
   type CardState,
   type Presentation,
   type Recognizer,
@@ -14,6 +16,8 @@ function state(
 ): CardState {
   return { presentation, recognizer, armed, locked: false };
 }
+
+const reset: CardEvent = { type: "RESET" };
 
 /** A showdown-locked pair: face-up and inert. */
 function lockedState(presentation: Presentation): CardState {
@@ -43,6 +47,32 @@ describe("initialCardState", () => {
     expect(initialCardState({ hasCards: false, locked: true })).toEqual(
       state("Absent"),
     );
+  });
+});
+
+describe("releaseCommitsFold", () => {
+  it("is true only for an armed fold drag", () => {
+    expect(releaseCommitsFold(state("FaceDown", "FoldDragging", true))).toBe(
+      true,
+    );
+    expect(releaseCommitsFold(state("Revealed", "FoldDragging", true))).toBe(
+      true,
+    );
+    expect(releaseCommitsFold(state("FaceDown", "FoldDragging"))).toBe(false);
+  });
+
+  it("is false for every other gesture, armed or not", () => {
+    for (const recognizer of [
+      "Idle",
+      "Pressing",
+      "Bending",
+      "Ignored",
+      "Committed",
+    ] as const) {
+      expect(releaseCommitsFold(state("FaceDown", recognizer, true))).toBe(
+        false,
+      );
+    }
   });
 });
 
@@ -395,10 +425,297 @@ describe("reduce", () => {
       }
     });
 
+    it("flies an armed fold drag to the muck — but only on the release", () => {
+      // The commitment is on release, never on crossing the line: the armed
+      // state is what a crossing produced, and this is the pointer lift that
+      // answers it.
+      expect(
+        reduce(state("FaceDown", "FoldDragging", true), { type: "RELEASED" }),
+      ).toEqual(state("Leaving"));
+    });
+
+    it("takes a revealed pair to the muck with the face it had", () => {
+      expect(
+        reduce(state("Revealed", "FoldDragging", true), { type: "RELEASED" }),
+      ).toEqual(state("Leaving"));
+    });
+
+    it("commits nothing when the browser takes the pointer away mid-flick", () => {
+      // Cancellation is never a commitment: the player never completed the
+      // gesture, so the cards go back down rather than into the muck.
+      for (const presentation of ["FaceDown", "Revealed"] as const) {
+        expect(
+          reduce(state(presentation, "FoldDragging", true), {
+            type: "CANCELLED",
+          }),
+        ).toEqual(state(presentation));
+      }
+    });
+
+    it("returns a below-threshold fold drag to the face it started from", () => {
+      // A fold drag moves the pair around without turning it over, so the
+      // presentation it was carrying *is* the stable state to restore — from
+      // face-down and from revealed alike.
+      for (const ending of endings) {
+        expect(reduce(state("FaceDown", "FoldDragging"), ending)).toEqual(
+          state("FaceDown"),
+        );
+        expect(reduce(state("Revealed", "FoldDragging"), ending)).toEqual(
+          state("Revealed"),
+        );
+      }
+    });
+
+    it("commits nothing from an unclassified press", () => {
+      for (const ending of endings) {
+        expect(reduce(state("Revealed", "Pressing"), ending)).toEqual(
+          state("Revealed"),
+        );
+      }
+    });
+
+    it("does not call a committed fold back from the muck", () => {
+      for (const ending of endings) {
+        expect(reduce(state("Leaving", "Committed"), ending)).toEqual(
+          state("Leaving"),
+        );
+      }
+    });
+
     it("is a no-op when no gesture is live", () => {
       for (const ending of endings) {
         expect(reduce(state("Revealed"), ending)).toEqual(state("Revealed"));
       }
+    });
+
+    it("is a no-op with no cards in hand", () => {
+      for (const ending of endings) {
+        expect(reduce(state("Absent"), ending)).toEqual(state("Absent"));
+      }
+    });
+
+    it("is a no-op while locked — a decided hand has no gesture to cancel", () => {
+      for (const ending of endings) {
+        expect(reduce(lockedState("Revealed"), ending)).toEqual(
+          lockedState("Revealed"),
+        );
+      }
+    });
+  });
+
+  describe("a pair flying to the muck", () => {
+    it("is inert to bend, tap and drag alike — there is no undo once Fold is sent", () => {
+      const leaving = state("Leaving");
+      for (const event of [
+        { type: "PRESSED" },
+        { type: "CLASSIFIED", as: "Bending" },
+        { type: "CLASSIFIED", as: "FoldDragging" },
+        { type: "BEND_CROSSED" },
+        { type: "FOLD_ARMED" },
+        { type: "TAPPED" },
+        { type: "DOUBLE_TAPPED" },
+        { type: "ACTIVATED" },
+      ] as const) {
+        expect(reduce(leaving, event)).toEqual(leaving);
+      }
+    });
+  });
+
+  describe("FOLD_ARMED and FOLD_DISARMED", () => {
+    it("arms a live fold drag without ending it or moving the cards over", () => {
+      expect(
+        reduce(state("FaceDown", "FoldDragging"), { type: "FOLD_ARMED" }),
+      ).toEqual(state("FaceDown", "FoldDragging", true));
+    });
+
+    it("disarms without ending the drag, so the surface never freezes under the hand", () => {
+      expect(
+        reduce(state("Revealed", "FoldDragging", true), {
+          type: "FOLD_DISARMED",
+        }),
+      ).toEqual(state("Revealed", "FoldDragging"));
+    });
+
+    it("commits nothing on the release that follows a disarm", () => {
+      const armed = reduce(state("FaceDown", "FoldDragging"), {
+        type: "FOLD_ARMED",
+      });
+      const disarmed = reduce(armed, { type: "FOLD_DISARMED" });
+
+      expect(reduce(disarmed, { type: "RELEASED" })).toEqual(state("FaceDown"));
+    });
+
+    it("arms nothing that is not a fold drag", () => {
+      for (const recognizer of [
+        "Idle",
+        "Pressing",
+        "Bending",
+        "Ignored",
+        "Committed",
+      ] as const) {
+        const before = state("FaceDown", recognizer);
+        expect(reduce(before, { type: "FOLD_ARMED" })).toEqual(before);
+      }
+    });
+
+    it("is a no-op against a decided showdown", () => {
+      expect(reduce(lockedState("Revealed"), { type: "FOLD_ARMED" })).toEqual(
+        lockedState("Revealed"),
+      );
+    });
+  });
+
+  describe("PENDING_RESOLVED", () => {
+    it("lands the pair in the muck when the server took the cards", () => {
+      expect(
+        reduce(state("Leaving"), { type: "PENDING_RESOLVED", hasCards: false }),
+      ).toEqual(state("Absent"));
+    });
+
+    it("returns the cards face-down when the Fold was rejected", () => {
+      expect(
+        reduce(state("Leaving"), { type: "PENDING_RESOLVED", hasCards: true }),
+      ).toEqual(state("FaceDown"));
+    });
+
+    it("never returns a rejected Fold to Revealed", () => {
+      // The pair left face-up, but it comes back face-down: a rejection leaves
+      // the player holding a live hand, not the one they had already shown
+      // themselves.
+      const revealedThenLeaving = reduce(
+        state("Revealed", "FoldDragging", true),
+        { type: "RELEASED" },
+      );
+      expect(
+        reduce(revealedThenLeaving, {
+          type: "PENDING_RESOLVED",
+          hasCards: true,
+        }).presentation,
+      ).toBe("FaceDown");
+    });
+
+    it("leaves every other presentation exactly as it was", () => {
+      // Only a Fold is waiting on this. A Call, a Raise or a button Check
+      // resolves through the same prop, and pressing one must not make the
+      // player's cards vanish or turn over unbidden (§9).
+      for (const presentation of [
+        "Absent",
+        "FaceDown",
+        "Peeking",
+        "Turning",
+        "Revealed",
+      ] as const) {
+        for (const hasCards of [true, false]) {
+          expect(
+            reduce(state(presentation), {
+              type: "PENDING_RESOLVED",
+              hasCards,
+            }),
+          ).toEqual(state(presentation));
+        }
+      }
+    });
+  });
+
+  describe("RESET", () => {
+    it("lands on FaceDown from every presentation, cancelling any gesture", () => {
+      const gestures = [
+        state("FaceDown", "Pressing"),
+        state("Peeking", "Bending"),
+        state("Turning", "Committed"),
+        state("Revealed", "FoldDragging"),
+        state("Revealed", "FoldDragging", true),
+        state("Leaving", "Committed"),
+      ];
+      for (const active of gestures) {
+        expect(reduce(active, reset)).toEqual(state("FaceDown"));
+      }
+    });
+
+    it("snaps out of Turning rather than letting the flip finish", () => {
+      // The one thing that interrupts a turn: no face-up frame of the previous
+      // hand may survive into the next. Landing on `FaceDown` is also what
+      // makes it a snap — `BendableCard` animates only while `Turning`.
+      expect(reduce(state("Turning", "Committed"), reset)).toEqual(
+        state("FaceDown"),
+      );
+    });
+
+    it("leaves a seat holding no cards holding none", () => {
+      // There is nothing to turn face-down. Every other presentation implies
+      // cards in hand; `Absent` is the one that would be a lie.
+      expect(reduce(state("Absent"), reset)).toEqual(state("Absent"));
+    });
+
+    it("does not disturb a decided showdown", () => {
+      // Backgrounding the app must not conceal a public reveal — and a reload
+      // remounts straight back to `Revealed` off the `locked` prop, so
+      // honouring `RESET` here would make the two paths disagree.
+      for (const presentation of ["Revealed", "Turning"] as const) {
+        expect(reduce(lockedState(presentation), reset)).toEqual(
+          lockedState(presentation),
+        );
+      }
+    });
+  });
+
+  describe("TAPPED", () => {
+    it("conceals a revealed pair instantly", () => {
+      expect(reduce(state("Revealed"), { type: "TAPPED" })).toEqual(
+        state("FaceDown"),
+      );
+    });
+
+    it("does nothing to a face-down pair, so the first tap of a Check is free", () => {
+      // A tap that revealed would put a face-up frame between the two taps of
+      // a double-tap Check, and make the commonest free Action cost a reveal.
+      expect(reduce(state("FaceDown"), { type: "TAPPED" })).toEqual(
+        state("FaceDown"),
+      );
+    });
+
+    it("is a no-op mid-turn, exactly as an activation is", () => {
+      expect(reduce(state("Turning"), { type: "TAPPED" })).toEqual(
+        state("Turning"),
+      );
+    });
+
+    it("is a no-op with no cards, or with a Fold in flight", () => {
+      for (const presentation of ["Absent", "Leaving"] as const) {
+        expect(reduce(state(presentation), { type: "TAPPED" })).toEqual(
+          state(presentation),
+        );
+      }
+    });
+
+    it("is a no-op against a decided showdown", () => {
+      expect(reduce(lockedState("Revealed"), { type: "TAPPED" })).toEqual(
+        lockedState("Revealed"),
+      );
+    });
+  });
+
+  describe("DOUBLE_TAPPED", () => {
+    it("changes no presentation — the Check is an Action, not a card movement", () => {
+      // The first tap has already concealed; the second sends. Turning the
+      // cards over again here would undo the conceal the player just saw.
+      for (const presentation of [
+        "Absent",
+        "FaceDown",
+        "Turning",
+        "Revealed",
+        "Leaving",
+      ] as const) {
+        expect(reduce(state(presentation), { type: "DOUBLE_TAPPED" })).toEqual(
+          state(presentation),
+        );
+      }
+    });
+
+    it("is a no-op against a decided showdown", () => {
+      expect(
+        reduce(lockedState("Revealed"), { type: "DOUBLE_TAPPED" }),
+      ).toEqual(lockedState("Revealed"));
     });
   });
 });
