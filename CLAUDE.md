@@ -16,6 +16,10 @@ Types in use: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`,
 
 Whether this is enforced by tooling, and whether it drives versioning or a changelog, is still open — see [Development workflow, CI and testing strategy](https://github.com/ewanhardingham/table-top-poker/issues/4).
 
+## Pull requests
+
+Do not wait for checks to complete on pull request. Hand this off to the human.
+
 ## Planning
 
 Foundational decisions live on the wayfinder map, [issue #1](https://github.com/ewanhardingham/table-top-poker/issues/1). Read its Notes for the standing constraints before proposing architecture; its open child issues are the decisions still to make.
@@ -83,10 +87,3 @@ Use `docs/deploy-pi.md` as the source of truth if these instructions and the
 deployment layout diverge. Report the deployed commit/release path and the
 post-deploy verification result to the human.
 
-# Claude for Chrome
-
-- Never invoke unless explicitly asked by the human.
-- Use `read_page` to get element refs from the accessibility tree
-- Use `find` to locate elements by description
-- Click/interact using `ref`, not coordinates
-- NEVER take screenshots unless explicitly requested by the user
