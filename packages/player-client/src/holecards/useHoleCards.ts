@@ -1,3 +1,4 @@
+import type { Card } from "@table-top-poker/protocol";
 import { animate, useMotionValue, type MotionValue } from "motion/react";
 import {
   useCallback,
@@ -12,15 +13,22 @@ import { initialCardState, reduce, type CardState } from "./cardState.js";
 import {
   CHECK_CONFIRM_MS,
   CLICK_DISOWN_MS,
+  FOLD_FLIGHT_MS,
+  HAPTIC_PULSE_MS,
   REVEAL_FINISH_MS,
 } from "./constants.js";
-import type { BendAxis } from "./geometry.js";
+import {
+  foldFlightDistance,
+  foldThreshold,
+  type BendAxis,
+} from "./geometry.js";
 import {
   beginGesture,
   endGesture,
   moveGesture,
   type GestureSession,
 } from "./gesture.js";
+import { pulse } from "./haptics.js";
 import type { HoleCardPairProps } from "./HoleCardPair.js";
 import { confirmsCheck, tapLanded, type TapWindow } from "./taps.js";
 import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
@@ -52,9 +60,37 @@ export interface HoleCards {
   readonly bend: MotionValue<number>;
   /** Which way the live bend is going, for the §11 second-line swap. */
   readonly bendAxis: MotionValue<BendAxis>;
+  /** How far the pair has been carried towards the muck, in px. Never state. */
+  readonly foldOffset: MotionValue<number>;
+  /** The pair fading out on its way to the muck, 1 → 0. */
+  readonly foldFade: MotionValue<number>;
+  /**
+   * Whether the pair was face-up at the moment the Fold committed. Only
+   * meaningful while it is departing: the cards leave with whatever face they
+   * had (§7), and once the reducer is in `Leaving` the presentation they left
+   * from is no longer recoverable from the state.
+   */
+  readonly leavingFaceUp: boolean;
+  /**
+   * The committed pair for as long as its flight is still running, or `null`.
+   *
+   * The flight is **fire-and-forget, on its own ~280ms schedule and not gated
+   * on the round trip** (§7) — which cuts *both* ways. On a LAN the
+   * acknowledgement lands tens of milliseconds in and takes `cards` away with
+   * it, so without this the departure the player was promised would be a blink
+   * (story 20). The pair renders from here once the props no longer carry it.
+   */
+  readonly departing: readonly [Card, Card] | null;
   /** A gesture Check landed and is still being confirmed (story 31). */
   readonly checkConfirmed: boolean;
 }
+
+/**
+ * A spring rather than a duration: the cards were being *carried*, and letting
+ * go of something you are carrying has weight and a little overshoot. Carried
+ * forward from the prototype.
+ */
+const RETURN_SPRING = { type: "spring", stiffness: 480, damping: 36 } as const;
 
 /**
  * Binds the pure lifecycle to React: prop changes and pointer events in,
@@ -79,7 +115,19 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
 
   const bend = useMotionValue(0);
   const bendAxis = useMotionValue<BendAxis>("left");
+  const foldOffset = useMotionValue(0);
+  const foldFade = useMotionValue(1);
   const session = useRef<GestureSession | null>(null);
+  /**
+   * React state rather than refs, because both are read during render — but
+   * both are only ever written in the same event as the commit, so they land in
+   * the same render as `Leaving` and no frame shows the wrong face or an empty
+   * seat where the departure should be.
+   */
+  const [leavingFaceUp, setLeavingFaceUp] = useState(false);
+  const [departing, setDeparting] = useState<readonly [Card, Card] | null>(
+    null,
+  );
   /**
    * §16: `preventDefault` at a lower level does not suppress the later `click`
    * consistently across browsers, so suppression is handled here, at the
@@ -152,6 +200,83 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
       bend.set(0);
     }
   }, [state.presentation, bend]);
+
+  /**
+   * Whether the pair is on its way to the muck **right now**.
+   *
+   * `Leaving` alone is not enough: an acknowledgement resolves the reducer to
+   * `Absent` within milliseconds on a LAN, and the flight is explicitly not
+   * gated on that round trip. A rejection is the opposite — it takes the pair
+   * out of the air immediately, from wherever it has got to.
+   */
+  const inFlight =
+    state.presentation === "Leaving" ||
+    (departing !== null && state.presentation === "Absent");
+
+  // The flight itself. Deliberately depends on nothing but `inFlight`, so the
+  // acknowledgement arriving mid-departure neither restarts the animation nor
+  // interrupts it — it simply does not reach this effect at all.
+  useEffect(() => {
+    if (!inFlight) return;
+    const seconds = FOLD_FLIGHT_MS / 1000;
+    const flight = animate(
+      foldOffset,
+      -foldFlightDistance(window.innerHeight),
+      {
+        duration: seconds,
+        ease: [0.4, 0, 1, 1],
+      },
+    );
+    const fade = animate(foldFade, 0, { duration: seconds, ease: "linear" });
+    // Stopping on cleanup is what makes a rejection **interrupt** the departure
+    // rather than complete it first (§7). The flight is a *prediction* of
+    // server truth; when the server contradicts it, finishing the animation
+    // would actively lie to the player.
+    return () => {
+      flight.stop();
+      fade.stop();
+    };
+  }, [inFlight, foldOffset, foldFade]);
+
+  // Coming to rest: the counterpart, and the only thing that puts the pair back
+  // where it belongs. Keyed on the discrete facts that decide where that is —
+  // whether the pair is in the air, and whether a finger is still carrying it.
+  useEffect(() => {
+    if (inFlight) return;
+
+    if (state.presentation === "Absent") {
+      // Nothing is rendered to see the snap, and the next hand must deal in
+      // from rest rather than sliding down from wherever the flight got to.
+      foldOffset.set(0);
+      foldFade.set(1);
+      return;
+    }
+
+    // A finger still on the glass owns the offset; this effect must not fight
+    // it. Every way a drag can end — release, cancellation, a §9 reset out from
+    // under it — clears the recognizer, which is what brings the pair home.
+    if (state.recognizer !== "Idle") return;
+    if (foldOffset.get() === 0 && foldFade.get() === 1) return;
+    const home = animate(foldOffset, 0, RETURN_SPRING);
+    const restore = animate(foldFade, 1, RETURN_SPRING);
+    return () => {
+      home.stop();
+      restore.stop();
+    };
+  }, [inFlight, state.presentation, state.recognizer, foldOffset, foldFade]);
+
+  // The departure outlives the cards prop by exactly one flight, and no longer:
+  // a pair the player is holding again after a rejection renders from `cards`,
+  // and this only has to stop standing in for one that is genuinely gone.
+  useEffect(() => {
+    if (departing === null) return;
+    const timer = setTimeout(() => {
+      setDeparting(null);
+    }, FOLD_FLIGHT_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [departing]);
 
   // The one disturbance that is not a prop change (§8): the app leaving the
   // foreground resets the pair face-down, cancelling any gesture in flight.
@@ -230,8 +355,40 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     // that already crossed the threshold is exempt: it committed on crossing,
     // and the turn is mid-flight with the peel under its control.
     if (!active.crossed) bend.set(0);
+    // **The commitment, and the only one a pointer lift makes** (§10). Decided
+    // off the session, which is a ref and therefore exactly as current as the
+    // events the reducer has been given — the state this hook renders with can
+    // lag a threshold crossed one pointer event ago, and a fast flick is the
+    // commonest way to fold, not an edge case.
+    const { events, commitsFold } = endGesture(active, { cancelled });
+    // Fold legality is sampled once, at classification (§4), so a drag can
+    // outlive the turn that made it legal. §6's answer is that such a drag
+    // **disarms** — the release commits nothing, and there is no rejection
+    // message, because the turn banner already explains it.
+    //
+    // Re-sampled here as well as on the prop change that #146 will watch,
+    // because a release can beat the view that would have disarmed it. `pending`
+    // rides along for the same reason: a Fold cannot go out on top of an Action
+    // already in flight, and a departure the player watches and then has undone
+    // is worse than one that never starts.
+    //
+    // This is arming input, exactly as §2 licenses; `canAct` inside
+    // `intent.fold` remains the single gate on whether the Action is sent.
+    const commits =
+      commitsFold && props.actions.foldLegal && !props.actions.pending;
+    if (commitsFold && !commits) dispatch({ type: "FOLD_DISARMED" });
+    // The pair leaves with whatever face it had (§7). Read off presentation
+    // rather than the session, because a keyboard reveal committed before the
+    // press can land during the drag — and `Turning` is a point of no return,
+    // so a pair mid-flip is a pair that is going to be face-up.
+    if (commits) {
+      setLeavingFaceUp(
+        state.presentation === "Revealed" || state.presentation === "Turning",
+      );
+      setDeparting(props.cards);
+    }
     let tapped = false;
-    for (const cardEvent of endGesture(active, { cancelled })) {
+    for (const cardEvent of events) {
       if (cardEvent.type !== "TAPPED") {
         dispatch(cardEvent);
         continue;
@@ -256,6 +413,14 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     // failure here that costs money, so the window is closed rather than left
     // open on a technicality of what the middle gesture happened to be.
     if (!tapped) tapWindow.current = null;
+    // Sent after the dispatch, so the cards are already on their way to the
+    // muck when the Action goes: the departure is the player's own answer
+    // rather than the server's. `fold` **is** `intent.fold` — gesture and
+    // button enter the identical function, and `canAct` on the latest view
+    // stays the single legality gate, so an armed release the server would
+    // refuse sends nothing, and the pending Action it is waiting behind
+    // resolves the pair back to `FaceDown` as any rejection would.
+    if (commits) props.actions.fold();
   };
 
   const handlers: PairHandlers = {
@@ -289,17 +454,32 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
       const step = moveGesture(
         active,
         { x: event.clientX, y: event.clientY },
-        { foldLegal: props.actions.foldLegal },
+        {
+          foldLegal: props.actions.foldLegal,
+          // Measured per move rather than once: the threshold scales with the
+          // viewport, and a phone keyboard or a rotation changes it under a
+          // gesture that is already running.
+          foldThresholdPx: foldThreshold(window.innerHeight),
+        },
       );
       session.current = step.session;
       if (step.bend !== null) {
         bend.set(step.bend.progress);
         bendAxis.set(step.bend.axis);
       }
+      // The cards track the finger, so the player can feel how far they are
+      // from committing — continuous, and therefore never React state (§13).
+      if (step.fold !== null) foldOffset.set(step.fold.offset);
       // Once the drag belongs to the recognizer, the browser must not also
       // treat it as a pan or a selection.
       if (step.session.classification !== null) event.preventDefault();
-      for (const cardEvent of step.events) dispatch(cardEvent);
+      for (const cardEvent of step.events) {
+        // Optional, best-effort polish and **never** semantic feedback: the
+        // arming signal proper is the card motion and the in-gesture text, both
+        // of which the iPhone/Safari path has and this pulse it does not (§16).
+        if (cardEvent.type === "FOLD_ARMED") pulse(HAPTIC_PULSE_MS);
+        dispatch(cardEvent);
+      }
     },
 
     onPointerUp: (event) => {
@@ -319,6 +499,10 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     handlers,
     bend,
     bendAxis,
+    foldOffset,
+    foldFade,
+    leavingFaceUp,
+    departing,
     checkConfirmed: checkConfirmedAt !== null,
   };
 }

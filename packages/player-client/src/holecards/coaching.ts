@@ -50,9 +50,10 @@ export interface HintContext {
  * only the persisted discovery set cross the seam — is what holds the module's
  * public surface at two names.
  *
- * This slice answers the bend gesture. The remaining in-gesture prompts and
- * the four teaching hints arrive with the gestures they describe (#142, #145,
- * #147), extending this same function rather than paralleling it.
+ * The in-gesture prompts are complete: the bend's two, and the fold drag's
+ * armed and unarmed lines. The four *teaching* hints arrive with #147,
+ * extending this same function rather than paralleling it — which is when the
+ * discovery set starts being read.
  *
  * The `(pointer: coarse)` gate arrives with those teaching hints (#147), and
  * applies to them: it exists so a keyboard player is not told to bend corners.
@@ -75,11 +76,19 @@ export function selectHint(
   if (ctx.pending || ctx.locked) return null;
   if (state.presentation === "Absent") return null;
 
+  // Deliberately **not** gated on the discovery set, either of them. In-gesture
+  // prompts are permanent for every player, forever: they say what releasing
+  // will do, and for the money-losing gesture that text is the arming signal
+  // itself.
   if (state.recognizer === "Bending") {
-    // Deliberately **not** gated on the discovery set. In-gesture prompts are
-    // permanent for every player, forever: they say what releasing will do,
-    // and for the money-losing gesture that text is the arming signal itself.
     return state.bendAxis === "up" ? bendUpHint : bendLeftHint;
+  }
+
+  // There is no rendered fold-threshold marker and browser vibration is
+  // Blink-only, so on iPhone/Safari this line — with the card motion — is the
+  // *whole* arming signal (§11). It has to be able to say both things.
+  if (state.recognizer === "FoldDragging") {
+    return state.armed ? foldArmedHint : foldDraggingHint;
   }
 
   return null;
@@ -114,5 +123,29 @@ const bendUpHint: Hint = {
   id: "bending-up",
   line1: "Release to peek",
   line2: "drag left to keep your finger clear",
+  announce: false,
+};
+
+/**
+ * One line each, and no consequence line: a fold drag has the player's eyes on
+ * the cards moving under their finger, and the only thing they need from the
+ * text is whether letting go now costs them the hand.
+ *
+ * Not announced, for the same reason the bend prompts are not: a live region
+ * flipping between these two as a finger wandered across the threshold would
+ * talk over the player rather than tell them anything. The `Fold` button
+ * remains the non-gesture path (§12).
+ */
+const foldDraggingHint: Hint = {
+  id: "folding",
+  line1: "Keep dragging up",
+  line2: null,
+  announce: false,
+};
+
+const foldArmedHint: Hint = {
+  id: "folding-armed",
+  line1: "Release to Fold",
+  line2: null,
   announce: false,
 };
