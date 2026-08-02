@@ -54,7 +54,7 @@ describe("Hand", () => {
     expect(html).toContain("Waiting on Avery");
   });
 
-  it("reveals own hole cards but never the shared board mid-hand", () => {
+  it("deals own hole cards in face-down, and never shows the shared board mid-hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
@@ -75,12 +75,14 @@ describe("Hand", () => {
     };
     const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
+    // Cards arrive face-down and stay that way until the player asks for
+    // them (Phase 3 spec #138): nothing is exposed on deal, so the hand isn't
+    // in the document at all — not merely hidden by a style.
     expect(html).toMatch(/data-testid="hole-cards"/);
-    expect(html).toContain('data-rank="Q"');
-    expect(html).toContain('data-rank="J"');
-    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(2);
+    expect(html).toContain('data-presentation="FaceDown"');
+    expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(2);
+    expect(html).not.toContain("data-rank");
     expect(html).not.toContain('data-testid="community-cards"');
-    expect(html).not.toContain('data-rank="A"');
   });
 
   it("hides hole cards once folded, without a placeholder leak", () => {
@@ -101,6 +103,7 @@ describe("Hand", () => {
     const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
     expect(html).toMatch(/data-testid="no-hole-cards"/);
+    expect(html).not.toMatch(/data-testid="hole-cards"/);
     expect(html).not.toContain("data-rank");
   });
 
@@ -119,6 +122,7 @@ describe("Hand", () => {
     const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
     expect(html).toMatch(/data-testid="no-hole-cards"/);
+    expect(html).not.toMatch(/data-testid="hole-cards"/);
     expect(html).toContain("Waiting for the next deal.");
     expect(html).not.toContain("muck");
   });

@@ -202,6 +202,7 @@ export function App() {
             seatId={seatId}
             seats={seats}
             connectionStatus={connectionStatus}
+            intent={intent}
           />
         )}
         {handView !== null && handView.phase === "betting" && (

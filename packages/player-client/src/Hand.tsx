@@ -4,7 +4,6 @@ import type {
   SeatView,
 } from "@table-top-poker/protocol";
 import {
-  Card,
   color,
   font,
   fontSize,
@@ -12,6 +11,8 @@ import {
   shadow,
 } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
+import type { ActionIntent } from "./actions/useActionIntent.js";
+import { HoleCardPair, type CardActions } from "./holecards/index.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface HandProps {
@@ -19,6 +20,39 @@ export interface HandProps {
   readonly seatId: number;
   readonly seats?: readonly SeatView[];
   readonly connectionStatus?: ConnectionStatus;
+  /**
+   * The action intent `App` already owns. `Hand` narrows it to the card
+   * module's own port — the module never sees `ActionIntent`, so growing the
+   * intent layer later does not ripple into card code.
+   */
+  readonly intent?: ActionIntent;
+}
+
+const noAction = () => undefined;
+
+/**
+ * `actions.fold`/`actions.check` **are** `intent.fold`/`intent.check`: a
+ * gesture and a button reach the same Action by the same route, and `canAct`
+ * stays the single legality gate. The legality flags are arming and rendering
+ * input only.
+ */
+function cardActionsFrom(intent: ActionIntent | undefined): CardActions {
+  if (intent === undefined) {
+    return {
+      foldLegal: false,
+      checkLegal: false,
+      pending: false,
+      fold: noAction,
+      check: noAction,
+    };
+  }
+  return {
+    foldLegal: intent.legalActions.includes("fold"),
+    checkLegal: intent.legalActions.includes("check"),
+    pending: intent.pendingAction !== null,
+    fold: intent.fold,
+    check: intent.check,
+  };
 }
 
 type BannerTone = "turn" | "win" | "loss" | "idle" | "offline";
@@ -263,11 +297,21 @@ function TurnBanner({ banner }: { readonly banner: Banner }) {
   );
 }
 
-function HoleCards({
+/**
+ * The card region: the pair itself, plus the copy around it. `Hand` keeps
+ * every caption on this screen; the pair owns card presentation and nothing
+ * else, which is why the `Absent` copy is decided here (folded reads
+ * differently from not-dealt-in) while the empty slots are drawn there.
+ */
+function HoleCardsRegion({
   cards,
+  locked = false,
+  actions,
   caption,
 }: {
-  readonly cards: readonly [CardType, CardType];
+  readonly cards: readonly [CardType, CardType] | null;
+  readonly locked?: boolean;
+  readonly actions: CardActions;
   readonly caption: string;
 }) {
   return (
@@ -278,91 +322,31 @@ function HoleCards({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "0.9em",
+        gap: cards === null ? "1.1em" : "0.9em",
         minHeight: 0,
-      }}
-    >
-      <div
-        data-testid="hole-cards"
-        style={{ display: "flex", gap: "0.5em", fontSize: "2.6em" }}
-      >
-        {cards.map((card, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, rotateY: -92 }}
-            animate={{ opacity: 1, rotateY: 0, rotate: i === 0 ? -3 : 3 }}
-            transition={{
-              duration: 0.42,
-              delay: i * 0.08,
-              ease: [0.2, 0.8, 0.2, 1],
-            }}
-          >
-            <Card rank={card.rank} suit={card.suit} />
-          </motion.div>
-        ))}
-      </div>
-      <span
-        style={{
-          fontFamily: font.mono,
-          fontSize: fontSize.xs,
-          letterSpacing: "0.2em",
-          textTransform: "uppercase",
-          color: color.textDim,
-        }}
-      >
-        {caption}
-      </span>
-    </div>
-  );
-}
-
-function EmptyHoleCards({ text }: { readonly text: string }) {
-  return (
-    <div
-      data-testid="no-hole-cards"
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: "1.1em",
         textAlign: "center",
       }}
     >
-      <div style={{ display: "flex", gap: "0.9em" }}>
-        <span
-          style={{
-            width: "6.5em",
-            height: "9.2em",
-            display: "block",
-            borderRadius: radius.card,
-            border: `1px dashed ${color.border}`,
-            background: "rgba(255,255,255,.03)",
-            transform: "rotate(-5deg)",
-          }}
-        />
-        <span
-          style={{
-            width: "6.5em",
-            height: "9.2em",
-            display: "block",
-            borderRadius: radius.card,
-            border: `1px dashed ${color.border}`,
-            background: "rgba(255,255,255,.03)",
-            transform: "rotate(5deg)",
-          }}
-        />
-      </div>
+      <HoleCardPair cards={cards} locked={locked} actions={actions} />
       <span
-        style={{
-          fontSize: fontSize.md,
-          lineHeight: 1.5,
-          color: color.textDim,
-          maxWidth: "16em",
-        }}
+        style={
+          cards === null
+            ? {
+                fontSize: fontSize.md,
+                lineHeight: 1.5,
+                color: color.textDim,
+                maxWidth: "16em",
+              }
+            : {
+                fontFamily: font.mono,
+                fontSize: fontSize.xs,
+                letterSpacing: "0.2em",
+                textTransform: "uppercase",
+                color: color.textDim,
+              }
+        }
       >
-        {text}
+        {caption}
       </span>
     </div>
   );
@@ -384,7 +368,10 @@ export function Hand({
   seatId,
   seats = [],
   connectionStatus = "connected",
+  intent,
 }: HandProps) {
+  const actions = cardActionsFrom(intent);
+
   if (view.phase === "no-hand") {
     return (
       <div
@@ -399,7 +386,11 @@ export function Hand({
         }}
       >
         <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
-        <EmptyHoleCards text="Waiting for the next hand." />
+        <HoleCardsRegion
+          cards={null}
+          actions={actions}
+          caption="Waiting for the next hand."
+        />
       </div>
     );
   }
@@ -419,8 +410,10 @@ export function Hand({
         }}
       >
         <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
-        <EmptyHoleCards
-          text={
+        <HoleCardsRegion
+          cards={null}
+          actions={actions}
+          caption={
             iWon
               ? "No showdown — everyone else folded."
               : "You folded — cards are in the muck."
@@ -446,12 +439,18 @@ export function Hand({
       >
         <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
         {myResult ? (
-          <HoleCards
+          <HoleCardsRegion
             cards={myResult.holeCards}
+            locked
+            actions={actions}
             caption="Your hole cards · showdown"
           />
         ) : (
-          <EmptyHoleCards text="You folded — cards are in the muck." />
+          <HoleCardsRegion
+            cards={null}
+            actions={actions}
+            caption="You folded — cards are in the muck."
+          />
         )}
       </div>
     );
@@ -472,13 +471,16 @@ export function Hand({
     >
       <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
       {view.yourHoleCards ? (
-        <HoleCards
+        <HoleCardsRegion
           cards={view.yourHoleCards}
+          actions={actions}
           caption={`Your hole cards · ${view.street}`}
         />
       ) : (
-        <EmptyHoleCards
-          text={
+        <HoleCardsRegion
+          cards={null}
+          actions={actions}
+          caption={
             isDealtIn(view)
               ? "You folded — cards are in the muck."
               : "Waiting for the next deal."
