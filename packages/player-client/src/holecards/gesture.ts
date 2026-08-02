@@ -37,12 +37,6 @@ export interface GestureSession {
    * again, and the player can always change their mind by putting them down.
    */
   readonly armed: boolean;
-  /**
-   * A view-driven disarm blocks re-arming until the pointer comes back below
-   * the threshold, so legality returning under a held finger cannot commit the
-   * old offer without a fresh crossing.
-   */
-  readonly armingBlocked: boolean;
 }
 
 /** Continuous peel values, destined for `MotionValue`s rather than state. */
@@ -88,39 +82,30 @@ export function beginGesture(press: {
     classification: null,
     crossed: false,
     armed: false,
-    armingBlocked: false,
   };
 }
 
 /**
- * Fold legality can disappear while the pointer is still moving. The view
- * event disarms the lifecycle reducer and this keeps the synchronous session
- * used by `endGesture` in agreement without ending the drag.
+ * Apply a lifecycle event to the live pointer session.
+ *
+ * Only `FOLD_DISARMED` has anything to say to a session: fold legality can
+ * disappear while the pointer is still moving, and the session is what
+ * `endGesture` answers `commitsFold` from, so it has to hear the same disarm
+ * the reducer does or the two would disagree on the next release. **The drag
+ * itself is untouched** — the cards keep tracking the finger (§6), and the
+ * session ends where every session ends, on the pointer that lifts it.
+ *
+ * Every other event is the reducer's business alone. Ending the session here
+ * would strand the release: `finish` bails on a pointer it has no session for,
+ * so nothing would disown the click the browser synthesises afterwards, and it
+ * would reveal the pair the event had just dealt or reset.
  */
-function disarmGesture(session: GestureSession): GestureSession {
-  return { ...session, armed: false, armingBlocked: true };
-}
-
-/**
- * Apply a view lifecycle event to the live pointer session. Server events that
- * end or lock the pair invalidate the pointer as well; otherwise a removed
- * button could leave a captured pointer blocking the next hand.
- */
-export function applyViewEvent(
+export function applyCardEvent(
   session: GestureSession | null,
   event: CardEvent,
 ): GestureSession | null {
-  switch (event.type) {
-    case "CARDS_GONE":
-    case "DEALT":
-    case "RESET":
-    case "SHOWDOWN_REVEAL":
-      return null;
-    case "FOLD_DISARMED":
-      return session === null ? null : disarmGesture(session);
-    default:
-      return session;
-  }
+  if (session === null || event.type !== "FOLD_DISARMED") return session;
+  return { ...session, armed: false };
 }
 
 /**
@@ -148,9 +133,10 @@ export function moveGesture(
       alreadyRevealed: session.startedRevealed,
       dx,
       dy,
-      // Fold legality admits the classification. Once a drag exists, the
-      // prop-change adapter disarms it when the view withdraws legality; the
-      // live fold step also gates threshold arming on the latest value.
+      // Fold legality is sampled once, here, and never re-read. A drag that
+      // outlives the player's turn disarms (§6) — through `FOLD_DISARMED` off
+      // the prop change, and `applyCardEvent` on this session; it does not
+      // reclassify.
       foldLegal: ctx.foldLegal,
     });
     return step(
@@ -219,19 +205,11 @@ function foldStep(
   // back below where it started must not shove them down the screen.
   const offset = Math.min(0, dy);
   const fold: FoldMotion = { offset };
-  const aboveThreshold = -offset >= ctx.foldThresholdPx;
-  const armingBlocked =
-    aboveThreshold && (session.armingBlocked || !ctx.foldLegal);
-  const armed = ctx.foldLegal && aboveThreshold && !armingBlocked;
-  if (armed === session.armed && armingBlocked === session.armingBlocked) {
-    return { session, events, bend: null, fold };
-  }
+  const armed = -offset >= ctx.foldThresholdPx;
+  if (armed === session.armed) return { session, events, bend: null, fold };
   return {
-    session: { ...session, armed, armingBlocked },
-    events:
-      armed === session.armed
-        ? events
-        : [...events, { type: armed ? "FOLD_ARMED" : "FOLD_DISARMED" }],
+    session: { ...session, armed },
+    events: [...events, { type: armed ? "FOLD_ARMED" : "FOLD_DISARMED" }],
     bend: null,
     fold,
   };
