@@ -5,14 +5,20 @@ export interface JoinCodeToggleProps {
   readonly roomCode: string;
   readonly open: boolean;
   readonly onToggle: () => void;
+  readonly placement?: "felt" | "status-bar";
 }
 
-const wrapperStyle: CSSProperties = {
+const feltWrapperStyle: CSSProperties = {
   position: "absolute",
   left: "50%",
   top: 22,
   transform: "translateX(-50%)",
   zIndex: 11,
+};
+
+const statusBarWrapperStyle: CSSProperties = {
+  flex: "none",
+  minWidth: 0,
 };
 
 const buttonStyle: CSSProperties = {
@@ -28,16 +34,21 @@ const buttonStyle: CSSProperties = {
 };
 
 /**
- * Top-centre pill that stays visible once a room exists, letting the table
- * device peek at the join code/QR mid-hand without losing the board view.
+ * Room pill that stays visible once a room exists, letting the table device
+ * peek at the join code/QR mid-hand without losing the board view.
  */
 export function JoinCodeToggle({
   roomCode,
   open,
   onToggle,
+  placement = "felt",
 }: JoinCodeToggleProps) {
   return (
-    <div style={wrapperStyle}>
+    <div
+      style={
+        placement === "status-bar" ? statusBarWrapperStyle : feltWrapperStyle
+      }
+    >
       <button
         type="button"
         data-testid="join-code-toggle"

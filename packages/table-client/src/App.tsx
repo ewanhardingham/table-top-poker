@@ -14,7 +14,6 @@ import {
 import { Board } from "./Board.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
 import { SeatCountPicker } from "./SeatCountPicker.js";
-import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
 import { Seats } from "./Seats.js";
@@ -121,7 +120,13 @@ export function App() {
 
   return (
     <div className="app-shell" data-testid="table-client-shell">
-      <StatusBar roomCode={roomCode} connectionStatus={connectionStatus} />
+      <StatusBar
+        roomCode={roomCode}
+        connectionStatus={connectionStatus}
+        showRoomCode={handInProgress && !joinOpen}
+        joinOpen={joinOpen}
+        onToggleJoin={toggleJoin}
+      />
       <main className="felt">
         {roomCode === null ? (
           <SeatCountPicker
@@ -171,11 +176,6 @@ export function App() {
                 <Board view={handView} seats={seats} />
               </div>
             )}
-            <JoinCodeToggle
-              roomCode={roomCode}
-              open={joinOpen}
-              onToggle={toggleJoin}
-            />
             {showJoinPanel && (
               <JoinPanel
                 roomCode={roomCode}
