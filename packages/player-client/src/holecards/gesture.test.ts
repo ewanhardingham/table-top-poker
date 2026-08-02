@@ -10,6 +10,7 @@ import { BEND_TRAVEL_PX, MOVE_SLOP_PX, REVEAL_THRESHOLD } from "./constants.js";
 import { foldThreshold } from "./geometry.js";
 import {
   beginGesture,
+  disarmGesture,
   endGesture,
   moveGesture,
   type GestureSession,
@@ -274,6 +275,23 @@ describe("the fold drag", () => {
     expect(pulledBack.events).toEqual([{ type: "FOLD_DISARMED" }]);
     expect(pulledBack.session.armed).toBe(false);
     expect(pulledBack.fold).toEqual({ offset: -20 });
+  });
+
+  it("does not re-arm while Fold is illegal after a view disarms the drag", () => {
+    const armed = moveGesture(
+      dragging(FOLD_THRESHOLD_PX).session,
+      to(0, -(FOLD_THRESHOLD_PX + 40)),
+      onTurn,
+    ).session;
+    const disarmed = disarmGesture(armed);
+
+    const moved = moveGesture(disarmed, to(0, -(FOLD_THRESHOLD_PX + 80)), {
+      ...onTurn,
+      foldLegal: false,
+    });
+
+    expect(moved.events).toEqual([]);
+    expect(moved.session.armed).toBe(false);
   });
 
   it("arms in the same move as the classification when the flick is fast enough", () => {

@@ -24,6 +24,7 @@ import {
 } from "./geometry.js";
 import {
   beginGesture,
+  disarmGesture,
   endGesture,
   moveGesture,
   type GestureSession,
@@ -164,7 +165,12 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
   useIsomorphicLayoutEffect(() => {
     const events = eventsForPropChange(previous.current, props, state);
     previous.current = props;
-    for (const event of events) dispatch(event);
+    for (const event of events) {
+      if (event.type === "FOLD_DISARMED" && session.current !== null) {
+        session.current = disarmGesture(session.current);
+      }
+      dispatch(event);
+    }
   });
 
   // `Turning` is a point of no return: once the flip is committed it finishes

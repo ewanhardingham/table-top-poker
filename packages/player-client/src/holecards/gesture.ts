@@ -86,6 +86,15 @@ export function beginGesture(press: {
 }
 
 /**
+ * Fold legality can disappear while the pointer is still moving. The view
+ * event disarms the lifecycle reducer and this keeps the synchronous session
+ * used by `endGesture` in agreement without ending the drag.
+ */
+export function disarmGesture(session: GestureSession): GestureSession {
+  return session.armed ? { ...session, armed: false } : session;
+}
+
+/**
  * Advance a gesture to a new pointer position.
  *
  * Nothing is classified below the slop, so a tap with a wobble still reads as
@@ -110,8 +119,9 @@ export function moveGesture(
       alreadyRevealed: session.startedRevealed,
       dx,
       dy,
-      // Fold legality is sampled once, here, and never re-read. A drag that
-      // outlives the player's turn disarms (§6); it does not reclassify.
+      // Fold legality admits the classification. Once a drag exists, the
+      // prop-change adapter disarms it when the view withdraws legality; the
+      // live fold step also gates threshold arming on the latest value.
       foldLegal: ctx.foldLegal,
     });
     return step(
@@ -180,7 +190,7 @@ function foldStep(
   // back below where it started must not shove them down the screen.
   const offset = Math.min(0, dy);
   const fold: FoldMotion = { offset };
-  const armed = -offset >= ctx.foldThresholdPx;
+  const armed = ctx.foldLegal && -offset >= ctx.foldThresholdPx;
   if (armed === session.armed) return { session, events, bend: null, fold };
   return {
     session: { ...session, armed },
