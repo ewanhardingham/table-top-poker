@@ -96,6 +96,18 @@ and reveal are one gesture at two depths, not two gestures.
 Returning revealed Hole cards to face-down. Player-facing copy says "hide";
 *conceal* is the domain term.
 
+**Muck**:
+Where a folded Hand goes. Not a place the engine models and not a pile
+anything is added to: folding simply stops the Seat's Hole cards being
+projected to anyone, including its own Player, and Replay re-projects the
+same way so a muck stays mucked. The word survives because it names the
+*direction of travel* the player client acts out — the muck flight, the
+committed pair departing on the swipe that folds it — which is local
+presentation, on its own schedule, and never a state cards can be recovered
+from.
+_Avoid_: Treating the Muck as storage, or as somewhere a Hand can be read
+back from — a fold is final, and nothing is kept.
+
 **Action**:
 A completed poker decision for a Seat — fold, check, call, or raise — whether
 chosen by its Player or synthesized by the server when the Seat cannot act.
