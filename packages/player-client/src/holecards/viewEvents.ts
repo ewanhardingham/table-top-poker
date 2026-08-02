@@ -58,3 +58,19 @@ export function eventsForPropChange(
 
   return events;
 }
+
+/**
+ * The app leaving the foreground is a reset (§9), and it is the one
+ * disturbance that does not arrive as a prop change — `visibilitychange` is a
+ * document event, subscribed by the hook (§8). It is derived here anyway so
+ * the rule is a tested function call rather than a condition buried in an
+ * effect, which is the same reason `eventsForPropChange` exists.
+ *
+ * Only the outbound edge produces anything: coming back is not a second
+ * disturbance, and concealing cards the Player has since turned over would be.
+ */
+export function eventsForVisibility(
+  visibility: DocumentVisibilityState,
+): readonly CardEvent[] {
+  return visibility === "hidden" ? [{ type: "RESET" }] : [];
+}

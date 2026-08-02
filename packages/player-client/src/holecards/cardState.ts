@@ -13,8 +13,9 @@
  * gestures that follow are additions rather than surgery.
  *
  * Answered so far: the deal-in, the emptying and the keyboard reveal/conceal
- * toggle (#139), the showdown reveal and lock (#140), and the press, the
- * classification and the release that make up a bend (#141).
+ * toggle (#139), the showdown reveal and lock (#140), the press, the
+ * classification and the release that make up a bend (#141), and cancellation
+ * and resets (#143).
  */
 
 import type { Classification } from "./classify.js";
@@ -70,7 +71,12 @@ export type CardEvent =
   | { readonly type: "RELEASED" }
   /** The browser took the pointer away, or capture was lost. */
   | { readonly type: "CANCELLED" }
-  /** A hand boundary, a reload, or the app leaving the foreground. */
+  /**
+   * A §9 reset: back to face-down, cancelling any gesture. The app leaving
+   * the foreground is the producer — the other two §9 resets arrive by their
+   * own routes (a new hand as `DEALT`, a fresh client through
+   * `initialCardState`), and neither needs to be re-derived here.
+   */
   | { readonly type: "RESET" }
   /** A single tap landed on the pair. */
   | { readonly type: "TAPPED" }
@@ -94,9 +100,13 @@ function idle(presentation: Presentation): CardState {
  * Stated as one allow-list and enforced once, at the top of `reduce`, rather
  * than arm by arm — so the tap and gesture events later tickets add are inert
  * against a decided hand by default, and cannot reach one by being forgotten.
- * A later ticket adding an event that a locked pair *should* hear (`RESET`,
- * say, if backgrounding the app is judged to outrank a settled showdown) has
- * to say so here, which is the point.
+ *
+ * **`RESET` is deliberately not on the list.** Backgrounding the app must not
+ * conceal a showdown reveal: that reveal is public table truth rather than
+ * something the Player chose to look at, and a reload remounts straight back
+ * to `Revealed` off the `locked` prop — so honouring `RESET` here would make
+ * two paths that §9 names in the same breath disagree. The hand boundary that
+ * genuinely ends the lock arrives as `DEALT` or `CARDS_GONE`.
  */
 function survivesLock(event: CardEvent): boolean {
   switch (event.type) {
@@ -214,10 +224,27 @@ export function reduce(state: CardState, event: CardEvent): CardState {
 
     case "RELEASED":
     case "CANCELLED":
+      // An interrupted gesture lands on the last *stable* presentation, which
+      // for everything except a peek is the one it is already carrying: a fold
+      // drag moves the pair around without turning it over, so it restores to
+      // the face it started from by not being touched.
+      //
+      // A peek closes to `FaceDown` because that is the only face it can have
+      // opened from — §3 gives `Peeking` one entry arrow, and §4 refuses to
+      // classify a bend as `Bending` on an already-revealed pair. A bend arm
+      // that ever admits `Revealed → Peeking` breaks that, and `settled` is
+      // where it would have to start remembering.
+      //
       // `Turning` is a point of no return for both lift and cancellation: the
       // flip completes, because cancellation must restore *stable*
       // presentation and mid-turn is not stable (§10). A `Committed`
-      // recognizer therefore only clears itself.
+      // recognizer therefore only clears itself. `Leaving` likewise: the Fold
+      // is committed and only the server can answer it.
+      //
+      // Cancellation is never a commitment (§10: Actions commit on the
+      // completing release), so it needs to know nothing about `armed` beyond
+      // clearing it. That is the one thing the two events will stop sharing:
+      // #145 splits the arm so an armed release commits the Fold.
       if (state.recognizer === "Idle") return state;
       if (state.recognizer === "Committed") {
         return { ...state, recognizer: "Idle", armed: false };
@@ -232,13 +259,30 @@ export function reduce(state: CardState, event: CardEvent): CardState {
       if (state.recognizer !== "Bending") return state;
       return { ...state, presentation: "Turning", recognizer: "Committed" };
 
+    case "RESET":
+      // Snaps — including out of `Turning`, where the flip is abandoned
+      // rather than finished, so no face-up frame survives into the next hand.
+      // `BendableCard` animates only while `Turning`, so landing on `FaceDown`
+      // is what makes it a snap rather than a second flip.
+      //
+      // `Absent` is the one presentation left alone: there are no cards to
+      // turn face-down, and claiming otherwise would be a state the props
+      // contradict.
+      //
+      // `Leaving` is **not** left alone, though §7 calls a pending pair inert.
+      // The reset producers all say the pair's hand is over or its client is
+      // gone; face-down is the honest resting state for cards nobody is
+      // holding, and the Fold's own resolution follows a moment later as
+      // `CARDS_GONE`. Only `CANCELLED` respects the pending inertness, because
+      // a cancelled pointer is not an answer from the server.
+      if (state.presentation === "Absent") return state;
+      return idle("FaceDown");
+
     // Declared in the union so the shape is settled up front, and answered by
-    // the slices that own them: tap-conceal (#142), cancellation and resets
-    // (#143), the double-tap Check (#144), the fold drag (#145) and fold
-    // disarming (#146).
+    // the slices that own them: tap-conceal (#142), the double-tap Check
+    // (#144), the fold drag (#145) and fold disarming (#146).
     case "FOLD_ARMED":
     case "FOLD_DISARMED":
-    case "RESET":
     case "TAPPED":
     case "DOUBLE_TAPPED":
     case "PENDING_RESOLVED":
