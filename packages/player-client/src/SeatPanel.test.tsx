@@ -1,3 +1,4 @@
+import { color } from "@table-top-poker/ui-shared";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -113,6 +114,13 @@ describe("SeatPanel", () => {
     );
 
     expect(html).toMatch(/data-testid="sitting-out-toggle"[^>]*disabled/);
-    expect(html).toContain("background:rgba(255,255,255,.04)");
+
+    // The disabled fill comes from PillButton, not from SeatPanel — the accent
+    // treatment must not survive into the disabled state.
+    const buttonMatch =
+      /<button[^>]*data-testid="sitting-out-toggle"[^>]*>/.exec(html);
+    expect(buttonMatch?.[0]).toContain(`background:${color.controlFill}`);
+    expect(buttonMatch?.[0]).toContain(`color:${color.disabledText}`);
+    expect(buttonMatch?.[0]).not.toContain("cursor:pointer");
   });
 });

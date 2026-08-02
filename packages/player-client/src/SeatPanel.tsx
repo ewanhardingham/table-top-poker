@@ -21,13 +21,18 @@ export const playerTopPillStyle: CSSProperties = {
   textTransform: "uppercase",
 };
 
+/**
+ * Geometry only while disabled — `PillButton` owns the disabled fill, ink and
+ * cursor, and anything passed here would win over it.
+ */
 function sittingOutToggleStyle(disabled: boolean): CSSProperties {
+  if (disabled) return playerTopPillStyle;
   return {
     ...playerTopPillStyle,
-    background: disabled ? color.controlFill : color.accentWash,
-    border: `1px solid ${disabled ? color.border : color.accentBorder}`,
-    color: disabled ? color.disabledText : color.textBright,
-    cursor: disabled ? "default" : "pointer",
+    background: color.accentWash,
+    border: `1px solid ${color.accentBorder}`,
+    color: color.textBright,
+    cursor: "pointer",
   };
 }
 
