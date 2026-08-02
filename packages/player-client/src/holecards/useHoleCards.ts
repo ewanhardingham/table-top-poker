@@ -230,6 +230,7 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     // that already crossed the threshold is exempt: it committed on crossing,
     // and the turn is mid-flight with the peel under its control.
     if (!active.crossed) bend.set(0);
+    let tapped = false;
     for (const cardEvent of endGesture(active, { cancelled })) {
       if (cardEvent.type !== "TAPPED") {
         dispatch(cardEvent);
@@ -241,12 +242,20 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
       // into an Action.
       const tap = tapLanded(tapWindow.current, performance.now());
       tapWindow.current = tap.window;
+      tapped = true;
       dispatch(tap.event);
       // Dispatched first, so the Action is sent against a pair that has
       // already taken the conceal — the player sees the cards go down, then the
       // confirmation, in that order and with no timer between them.
       if (tap.event.type === "DOUBLE_TAPPED") sendCheck();
     }
+    // The two taps of a Check must be *consecutive*. A gesture that ended as
+    // anything else — a bend, a cancelled press — closes the window, so
+    // tap → quick peek → tap cannot compose an Action out of two taps the
+    // player never meant to pair. Sending a Check nobody asked for is the one
+    // failure here that costs money, so the window is closed rather than left
+    // open on a technicality of what the middle gesture happened to be.
+    if (!tapped) tapWindow.current = null;
   };
 
   const handlers: PairHandlers = {
