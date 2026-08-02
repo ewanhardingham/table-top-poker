@@ -90,8 +90,30 @@ export function beginGesture(press: {
  * event disarms the lifecycle reducer and this keeps the synchronous session
  * used by `endGesture` in agreement without ending the drag.
  */
-export function disarmGesture(session: GestureSession): GestureSession {
+function disarmGesture(session: GestureSession): GestureSession {
   return session.armed ? { ...session, armed: false } : session;
+}
+
+/**
+ * Apply a view lifecycle event to the live pointer session. Server events that
+ * end or lock the pair invalidate the pointer as well; otherwise a removed
+ * button could leave a captured pointer blocking the next hand.
+ */
+export function applyViewEvent(
+  session: GestureSession | null,
+  event: CardEvent,
+): GestureSession | null {
+  switch (event.type) {
+    case "CARDS_GONE":
+    case "DEALT":
+    case "RESET":
+    case "SHOWDOWN_REVEAL":
+      return null;
+    case "FOLD_DISARMED":
+      return session === null ? null : disarmGesture(session);
+    default:
+      return session;
+  }
 }
 
 /**
