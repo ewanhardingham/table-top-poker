@@ -1,7 +1,7 @@
-import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
+import { color, font, fontSize } from "@table-top-poker/ui-shared";
 import type { SittingOutReason } from "@table-top-poker/protocol";
 import type { CSSProperties } from "react";
-import { SeatPanel } from "./SeatPanel.js";
+import { SeatPanel, playerTopPillStyle } from "./SeatPanel.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface StatusBarProps {
@@ -26,11 +26,8 @@ const badgeTone: Record<
 };
 
 const badgeStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
+  ...playerTopPillStyle,
   gap: "0.5em",
-  padding: "0.45em 0.9em",
-  borderRadius: radius.pill,
   background: color.control,
   border: `1px solid ${color.border}`,
 };

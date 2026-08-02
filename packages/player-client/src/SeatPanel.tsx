@@ -6,6 +6,30 @@ import {
   radius,
 } from "@table-top-poker/ui-shared";
 import type { SittingOutReason } from "@table-top-poker/protocol";
+import type { CSSProperties } from "react";
+
+export const playerTopPillStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  height: 30,
+  padding: "0 12px",
+  borderRadius: radius.pill,
+  fontFamily: font.mono,
+  fontSize: fontSize.xs,
+  fontWeight: 600,
+  letterSpacing: "0.16em",
+  textTransform: "uppercase",
+};
+
+function sittingOutToggleStyle(disabled: boolean): CSSProperties {
+  return {
+    ...playerTopPillStyle,
+    background: disabled ? color.controlFill : color.accentWash,
+    border: `1px solid ${disabled ? color.border : color.accentBorder}`,
+    color: disabled ? color.disabledText : color.textBright,
+    cursor: disabled ? "default" : "pointer",
+  };
+}
 
 export interface SeatPanelProps {
   readonly seatId: number;
@@ -37,18 +61,10 @@ export function SeatPanel({
       <div
         data-testid="claimed-seat"
         style={{
-          display: "flex",
-          alignItems: "center",
+          ...playerTopPillStyle,
           gap: "0.5em",
-          padding: "0.4em 0.85em",
-          borderRadius: radius.pill,
           background: color.control,
           border: `1px solid ${color.border}`,
-          fontFamily: font.mono,
-          fontSize: fontSize.xs,
-          fontWeight: 600,
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
           color: color.textMuted,
         }}
       >
@@ -58,15 +74,9 @@ export function SeatPanel({
         <div
           data-testid="sitting-out-badge"
           style={{
-            padding: "0.4em 0.85em",
-            borderRadius: radius.pill,
+            ...playerTopPillStyle,
             background: "rgba(255,255,255,.04)",
             border: `1px solid ${color.border}`,
-            fontFamily: font.mono,
-            fontSize: fontSize.xs,
-            fontWeight: 600,
-            letterSpacing: "0.16em",
-            textTransform: "uppercase",
             color: color.textFaint,
           }}
         >
@@ -81,7 +91,7 @@ export function SeatPanel({
         data-testid="sitting-out-toggle"
         disabled={toggleDisabled}
         onClick={onToggleSittingOut}
-        style={{ padding: "8px 12px", fontSize: fontSize.xs }}
+        style={sittingOutToggleStyle(toggleDisabled)}
       >
         {sittingOut ? "Sit in" : "Sit out"}
       </PillButton>
