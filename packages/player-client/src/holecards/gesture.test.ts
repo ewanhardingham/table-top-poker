@@ -9,8 +9,8 @@ import {
 import { BEND_TRAVEL_PX, MOVE_SLOP_PX, REVEAL_THRESHOLD } from "./constants.js";
 import { foldThreshold } from "./geometry.js";
 import {
+  applyViewEvent,
   beginGesture,
-  disarmGesture,
   endGesture,
   moveGesture,
   type GestureSession,
@@ -283,7 +283,8 @@ describe("the fold drag", () => {
       to(0, -(FOLD_THRESHOLD_PX + 40)),
       onTurn,
     ).session;
-    const disarmed = disarmGesture(armed);
+    const disarmed = applyViewEvent(armed, { type: "FOLD_DISARMED" });
+    if (disarmed === null) throw new Error("expected a live fold drag");
 
     const moved = moveGesture(disarmed, to(0, -(FOLD_THRESHOLD_PX + 80)), {
       ...onTurn,
@@ -292,6 +293,24 @@ describe("the fold drag", () => {
 
     expect(moved.events).toEqual([]);
     expect(moved.session.armed).toBe(false);
+  });
+
+  it("updates or ends the pointer session when the view changes it", () => {
+    const armed = dragging(FOLD_THRESHOLD_PX).session;
+
+    expect(applyViewEvent(armed, { type: "FOLD_DISARMED" })).toEqual({
+      ...armed,
+      armed: false,
+    });
+
+    for (const event of [
+      { type: "CARDS_GONE" },
+      { type: "DEALT" },
+      { type: "RESET" },
+      { type: "SHOWDOWN_REVEAL" },
+    ] as const) {
+      expect(applyViewEvent(armed, event)).toBeNull();
+    }
   });
 
   it("arms in the same move as the classification when the flick is fast enough", () => {

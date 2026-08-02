@@ -23,8 +23,8 @@ import {
   type BendAxis,
 } from "./geometry.js";
 import {
+  applyViewEvent,
   beginGesture,
-  disarmGesture,
   endGesture,
   moveGesture,
   type GestureSession,
@@ -166,9 +166,7 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     const events = eventsForPropChange(previous.current, props, state);
     previous.current = props;
     for (const event of events) {
-      if (event.type === "FOLD_DISARMED" && session.current !== null) {
-        session.current = disarmGesture(session.current);
-      }
+      session.current = applyViewEvent(session.current, event);
       dispatch(event);
     }
   });
