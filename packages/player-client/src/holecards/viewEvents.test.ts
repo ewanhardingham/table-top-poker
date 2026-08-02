@@ -22,8 +22,21 @@ function props(overrides: Partial<HoleCardPairProps> = {}): HoleCardPairProps {
   return { cards: null, locked: false, actions, ...overrides };
 }
 
-const faceDown: CardState = { presentation: "FaceDown", recognizer: "Idle" };
-const absent: CardState = { presentation: "Absent", recognizer: "Idle" };
+const faceDown: CardState = {
+  presentation: "FaceDown",
+  recognizer: "Idle",
+  locked: false,
+};
+const absent: CardState = {
+  presentation: "Absent",
+  recognizer: "Idle",
+  locked: false,
+};
+const revealed: CardState = {
+  presentation: "Revealed",
+  recognizer: "Idle",
+  locked: true,
+};
 
 describe("eventsForPropChange", () => {
   it("produces nothing by default — an incoming view is inert unless proven otherwise", () => {
@@ -110,5 +123,57 @@ describe("eventsForPropChange", () => {
     expect(
       eventsForPropChange(props({ cards: queenJack }), props(), absent),
     ).toEqual([]);
+  });
+
+  describe("showdown", () => {
+    it("reveals when locked goes false → true", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack }),
+          props({ cards: queenJack, locked: true }),
+          faceDown,
+        ),
+      ).toEqual([{ type: "SHOWDOWN_REVEAL" }]);
+    });
+
+    it("produces nothing while locked is unchanged, true or false", () => {
+      const stillLocked = props({ cards: queenJack, locked: true });
+      expect(
+        eventsForPropChange(stillLocked, { ...stillLocked }, revealed),
+      ).toEqual([]);
+
+      const stillLive = props({ cards: queenJack });
+      expect(
+        eventsForPropChange(stillLive, { ...stillLive }, faceDown),
+      ).toEqual([]);
+    });
+
+    it("produces nothing when a lock is released — showdown does not un-reveal", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, locked: true }),
+          props({ cards: queenJack }),
+          revealed,
+        ),
+      ).toEqual([]);
+    });
+
+    it("deals the cards in before revealing them when both land at once", () => {
+      // A seat whose cards were withheld until showdown: the deal has to be
+      // observed first, or the reveal would land on an `Absent` pair.
+      expect(
+        eventsForPropChange(
+          props(),
+          props({ cards: queenJack, locked: true }),
+          absent,
+        ),
+      ).toEqual([{ type: "DEALT" }, { type: "SHOWDOWN_REVEAL" }]);
+    });
+
+    it("never reveals a seat that folded out — no cards, no reveal", () => {
+      expect(
+        eventsForPropChange(props(), props({ locked: true }), absent),
+      ).toEqual([]);
+    });
   });
 });

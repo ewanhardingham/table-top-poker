@@ -26,8 +26,8 @@ function samePair(
  * another player's bet and a changed `toAct` must all produce nothing.
  *
  * `state` is the current lifecycle state, which the later arms
- * (`FOLD_DISARMED`, `PENDING_RESOLVED`) consult; this slice's two events do
- * not depend on it.
+ * (`FOLD_DISARMED`, `PENDING_RESOLVED`) consult; of the events derived so far
+ * only `CARDS_GONE` does.
  */
 export function eventsForPropChange(
   prev: HoleCardPairProps,
@@ -41,9 +41,20 @@ export function eventsForPropChange(
     return [{ type: "CARDS_GONE" }];
   }
 
+  const events: CardEvent[] = [];
+
   // Card identity, not reference: `PlayerView` carries no hand id, so cards
   // arriving is the deal signal — with a value comparison as the defensive
   // second signal for a betting→betting view that swaps cards without an
   // intervening empty one.
-  return samePair(prev.cards, next.cards) ? [] : [{ type: "DEALT" }];
+  if (!samePair(prev.cards, next.cards)) events.push({ type: "DEALT" });
+
+  // Ordered after the deal deliberately: a seat whose cards only arrive at
+  // showdown must be dealt in before it is revealed, or the reveal lands on a
+  // pair that is still `Absent`. Losing the lock produces nothing — showdown
+  // does not un-reveal, and the next hand's `DEALT` is what turns the cards
+  // back over.
+  if (!prev.locked && next.locked) events.push({ type: "SHOWDOWN_REVEAL" });
+
+  return events;
 }

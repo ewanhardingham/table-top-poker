@@ -7,7 +7,12 @@ import {
 } from "./cardState.js";
 
 function state(presentation: Presentation): CardState {
-  return { presentation, recognizer: "Idle" };
+  return { presentation, recognizer: "Idle", locked: false };
+}
+
+/** A showdown-locked pair: face-up and inert. */
+function lockedState(presentation: Presentation): CardState {
+  return { presentation, recognizer: "Idle", locked: true };
 }
 
 describe("initialCardState", () => {
@@ -23,9 +28,9 @@ describe("initialCardState", () => {
     );
   });
 
-  it("starts Revealed when mounting into a locked (showdown) pair", () => {
+  it("starts Revealed and inert when mounting into a locked (showdown) pair", () => {
     expect(initialCardState({ hasCards: true, locked: true })).toEqual(
-      state("Revealed"),
+      lockedState("Revealed"),
     );
   });
 
@@ -111,6 +116,90 @@ describe("reduce", () => {
     it("is a no-op while the pair is leaving for the muck", () => {
       expect(reduce(state("Leaving"), { type: "ACTIVATED" })).toEqual(
         state("Leaving"),
+      );
+    });
+  });
+
+  describe("SHOWDOWN_REVEAL", () => {
+    it("turns a live seat's cards face-up through the same flip the bend produces", () => {
+      for (const presentation of ["FaceDown", "Peeking"] as const) {
+        expect(
+          reduce(state(presentation), { type: "SHOWDOWN_REVEAL" }),
+        ).toEqual(lockedState("Turning"));
+      }
+    });
+
+    it("lets a flip already in flight finish rather than restarting it", () => {
+      expect(reduce(state("Turning"), { type: "SHOWDOWN_REVEAL" })).toEqual(
+        lockedState("Turning"),
+      );
+    });
+
+    it("locks an already-revealed pair without replaying the flip", () => {
+      expect(reduce(state("Revealed"), { type: "SHOWDOWN_REVEAL" })).toEqual(
+        lockedState("Revealed"),
+      );
+    });
+
+    it("never reveals a seat holding no cards — folding is final", () => {
+      expect(reduce(state("Absent"), { type: "SHOWDOWN_REVEAL" })).toEqual(
+        state("Absent"),
+      );
+    });
+
+    it("never reveals a pair still flying to the muck", () => {
+      expect(reduce(state("Leaving"), { type: "SHOWDOWN_REVEAL" })).toEqual(
+        state("Leaving"),
+      );
+    });
+
+    it("clears any gesture the player still had a finger on", () => {
+      const bending: CardState = {
+        presentation: "Peeking",
+        recognizer: "Bending",
+        locked: false,
+      };
+      expect(reduce(bending, { type: "SHOWDOWN_REVEAL" })).toEqual(
+        lockedState("Turning"),
+      );
+    });
+  });
+
+  describe("a locked pair", () => {
+    it("is inert to activation — the hand is already decided", () => {
+      for (const presentation of ["Revealed", "Turning"] as const) {
+        expect(
+          reduce(lockedState(presentation), { type: "ACTIVATED" }),
+        ).toEqual(lockedState(presentation));
+      }
+    });
+
+    it("still lands its own flip on Revealed, and stays locked", () => {
+      expect(reduce(lockedState("Turning"), { type: "TURN_FINISHED" })).toEqual(
+        lockedState("Revealed"),
+      );
+    });
+
+    it("is not what a committed gesture produces — only showdown locks", () => {
+      // The recognizer reaches `Committed` on an ordinary bend past the reveal
+      // threshold. A player who bent their way to face-up must still be able
+      // to conceal, so the lock cannot live in the recognizer.
+      const bendCommitted: CardState = {
+        presentation: "Revealed",
+        recognizer: "Committed",
+        locked: false,
+      };
+      expect(reduce(bendCommitted, { type: "ACTIVATED" }).presentation).toBe(
+        "FaceDown",
+      );
+    });
+
+    it("unlocks on the next hand boundary, face-down and live again", () => {
+      expect(reduce(lockedState("Revealed"), { type: "DEALT" })).toEqual(
+        state("FaceDown"),
+      );
+      expect(reduce(lockedState("Revealed"), { type: "CARDS_GONE" })).toEqual(
+        state("Absent"),
       );
     });
   });
