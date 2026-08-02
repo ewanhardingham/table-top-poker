@@ -25,16 +25,19 @@ function props(overrides: Partial<HoleCardPairProps> = {}): HoleCardPairProps {
 const faceDown: CardState = {
   presentation: "FaceDown",
   recognizer: "Idle",
+  armed: false,
   locked: false,
 };
 const absent: CardState = {
   presentation: "Absent",
   recognizer: "Idle",
+  armed: false,
   locked: false,
 };
 const revealed: CardState = {
   presentation: "Revealed",
   recognizer: "Idle",
+  armed: false,
   locked: true,
 };
 

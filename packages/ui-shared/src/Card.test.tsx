@@ -18,6 +18,14 @@ describe("Card", () => {
     expect(html).toContain('data-face-down="true"');
   });
 
+  it("prints the index in both corners, the second rotated, as a real card is", () => {
+    const html = renderToStaticMarkup(<Card rank="Q" suit="diamonds" />);
+    expect(html.match(/class="card-index/g)).toHaveLength(2);
+    expect(html).toContain("rotate(180deg)");
+    // Both copies carry the rank, so a card lifted from either corner reads.
+    expect(html.match(/Q/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("never renders an <img> element, for either face", () => {
     const faceUp = renderToStaticMarkup(<Card rank="K" suit="hearts" />);
     const faceDown = renderToStaticMarkup(<Card faceDown />);

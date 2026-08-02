@@ -35,7 +35,7 @@ describe("HoleCardPair", () => {
       <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
     );
 
-    expect(html).toMatch(/^<button [^>]*type="button"/);
+    expect(html).toMatch(/<button [^>]*type="button"/);
     expect(html).toContain(
       'aria-label="Your hole cards, face down. Activate to reveal them."',
     );
@@ -75,5 +75,41 @@ describe("HoleCardPair", () => {
     expect(html).not.toMatch(/data-testid="hole-cards"/);
     expect(html).not.toContain("data-rank");
     expect(html).not.toContain("<button");
+  });
+
+  it("carries the bend affordance on both cards", () => {
+    // The recognizer hit-tests this attribute, so the classifier never needs
+    // to know where the corner is drawn.
+    const html = renderToStaticMarkup(
+      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+    );
+
+    expect((html.match(/data-bend-zone="true"/g) ?? []).length).toBe(2);
+  });
+
+  it("does not offer the bend affordance on a locked pair", () => {
+    const html = renderToStaticMarkup(
+      <HoleCardPair cards={queenJack} locked actions={actions} />,
+    );
+
+    expect(html).not.toContain("data-bend-zone");
+  });
+
+  it("takes the whole gesture from the browser, so a drag is never a pan and a double-tap never a zoom", () => {
+    const html = renderToStaticMarkup(
+      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+    );
+
+    expect(html).toContain("touch-action:none");
+    expect(html).toContain("-webkit-touch-callout:none");
+    expect(html).toContain("user-select:none");
+  });
+
+  it("renders no hint while the pair is settled", () => {
+    const html = renderToStaticMarkup(
+      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+    );
+
+    expect(html).not.toContain('data-testid="hole-cards-hint"');
   });
 });

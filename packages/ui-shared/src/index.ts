@@ -1,4 +1,10 @@
-export { Card } from "./Card.js";
+export {
+  Card,
+  cardIndexStyle,
+  cardIndexSuitStyle,
+  isRedSuit,
+  suitSymbols,
+} from "./Card.js";
 export type { CardProps } from "./Card.js";
 export { PillButton } from "./PillButton.js";
 export type {
