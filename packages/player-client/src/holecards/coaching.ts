@@ -18,6 +18,13 @@ export interface Hint {
   readonly id: string;
   readonly line1: string;
   readonly line2: string | null;
+  /**
+   * Whether the hint is news rather than advice, and should therefore reach a
+   * screen reader when it appears. Only the Check confirmation is: every
+   * teaching hint and in-gesture prompt describes what the player *could* do,
+   * and announcing those over a live gesture would be noise.
+   */
+  readonly announce: boolean;
 }
 
 export interface HintContext {
@@ -27,6 +34,8 @@ export interface HintContext {
   readonly locked: boolean;
   /** ~2s since the last contact with the pair. */
   readonly quiet: boolean;
+  /** A gesture Check landed moments ago and is still being confirmed (§5). */
+  readonly checkConfirmed: boolean;
 }
 
 /**
@@ -55,6 +64,12 @@ export function selectHint(
   _discovered: ReadonlySet<TeachableGesture>,
   ctx: HintContext,
 ): Hint | null {
+  // Outranks every gate below, including the pending one it necessarily trips:
+  // this is not advice about a gesture, it is the answer to one the player just
+  // made (story 31). Without it the only sign a double-tap landed is the
+  // ActionBar the gesture exists to stop them watching.
+  if (ctx.checkConfirmed) return checkedHint;
+
   // A hint is only ever advice about cards the player is actually holding, in
   // a moment where those cards will listen.
   if (ctx.pending || ctx.locked) return null;
@@ -70,10 +85,24 @@ export function selectHint(
   return null;
 }
 
+/**
+ * The visible confirmation a gesture Check lands with (story 31). It says the
+ * Action, not the gesture, because that is what the player needs to trust: the
+ * cards are already back face-down by the time it appears, so nothing else on
+ * this surface has changed to say the double-tap was heard.
+ */
+const checkedHint: Hint = {
+  id: "checked",
+  line1: "Checked",
+  line2: "your turn passed on",
+  announce: true,
+};
+
 const bendLeftHint: Hint = {
   id: "bending-left",
   line1: "Release to peek",
   line2: "keep bending to reveal both",
+  announce: false,
 };
 
 /**
@@ -85,4 +114,5 @@ const bendUpHint: Hint = {
   id: "bending-up",
   line1: "Release to peek",
   line2: "drag left to keep your finger clear",
+  announce: false,
 };

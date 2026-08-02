@@ -5,10 +5,15 @@ import {
   useLayoutEffect,
   useReducer,
   useRef,
+  useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { initialCardState, reduce, type CardState } from "./cardState.js";
-import { CLICK_DISOWN_MS, REVEAL_FINISH_MS } from "./constants.js";
+import {
+  CHECK_CONFIRM_MS,
+  CLICK_DISOWN_MS,
+  REVEAL_FINISH_MS,
+} from "./constants.js";
 import type { BendAxis } from "./geometry.js";
 import {
   beginGesture,
@@ -17,6 +22,7 @@ import {
   type GestureSession,
 } from "./gesture.js";
 import type { HoleCardPairProps } from "./HoleCardPair.js";
+import { confirmsCheck, tapLanded, type TapWindow } from "./taps.js";
 import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
 
 /**
@@ -46,6 +52,8 @@ export interface HoleCards {
   readonly bend: MotionValue<number>;
   /** Which way the live bend is going, for the §11 second-line swap. */
   readonly bendAxis: MotionValue<BendAxis>;
+  /** A gesture Check landed and is still being confirmed (story 31). */
+  readonly checkConfirmed: boolean;
 }
 
 /**
@@ -83,6 +91,18 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
    * a flag left waiting would swallow the next real activation instead.
    */
   const disownClicksUntil = useRef(0);
+  /**
+   * When the last tap landed, for the double-tap Check (§5). A ref, not state:
+   * a tap that opens the window changes nothing on screen, so re-rendering for
+   * it would be a render per touch with nothing to paint.
+   */
+  const tapWindow = useRef<TapWindow>(null);
+  /**
+   * When the last gesture Check was confirmed, or `null`. A timestamp rather
+   * than a flag, so two Checks in a row restart the cue instead of the second
+   * one landing silently inside the first one's window.
+   */
+  const [checkConfirmedAt, setCheckConfirmedAt] = useState<number | null>(null);
 
   const previous = useRef(props);
   // Deliberately un-keyed: the adapter compares the props itself and returns
@@ -156,10 +176,40 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     };
   }, []);
 
+  // The confirmation is transient by construction: nothing has to remember to
+  // take it down, and a re-check simply replaces the timestamp and the timer.
+  useEffect(() => {
+    if (checkConfirmedAt === null) return;
+    const timer = setTimeout(() => {
+      setCheckConfirmedAt(null);
+    }, CHECK_CONFIRM_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [checkConfirmedAt]);
+
   const activate = useCallback(() => {
     if (Date.now() < disownClicksUntil.current) return;
     dispatch({ type: "ACTIVATED" });
   }, []);
+
+  /**
+   * The double-tap Action (§5, stories 27 and 28). `check` **is**
+   * `intent.check`, so the gesture and the ActionBar button reach the Action
+   * by the identical route and `canAct` — inside the intent, on the latest
+   * view — is the single gate deciding whether it may be sent. An off-turn or
+   * illegal double-tap therefore needs no guard here to be a no-op.
+   *
+   * `checkLegal` and `pending` are read for **rendering only**, exactly as the
+   * port promises: they decide whether to claim the Check landed. A stale prop
+   * can at worst show a confirmation for an Action the intent then refuses —
+   * never send one.
+   */
+  const sendCheck = (): void => {
+    const confirm = confirmsCheck(props.actions);
+    props.actions.check();
+    if (confirm) setCheckConfirmedAt(Date.now());
+  };
 
   const finish = (
     event: ReactPointerEvent<HTMLElement>,
@@ -168,16 +218,34 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     const active = session.current;
     if (active?.pointerId !== event.pointerId) return;
     session.current = null;
-    if (active.classification !== null) {
-      disownClicksUntil.current = Date.now() + CLICK_DISOWN_MS;
-    }
+    // Every completed gesture disowns its click, a tap included: the tap is
+    // answered here, by the recognizer, and the click the browser synthesises
+    // afterwards would answer it a second time — re-revealing the pair the tap
+    // just concealed, or revealing on the first tap of a Check that §5 requires
+    // to cost nothing. §12's non-gesture path is unaffected: Enter and Space
+    // raise a click with no pointer sequence in front of it.
+    disownClicksUntil.current = Date.now() + CLICK_DISOWN_MS;
     // The peel closes the instant the finger lifts — a glance costs nothing
     // and leaves nothing exposed, so there is no wind-down to watch. A bend
     // that already crossed the threshold is exempt: it committed on crossing,
     // and the turn is mid-flight with the peel under its control.
     if (!active.crossed) bend.set(0);
     for (const cardEvent of endGesture(active, { cancelled })) {
-      dispatch(cardEvent);
+      if (cardEvent.type !== "TAPPED") {
+        dispatch(cardEvent);
+        continue;
+      }
+      // A tap is only *provisionally* a tap: whether it is one, or the second
+      // half of a Check, is `taps` to decide. The clock is monotonic, because
+      // a wall clock stepping backwards mid-hand would turn two unrelated taps
+      // into an Action.
+      const tap = tapLanded(tapWindow.current, performance.now());
+      tapWindow.current = tap.window;
+      dispatch(tap.event);
+      // Dispatched first, so the Action is sent against a pair that has
+      // already taken the conceal — the player sees the cards go down, then the
+      // confirmation, in that order and with no timer between them.
+      if (tap.event.type === "DOUBLE_TAPPED") sendCheck();
     }
   };
 
@@ -236,5 +304,12 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     },
   };
 
-  return { state, activate, handlers, bend, bendAxis };
+  return {
+    state,
+    activate,
+    handlers,
+    bend,
+    bendAxis,
+    checkConfirmed: checkConfirmedAt !== null,
+  };
 }

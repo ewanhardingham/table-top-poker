@@ -490,4 +490,64 @@ describe("reduce", () => {
       }
     });
   });
+
+  describe("TAPPED", () => {
+    it("conceals a revealed pair instantly", () => {
+      expect(reduce(state("Revealed"), { type: "TAPPED" })).toEqual(
+        state("FaceDown"),
+      );
+    });
+
+    it("does nothing to a face-down pair, so the first tap of a Check is free", () => {
+      // A tap that revealed would put a face-up frame between the two taps of
+      // a double-tap Check, and make the commonest free Action cost a reveal.
+      expect(reduce(state("FaceDown"), { type: "TAPPED" })).toEqual(
+        state("FaceDown"),
+      );
+    });
+
+    it("is a no-op mid-turn, exactly as an activation is", () => {
+      expect(reduce(state("Turning"), { type: "TAPPED" })).toEqual(
+        state("Turning"),
+      );
+    });
+
+    it("is a no-op with no cards, or with a Fold in flight", () => {
+      for (const presentation of ["Absent", "Leaving"] as const) {
+        expect(reduce(state(presentation), { type: "TAPPED" })).toEqual(
+          state(presentation),
+        );
+      }
+    });
+
+    it("is a no-op against a decided showdown", () => {
+      expect(reduce(lockedState("Revealed"), { type: "TAPPED" })).toEqual(
+        lockedState("Revealed"),
+      );
+    });
+  });
+
+  describe("DOUBLE_TAPPED", () => {
+    it("changes no presentation — the Check is an Action, not a card movement", () => {
+      // The first tap has already concealed; the second sends. Turning the
+      // cards over again here would undo the conceal the player just saw.
+      for (const presentation of [
+        "Absent",
+        "FaceDown",
+        "Turning",
+        "Revealed",
+        "Leaving",
+      ] as const) {
+        expect(reduce(state(presentation), { type: "DOUBLE_TAPPED" })).toEqual(
+          state(presentation),
+        );
+      }
+    });
+
+    it("is a no-op against a decided showdown", () => {
+      expect(
+        reduce(lockedState("Revealed"), { type: "DOUBLE_TAPPED" }),
+      ).toEqual(lockedState("Revealed"));
+    });
+  });
 });
