@@ -234,6 +234,17 @@ describe("Hand", () => {
       expect(html).not.toContain("Pair of Kings");
     });
 
+    it("hands the pair to showdown locked, so it renders revealed and inert", () => {
+      // `HoleCardPair.test.tsx` owns what locked *looks* like; the fact worth
+      // asserting here is that showdown is where the lock comes from.
+      const html = renderToStaticMarkup(
+        <Hand view={showdownView} seatId={0} />,
+      );
+
+      expect(html).toContain('data-presentation="Revealed"');
+      expect(html).toContain('aria-disabled="true"');
+    });
+
     it("shows the loser's own hole cards and a loss banner naming the winner", () => {
       const html = renderToStaticMarkup(
         <Hand view={showdownView} seatId={1} />,
@@ -253,6 +264,7 @@ describe("Hand", () => {
       );
 
       expect(html).toMatch(/data-testid="no-hole-cards"/);
+      expect(html).not.toMatch(/data-testid="hole-cards"/);
       expect(html).toContain("you folded earlier");
       expect(html).toContain("You folded — cards are in the muck.");
     });
@@ -267,6 +279,7 @@ describe("Hand", () => {
       expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="win"/);
       expect(html).toContain("You win — everyone folded");
       expect(html).toMatch(/data-testid="no-hole-cards"/);
+      expect(html).not.toMatch(/data-testid="hole-cards"/);
     });
 
     it("shows a loss banner naming the winner when this seat folded", () => {
@@ -276,6 +289,15 @@ describe("Hand", () => {
       expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="loss"/);
       expect(html).toContain("Seat 2 wins — everyone folded");
       expect(html).toContain("You folded — cards are in the muck.");
+    });
+
+    it("never reveals a pair for a seat that folded out — folding is final", () => {
+      const view: PlayerView = { phase: "folded-out", button: 0, winner: 1 };
+      const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
+
+      expect(html).not.toMatch(/data-testid="hole-cards"/);
+      expect(html).not.toContain("data-rank");
+      expect(html).not.toContain("data-presentation");
     });
   });
 });

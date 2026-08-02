@@ -112,8 +112,13 @@ function Absent() {
  * tickets; this establishes the seam it grows inside.
  */
 export function HoleCardPair(props: HoleCardPairProps) {
-  const { cards, locked } = props;
+  const { cards } = props;
   const { state, activate } = useHoleCards(props);
+  // The lifecycle's lock, not the prop: the prop is the *input* the adapter
+  // turns into `SHOWDOWN_REVEAL`, and once locked the pair stays locked until
+  // the next hand deals it back in. Rendering off the prop would let the two
+  // disagree about whether the button does anything.
+  const { locked } = state;
 
   if (cards === null) return <Absent />;
 
