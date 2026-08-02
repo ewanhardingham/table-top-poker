@@ -1,10 +1,14 @@
 import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
+import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface StatusBarProps {
   readonly roomCode: string | null;
   readonly connectionStatus: ConnectionStatus;
+  readonly showRoomCode: boolean;
+  readonly joinOpen: boolean;
+  readonly onToggleJoin: () => void;
 }
 
 const badgeTone: Record<
@@ -27,22 +31,40 @@ const badgeStyle: CSSProperties = {
 };
 
 /** No connection badge before a room exists — there's nothing to connect to yet. */
-export function StatusBar({ roomCode, connectionStatus }: StatusBarProps) {
+export function StatusBar({
+  roomCode,
+  connectionStatus,
+  showRoomCode,
+  joinOpen,
+  onToggleJoin,
+}: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
   return (
     <header
       style={{
         flex: "none",
         display: "flex",
-        justifyContent: "flex-end",
-        padding: "16px 22px 0",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "0.75em",
+        width: "100%",
+        minWidth: 0,
+        padding: "16px 22px",
       }}
     >
+      {roomCode !== null && showRoomCode && (
+        <JoinCodeToggle
+          roomCode={roomCode}
+          open={joinOpen}
+          onToggle={onToggleJoin}
+          placement="status-bar"
+        />
+      )}
       {roomCode !== null && (
         <span
           data-testid="connection-status"
           data-status={connectionStatus}
-          style={badgeStyle}
+          style={{ ...badgeStyle, flex: "none", marginLeft: "auto" }}
         >
           <span
             style={{
