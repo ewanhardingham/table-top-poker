@@ -14,3 +14,6 @@ coverage/
 # Local env overrides (e.g. DEV_ALLOWED_HOSTS)
 .env.local
 .env.*.local
+
+# Runtime state and logs for the local dev-server supervisor.
+.dev/
