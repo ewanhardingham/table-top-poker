@@ -4,15 +4,20 @@ import {
   reduce,
   type CardState,
   type Presentation,
+  type Recognizer,
 } from "./cardState.js";
 
-function state(presentation: Presentation): CardState {
-  return { presentation, recognizer: "Idle", locked: false };
+function state(
+  presentation: Presentation,
+  recognizer: Recognizer = "Idle",
+  armed = false,
+): CardState {
+  return { presentation, recognizer, armed, locked: false };
 }
 
 /** A showdown-locked pair: face-up and inert. */
 function lockedState(presentation: Presentation): CardState {
-  return { presentation, recognizer: "Idle", locked: true };
+  return { ...state(presentation), locked: true };
 }
 
 describe("initialCardState", () => {
@@ -120,6 +125,43 @@ describe("reduce", () => {
     });
   });
 
+  describe("BEND_CROSSED", () => {
+    it("commits the bend into the turn, so the peel lands face-up", () => {
+      expect(
+        reduce(state("Peeking", "Bending"), { type: "BEND_CROSSED" }),
+      ).toEqual(state("Turning", "Committed"));
+    });
+
+    it("is a no-op for a drag that is not a live bend", () => {
+      for (const recognizer of [
+        "Idle",
+        "Pressing",
+        "FoldDragging",
+        "Ignored",
+        "Committed",
+      ] as const) {
+        const before = state("Peeking", recognizer);
+        expect(reduce(before, { type: "BEND_CROSSED" })).toEqual(before);
+      }
+    });
+
+    it("survives the release that follows it — the commit is on crossing", () => {
+      // Lifting a finger after the threshold must not put the cards back down:
+      // `Turning` is a point of no return, so release only clears the
+      // recognizer and the flip finishes on its own.
+      const committed = reduce(state("Peeking", "Bending"), {
+        type: "BEND_CROSSED",
+      });
+      const released = reduce(committed, { type: "RELEASED" });
+
+      expect(released.presentation).toBe("Turning");
+      expect(released.recognizer).toBe("Idle");
+      expect(reduce(released, { type: "TURN_FINISHED" }).presentation).toBe(
+        "Revealed",
+      );
+    });
+  });
+
   describe("SHOWDOWN_REVEAL", () => {
     it("turns a live seat's cards face-up through the same flip the bend produces", () => {
       for (const presentation of ["FaceDown", "Peeking"] as const) {
@@ -154,11 +196,7 @@ describe("reduce", () => {
     });
 
     it("clears any gesture the player still had a finger on", () => {
-      const bending: CardState = {
-        presentation: "Peeking",
-        recognizer: "Bending",
-        locked: false,
-      };
+      const bending = state("Peeking", "Bending");
       expect(reduce(bending, { type: "SHOWDOWN_REVEAL" })).toEqual(
         lockedState("Turning"),
       );
@@ -174,6 +212,19 @@ describe("reduce", () => {
       }
     });
 
+    it("is inert to a finger as well as to the keyboard", () => {
+      // The lock is enforced once, above every arm, so a gesture cannot even
+      // begin against a decided hand: no press, and therefore nothing for a
+      // classification to land on.
+      const locked = lockedState("Revealed");
+      expect(reduce(locked, { type: "PRESSED" })).toEqual(locked);
+      expect(reduce(locked, { type: "CLASSIFIED", as: "Bending" })).toEqual(
+        locked,
+      );
+      expect(reduce(locked, { type: "RELEASED" })).toEqual(locked);
+      expect(reduce(locked, { type: "CANCELLED" })).toEqual(locked);
+    });
+
     it("still lands its own flip on Revealed, and stays locked", () => {
       expect(reduce(lockedState("Turning"), { type: "TURN_FINISHED" })).toEqual(
         lockedState("Revealed"),
@@ -184,11 +235,7 @@ describe("reduce", () => {
       // The recognizer reaches `Committed` on an ordinary bend past the reveal
       // threshold. A player who bent their way to face-up must still be able
       // to conceal, so the lock cannot live in the recognizer.
-      const bendCommitted: CardState = {
-        presentation: "Revealed",
-        recognizer: "Committed",
-        locked: false,
-      };
+      const bendCommitted = state("Revealed", "Committed");
       expect(reduce(bendCommitted, { type: "ACTIVATED" }).presentation).toBe(
         "FaceDown",
       );
@@ -221,6 +268,136 @@ describe("reduce", () => {
         expect(reduce(state(presentation), { type: "TURN_FINISHED" })).toEqual(
           state(presentation),
         );
+      }
+    });
+  });
+
+  describe("PRESSED", () => {
+    it("takes the pointer from a settled pair", () => {
+      expect(reduce(state("FaceDown"), { type: "PRESSED" })).toEqual(
+        state("FaceDown", "Pressing"),
+      );
+      expect(reduce(state("Revealed"), { type: "PRESSED" })).toEqual(
+        state("Revealed", "Pressing"),
+      );
+    });
+
+    it("ignores a second pointer landing mid-gesture — first pointer wins", () => {
+      for (const recognizer of [
+        "Pressing",
+        "Bending",
+        "FoldDragging",
+        "Ignored",
+        "Committed",
+      ] as const) {
+        const active = state("Peeking", recognizer);
+        expect(reduce(active, { type: "PRESSED" })).toEqual(active);
+      }
+    });
+
+    it("is a no-op with no cards in hand, and while the pair is leaving", () => {
+      expect(reduce(state("Absent"), { type: "PRESSED" })).toEqual(
+        state("Absent"),
+      );
+      expect(reduce(state("Leaving"), { type: "PRESSED" })).toEqual(
+        state("Leaving"),
+      );
+    });
+  });
+
+  describe("CLASSIFIED", () => {
+    it("opens the peel and moves the recognizer in one reduce", () => {
+      // Coupled, and therefore atomic: there is no intermediate state in which
+      // the recognizer is bending but the pair still presents face-down.
+      expect(
+        reduce(state("FaceDown", "Pressing"), {
+          type: "CLASSIFIED",
+          as: "Bending",
+        }),
+      ).toEqual(state("Peeking", "Bending"));
+    });
+
+    it("starts a fold drag without disturbing presentation", () => {
+      expect(
+        reduce(state("FaceDown", "Pressing"), {
+          type: "CLASSIFIED",
+          as: "FoldDragging",
+        }),
+      ).toEqual(state("FaceDown", "FoldDragging"));
+      expect(
+        reduce(state("Revealed", "Pressing"), {
+          type: "CLASSIFIED",
+          as: "FoldDragging",
+        }),
+      ).toEqual(state("Revealed", "FoldDragging"));
+    });
+
+    it("ignores an ambiguous drag without disturbing presentation", () => {
+      expect(
+        reduce(state("FaceDown", "Pressing"), {
+          type: "CLASSIFIED",
+          as: "Ignored",
+        }),
+      ).toEqual(state("FaceDown", "Ignored"));
+    });
+
+    it("is accepted only from Pressing, so classification is sticky", () => {
+      const bending = state("Peeking", "Bending");
+      expect(
+        reduce(bending, { type: "CLASSIFIED", as: "FoldDragging" }),
+      ).toEqual(bending);
+      expect(reduce(bending, { type: "CLASSIFIED", as: "Ignored" })).toEqual(
+        bending,
+      );
+    });
+
+    it("leaves Ignored terminal: a curve upward cannot become a fold", () => {
+      const ignored = state("FaceDown", "Ignored");
+      expect(
+        reduce(ignored, { type: "CLASSIFIED", as: "FoldDragging" }),
+      ).toEqual(ignored);
+    });
+
+    it("is a no-op from Idle, so a stray classification cannot start a gesture", () => {
+      expect(
+        reduce(state("FaceDown"), { type: "CLASSIFIED", as: "Bending" }),
+      ).toEqual(state("FaceDown"));
+    });
+  });
+
+  describe("RELEASED and CANCELLED", () => {
+    const endings = [{ type: "RELEASED" }, { type: "CANCELLED" }] as const;
+
+    it("closes the peek, so a glance leaves nothing exposed", () => {
+      for (const ending of endings) {
+        expect(reduce(state("Peeking", "Bending"), ending)).toEqual(
+          state("FaceDown"),
+        );
+      }
+    });
+
+    it("clears an ignored drag without changing what the pair is showing", () => {
+      for (const ending of endings) {
+        expect(reduce(state("Revealed", "Ignored"), ending)).toEqual(
+          state("Revealed"),
+        );
+        expect(reduce(state("FaceDown", "Ignored"), ending)).toEqual(
+          state("FaceDown"),
+        );
+      }
+    });
+
+    it("does not interrupt a committed turn — the flip finishes", () => {
+      for (const ending of endings) {
+        expect(reduce(state("Turning", "Committed"), ending)).toEqual(
+          state("Turning"),
+        );
+      }
+    });
+
+    it("is a no-op when no gesture is live", () => {
+      for (const ending of endings) {
+        expect(reduce(state("Revealed"), ending)).toEqual(state("Revealed"));
       }
     });
   });

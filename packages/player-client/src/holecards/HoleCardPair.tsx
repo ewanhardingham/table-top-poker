@@ -1,9 +1,16 @@
 import type { Card as CardType, Rank, Suit } from "@table-top-poker/protocol";
-import { color, radius } from "@table-top-poker/ui-shared";
-import { motion } from "motion/react";
+import { color, fontSize, radius } from "@table-top-poker/ui-shared";
+import { motion, useTransform, type MotionValue } from "motion/react";
 import { BendableCard } from "./BendableCard.js";
 import type { Presentation } from "./cardState.js";
+import {
+  selectHint,
+  type Hint,
+  type HintContext,
+  type TeachableGesture,
+} from "./coaching.js";
 import { DEAL_IN_MS } from "./constants.js";
+import type { BendAxis } from "./geometry.js";
 import type { CardActions } from "./ports.js";
 import { useHoleCards } from "./useHoleCards.js";
 
@@ -112,12 +119,14 @@ function Absent() {
  * tickets; this establishes the seam it grows inside.
  */
 export function HoleCardPair(props: HoleCardPairProps) {
-  const { cards } = props;
-  const { state, activate } = useHoleCards(props);
+  const { cards, actions } = props;
+  const { state, activate, handlers, bend, bendAxis } = useHoleCards(props);
   // The lifecycle's lock, not the prop: the prop is the *input* the adapter
   // turns into `SHOWDOWN_REVEAL`, and once locked the pair stays locked until
   // the next hand deals it back in. Rendering off the prop would let the two
-  // disagree about whether the button does anything.
+  // disagree about whether the button does anything — and the gesture
+  // recognizer gates on the same field, so pointer and keyboard cannot part
+  // company either.
   const { locked } = state;
 
   if (cards === null) return <Absent />;
@@ -128,52 +137,169 @@ export function HoleCardPair(props: HoleCardPairProps) {
   const presentation =
     state.presentation === "Absent" ? "FaceDown" : state.presentation;
 
+  const hintContext: HintContext = {
+    checkLegal: actions.checkLegal,
+    foldLegal: actions.foldLegal,
+    pending: actions.pending,
+    locked,
+    // The quiet interval only gates the teaching hints, which arrive with the
+    // discovery set they retire against (#147). In-gesture prompts never wait.
+    quiet: false,
+  };
+  // Both variants of the live hint, because the axis they swap on is a
+  // **continuous** value: choosing between them in React would re-render the
+  // pair every time a bend wandered across the diagonal (§13).
+  const hintDragLeft = selectHint(
+    { ...state, presentation, bendAxis: "left" },
+    nothingDiscovered,
+    hintContext,
+  );
+  const hintDragUp = selectHint(
+    { ...state, presentation, bendAxis: "up" },
+    nothingDiscovered,
+    hintContext,
+  );
+
   return (
-    <button
-      type="button"
-      data-testid="hole-cards"
-      data-presentation={presentation}
-      // A locked pair is inert but stays in the tab order and keeps its
-      // accessible name: at showdown that name is where a screen-reader user
-      // reads their own hand, and `disabled` would take it away.
-      onClick={locked ? undefined : activate}
-      aria-disabled={locked}
-      aria-label={accessibleName(cards, presentation, locked)}
+    <div
       style={{
         display: "flex",
-        padding: 0,
-        border: "none",
-        background: "none",
-        color: "inherit",
-        cursor: locked ? "default" : "pointer",
-        // Handling cards must not raise the OS text-selection or callout menu
-        // over them (§16).
-        userSelect: "none",
-        WebkitTouchCallout: "none",
-        touchAction: "manipulation",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "0.55em",
       }}
     >
-      <motion.span
-        // Keyed on card identity so a new hand replays the deal-in: the cards
-        // arrive face-down (§17), replacing `Hand`'s per-card face-up deal
-        // animation. The key is on the motion element, not the component, so
-        // it restarts an animation without discarding lifecycle state —
-        // `DEALT` stays the one thing that resets presentation.
-        key={cardKey(cards)}
-        initial={{ opacity: 0, y: "-18%" }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: DEAL_IN_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
-        style={{ display: "flex", gap: "0.5em", fontSize: "2.6em" }}
+      <button
+        type="button"
+        data-testid="hole-cards"
+        data-presentation={presentation}
+        // A locked pair is inert but stays in the tab order and keeps its
+        // accessible name: at showdown that name is where a screen-reader user
+        // reads their own hand, and `disabled` would take it away.
+        onClick={locked ? undefined : activate}
+        // Long-press must not raise the OS callout menu over the cards (§16).
+        onContextMenu={preventDefault}
+        {...(locked ? {} : handlers)}
+        aria-disabled={locked}
+        aria-label={accessibleName(cards, presentation, locked)}
+        style={{
+          display: "flex",
+          padding: 0,
+          border: "none",
+          background: "none",
+          color: "inherit",
+          cursor: locked ? "default" : "pointer",
+          // Handling cards must not raise the OS text-selection or callout
+          // menu over them, and the browser must not claim the vertical drag
+          // as a pan or the second tap as a zoom (§16). The app shell is fixed
+          // and non-scrolling, so nothing is lost by taking the whole gesture.
+          userSelect: "none",
+          WebkitTouchCallout: "none",
+          WebkitUserSelect: "none",
+          touchAction: "none",
+        }}
       >
-        {cards.map((card, index) => (
-          <BendableCard
-            key={index}
-            card={card}
-            tiltDegrees={index === 0 ? -3 : 3}
-            presentation={presentation}
-          />
-        ))}
+        <motion.span
+          // Keyed on card identity so a new hand replays the deal-in: the cards
+          // arrive face-down (§17), replacing `Hand`'s per-card face-up deal
+          // animation. The key is on the motion element, not the component, so
+          // it restarts an animation without discarding lifecycle state —
+          // `DEALT` stays the one thing that resets presentation.
+          key={cardKey(cards)}
+          initial={{ opacity: 0, y: "-18%" }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: DEAL_IN_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
+          style={{ display: "flex", gap: "0.5em", fontSize: "2.6em" }}
+        >
+          {cards.map((card, index) => (
+            <BendableCard
+              key={index}
+              card={card}
+              tiltDegrees={index === 0 ? -3 : 3}
+              presentation={presentation}
+              bend={bend}
+            />
+          ))}
+        </motion.span>
+      </button>
+      <GestureHint
+        dragLeft={hintDragLeft}
+        dragUp={hintDragUp}
+        axis={bendAxis}
+      />
+    </div>
+  );
+}
+
+const nothingDiscovered: ReadonlySet<TeachableGesture> = new Set();
+
+function preventDefault(event: { preventDefault: () => void }) {
+  event.preventDefault();
+}
+
+/**
+ * The one hint the selector chose, if any. The pair renders it itself: the
+ * selector is module-internal because every in-gesture hint depends on
+ * recognizer state nothing outside the module may see (§11).
+ *
+ * Where the two variants differ, both are in the document at once and the axis
+ * `MotionValue` decides which is visible — so a bend that wanders across the
+ * diagonal swaps the advice without re-rendering anything. That pair is hidden
+ * from assistive technology, because two contradictory instructions are both
+ * present and only the sighted player can see which one applies; the pair's own
+ * `aria-label` is the non-visual path, and every Action keeps its button.
+ */
+function GestureHint({
+  dragLeft,
+  dragUp,
+  axis,
+}: {
+  readonly dragLeft: Hint | null;
+  readonly dragUp: Hint | null;
+  readonly axis: MotionValue<BendAxis>;
+}) {
+  const leftOpacity = useTransform(axis, (value) => (value === "left" ? 1 : 0));
+  const upOpacity = useTransform(axis, (value) => (value === "up" ? 1 : 0));
+
+  if (dragLeft === null || dragUp === null) return null;
+
+  // One hint, not two: the axis is only a distinction while a bend is live.
+  if (dragLeft.id === dragUp.id) return <HintBlock hint={dragLeft} />;
+
+  return (
+    <span
+      aria-hidden="true"
+      // Stacked in one grid cell so the swap costs no layout. Each variant
+      // carries both its own lines, so neither depends on the other's copy.
+      style={{ display: "grid" }}
+    >
+      <motion.span style={{ gridArea: "1 / 1", opacity: leftOpacity }}>
+        <HintBlock hint={dragLeft} />
       </motion.span>
-    </button>
+      <motion.span style={{ gridArea: "1 / 1", opacity: upOpacity }}>
+        <HintBlock hint={dragUp} />
+      </motion.span>
+    </span>
+  );
+}
+
+function HintBlock({ hint }: { readonly hint: Hint }) {
+  return (
+    <p
+      data-testid="hole-cards-hint"
+      data-hint={hint.id}
+      style={{
+        margin: 0,
+        display: "grid",
+        justifyItems: "center",
+        gap: "0.15em",
+        fontSize: fontSize.caption,
+        lineHeight: 1.25,
+        color: color.textMuted,
+      }}
+    >
+      <span style={{ color: color.text }}>{hint.line1}</span>
+      {hint.line2 !== null && <span>{hint.line2}</span>}
+    </p>
   );
 }

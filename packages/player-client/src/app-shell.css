@@ -46,3 +46,20 @@ body {
   gap: 14px;
   padding: 10px 18px 24px;
 }
+
+/* The lifted flap carries exactly one index: the remapped one in
+ * `BendableCard`, pinned to the tip where the fold actually uncovers it.
+ *
+ * The face's own corner indices are printed for a card lying flat. Once the
+ * sheet is rotated about the fold they land wherever the rotation puts them —
+ * on a deep bend that put a second, sideways-on rank on the flap next to the
+ * upright one. They belong to the flat card, so they are hidden here and here
+ * only; the same `Card` renders them normally everywhere else.
+ *
+ * `!important` is load-bearing, not decoration: `Card` sets `display: flex` as
+ * an inline style, and an inline style beats an ordinary rule however specific
+ * it is. Without it this declaration silently loses and the rank prints twice
+ * again. */
+.peel-back .card-index {
+  display: none !important;
+}
