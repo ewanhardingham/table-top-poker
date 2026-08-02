@@ -1,4 +1,4 @@
-import { PillButton, color } from "@table-top-poker/ui-shared";
+import { PillButton } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
 
 export interface TableControlsProps {
@@ -46,8 +46,6 @@ export function TableControls({
   const layoutStyle: CSSProperties =
     placement === "join-panel"
       ? {
-          position: "relative",
-          zIndex: 15,
           display: "flex",
           flexDirection: "row",
           width: "26em",
@@ -69,16 +67,6 @@ export function TableControls({
     placement === "join-panel"
       ? { flex: "1 1 0", minWidth: 0 }
       : { width: "100%" };
-  const disabledStartStyle: CSSProperties =
-    placement === "join-panel" && !canStartHand
-      ? {
-          background: color.controlFill,
-          color: color.disabledText,
-          border: `1px solid ${color.border}`,
-          boxShadow: "none",
-          cursor: "default",
-        }
-      : {};
 
   return (
     <div data-placement={placement} style={layoutStyle}>
@@ -87,7 +75,7 @@ export function TableControls({
           data-testid="start-hand-button"
           disabled={placement === "join-panel" && !canStartHand}
           onClick={onStartHand}
-          style={{ ...actionButtonStyle, ...disabledStartStyle }}
+          style={actionButtonStyle}
         >
           Deal hand
         </PillButton>
