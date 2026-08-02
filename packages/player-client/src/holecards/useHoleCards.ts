@@ -9,12 +9,24 @@ import {
   useState,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { initialCardState, reduce, type CardState } from "./cardState.js";
+import {
+  initialCardState,
+  reduce,
+  type CardEvent,
+  type CardState,
+} from "./cardState.js";
+import {
+  discoveredBy,
+  nextTeachable,
+  type HintContext,
+  type TeachableGesture,
+} from "./coaching.js";
 import {
   CHECK_CONFIRM_MS,
   CLICK_DISOWN_MS,
   FOLD_FLIGHT_MS,
   HAPTIC_PULSE_MS,
+  HINT_QUIET_MS,
   REVEAL_FINISH_MS,
 } from "./constants.js";
 import {
@@ -29,6 +41,7 @@ import {
   type GestureSession,
 } from "./gesture.js";
 import { pulse } from "./haptics.js";
+import { loadDiscovered, saveDiscovered } from "./hintStorage.js";
 import type { HoleCardPairProps } from "./HoleCardPair.js";
 import { confirmsCheck, tapLanded, type TapWindow } from "./taps.js";
 import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
@@ -81,8 +94,41 @@ export interface HoleCards {
    * (story 20). The pair renders from here once the props no longer carry it.
    */
   readonly departing: readonly [Card, Card] | null;
-  /** A gesture Check landed and is still being confirmed (story 31). */
-  readonly checkConfirmed: boolean;
+  /**
+   * Everything the hint selector needs from outside the card lifecycle,
+   * assembled here rather than in the component: the Action port, the pointer
+   * kind, the quiet interval and the Check confirmation are all things this
+   * hook already holds or watches, and passing them out one at a time only to
+   * be re-bundled would put the same seven fields in two places.
+   */
+  readonly hintContext: HintContext;
+  /** The gestures this device has already found, for the teaching hints. */
+  readonly discovered: ReadonlySet<TeachableGesture>;
+}
+
+/**
+ * `window.localStorage`, or `null` where there is none to reach: server
+ * rendering, and the browsers that throw on the property itself when storage is
+ * disabled. A player without it is simply taught the gestures again next time.
+ */
+function localStorageOrNull(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The touch gate (§11): the **primary** pointer, subscribed rather than read
+ * once, so a tablet that gains or loses a trackpad follows the pointer the
+ * player is actually using. `any-pointer: coarse` is deliberately not asked —
+ * it is true for any touchscreen laptop, exactly the case the gate excludes.
+ */
+function coarsePointerQuery(): MediaQueryList | null {
+  if (typeof window === "undefined") return null;
+  return window.matchMedia("(pointer: coarse)");
 }
 
 /**
@@ -151,6 +197,32 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
    * one landing silently inside the first one's window.
    */
   const [checkConfirmedAt, setCheckConfirmedAt] = useState<number | null>(null);
+  /**
+   * The teaching hints' two live inputs and their memory (§11).
+   *
+   * `contact` is a finger on the pair; `quiet` is the ~2s of stillness a hint
+   * waits for. They are separate because a hint hides the *instant* a pointer
+   * lands and only returns after the interval — an aborted half-touch does not
+   * buy silence for the rest of the hand.
+   */
+  const [discovered, setDiscovered] = useState<ReadonlySet<TeachableGesture>>(
+    () => {
+      const storage = localStorageOrNull();
+      return storage === null ? new Set() : loadDiscovered(storage);
+    },
+  );
+  /**
+   * Every pointer currently down on the pair, not just the one the recognizer
+   * is answering. A stray second thumb is ignored as a *gesture* (§4), but it
+   * is still a finger on the cards, and lifting it must not restart the quiet
+   * interval underneath the finger that is still there.
+   */
+  const pointersDown = useRef<Set<number>>(new Set());
+  const [contact, setContact] = useState(false);
+  const [quiet, setQuiet] = useState(false);
+  const [coarsePointer, setCoarsePointer] = useState(
+    () => coarsePointerQuery()?.matches ?? false,
+  );
 
   const previous = useRef(props);
   // Deliberately un-keyed: the adapter compares the props itself and returns
@@ -313,6 +385,63 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     };
   }, [checkConfirmedAt]);
 
+  // Which gesture is up for teaching, if any. Only its *identity* is used here
+  // — to know when the interval below should start over — so a legality prop
+  // flapping without changing the answer costs nothing.
+  const teachable = nextTeachable(state, discovered, props.actions);
+
+  /**
+   * The quiet interval: ~2s of no contact with the pair **after the hint became
+   * eligible** (§11).
+   *
+   * Keyed on the eligible gesture as well as on contact, which is what makes it
+   * an interval rather than a one-time delay: a hint the player half-reached for
+   * comes back after another quiet moment, and Fold does not appear the instant
+   * a turn makes it legal.
+   */
+  useEffect(() => {
+    setQuiet(false);
+    if (contact) return;
+    const timer = setTimeout(() => {
+      setQuiet(true);
+    }, HINT_QUIET_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [contact, teachable]);
+
+  // Subscribed, not read once (§11): a tablet that gains or loses a trackpad
+  // follows the pointer the player is holding it with now.
+  useEffect(() => {
+    const query = coarsePointerQuery();
+    if (query === null) return;
+    const onChange = (event: MediaQueryListEvent) => {
+      setCoarsePointer(event.matches);
+    };
+    setCoarsePointer(query.matches);
+    query.addEventListener("change", onChange);
+    return () => {
+      query.removeEventListener("change", onChange);
+    };
+  }, []);
+
+  /**
+   * A card event on its way to the reducer, checked for what it teaches on the
+   * way past. Discovery is decided by `discoveredBy` — a pure rule — and every
+   * event that reaches here came from a finger on the pair, which is what makes
+   * "never on a button" true by construction rather than by discipline.
+   */
+  const dispatchFromPointer = (event: CardEvent): void => {
+    const found = discoveredBy(event, state);
+    if (found !== null && !discovered.has(found)) {
+      const next = new Set(discovered).add(found);
+      const storage = localStorageOrNull();
+      if (storage !== null) saveDiscovered(storage, next);
+      setDiscovered(next);
+    }
+    dispatch(event);
+  };
+
   const activate = useCallback(() => {
     if (Date.now() < disownClicksUntil.current) return;
     dispatch({ type: "ACTIVATED" });
@@ -390,7 +519,7 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     let tapped = false;
     for (const cardEvent of events) {
       if (cardEvent.type !== "TAPPED") {
-        dispatch(cardEvent);
+        dispatchFromPointer(cardEvent);
         continue;
       }
       // A tap is only *provisionally* a tap: whether it is one, or the second
@@ -400,7 +529,7 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
       const tap = tapLanded(tapWindow.current, performance.now());
       tapWindow.current = tap.window;
       tapped = true;
-      dispatch(tap.event);
+      dispatchFromPointer(tap.event);
       // Dispatched first, so the Action is sent against a pair that has
       // already taken the conceal — the player sees the cards go down, then the
       // confirmation, in that order and with no timer between them.
@@ -423,8 +552,28 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     if (commits) props.actions.fold();
   };
 
+  /**
+   * Contact with the pair, tracked for the hint timer alone — separately from
+   * `finish`, which answers only the pointer that owns the gesture. A hint must
+   * not reappear under a second finger the recognizer is ignoring, so the pair
+   * is being touched until *every* pointer has left it.
+   */
+  const contacted = (event: ReactPointerEvent<HTMLElement>): void => {
+    pointersDown.current.add(event.pointerId);
+    setContact(true);
+    setQuiet(false);
+  };
+
+  const released = (event: ReactPointerEvent<HTMLElement>): void => {
+    pointersDown.current.delete(event.pointerId);
+    if (pointersDown.current.size === 0) setContact(false);
+  };
+
   const handlers: PairHandlers = {
     onPointerDown: (event) => {
+      // Before every guard below: instruction yields to a finger on the glass
+      // whether or not the recognizer takes any interest in this one.
+      contacted(event);
       // A second finger landing mid-gesture is ignored until the first one
       // releases or cancels: a stray thumb must not silently retarget a drag.
       if (session.current !== null || event.button !== 0) return;
@@ -478,17 +627,20 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
         // arming signal proper is the card motion and the in-gesture text, both
         // of which the iPhone/Safari path has and this pulse it does not (§16).
         if (cardEvent.type === "FOLD_ARMED") pulse(HAPTIC_PULSE_MS);
-        dispatch(cardEvent);
+        dispatchFromPointer(cardEvent);
       }
     },
 
     onPointerUp: (event) => {
+      released(event);
       finish(event, false);
     },
     onPointerCancel: (event) => {
+      released(event);
       finish(event, true);
     },
     onLostPointerCapture: (event) => {
+      released(event);
       finish(event, true);
     },
   };
@@ -503,6 +655,17 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     foldFade,
     leavingFaceUp,
     departing,
-    checkConfirmed: checkConfirmedAt !== null,
+    hintContext: {
+      checkLegal: props.actions.checkLegal,
+      foldLegal: props.actions.foldLegal,
+      pending: props.actions.pending,
+      // The lifecycle's lock rather than the prop, so the hints fall silent at
+      // exactly the moment the cards stop listening.
+      locked: state.locked,
+      coarsePointer,
+      quiet,
+      checkConfirmed: checkConfirmedAt !== null,
+    },
+    discovered,
   };
 }

@@ -8,7 +8,7 @@ import {
   suitSymbols,
 } from "@table-top-poker/ui-shared";
 import { type MotionValue } from "motion/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import {
   PeelBack,
   PeelBottom,
@@ -17,7 +17,7 @@ import {
   type PeelRef,
 } from "react-peel";
 import type { Presentation } from "./cardState.js";
-import { REVEAL_THRESHOLD } from "./constants.js";
+import { BEND_CORNER, REVEAL_THRESHOLD } from "./constants.js";
 
 /**
  * The player-side wrapper around the shared `Card` (Phase 3 spec #138 §14).
@@ -235,6 +235,15 @@ function CurlIndex({
 const CURL_TRAVEL = 0.86;
 
 /**
+ * The two sides the affordance is pinned to, from the one constant the coaching
+ * copy also names its corner from — so the zone and the words that describe it
+ * cannot drift apart.
+ */
+function cornerOffsets(inset: string | number): CSSProperties {
+  return { [BEND_CORNER.vertical]: inset, [BEND_CORNER.horizontal]: inset };
+}
+
+/**
  * The affordance the whole gesture hangs off: a corner that looks liftable.
  * `data-bend-zone` is what the recognizer hit-tests against, so the classifier
  * never needs to know where the corner is drawn — and the coaching copy can
@@ -247,8 +256,7 @@ function BendZone() {
       aria-hidden="true"
       style={{
         position: "absolute",
-        right: 0,
-        bottom: 0,
+        ...cornerOffsets(0),
         width: "1.5em",
         height: "1.5em",
         borderBottomRightRadius: "0.2em",
@@ -257,8 +265,7 @@ function BendZone() {
       <span
         style={{
           position: "absolute",
-          right: "0.18em",
-          bottom: "0.18em",
+          ...cornerOffsets("0.18em"),
           width: "0.5em",
           height: "0.5em",
           borderRight: "2px solid rgba(255,236,226,.72)",

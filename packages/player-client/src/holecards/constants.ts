@@ -40,6 +40,14 @@ export const FOLD_FLIGHT_MS = 280;
 export const HINT_QUIET_MS = 2000;
 
 /**
+ * Which corner of a card the bend affordance is drawn in — and therefore the
+ * corner the coaching copy names (§11). Stated once, here, because "bend the
+ * bottom-right corner" must **track the rendered zone** rather than be
+ * hard-coded: if the overlapped layout ever mirrors, the words follow it.
+ */
+export const BEND_CORNER = { vertical: "bottom", horizontal: "right" } as const;
+
+/**
  * How long after a classified gesture a synthetic `click` is disowned, in ms.
  * Not a §15 constant — §16 requires the suppression but sets no window.
  *
