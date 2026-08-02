@@ -184,6 +184,18 @@ export function App() {
                 lobbyHint={lobbyHint}
                 dismissable={handInProgress}
                 onDismiss={toggleJoin}
+                controls={
+                  !handInProgress ? (
+                    <TableControls
+                      placement="join-panel"
+                      canStartHand={canStartHand}
+                      handComplete={handComplete}
+                      onStartHand={handleStartHand}
+                      onNextHand={handleNextHand}
+                      onEndSession={handleEndSession}
+                    />
+                  ) : undefined
+                }
               />
             )}
             <SettingsToggle
@@ -204,13 +216,15 @@ export function App() {
                 }}
               />
             )}
-            <TableControls
-              canStartHand={canStartHand}
-              handComplete={handComplete}
-              onStartHand={handleStartHand}
-              onNextHand={handleNextHand}
-              onEndSession={handleEndSession}
-            />
+            {handInProgress && (
+              <TableControls
+                canStartHand={canStartHand}
+                handComplete={handComplete}
+                onStartHand={handleStartHand}
+                onNextHand={handleNextHand}
+                onEndSession={handleEndSession}
+              />
+            )}
           </div>
         )}
       </main>

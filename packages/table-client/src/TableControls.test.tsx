@@ -51,4 +51,42 @@ describe("TableControls", () => {
     expect(html).not.toContain('data-testid="next-hand-button"');
     expect(html).toContain('data-testid="end-session-button"');
   });
+
+  it("places lobby controls below the join panel", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        placement="join-panel"
+        canStartHand
+        handComplete={false}
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+      />,
+    );
+
+    expect(html).toContain('data-placement="join-panel"');
+    expect(html).toContain("flex-direction:row");
+    expect(html).toContain("position:relative");
+    expect(html).toContain("z-index:15");
+    expect(html).not.toContain("position:absolute");
+    expect(html).toContain('data-testid="start-hand-button"');
+    expect(html).toContain('data-testid="end-session-button"');
+  });
+
+  it("keeps Deal hand visible but disabled until enough players are seated", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        placement="join-panel"
+        canStartHand={false}
+        handComplete={false}
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+      />,
+    );
+
+    expect(html).toMatch(/data-testid="start-hand-button"[^>]*disabled/);
+    expect(html).toContain("background:rgba(255,255,255,.04)");
+    expect(html).toContain('data-testid="end-session-button"');
+  });
 });

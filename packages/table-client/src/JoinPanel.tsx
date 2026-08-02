@@ -5,7 +5,7 @@ import {
   fontSize,
   radius,
 } from "@table-top-poker/ui-shared";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 export interface JoinPanelProps {
   readonly roomCode: string;
@@ -14,6 +14,7 @@ export interface JoinPanelProps {
   readonly lobbyHint: string;
   readonly dismissable: boolean;
   readonly onDismiss: () => void;
+  readonly controls?: ReactNode;
 }
 
 const overlayStyle: CSSProperties = {
@@ -28,6 +29,14 @@ const overlayStyle: CSSProperties = {
   // whole felt — without this, its invisible edges swallow clicks on
   // whatever sits behind them, like the "Deal hand" control in the
   // bottom-right rail. Only the panel itself should be clickable.
+  pointerEvents: "none",
+};
+
+const overlayContentStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: "1em",
   pointerEvents: "none",
 };
 
@@ -65,89 +74,93 @@ export function JoinPanel({
   lobbyHint,
   dismissable,
   onDismiss,
+  controls,
 }: JoinPanelProps) {
   return (
     <div style={overlayStyle} data-testid="join-panel">
-      <Panel style={panelStyle}>
-        <div style={qrPlateStyle}>
-          {qrCodeDataUrl && (
-            <img
-              data-testid="join-panel-qr"
-              src={qrCodeDataUrl}
-              alt={`Scan to join at ${joinUrl ?? ""}`}
-              width={140}
-              height={140}
-            />
-          )}
-        </div>
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 10,
-            alignItems: "flex-start",
-          }}
-        >
-          <span style={{ ...kickerStyle, fontSize: fontSize.sm }}>
-            Scan or enter code
-          </span>
-          <span
-            data-testid="join-panel-code"
+      <div style={overlayContentStyle}>
+        <Panel style={panelStyle}>
+          <div style={qrPlateStyle}>
+            {qrCodeDataUrl && (
+              <img
+                data-testid="join-panel-qr"
+                src={qrCodeDataUrl}
+                alt={`Scan to join at ${joinUrl ?? ""}`}
+                width={140}
+                height={140}
+              />
+            )}
+          </div>
+          <div
             style={{
-              fontFamily: font.mono,
-              fontWeight: 700,
-              fontSize: fontSize.jumbo,
-              lineHeight: 0.92,
-              letterSpacing: "0.1em",
-              color: color.text,
-              textShadow: "0 4px 30px rgba(229,68,60,.4)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              alignItems: "flex-start",
             }}
           >
-            {roomCode}
-          </span>
-          {joinUrl && (
+            <span style={{ ...kickerStyle, fontSize: fontSize.sm }}>
+              Scan or enter code
+            </span>
             <span
+              data-testid="join-panel-code"
               style={{
                 fontFamily: font.mono,
-                fontSize: fontSize.sm,
-                color: color.textFaint,
+                fontWeight: 700,
+                fontSize: fontSize.jumbo,
+                lineHeight: 0.92,
+                letterSpacing: "0.1em",
+                color: color.text,
+                textShadow: "0 4px 30px rgba(229,68,60,.4)",
               }}
             >
-              {joinUrl}
+              {roomCode}
             </span>
-          )}
-          <div
-            data-testid="join-panel-hint"
-            style={{
-              marginTop: 8,
-              fontSize: fontSize.md,
-              color: color.textDim,
-            }}
-          >
-            {lobbyHint}
-          </div>
-          {dismissable && (
-            <button
-              type="button"
-              data-testid="join-panel-dismiss"
-              onClick={onDismiss}
+            {joinUrl && (
+              <span
+                style={{
+                  fontFamily: font.mono,
+                  fontSize: fontSize.sm,
+                  color: color.textFaint,
+                }}
+              >
+                {joinUrl}
+              </span>
+            )}
+            <div
+              data-testid="join-panel-hint"
               style={{
-                ...kickerStyle,
-                marginTop: 10,
-                padding: "12px 22px",
-                borderRadius: radius.pill,
-                border: `1px solid ${color.border}`,
-                background: "transparent",
-                fontSize: fontSize.xs,
-                fontWeight: 600,
-                letterSpacing: "0.18em",
+                marginTop: 8,
+                fontSize: fontSize.md,
+                color: color.textDim,
               }}
             >
-              Hide
-            </button>
-          )}
-        </div>
-      </Panel>
+              {lobbyHint}
+            </div>
+            {dismissable && (
+              <button
+                type="button"
+                data-testid="join-panel-dismiss"
+                onClick={onDismiss}
+                style={{
+                  ...kickerStyle,
+                  marginTop: 10,
+                  padding: "12px 22px",
+                  borderRadius: radius.pill,
+                  border: `1px solid ${color.border}`,
+                  background: "transparent",
+                  fontSize: fontSize.xs,
+                  fontWeight: 600,
+                  letterSpacing: "0.18em",
+                }}
+              >
+                Hide
+              </button>
+            )}
+          </div>
+        </Panel>
+        {controls}
+      </div>
     </div>
   );
 }
