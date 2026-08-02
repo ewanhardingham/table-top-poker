@@ -1,4 +1,8 @@
-import { BEND_TRAVEL_PX } from "./constants.js";
+import {
+  BEND_TRAVEL_PX,
+  FOLD_DISTANCE_RATIO,
+  MIN_FOLD_DISTANCE_PX,
+} from "./constants.js";
 
 /** Which way a live bend is mostly going — the §11 hint swaps on it. */
 export type BendAxis = "left" | "up";
@@ -27,4 +31,30 @@ export function bendProgress(dx: number, dy: number): number {
  */
 export function bendAxis(dx: number, dy: number): BendAxis {
   return Math.abs(dy) >= Math.abs(dx) ? "up" : "left";
+}
+
+/**
+ * How far up the pair must travel before releasing would commit the Fold
+ * (§15), in px — a **distance**, so the caller compares it against upward
+ * travel rather than against a coordinate.
+ *
+ * Proportional to the viewport so the swipe is the same gesture on every
+ * phone, with a floor so a short or split-screen window cannot put the one
+ * irreversible, money-losing Action inside an ordinary thumb flick.
+ */
+export function foldThreshold(viewportHeight: number): number {
+  return Math.max(
+    MIN_FOLD_DISTANCE_PX,
+    Math.round(viewportHeight * FOLD_DISTANCE_RATIO),
+  );
+}
+
+/**
+ * How far the committed pair travels on its way to the muck. Far enough to be
+ * off the screen rather than merely above the cards: the departure has to read
+ * as *gone*, and the pair starts the flight already at least a threshold's
+ * worth of travel up.
+ */
+export function foldFlightDistance(viewportHeight: number): number {
+  return Math.max(viewportHeight, foldThreshold(viewportHeight) * 2);
 }

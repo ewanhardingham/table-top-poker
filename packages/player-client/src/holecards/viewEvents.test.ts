@@ -165,6 +165,57 @@ describe("eventsForPropChange", () => {
     ).toEqual([]);
   });
 
+  describe("a resolving Action", () => {
+    const pending = { ...actions, pending: true };
+    /** The pair mid-flight to the muck, waiting on the server's answer. */
+    const leaving: CardState = {
+      presentation: "Leaving",
+      recognizer: "Idle",
+      armed: false,
+      locked: false,
+    };
+
+    it("acknowledges the Fold: the cards are gone and stay gone", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, actions: pending }),
+          props(),
+          leaving,
+        ),
+      ).toEqual([
+        { type: "CARDS_GONE" },
+        { type: "PENDING_RESOLVED", hasCards: false },
+      ]);
+    });
+
+    it("rejects the Fold: the cards are still in hand, so they come back", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, actions: pending }),
+          props({ cards: queenJack }),
+          leaving,
+        ),
+      ).toEqual([{ type: "PENDING_RESOLVED", hasCards: true }]);
+    });
+
+    it("produces nothing while the Action is still in flight", () => {
+      const before = props({ cards: queenJack, actions: pending });
+      expect(eventsForPropChange(before, { ...before }, leaving)).toEqual([]);
+    });
+
+    it("produces nothing when an Action *starts* — sending is not a lifecycle event", () => {
+      // The pair moved itself to `Leaving` on the release that sent the Fold;
+      // the prop going true afterwards has nothing left to say.
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack }),
+          props({ cards: queenJack, actions: pending }),
+          leaving,
+        ),
+      ).toEqual([]);
+    });
+  });
+
   describe("showdown", () => {
     it("reveals when locked goes false → true", () => {
       expect(

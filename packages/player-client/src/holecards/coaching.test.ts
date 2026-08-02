@@ -24,11 +24,12 @@ function bending(
 function idle(
   presentation: Presentation,
   recognizer: Recognizer = "Idle",
+  armed = false,
 ): CardState & { readonly bendAxis: BendAxis } {
   return {
     presentation,
     recognizer,
-    armed: false,
+    armed,
     locked: false,
     bendAxis: "left",
   };
@@ -98,6 +99,58 @@ describe("selectHint", () => {
       expect(
         selectHint(bending("left"), nothingDiscovered, ctx({ quiet: false })),
       ).not.toBeNull();
+    });
+  });
+
+  describe("in-gesture fold prompts", () => {
+    function foldDragging(armed: boolean) {
+      return idle("FaceDown", "FoldDragging", armed);
+    }
+
+    it("says to keep going while the swipe is short of the threshold", () => {
+      expect(selectHint(foldDragging(false), nothingDiscovered, ctx())).toEqual(
+        {
+          id: "folding",
+          line1: "Keep dragging up",
+          line2: null,
+          announce: false,
+        },
+      );
+    });
+
+    it("says releasing folds once the swipe is armed", () => {
+      expect(selectHint(foldDragging(true), nothingDiscovered, ctx())).toEqual({
+        id: "folding-armed",
+        line1: "Release to Fold",
+        line2: null,
+        announce: false,
+      });
+    });
+
+    it("returns both prompts regardless of the discovery set", () => {
+      // The arming signal for the one irreversible, money-losing gesture never
+      // retires, for any player, ever: there is no rendered threshold marker
+      // and haptics are Blink-only, so on iPhone/Safari this text *is* the
+      // signal (§11).
+      for (const armed of [false, true]) {
+        expect(
+          selectHint(foldDragging(armed), everythingDiscovered, ctx()),
+        ).toEqual(selectHint(foldDragging(armed), nothingDiscovered, ctx()));
+      }
+    });
+
+    it("returns the prompt from a revealed pair, which folds face-up", () => {
+      expect(
+        selectHint(
+          idle("Revealed", "FoldDragging", true),
+          nothingDiscovered,
+          ctx(),
+        )?.id,
+      ).toBe("folding-armed");
+    });
+
+    it("shows nothing once the pair is on its way to the muck", () => {
+      expect(selectHint(idle("Leaving"), nothingDiscovered, ctx())).toBeNull();
     });
   });
 

@@ -15,7 +15,8 @@
  * Answered so far: the deal-in, the emptying and the keyboard reveal/conceal
  * toggle (#139), the showdown reveal and lock (#140), the press, the
  * classification and the release that make up a bend (#141), cancellation
- * and resets (#143), and the tap and double-tap that conceal and Check (#144).
+ * and resets (#143), the tap and double-tap that conceal and Check (#144), and
+ * the armed swipe that folds and the server answer that resolves it (#145).
  */
 
 import type { Classification } from "./classify.js";
@@ -153,6 +154,23 @@ function settled(state: CardState): CardState {
   };
 }
 
+/**
+ * Whether lifting the finger right now sends the Fold (§10).
+ *
+ * Exported so the rule is a tested function call rather than a condition
+ * buried in the `RELEASED` arm below. Its counterpart is `endGesture`'s
+ * `commitsFold`, which answers the same question about the live pointer
+ * session so the Action — an **effect** this function cannot have — is sent by
+ * the hook on exactly the releases that land here.
+ *
+ * It reads `armed` rather than any notion of how far the cards travelled:
+ * arming is the only thing a threshold crossing does, and a drag whose
+ * legality disappeared underneath it is disarmed while still moving (§6).
+ */
+export function releaseCommitsFold(state: CardState): boolean {
+  return state.recognizer === "FoldDragging" && state.armed;
+}
+
 function classified(state: CardState, as: Classification): CardState {
   switch (as) {
     case "Bending":
@@ -223,6 +241,18 @@ export function reduce(state: CardState, event: CardEvent): CardState {
       return classified(state, event.as);
 
     case "RELEASED":
+      // **The one commitment a pointer lift makes.** Crossing the fold
+      // threshold only armed; this is the completing release that answers it,
+      // so an accidental crossing during a scroll-like motion cannot fold for
+      // the player and putting the cards back down is always a way out (§10).
+      //
+      // The pair leaves with whatever face it had — `presentation` is not
+      // consulted, so a revealed pair flies away face-up rather than flipping
+      // over inside a 280ms departure (§7).
+      if (releaseCommitsFold(state)) {
+        return idle("Leaving");
+      }
+    // falls through: every other release settles exactly as a cancellation does
     case "CANCELLED":
       // An interrupted gesture lands on the last *stable* presentation, which
       // for everything except a peek is the one it is already carrying: a fold
@@ -243,8 +273,8 @@ export function reduce(state: CardState, event: CardEvent): CardState {
       //
       // Cancellation is never a commitment (§10: Actions commit on the
       // completing release), so it needs to know nothing about `armed` beyond
-      // clearing it. That is the one thing the two events will stop sharing:
-      // #145 splits the arm so an armed release commits the Fold.
+      // clearing it. That is the one thing the two events do not share, and
+      // the only reason `RELEASED` has an arm of its own above.
       if (state.recognizer === "Idle") return state;
       if (state.recognizer === "Committed") {
         return { ...state, recognizer: "Idle", armed: false };
@@ -301,13 +331,31 @@ export function reduce(state: CardState, event: CardEvent): CardState {
       // inert against a decided hand for free, through `survivesLock`.
       return state;
 
-    // Declared in the union so the shape is settled up front, and answered by
-    // the slices that own them: the fold drag (#145) and fold disarming
-    // (#146).
     case "FOLD_ARMED":
     case "FOLD_DISARMED":
+      // Arming and disarming are the *same* shape of change: the flag moves
+      // and the drag carries on. The cards keep tracking the finger either
+      // way, so the surface never freezes under the player's hand, and neither
+      // event has anything to say about presentation.
+      //
+      // A drag pulled back below the threshold disarms through here, and so
+      // does one whose legality disappears mid-motion (#146) — the recognizer
+      // cannot tell the two apart and does not need to.
+      if (state.recognizer !== "FoldDragging") return state;
+      return { ...state, armed: event.type === "FOLD_ARMED" };
+
     case "PENDING_RESOLVED":
-      return state;
+      // Scoped to `Leaving`, because every Action resolves through this event
+      // and only a Fold left the pair waiting on one. Pressing Call, Raise or
+      // Check must leave the cards exactly as they were (§9) — buttons send
+      // Actions, they do not touch presentation.
+      //
+      // Acknowledged is `Absent`, and visually a no-op if the flight has
+      // already finished. Rejected is **`FaceDown`, never `Revealed`**: the
+      // pair may have left face-up, but a rejection leaves the player holding
+      // a live hand rather than one they have already shown themselves.
+      if (state.presentation !== "Leaving") return state;
+      return idle(event.hasCards ? "FaceDown" : "Absent");
 
     case "SHOWDOWN_REVEAL":
       // Folding is final (story 49), whether the cards are already gone or

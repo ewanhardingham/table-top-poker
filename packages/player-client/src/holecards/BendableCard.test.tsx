@@ -12,13 +12,17 @@ const appShellCss = readFileSync(
 
 const queen: Card = { rank: "Q", suit: "diamonds" };
 
-function render(presentation: "FaceDown" | "Peeking" | "Turning" | "Revealed") {
+function render(
+  presentation: "FaceDown" | "Peeking" | "Turning" | "Revealed" | "Leaving",
+  leavingFaceUp = false,
+) {
   return renderToStaticMarkup(
     <BendableCard
       card={queen}
       presentation={presentation}
       bend={motionValue(0)}
       tiltDegrees={0}
+      leavingFaceUp={leavingFaceUp}
     />,
   );
 }
@@ -79,5 +83,29 @@ describe("BendableCard", () => {
     // The flat card keeps both its printed corners: the rule above is scoped
     // to the flap, and must not have reached the ordinary face.
     expect((html.match(/class="card-index/g) ?? []).length).toBe(2);
+  });
+
+  describe("leaving for the muck", () => {
+    it("flies away face-up when that is the face it had", () => {
+      // Flipping face-down inside a 280ms departure is illegible motion, and
+      // the privacy boundary is the physical table rather than the flight (§7).
+      const html = render("Leaving", true);
+
+      expect(html).toContain('data-rank="Q"');
+      expect(html).not.toContain('data-face-down="true"');
+    });
+
+    it("flies away face-down when that is the face it had", () => {
+      const html = render("Leaving", false);
+
+      expect(html).toContain('data-face-down="true"');
+      expect(html).not.toContain("data-rank");
+    });
+
+    it("offers no bend affordance on the way out — the pair is inert", () => {
+      for (const faceUp of [true, false]) {
+        expect(render("Leaving", faceUp)).not.toContain("data-bend-zone");
+      }
+    });
   });
 });

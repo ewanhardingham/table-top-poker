@@ -60,6 +60,13 @@ export const CLICK_DISOWN_MS = 350;
 export const CHECK_CONFIRM_MS = 2400;
 
 /**
+ * Length of the optional threshold pulse, in ms. Not a §15 constant — §16 asks
+ * for a pulse and sets no length; this is the prototype's, short enough to read
+ * as a tick against the fingertip rather than as a buzz.
+ */
+export const HAPTIC_PULSE_MS = 10;
+
+/**
  * Duration of the face-down deal-in, in ms. Not a §15 constant — the deal-in
  * motion is §17 and had no prototype value; this matches the per-card deal
  * animation it replaces in `Hand`.

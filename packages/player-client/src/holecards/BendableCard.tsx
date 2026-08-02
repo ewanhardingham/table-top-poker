@@ -47,6 +47,7 @@ export function BendableCard({
   presentation,
   bend,
   tiltDegrees,
+  leavingFaceUp,
 }: {
   readonly card: CardType;
   readonly presentation: Presentation;
@@ -54,10 +55,19 @@ export function BendableCard({
   readonly bend: MotionValue<number>;
   /** The card's resting angle in the overlapped pair. */
   readonly tiltDegrees: number;
+  /**
+   * Whether the pair was face-up when the Fold committed. The cards leave with
+   * whatever face they had (§7): flipping face-down inside a 280ms departure
+   * is illegible motion, and the privacy boundary is the physical table rather
+   * than the flight.
+   */
+  readonly leavingFaceUp: boolean;
 }) {
   const peeking = presentation === "Peeking";
   const turning = presentation === "Turning";
-  const revealed = presentation === "Revealed";
+  const revealed =
+    presentation === "Revealed" ||
+    (presentation === "Leaving" && leavingFaceUp);
   // The face is in the document only while it is being looked at. A face-down
   // pair carries no rank or suit at all, and closing a peek removes it again
   // instantly, as concealment does: a glance must leave nothing exposed.
