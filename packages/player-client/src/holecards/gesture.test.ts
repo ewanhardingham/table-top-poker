@@ -9,7 +9,7 @@ import {
 import { BEND_TRAVEL_PX, MOVE_SLOP_PX, REVEAL_THRESHOLD } from "./constants.js";
 import { foldThreshold } from "./geometry.js";
 import {
-  applyViewEvent,
+  applyCardEvent,
   beginGesture,
   endGesture,
   moveGesture,
@@ -277,58 +277,46 @@ describe("the fold drag", () => {
     expect(pulledBack.fold).toEqual({ offset: -20 });
   });
 
-  it("does not re-arm while Fold is illegal after a view disarms the drag", () => {
+  it("disarms the session on FOLD_DISARMED so the release commits nothing", () => {
     const armed = moveGesture(
       dragging(FOLD_THRESHOLD_PX).session,
       to(0, -(FOLD_THRESHOLD_PX + 40)),
       onTurn,
     ).session;
-    const disarmed = applyViewEvent(armed, { type: "FOLD_DISARMED" });
+    expect(endGesture(armed, { cancelled: false }).commitsFold).toBe(true);
+
+    const disarmed = applyCardEvent(armed, { type: "FOLD_DISARMED" });
     if (disarmed === null) throw new Error("expected a live fold drag");
 
-    const moved = moveGesture(disarmed, to(0, -(FOLD_THRESHOLD_PX + 80)), {
-      ...onTurn,
-      foldLegal: false,
-    });
-
-    expect(moved.events).toEqual([]);
-    expect(moved.session.armed).toBe(false);
+    expect(disarmed).toEqual({ ...armed, armed: false });
+    expect(endGesture(disarmed, { cancelled: false }).commitsFold).toBe(false);
   });
 
-  it("stays disarmed until the pointer crosses the threshold again", () => {
+  it("keeps the cards tracking the finger after a view disarms the drag", () => {
+    // §6: the surface never freezes under the player's hand. The drag is not
+    // ended, only disarmed, so the pair carries on following the finger.
     const armed = moveGesture(
       dragging(FOLD_THRESHOLD_PX).session,
       to(0, -(FOLD_THRESHOLD_PX + 40)),
       onTurn,
     ).session;
-    const disarmed = applyViewEvent(armed, { type: "FOLD_DISARMED" });
+    const disarmed = applyCardEvent(armed, { type: "FOLD_DISARMED" });
     if (disarmed === null) throw new Error("expected a live fold drag");
 
-    const legalAgain = moveGesture(
+    const moved = moveGesture(
       disarmed,
       to(0, -(FOLD_THRESHOLD_PX + 80)),
       onTurn,
     );
-    expect(legalAgain.events).toEqual([]);
-    expect(legalAgain.session.armed).toBe(false);
-
-    const belowThreshold = moveGesture(legalAgain.session, to(0, -20), onTurn);
-    const recrossed = moveGesture(
-      belowThreshold.session,
-      to(0, -FOLD_THRESHOLD_PX),
-      onTurn,
-    );
-    expect(recrossed.events).toEqual([{ type: "FOLD_ARMED" }]);
+    expect(moved.fold).toEqual({ offset: -(FOLD_THRESHOLD_PX + 80) });
+    expect(moved.session.classification).toBe("FoldDragging");
   });
 
-  it("updates or ends the pointer session when the view changes it", () => {
+  it("leaves the session alone for every other lifecycle event", () => {
+    // The pointer is ended by the pointer, and by nothing else: `finish` bails
+    // on a release it has no session for, so a session cleared out from under a
+    // held finger would leave the synthesised click to reveal the next pair.
     const armed = dragging(FOLD_THRESHOLD_PX).session;
-
-    expect(applyViewEvent(armed, { type: "FOLD_DISARMED" })).toEqual({
-      ...armed,
-      armed: false,
-      armingBlocked: true,
-    });
 
     for (const event of [
       { type: "CARDS_GONE" },
@@ -336,8 +324,9 @@ describe("the fold drag", () => {
       { type: "RESET" },
       { type: "SHOWDOWN_REVEAL" },
     ] as const) {
-      expect(applyViewEvent(armed, event)).toBeNull();
+      expect(applyCardEvent(armed, event)).toBe(armed);
     }
+    expect(applyCardEvent(null, { type: "FOLD_DISARMED" })).toBeNull();
   });
 
   it("arms in the same move as the classification when the flick is fast enough", () => {
