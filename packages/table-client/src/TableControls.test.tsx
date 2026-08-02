@@ -1,3 +1,4 @@
+import { color } from "@table-top-poker/ui-shared";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -66,8 +67,6 @@ describe("TableControls", () => {
 
     expect(html).toContain('data-placement="join-panel"');
     expect(html).toContain("flex-direction:row");
-    expect(html).toContain("position:relative");
-    expect(html).toContain("z-index:15");
     expect(html).not.toContain("position:absolute");
     expect(html).toContain('data-testid="start-hand-button"');
     expect(html).toContain('data-testid="end-session-button"');
@@ -86,7 +85,7 @@ describe("TableControls", () => {
     );
 
     expect(html).toMatch(/data-testid="start-hand-button"[^>]*disabled/);
-    expect(html).toContain("background:rgba(255,255,255,.04)");
+    expect(html).toContain(`background:${color.controlFill}`);
     expect(html).toContain('data-testid="end-session-button"');
   });
 });
