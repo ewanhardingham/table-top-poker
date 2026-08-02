@@ -11,6 +11,7 @@ import {
   shadow,
 } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
+import type { CSSProperties } from "react";
 import type { ActionIntent } from "./actions/useActionIntent.js";
 import { HoleCardPair, type CardActions } from "./holecards/index.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
@@ -298,6 +299,27 @@ function TurnBanner({ banner }: { readonly banner: Banner }) {
 }
 
 /**
+ * A caption under a pair is a label — small, spaced, uppercase; a caption
+ * under empty slots is a sentence explaining why they're empty, and reads as
+ * prose.
+ */
+const captionStyle: Record<"label" | "prose", CSSProperties> = {
+  label: {
+    fontFamily: font.mono,
+    fontSize: fontSize.xs,
+    letterSpacing: "0.2em",
+    textTransform: "uppercase",
+    color: color.textDim,
+  },
+  prose: {
+    fontSize: fontSize.md,
+    lineHeight: 1.5,
+    color: color.textDim,
+    maxWidth: "16em",
+  },
+};
+
+/**
  * The card region: the pair itself, plus the copy around it. `Hand` keeps
  * every caption on this screen; the pair owns card presentation and nothing
  * else, which is why the `Absent` copy is decided here (folded reads
@@ -314,6 +336,7 @@ function HoleCardsRegion({
   readonly actions: CardActions;
   readonly caption: string;
 }) {
+  const absent = cards === null;
   return (
     <div
       style={{
@@ -322,32 +345,13 @@ function HoleCardsRegion({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: cards === null ? "1.1em" : "0.9em",
+        gap: absent ? "1.1em" : "0.9em",
         minHeight: 0,
         textAlign: "center",
       }}
     >
       <HoleCardPair cards={cards} locked={locked} actions={actions} />
-      <span
-        style={
-          cards === null
-            ? {
-                fontSize: fontSize.md,
-                lineHeight: 1.5,
-                color: color.textDim,
-                maxWidth: "16em",
-              }
-            : {
-                fontFamily: font.mono,
-                fontSize: fontSize.xs,
-                letterSpacing: "0.2em",
-                textTransform: "uppercase",
-                color: color.textDim,
-              }
-        }
-      >
-        {caption}
-      </span>
+      <span style={captionStyle[absent ? "prose" : "label"]}>{caption}</span>
     </div>
   );
 }
