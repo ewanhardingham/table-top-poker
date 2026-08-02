@@ -48,6 +48,20 @@ describe("SeatPanel", () => {
     expect(html).toContain("Waiting for next hand");
   });
 
+  it("uses the same 30px pill height for the seat, sit-out, and toggle controls", () => {
+    const html = renderToStaticMarkup(
+      <SeatPanel
+        seatId={0}
+        sittingOut={true}
+        sittingOutReason="waiting-for-next-hand"
+        toggleDisabled={false}
+        onToggleSittingOut={noop}
+      />,
+    );
+
+    expect(html.match(/height:30px/g)).toHaveLength(3);
+  });
+
   it("offers sit out while active and sit in while sitting out", () => {
     const active = renderToStaticMarkup(
       <SeatPanel
@@ -71,6 +85,23 @@ describe("SeatPanel", () => {
     expect(sittingOut).toContain("Sit in");
   });
 
+  it("styles the sit-out control as an action rather than a status badge", () => {
+    const html = renderToStaticMarkup(
+      <SeatPanel
+        seatId={0}
+        sittingOut={false}
+        toggleDisabled={false}
+        onToggleSittingOut={noop}
+      />,
+    );
+
+    const buttonMatch =
+      /<button[^>]*data-testid="sitting-out-toggle"[^>]*>/.exec(html);
+    expect(buttonMatch?.[0]).toContain("background:rgba(229,68,60,.07)");
+    expect(buttonMatch?.[0]).toContain("border:1px solid rgba(229,68,60,.32)");
+    expect(buttonMatch?.[0]).toContain("cursor:pointer");
+  });
+
   it("disables the toggle while the socket is reconnecting", () => {
     const html = renderToStaticMarkup(
       <SeatPanel
@@ -82,5 +113,6 @@ describe("SeatPanel", () => {
     );
 
     expect(html).toMatch(/data-testid="sitting-out-toggle"[^>]*disabled/);
+    expect(html).toContain("background:rgba(255,255,255,.04)");
   });
 });
