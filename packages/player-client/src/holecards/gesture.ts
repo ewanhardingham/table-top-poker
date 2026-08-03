@@ -86,6 +86,29 @@ export function beginGesture(press: {
 }
 
 /**
+ * Apply a lifecycle event to the live pointer session.
+ *
+ * Only `FOLD_DISARMED` has anything to say to a session: fold legality can
+ * disappear while the pointer is still moving, and the session is what
+ * `endGesture` answers `commitsFold` from, so it has to hear the same disarm
+ * the reducer does or the two would disagree on the next release. **The drag
+ * itself is untouched** — the cards keep tracking the finger (§6), and the
+ * session ends where every session ends, on the pointer that lifts it.
+ *
+ * Every other event is the reducer's business alone. Ending the session here
+ * would strand the release: `finish` bails on a pointer it has no session for,
+ * so nothing would disown the click the browser synthesises afterwards, and it
+ * would reveal the pair the event had just dealt or reset.
+ */
+export function applyCardEvent(
+  session: GestureSession | null,
+  event: CardEvent,
+): GestureSession | null {
+  if (session === null || event.type !== "FOLD_DISARMED") return session;
+  return { ...session, armed: false };
+}
+
+/**
  * Advance a gesture to a new pointer position.
  *
  * Nothing is classified below the slop, so a tap with a wobble still reads as
@@ -111,7 +134,9 @@ export function moveGesture(
       dx,
       dy,
       // Fold legality is sampled once, here, and never re-read. A drag that
-      // outlives the player's turn disarms (§6); it does not reclassify.
+      // outlives the player's turn disarms (§6) — through `FOLD_DISARMED` off
+      // the prop change, and `applyCardEvent` on this session; it does not
+      // reclassify.
       foldLegal: ctx.foldLegal,
     });
     return step(

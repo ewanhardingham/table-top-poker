@@ -23,6 +23,7 @@ import {
   type BendAxis,
 } from "./geometry.js";
 import {
+  applyCardEvent,
   beginGesture,
   endGesture,
   moveGesture,
@@ -164,7 +165,10 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
   useIsomorphicLayoutEffect(() => {
     const events = eventsForPropChange(previous.current, props, state);
     previous.current = props;
-    for (const event of events) dispatch(event);
+    for (const event of events) {
+      session.current = applyCardEvent(session.current, event);
+      dispatch(event);
+    }
   });
 
   // `Turning` is a point of no return: once the flip is committed it finishes
@@ -366,11 +370,11 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     // **disarms** — the release commits nothing, and there is no rejection
     // message, because the turn banner already explains it.
     //
-    // Re-sampled here as well as on the prop change that #146 will watch,
-    // because a release can beat the view that would have disarmed it. `pending`
-    // rides along for the same reason: a Fold cannot go out on top of an Action
-    // already in flight, and a departure the player watches and then has undone
-    // is worse than one that never starts.
+    // Re-sampled here as well as on the prop change `eventsForPropChange`
+    // watches, because a release can beat the view that would have disarmed it.
+    // `pending` rides along for the same reason: a Fold cannot go out on top of
+    // an Action already in flight, and a departure the player watches and then
+    // has undone is worse than one that never starts.
     //
     // This is arming input, exactly as §2 licenses; `canAct` inside
     // `intent.fold` remains the single gate on whether the Action is sent.

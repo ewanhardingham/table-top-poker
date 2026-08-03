@@ -55,6 +55,12 @@ const revealed: CardState = {
   armed: false,
   locked: false,
 };
+const foldDragging: CardState = {
+  presentation: "FaceDown",
+  recognizer: "FoldDragging",
+  armed: true,
+  locked: false,
+};
 
 describe("eventsForPropChange", () => {
   it("produces nothing by default — an incoming view is inert unless proven otherwise", () => {
@@ -77,6 +83,36 @@ describe("eventsForPropChange", () => {
       actions: { ...actions, foldLegal: true, checkLegal: true },
     });
     expect(eventsForPropChange(before, after, faceDown)).toEqual([]);
+  });
+
+  it("disarms a fold drag when Fold stops being legal", () => {
+    const before = props({
+      cards: queenJack,
+      actions: { ...actions, foldLegal: true },
+    });
+    const after = props({
+      cards: queenJack,
+      actions: { ...actions, foldLegal: false },
+    });
+
+    expect(eventsForPropChange(before, after, foldDragging)).toEqual([
+      { type: "FOLD_DISARMED" },
+    ]);
+  });
+
+  it("does not disarm a view that is not in a fold drag", () => {
+    const before = props({
+      cards: queenJack,
+      actions: { ...actions, foldLegal: true },
+    });
+    const after = props({
+      cards: queenJack,
+      actions: { ...actions, foldLegal: false },
+    });
+
+    for (const state of [faceDown, peeking, revealed, absent]) {
+      expect(eventsForPropChange(before, after, state)).toEqual([]);
+    }
   });
 
   it("leaves a peek in flight alone when a server update arrives", () => {
@@ -153,6 +189,20 @@ describe("eventsForPropChange", () => {
     expect(
       eventsForPropChange(props({ cards: queenJack }), props(), faceDown),
     ).toEqual([{ type: "CARDS_GONE" }]);
+  });
+
+  it("lets clock expiry empty a fold drag through CARDS_GONE", () => {
+    const before = props({
+      cards: queenJack,
+      actions: { ...actions, foldLegal: true },
+    });
+    const after = props({
+      actions: { ...actions, foldLegal: false },
+    });
+
+    expect(eventsForPropChange(before, after, foldDragging)).toEqual([
+      { type: "CARDS_GONE" },
+    ]);
   });
 
   it("produces nothing while the seat holds no cards at all", () => {
