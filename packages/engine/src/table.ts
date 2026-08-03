@@ -63,6 +63,19 @@ export function initialToAct(
 }
 
 /**
+ * The small blind's seat for the whole hand: `ring[0]` (button+1) with 3+
+ * seats; in heads-up the button posts the small blind, so the two coincide.
+ * Ring order, never seat-number arithmetic — seats need not be contiguous.
+ */
+export function smallBlindSeat(
+  ring: readonly SeatId[],
+  button: SeatId,
+): SeatId {
+  if (ring.length === 2) return button;
+  return must(ring[0], "the small blind needs at least 2 seated players");
+}
+
+/**
  * The big blind's seat for the whole hand: `ring[1]` (button+2) with 3+
  * seats; in heads-up (`ring` has exactly 2 seats, `[other, button]`) the
  * non-button seat is the big blind instead.

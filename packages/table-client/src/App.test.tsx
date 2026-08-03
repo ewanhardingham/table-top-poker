@@ -41,6 +41,9 @@ function seat(id: number, claimed: boolean): SeatView {
 const liveHand: TableView = {
   phase: "betting",
   button: 0,
+  smallBlind: 1,
+  bigBlind: 2,
+  dealtSeatCount: 3,
   street: "flop",
   board: [],
   toAct: [1],

@@ -1,7 +1,12 @@
 /**
- * Design tokens for the felt/night palette used by the design prototype
- * (`docs/design/table-top-poker-prototype.dc.html`). `table-client` and
+ * Design tokens for the felt/night palette. `table-client` and
  * `player-client` both style against these rather than hard-coding values.
+ *
+ * These tokens — not the design prototype
+ * (`docs/design/table-top-poker-prototype.dc.html`) — are the palette's
+ * source of truth. The prototype seeded the original values but has since
+ * drifted, and features built from it are now closed off; do not reconcile
+ * new tokens against it.
  */
 
 const feltGradient =
@@ -73,6 +78,13 @@ export const color = {
   seatWinnerBackground: "rgba(250,234,231,.14)",
   seatActorBackground: "rgba(20,7,8,.72)",
   buttonMarker: "#faf6f0",
+  /**
+   * Saturated enough that it never reads as "the white button marker,
+   * slightly tinted" from a couple of metres away.
+   */
+  blindSmallMarker: "#5aa9f0",
+  /** Amber rather than lemon, so it sits inside the warm felt palette. */
+  blindBigMarker: "#f2c14e",
 } as const;
 
 export const font = {

@@ -112,6 +112,9 @@ describe("Seats", () => {
     const view: TableView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [],
       toAct: [0],
@@ -145,6 +148,9 @@ describe("Seats", () => {
     const view: TableView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [],
       toAct: [0],
@@ -190,6 +196,9 @@ describe("Seats", () => {
     const view: TableView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [],
       toAct: [1],
@@ -218,6 +227,9 @@ describe("Seats", () => {
     const view: TableView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "preflop",
       board: [],
       toAct: [0],
@@ -263,6 +275,9 @@ describe("Seats", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       board: [
         { rank: "A", suit: "spades" },
         { rank: "K", suit: "hearts" },
@@ -304,6 +319,9 @@ describe("Seats", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       board: [
         { rank: "A", suit: "spades" },
         { rank: "K", suit: "hearts" },
@@ -348,7 +366,14 @@ describe("Seats", () => {
   });
 
   it("marks the sole winner at a fold-out completion, with no reveal", () => {
-    const view: TableView = { phase: "folded-out", button: 0, winner: 1 };
+    const view: TableView = {
+      phase: "folded-out",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      winner: 1,
+    };
     const sittingOutWinnerSeats = seats.map((seat) =>
       seat.id === 1 ? { ...seat, sittingOut: true } : seat,
     );
@@ -373,5 +398,158 @@ describe("Seats", () => {
     expect(html).toMatch(
       /data-testid="seat-pod-3"[^>]*style="(?:(?!cursor).)*"/,
     );
+  });
+});
+
+/** The inline `style` attribute of the span carrying `testid`, if drawn. */
+function styleOf(html: string, testid: string): string | null {
+  const match = new RegExp(`data-testid="${testid}"[^>]*style="([^"]*)"`).exec(
+    html,
+  );
+  return match?.[1] ?? null;
+}
+
+const threeHanded: TableView = {
+  // Seats 3, 0 and 1 are in the hand with the button on 3, so ring order
+  // (3 -> 0 -> 1) runs the opposite way to seat-number order.
+  phase: "betting",
+  button: 3,
+  smallBlind: 0,
+  bigBlind: 1,
+  dealtSeatCount: 3,
+  street: "preflop",
+  board: [],
+  toAct: [0],
+  seats: [
+    { seatId: 3, folded: false },
+    { seatId: 0, folded: false },
+    { seatId: 1, folded: false },
+  ],
+};
+
+const headsUpPositions = {
+  button: 0,
+  smallBlind: 0,
+  bigBlind: 1,
+  dealtSeatCount: 2,
+} as const;
+
+describe("Seats: position markers", () => {
+  it("draws all three markers, on the seats the view names", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} />,
+    );
+
+    expect(html).toContain('data-testid="seat-pod-3-button"');
+    expect(html).toContain('data-testid="seat-pod-0-small-blind"');
+    expect(html).toContain('data-testid="seat-pod-1-big-blind"');
+    expect(html).toMatch(
+      /data-testid="seat-pod-0"[^>]*data-small-blind="true"/,
+    );
+    expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-big-blind="true"/);
+  });
+
+  it("follows ring order rather than seat-number order", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} />,
+    );
+
+    // Seat 0 is the lowest seat number but sits button+1, so it is the small
+    // blind — seat-number arithmetic from the button would have said seat 4.
+    expect(html).not.toContain('data-testid="seat-pod-0-button"');
+    expect(html).not.toContain('data-testid="seat-pod-3-small-blind"');
+    expect(html).not.toContain('data-testid="seat-pod-0-big-blind"');
+  });
+
+  it("gives no seat more than one marker", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} />,
+    );
+    const markers = html.match(
+      /data-testid="seat-pod-\d+-(?:button|small-blind|big-blind)"/g,
+    );
+    expect(markers).toHaveLength(3);
+    expect(new Set(markers).size).toBe(3);
+  });
+
+  it("draws the button only between hands", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={{ phase: "no-hand", button: 1 }} />,
+    );
+    expect(html).toContain('data-testid="seat-pod-1-button"');
+    expect(html).not.toContain('small-blind"');
+    expect(html).not.toContain('big-blind"');
+  });
+
+  // Issue #160, decision 4: heads-up the button *is* the small blind, and the
+  // client suppresses both blinds rather than doubling up a seat.
+  it.each([
+    [
+      "betting",
+      {
+        ...headsUpPositions,
+        phase: "betting",
+        street: "preflop",
+        board: [],
+        toAct: [0],
+        seats: [
+          { seatId: 0, folded: false },
+          { seatId: 1, folded: false },
+        ],
+      } satisfies TableView,
+    ],
+    [
+      "showdown",
+      {
+        ...headsUpPositions,
+        phase: "showdown",
+        board: [],
+        winners: [0],
+        results: [],
+      } satisfies TableView,
+    ],
+    [
+      "folded-out",
+      {
+        ...headsUpPositions,
+        phase: "folded-out",
+        winner: 0,
+      } satisfies TableView,
+    ],
+  ])("draws the button only in a heads-up hand (%s)", (_phase, view) => {
+    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+
+    expect(html).toContain('data-testid="seat-pod-0-button"');
+    expect(html).not.toContain('data-testid="seat-pod-0-small-blind"');
+    expect(html).not.toContain('data-testid="seat-pod-1-big-blind"');
+    expect(html).toMatch(
+      /data-testid="seat-pod-0"[^>]*data-small-blind="false"/,
+    );
+    expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-big-blind="false"/);
+  });
+
+  it("renders all three markers at one diameter and one font size", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} />,
+    );
+
+    const sizes = [
+      styleOf(html, "seat-pod-3-button"),
+      styleOf(html, "seat-pod-0-small-blind"),
+      styleOf(html, "seat-pod-1-big-blind"),
+    ].map((style) => {
+      expect(style).not.toBeNull();
+      return /width:([^;]+);height:([^;]+);/.exec(style ?? "")?.slice(1, 3);
+    });
+
+    expect(sizes[0]).toBeDefined();
+    expect(sizes[1]).toEqual(sizes[0]);
+    expect(sizes[2]).toEqual(sizes[0]);
+    // The label's font size lives on an inner span, so the diameter resolves
+    // against the pod and not against the marker's own text.
+    expect(sizes[0]?.[0]).toBe(sizes[0]?.[1]);
+
+    const fontSizes = html.match(/font-size:0\.62em/g);
+    expect(fontSizes).toHaveLength(3);
   });
 });

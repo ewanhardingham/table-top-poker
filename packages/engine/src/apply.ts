@@ -4,6 +4,7 @@ import {
   nextButtonAfter,
   requeueAfterRaise,
   rotateFromButton,
+  smallBlindSeat,
 } from "./table.js";
 import type { BettingHandState, EngineState, HandEvent } from "./types.js";
 import { must } from "./util.js";
@@ -17,6 +18,21 @@ function asBetting(state: EngineState): BettingHandState {
 
 function seatState(hand: BettingHandState, seat: number) {
   return must(hand.players.get(seat), `unknown seat ${String(seat)}`);
+}
+
+/**
+ * The positional facts a completed hand has to keep once `ring` is dropped:
+ * both blind seats and the size of the field they were dealt from. Resolved
+ * here, while `ring` is still in scope, so `view` reports the same ids in
+ * every phase — and so the button's rotation on `HandComplete` can't reach
+ * back and change what the finished hand says about itself.
+ */
+function resolvedBlinds(hand: BettingHandState) {
+  return {
+    smallBlind: smallBlindSeat(hand.ring, hand.button),
+    bigBlind: bigBlindSeat(hand.ring, hand.button),
+    dealtSeatCount: hand.ring.length,
+  };
 }
 
 /** Pure reducer: folds one event into state. Never mutates its input. */
@@ -132,6 +148,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           reason: "folded-out",
           seed: hand.seed,
           button: hand.button,
+          ...resolvedBlinds(hand),
           winner: event.winner,
         },
       };
@@ -153,6 +170,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           reason: "showdown",
           seed: hand.seed,
           button: hand.button,
+          ...resolvedBlinds(hand),
           board: hand.board,
           results,
           winners: event.winners,
