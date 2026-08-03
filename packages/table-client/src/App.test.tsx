@@ -53,6 +53,16 @@ const liveHand: TableView = {
   ],
 };
 
+/** A finished hand: the rail offers "Next hand" in this state. */
+const completeHand: TableView = {
+  phase: "folded-out",
+  button: 0,
+  smallBlind: 1,
+  bigBlind: 2,
+  dealtSeatCount: 2,
+  winner: 0,
+};
+
 /** Puts the table in a room, with the seats claimed and hand state given. */
 function enterRoom(claimedSeats: number, handView: TableView | null) {
   store.overrides = {
@@ -114,6 +124,51 @@ describe("App", () => {
 
     expect(html).toMatch(/data-testid="start-hand-button"[^>]*disabled/);
     expect(html).toContain('data-testid="end-session-button"');
+  });
+
+  it("offers Next hand on the rail while two players remain", () => {
+    enterRoom(2, completeHand);
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).toContain('data-testid="next-hand-button"');
+    expect(html).not.toMatch(/data-testid="next-hand-button"[^>]*disabled/);
+  });
+
+  it("disables Next hand once the table drops below two players", () => {
+    enterRoom(1, completeHand);
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).toMatch(/data-testid="next-hand-button"[^>]*disabled/);
+    expect(html).toContain("Waiting for at least two players");
+  });
+
+  it("disables Next hand when a seated player has dropped off the network", () => {
+    enterRoom(2, completeHand);
+    store.overrides = {
+      ...store.overrides,
+      seats: [seat(0, true), { ...seat(1, true), disconnected: true }],
+    };
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).toMatch(/data-testid="next-hand-button"[^>]*disabled/);
+  });
+
+  it("counts a seat waiting for the next hand as a player, since the deal will include it", () => {
+    enterRoom(2, completeHand);
+    store.overrides = {
+      ...store.overrides,
+      seats: [
+        seat(0, true),
+        {
+          ...seat(1, true),
+          sittingOut: true,
+          sittingOutReason: "waiting-for-next-hand",
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).not.toMatch(/data-testid="next-hand-button"[^>]*disabled/);
   });
 
   it("moves the controls to the rail and shows the room code once a hand starts", () => {

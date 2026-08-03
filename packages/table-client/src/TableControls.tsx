@@ -1,4 +1,4 @@
-import { PillButton } from "@table-top-poker/ui-shared";
+import { color, fontSize, PillButton } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
 
 export type TableControlsPlacement = "rail" | "join-panel";
@@ -31,9 +31,27 @@ const actionButtonStyles: Record<TableControlsPlacement, CSSProperties> = {
   "join-panel": { flex: "1 1 0", minWidth: 0 },
 };
 
+/**
+ * The reason under a disabled "Next hand". A greyed pill says the action is
+ * off but not why, and the lobby hint that carries the same message is hidden
+ * once a hand exists — so the rail has to say it itself.
+ */
+const hintStyle: CSSProperties = {
+  marginTop: "0.4em",
+  textAlign: "center",
+  fontSize: fontSize.sm,
+  color: color.textDim,
+};
+
 export interface TableControlsProps {
   readonly canStartHand: boolean;
   readonly handComplete: boolean;
+  /**
+   * Whether enough players are dealt in for the server to accept `nextHand`.
+   * False leaves the button in place but disabled with a reason, rather than
+   * live-looking and inert — the server rejects it either way.
+   */
+  readonly canDealNextHand: boolean;
   readonly onStartHand: () => void;
   readonly onNextHand: () => void;
   readonly onEndSession: () => void;
@@ -67,6 +85,7 @@ export interface TableControlsProps {
 export function TableControls({
   canStartHand,
   handComplete,
+  canDealNextHand,
   onStartHand,
   onNextHand,
   onEndSession,
@@ -89,13 +108,21 @@ export function TableControls({
         </PillButton>
       )}
       {handComplete && (
-        <PillButton
-          data-testid="next-hand-button"
-          onClick={onNextHand}
-          style={actionButtonStyle}
-        >
-          Next hand
-        </PillButton>
+        <div style={actionButtonStyle}>
+          <PillButton
+            data-testid="next-hand-button"
+            disabled={!canDealNextHand}
+            onClick={onNextHand}
+            style={{ width: "100%" }}
+          >
+            Next hand
+          </PillButton>
+          {!canDealNextHand && (
+            <div data-testid="next-hand-blocked-hint" style={hintStyle}>
+              Waiting for at least two players
+            </div>
+          )}
+        </div>
       )}
       {onReviewHands && (
         <PillButton
