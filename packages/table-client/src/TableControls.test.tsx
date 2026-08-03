@@ -14,6 +14,7 @@ describe("TableControls", () => {
       <TableControls
         canStartHand
         handComplete={false}
+        canDealNextHand
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}
@@ -29,6 +30,7 @@ describe("TableControls", () => {
       <TableControls
         canStartHand={false}
         handComplete
+        canDealNextHand
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}
@@ -43,6 +45,7 @@ describe("TableControls", () => {
       <TableControls
         canStartHand={false}
         handComplete={false}
+        canDealNextHand
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}
@@ -59,6 +62,7 @@ describe("TableControls", () => {
         placement="join-panel"
         canStartHand
         handComplete={false}
+        canDealNextHand
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}
@@ -78,6 +82,7 @@ describe("TableControls", () => {
         placement="join-panel"
         canStartHand={false}
         handComplete={false}
+        canDealNextHand
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}
@@ -87,5 +92,38 @@ describe("TableControls", () => {
     expect(html).toMatch(/data-testid="start-hand-button"[^>]*disabled/);
     expect(html).toContain(`background:${color.controlFill}`);
     expect(html).toContain('data-testid="end-session-button"');
+  });
+
+  it("keeps Next hand enabled while enough players are dealt in", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete
+        canDealNextHand
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+      />,
+    );
+
+    expect(html).not.toMatch(/data-testid="next-hand-button"[^>]*disabled/);
+    expect(html).not.toContain('data-testid="next-hand-blocked-hint"');
+  });
+
+  it("disables Next hand and says why below two players", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete
+        canDealNextHand={false}
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+      />,
+    );
+
+    expect(html).toMatch(/data-testid="next-hand-button"[^>]*disabled/);
+    expect(html).toContain(`background:${color.controlFill}`);
+    expect(html).toContain("Waiting for at least two players");
   });
 });

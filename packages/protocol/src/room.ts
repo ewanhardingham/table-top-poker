@@ -113,6 +113,24 @@ export interface SeatView {
   readonly disconnected: boolean;
 }
 
+/**
+ * Whether a seat joins the next deal-in — the client-side mirror of the
+ * server's `eligibleSeats` (ADR-0002): claimed, connected, and not
+ * voluntarily sitting out. A `waiting-for-next-hand` seat sets `sittingOut`
+ * on the view but *is* dealt in next hand, so the reason, not the flag, is
+ * what excludes a seat here.
+ */
+export function isDealtInNextHand(seat: SeatView): boolean {
+  return (
+    seat.claimed && !seat.disconnected && seat.sittingOutReason !== "voluntary"
+  );
+}
+
+/** How many seats the next `startHand`/`nextHand` would deal in. */
+export function countDealInSeats(seats: readonly SeatView[]): number {
+  return seats.filter(isDealtInNextHand).length;
+}
+
 export interface RoomView {
   readonly code: string;
   readonly seats: readonly SeatView[];

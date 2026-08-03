@@ -1,7 +1,9 @@
 import {
+  countDealInSeats,
   DEFAULT_SEAT_COUNT,
   isHandComplete,
   isHandLive,
+  MIN_SEAT_COUNT,
 } from "@table-top-poker/protocol";
 import { color } from "@table-top-poker/ui-shared";
 import { useCallback, useState } from "react";
@@ -109,12 +111,15 @@ export function App() {
 
   const claimedSeatCount = seats.filter((seat) => seat.claimed).length;
   const handInProgress = handView !== null;
-  const canStartHand = !handInProgress && claimedSeatCount >= 2;
+  // The server rejects startHand/nextHand below two deal-in seats, so both
+  // controls key off the same count rather than a raw claimed-seat tally.
+  const enoughPlayers = countDealInSeats(seats) >= MIN_SEAT_COUNT;
+  const canStartHand = !handInProgress && enoughPlayers;
   const handComplete = isHandComplete(handView);
   const showJoinPanel = !handInProgress || joinOpen;
   const lobbyHint = handInProgress
     ? "New players are dealt in from the next hand"
-    : claimedSeatCount >= 2
+    : enoughPlayers
       ? `${String(claimedSeatCount)} seated — deal when ready`
       : "Waiting for at least two players";
 
@@ -189,6 +194,7 @@ export function App() {
                       placement="join-panel"
                       canStartHand={canStartHand}
                       handComplete={handComplete}
+                      canDealNextHand={enoughPlayers}
                       onStartHand={handleStartHand}
                       onNextHand={handleNextHand}
                       onEndSession={handleEndSession}
@@ -219,6 +225,7 @@ export function App() {
               <TableControls
                 canStartHand={canStartHand}
                 handComplete={handComplete}
+                canDealNextHand={enoughPlayers}
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
                 onEndSession={handleEndSession}
