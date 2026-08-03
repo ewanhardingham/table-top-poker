@@ -45,6 +45,13 @@ export const ClaimSeatRequestSchema = z.strictObject({
 
 export type ClaimSeatRequest = z.infer<typeof ClaimSeatRequestSchema>;
 
+/** Body of a player releasing their own seat (ADR-0005) — the seat's token. */
+export const LeaveSeatRequestSchema = z.strictObject({
+  token: z.string().min(1),
+});
+
+export type LeaveSeatRequest = z.infer<typeof LeaveSeatRequestSchema>;
+
 /** Body of the table-only room settings request (issue #77). */
 export const ChangeSeatCountRequestSchema = z.strictObject({
   seatCount: SeatCountSchema,

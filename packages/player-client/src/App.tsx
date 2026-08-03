@@ -1,7 +1,7 @@
 import type { SeatMove } from "@table-top-poker/protocol";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionBar } from "./ActionBar.js";
-import { claimSeat, joinRoom } from "./api/rooms.js";
+import { claimSeat, joinRoom, leaveSeat } from "./api/rooms.js";
 import { useActionIntent } from "./actions/useActionIntent.js";
 import { claimErrorCode } from "./claimError.js";
 import { Hand } from "./Hand.js";
@@ -129,6 +129,28 @@ export function App() {
     if (!playerSeat) return;
     send({ type: playerSeat.sittingOut ? "sitIn" : "sitOut" });
   }, [playerSeat, send]);
+
+  // A live seat still in the hand — used to warn that leaving forfeits it.
+  const inLiveHand =
+    handView?.phase === "betting" &&
+    handView.seats.some(
+      (snapshot) => snapshot.seatId === handView.yourSeatId && !snapshot.folded,
+    );
+
+  const handleLeave = useCallback(() => {
+    // Optimistic exit (ADR-0005): fire the release, then tear down locally and
+    // land on the join screen. Nulling the ws params cancels the reconnect.
+    if (roomCode !== null && seatId !== null && seatToken !== null) {
+      leaveSeat(roomCode, seatId, seatToken);
+    }
+    clearSeatToken(window.localStorage);
+    setSeatToken(null);
+    clearSeat();
+    clearRoom();
+    setSeatMoveMessage(null);
+    setEvictionMessage(null);
+  }, [roomCode, seatId, seatToken, clearSeat, clearRoom]);
+
   const intent = useActionIntent(send);
 
   const handleJoin = useCallback(
@@ -225,7 +247,9 @@ export function App() {
       <StatusBar
         showBadge={wsParams !== null}
         connectionStatus={connectionStatus}
+        inLiveHand={inLiveHand}
         onToggleSittingOut={handleToggleSittingOut}
+        onLeave={handleLeave}
         seat={
           playerSeat
             ? {

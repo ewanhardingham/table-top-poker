@@ -28,6 +28,8 @@ body {
   max-width: 480px;
   height: 100%;
   overflow: hidden;
+  /* Anchors the player menu drawer to the phone column, not the viewport. */
+  position: relative;
   display: flex;
   flex-direction: column;
   background: radial-gradient(520px 380px at 50% -6%, #2a1518, #0b0708 70%);

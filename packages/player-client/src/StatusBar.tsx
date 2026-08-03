@@ -1,6 +1,7 @@
 import { color, font, fontSize } from "@table-top-poker/ui-shared";
 import type { SittingOutReason } from "@table-top-poker/protocol";
 import type { CSSProperties } from "react";
+import { PlayerMenu } from "./PlayerMenu.js";
 import { SeatPanel } from "./SeatPanel.js";
 import { playerTopPillStyle } from "./topPillStyle.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
@@ -8,7 +9,9 @@ import type { ConnectionStatus } from "./store/connectionSlice.js";
 export interface StatusBarProps {
   readonly showBadge: boolean;
   readonly connectionStatus: ConnectionStatus;
+  readonly inLiveHand: boolean;
   readonly onToggleSittingOut: () => void;
+  readonly onLeave: () => void;
   readonly seat: {
     readonly seatId: number;
     readonly displayName?: string | null;
@@ -37,7 +40,9 @@ const badgeStyle: CSSProperties = {
 export function StatusBar({
   showBadge,
   connectionStatus,
+  inLiveHand,
   onToggleSittingOut,
+  onLeave,
   seat,
 }: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
@@ -57,39 +62,48 @@ export function StatusBar({
           displayName={seat.displayName ?? null}
           sittingOut={seat.sittingOut}
           sittingOutReason={seat.sittingOutReason}
-          toggleDisabled={connectionStatus !== "connected"}
-          onToggleSittingOut={onToggleSittingOut}
         />
       )}
-      {showBadge && (
-        <span
-          data-testid="connection-status"
-          data-status={connectionStatus}
-          style={badgeStyle}
-        >
+      <div style={{ display: "flex", alignItems: "center", gap: "0.6em" }}>
+        {showBadge && (
           <span
-            style={{
-              width: "0.5em",
-              height: "0.5em",
-              borderRadius: "50%",
-              flex: "none",
-              background: tone.dot,
-            }}
-          />
-          <span
-            style={{
-              fontFamily: font.mono,
-              fontSize: fontSize.xs,
-              fontWeight: 600,
-              letterSpacing: "0.16em",
-              textTransform: "uppercase",
-              color: tone.text,
-            }}
+            data-testid="connection-status"
+            data-status={connectionStatus}
+            style={badgeStyle}
           >
-            {connectionStatus}
+            <span
+              style={{
+                width: "0.5em",
+                height: "0.5em",
+                borderRadius: "50%",
+                flex: "none",
+                background: tone.dot,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: font.mono,
+                fontSize: fontSize.xs,
+                fontWeight: 600,
+                letterSpacing: "0.16em",
+                textTransform: "uppercase",
+                color: tone.text,
+              }}
+            >
+              {connectionStatus}
+            </span>
           </span>
-        </span>
-      )}
+        )}
+        {seat && (
+          <PlayerMenu
+            sittingOut={seat.sittingOut}
+            sitOutDisabled={connectionStatus !== "connected"}
+            inLiveHand={inLiveHand}
+            onToggleSittingOut={onToggleSittingOut}
+            onLeave={onLeave}
+          />
+        )}
+      </div>
     </header>
   );
 }

@@ -40,3 +40,17 @@ export async function claimSeat(
   }
   return (await response.json()) as SeatClaim;
 }
+
+/**
+ * Releases the player's own seat (ADR-0005). Fire-and-forget with `keepalive`
+ * so it survives the client's optimistic teardown, and never throws — the
+ * client returns to the join screen regardless of whether this lands.
+ */
+export function leaveSeat(code: string, seatId: number, token: string): void {
+  void fetch(`/rooms/${code}/seats/${String(seatId)}/leave`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ token }),
+    keepalive: true,
+  }).catch(() => undefined);
+}

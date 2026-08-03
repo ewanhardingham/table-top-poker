@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { claimSeat, joinRoom } from "./rooms.js";
+import { claimSeat, joinRoom, leaveSeat } from "./rooms.js";
 
 describe("joinRoom", () => {
   beforeEach(() => {
@@ -76,5 +76,36 @@ describe("claimSeat", () => {
     await expect(claimSeat("ABCD", 2, "Avery")).rejects.toThrow(
       "duplicate-display-name",
     );
+  });
+});
+
+describe("leaveSeat", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts the seat token to the leave endpoint with keepalive", () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
+
+    leaveSeat("ABCD", 2, "tok");
+
+    expect(fetch).toHaveBeenCalledWith("/rooms/ABCD/seats/2/leave", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ token: "tok" }),
+      keepalive: true,
+    });
+  });
+
+  it("never throws when the request fails — teardown proceeds regardless", () => {
+    vi.mocked(fetch).mockRejectedValue(new Error("offline"));
+
+    expect(() => {
+      leaveSeat("ABCD", 2, "tok");
+    }).not.toThrow();
   });
 });

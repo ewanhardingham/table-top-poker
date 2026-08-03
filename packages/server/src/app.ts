@@ -3,6 +3,7 @@ import fastifyWebsocket from "@fastify/websocket";
 import {
   ChangeSeatCountRequestSchema,
   ClaimSeatRequestSchema,
+  LeaveSeatRequestSchema,
   ClientCommandSchema,
   CreateRoomRequestSchema,
   view,
@@ -284,15 +285,20 @@ export async function buildApp(
    * A seat token only protects the next connection attempt. Remove all
    * currently open sockets for an evicted seat too, otherwise that socket
    * could keep issuing commands until it disconnected on its own.
+   *
+   * `notify` sends the `player-evicted` notice; a voluntary leave (ADR-0005)
+   * passes `false`, since it isn't an eviction and its client has already
+   * torn itself down. Either way the socket is flagged so its own close
+   * handler skips the disconnected-presence toggle on the freed seat.
    */
-  function closeSeatSockets(code: string, seatId: SeatId): void {
+  function closeSeatSockets(code: string, seatId: SeatId, notify = true): void {
     const sockets = roomSockets.get(code);
     if (!sockets) return;
 
     for (const socket of [...sockets]) {
       if (socketIdentity.get(socket) !== seatId) continue;
       evictedSockets.add(socket);
-      send(socket, { type: "player-evicted" });
+      if (notify) send(socket, { type: "player-evicted" });
       sockets.delete(socket);
       socketIdentity.delete(socket);
       socketRoomCode.delete(socket);
@@ -627,6 +633,45 @@ export async function buildApp(
       }
       broadcastRoomView(request.params.code);
       closeSeatSockets(request.params.code, seatId);
+      return reply.code(204).send();
+    },
+  );
+
+  /** A player releasing their own seat (ADR-0005) — the token-gated twin of evict. */
+  app.post<RoomSeatRoute>(
+    "/rooms/:code/seats/:seatId/leave",
+    (request, reply) => {
+      const seatId = parseSeatId(request.params.seatId);
+      if (seatId === undefined) {
+        return reply.code(400).send({ error: "invalid-seat-id" });
+      }
+      const body = LeaveSeatRequestSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: "invalid-request-body" });
+      }
+      const result = rooms.leaveSeat(
+        request.params.code,
+        seatId,
+        body.data.token,
+      );
+      if ("error" in result) {
+        return reply
+          .code(result.error === "room-not-found" ? 404 : 403)
+          .send({ error: result.error });
+      }
+      if (result.dispatch !== undefined) {
+        publishDispatch(request.params.code, result.dispatch, {
+          // Same fold/queue handling as evict: a non-actor leave preserves the
+          // current actor's clock, a current-actor leave folds and reschedules.
+          actionClock:
+            result.dispatch.command.type === "evict"
+              ? "preserve"
+              : "reschedule",
+        });
+      }
+      broadcastRoomView(request.params.code);
+      // Voluntary leave, not an eviction — close the socket without the notice.
+      closeSeatSockets(request.params.code, seatId, false);
       return reply.code(204).send();
     },
   );

@@ -3,11 +3,11 @@ import type { CSSProperties } from "react";
 
 /**
  * The geometry every pill along the top of the player screen shares — name,
- * seat number, sit-out and connection. One height and one padding, so the row
- * reads as a set of chips rather than four controls that happen to be adjacent.
+ * seat number and connection. One height and one padding, so the row reads as a
+ * set of chips rather than controls that happen to be adjacent. The seat
+ * actions now live behind the menu button (ADR-0005), which matches this height.
  *
- * Colour is deliberately absent: each pill carries its own, and the sit-out
- * control is a `PillButton` whose disabled state must stay PillButton's to set.
+ * Colour is deliberately absent: each pill carries its own.
  */
 export const playerTopPillStyle: CSSProperties = {
   display: "flex",

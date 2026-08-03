@@ -485,6 +485,59 @@ describe("seat claim/evict routes", () => {
     });
     expect(reclaimed.statusCode).toBe(200);
   });
+
+  it("lets a player leave with their own token, freeing the seat (ADR-0005)", async () => {
+    const code = await createRoom();
+    const claim = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Avery"),
+    });
+    const { token } = claim.json<SeatClaimBody>();
+
+    const left = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/leave`,
+      payload: { token },
+    });
+    expect(left.statusCode).toBe(204);
+
+    const reclaimed = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Avery"),
+    });
+    expect(reclaimed.statusCode).toBe(200);
+  });
+
+  it("rejects a leave whose token does not match the seat", async () => {
+    const code = await createRoom();
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/claim`,
+      ...claimPayload("Avery"),
+    });
+
+    const left = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/leave`,
+      payload: { token: "not-the-token" },
+    });
+    expect(left.statusCode).toBe(403);
+    expect(left.json()).toEqual({ error: "not-permitted" });
+  });
+
+  it("rejects a leave with no token in the body", async () => {
+    const code = await createRoom();
+
+    const left = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/seats/0/leave`,
+      payload: {},
+    });
+    expect(left.statusCode).toBe(400);
+    expect(left.json()).toEqual({ error: "invalid-request-body" });
+  });
 });
 
 describe("seat-count settings route", () => {

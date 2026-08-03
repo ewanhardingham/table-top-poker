@@ -1,39 +1,24 @@
-import { PillButton, color } from "@table-top-poker/ui-shared";
+import { color } from "@table-top-poker/ui-shared";
 import type { SittingOutReason } from "@table-top-poker/protocol";
-import type { CSSProperties } from "react";
 import { playerTopPillStyle } from "./topPillStyle.js";
-
-/**
- * Geometry only while disabled — `PillButton` owns the disabled fill, ink and
- * cursor, and anything passed here would win over it.
- */
-function sittingOutToggleStyle(disabled: boolean): CSSProperties {
-  if (disabled) return playerTopPillStyle;
-  return {
-    ...playerTopPillStyle,
-    background: color.accentWash,
-    border: `1px solid ${color.accentBorder}`,
-    color: color.textBright,
-    cursor: "pointer",
-  };
-}
 
 export interface SeatPanelProps {
   readonly seatId: number;
   readonly displayName?: string | null;
   readonly sittingOut: boolean;
   readonly sittingOutReason?: SittingOutReason | null;
-  readonly toggleDisabled: boolean;
-  readonly onToggleSittingOut: () => void;
 }
 
+/**
+ * The player's identity at the top of the screen: their seat (and name) plus a
+ * presence-only sitting-out badge. The seat actions — sit out and leave — live
+ * behind the menu (ADR-0005), so this panel carries state, never controls.
+ */
 export function SeatPanel({
   seatId,
   displayName,
   sittingOut,
   sittingOutReason = null,
-  toggleDisabled,
-  onToggleSittingOut,
 }: SeatPanelProps) {
   return (
     <div
@@ -72,16 +57,6 @@ export function SeatPanel({
             : "Sitting out"}
         </div>
       )}
-      <PillButton
-        size="md"
-        tone="outline"
-        data-testid="sitting-out-toggle"
-        disabled={toggleDisabled}
-        onClick={onToggleSittingOut}
-        style={sittingOutToggleStyle(toggleDisabled)}
-      >
-        {sittingOut ? "Sit in" : "Sit out"}
-      </PillButton>
     </div>
   );
 }

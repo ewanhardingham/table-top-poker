@@ -5,13 +5,19 @@ import { StatusBar } from "./StatusBar.js";
 
 const noop = () => undefined;
 
+const handlers = {
+  inLiveHand: false,
+  onToggleSittingOut: noop,
+  onLeave: noop,
+} as const;
+
 describe("StatusBar", () => {
   it("hides the connection badge before a seat is claimed", () => {
     const html = renderToStaticMarkup(
       <StatusBar
         showBadge={false}
         connectionStatus="disconnected"
-        onToggleSittingOut={noop}
+        {...handlers}
         seat={null}
       />,
     );
@@ -23,7 +29,7 @@ describe("StatusBar", () => {
       <StatusBar
         showBadge={true}
         connectionStatus="connected"
-        onToggleSittingOut={noop}
+        {...handlers}
         seat={null}
       />,
     );
@@ -32,34 +38,36 @@ describe("StatusBar", () => {
     expect(html).toContain("height:30px");
   });
 
-  it("shows the seat chip alongside the connection badge, on the same row", () => {
+  it("shows the seat chip, badge, and menu together on the same row", () => {
     const html = renderToStaticMarkup(
       <StatusBar
         showBadge={true}
         connectionStatus="connected"
-        onToggleSittingOut={noop}
+        {...handlers}
         seat={{ seatId: 0, sittingOut: false, sittingOutReason: null }}
       />,
     );
 
     expect(html).toContain('data-testid="seat-panel"');
     expect(html).toContain("Seat 1");
-    // Both live in the same header row, not stacked in separate blocks.
+    // Seat chip, connection badge and menu button all live in the header row.
     const headerMatch = /<header[^>]*>[\s\S]*<\/header>/.exec(html);
     expect(headerMatch).not.toBeNull();
     expect(headerMatch?.[0]).toContain('data-testid="seat-panel"');
     expect(headerMatch?.[0]).toContain('data-testid="connection-status"');
+    expect(headerMatch?.[0]).toContain('data-testid="player-menu-button"');
   });
 
-  it("omits the seat chip before a seat is claimed", () => {
+  it("omits the seat chip and menu before a seat is claimed", () => {
     const html = renderToStaticMarkup(
       <StatusBar
         showBadge={false}
         connectionStatus="disconnected"
-        onToggleSittingOut={noop}
+        {...handlers}
         seat={null}
       />,
     );
     expect(html).not.toContain('data-testid="seat-panel"');
+    expect(html).not.toContain('data-testid="player-menu-button"');
   });
 });
