@@ -3,6 +3,7 @@ import type {
   ActionType,
   Card,
   EngineState,
+  HandPositions,
   RevealedResult,
   SeatId,
   Street,
@@ -22,20 +23,6 @@ export interface SeatSnapshot {
 interface NoHandView {
   readonly phase: "no-hand";
   readonly button: SeatId;
-}
-
-/**
- * The positional facts every hand-bearing view carries. `smallBlind` is the
- * engine's honest answer, so heads-up it equals `button` — presentation
- * (which of these to actually draw) is the client's call, not the rules
- * core's. `dealtSeatCount` is how many seats were dealt in, fixed for the
- * hand, so `2` means heads-up in any phase.
- */
-interface HandPositions {
-  readonly button: SeatId;
-  readonly smallBlind: SeatId;
-  readonly bigBlind: SeatId;
-  readonly dealtSeatCount: number;
 }
 
 interface FoldedOutView extends HandPositions {

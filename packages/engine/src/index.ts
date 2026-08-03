@@ -14,6 +14,7 @@ export type {
   EngineState,
   FoldedOutCompleteHandState,
   HandEvent,
+  HandPositions,
   HandRank,
   HandState,
   Rank,

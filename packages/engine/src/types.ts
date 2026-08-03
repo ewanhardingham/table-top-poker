@@ -110,32 +110,37 @@ export interface RevealedResult extends ShowdownResult {
   readonly holeCards: readonly [Card, Card];
 }
 
-export interface FoldedOutCompleteHandState {
+/**
+ * Where a hand's three fixed positions sit, plus the size of the field they
+ * were dealt from. Seat ids only — no chips are implied, the blinds are
+ * tracked positionally like the button.
+ *
+ * `smallBlind` is the honest answer, so heads-up it equals `button` (the
+ * button does post the small blind); what to draw from that is a client
+ * decision, not a rules one. `dealtSeatCount` is fixed for the hand — folds
+ * never reduce it — so `2` identifies a heads-up hand in every phase.
+ *
+ * A betting hand can derive all three from `ring`; a completed hand has
+ * dropped `ring`, so it stores them.
+ */
+export interface HandPositions {
+  readonly button: SeatId;
+  readonly smallBlind: SeatId;
+  readonly bigBlind: SeatId;
+  readonly dealtSeatCount: number;
+}
+
+export interface FoldedOutCompleteHandState extends HandPositions {
   readonly status: "complete";
   readonly reason: "folded-out";
   readonly seed: string;
-  readonly button: SeatId;
-  /** Resolved from `ring` at completion — see `dealtSeatCount`. */
-  readonly smallBlind: SeatId;
-  readonly bigBlind: SeatId;
-  /**
-   * How many seats were dealt into this hand. Fixed for the hand (folds
-   * never reduce it), so `2` identifies a heads-up hand in every phase —
-   * which is exactly when `smallBlind === button`.
-   */
-  readonly dealtSeatCount: number;
   readonly winner: SeatId;
 }
 
-export interface ShowdownCompleteHandState {
+export interface ShowdownCompleteHandState extends HandPositions {
   readonly status: "complete";
   readonly reason: "showdown";
   readonly seed: string;
-  readonly button: SeatId;
-  /** Resolved from `ring` at completion — see `FoldedOutCompleteHandState`. */
-  readonly smallBlind: SeatId;
-  readonly bigBlind: SeatId;
-  readonly dealtSeatCount: number;
   readonly board: readonly Card[];
   readonly results: readonly RevealedResult[];
   readonly winners: readonly SeatId[];
