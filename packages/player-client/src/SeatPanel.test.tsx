@@ -3,6 +3,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SeatPanel } from "./SeatPanel.js";
+import { playerTopPillStyle } from "./topPillStyle.js";
 
 const noop = () => undefined;
 
@@ -49,7 +50,7 @@ describe("SeatPanel", () => {
     expect(html).toContain("Waiting for next hand");
   });
 
-  it("uses the same 30px pill height for the seat, sit-out, and toggle controls", () => {
+  it("uses the same pill height for the seat, sit-out, and toggle controls", () => {
     const html = renderToStaticMarkup(
       <SeatPanel
         seatId={0}
@@ -60,7 +61,16 @@ describe("SeatPanel", () => {
       />,
     );
 
-    expect(html.match(/height:30px/g)).toHaveLength(3);
+    for (const testId of [
+      "claimed-seat",
+      "sitting-out-badge",
+      "sitting-out-toggle",
+    ]) {
+      const element = new RegExp(`<[a-z]+[^>]*data-testid="${testId}"[^>]*>`);
+      expect(element.exec(html)?.[0], testId).toContain(
+        `height:${String(playerTopPillStyle.height ?? "")}px`,
+      );
+    }
   });
 
   it("offers sit out while active and sit in while sitting out", () => {

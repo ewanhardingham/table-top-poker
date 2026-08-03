@@ -29,7 +29,13 @@ const badgeStyle: CSSProperties = {
   border: `1px solid ${color.border}`,
 };
 
-/** No connection badge before a room exists — there's nothing to connect to yet. */
+/**
+ * No connection badge before a room exists — there's nothing to connect to yet.
+ *
+ * The badge is pushed right by its own auto margin rather than by the header's
+ * justification, because the room-code pill on the left comes and goes: with
+ * `space-between` alone, a lone badge would sit hard left.
+ */
 export function StatusBar({
   roomCode,
   connectionStatus,
@@ -43,7 +49,6 @@ export function StatusBar({
         flex: "none",
         display: "flex",
         alignItems: "center",
-        justifyContent: "space-between",
         gap: "0.75em",
         width: "100%",
         minWidth: 0,

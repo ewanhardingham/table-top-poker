@@ -1,13 +1,43 @@
 import { PillButton } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
 
+export type TableControlsPlacement = "rail" | "join-panel";
+
+const layoutStyles: Record<TableControlsPlacement, CSSProperties> = {
+  rail: {
+    position: "absolute",
+    right: "1.5em",
+    top: "50%",
+    transform: "translateY(-50%)",
+    display: "flex",
+    flexDirection: "column",
+    width: "13em",
+    gap: "0.6em",
+  },
+  "join-panel": {
+    display: "flex",
+    flexDirection: "row",
+    width: "26em",
+    maxWidth: "calc(100vw - 2em)",
+    gap: "0.6em",
+    // The join overlay turns pointer events off so its invisible edges don't
+    // swallow clicks on the felt; the controls have to turn them back on.
+    pointerEvents: "auto",
+  },
+};
+
+const actionButtonStyles: Record<TableControlsPlacement, CSSProperties> = {
+  rail: { width: "100%" },
+  "join-panel": { flex: "1 1 0", minWidth: 0 },
+};
+
 export interface TableControlsProps {
   readonly canStartHand: boolean;
   readonly handComplete: boolean;
   readonly onStartHand: () => void;
   readonly onNextHand: () => void;
   readonly onEndSession: () => void;
-  readonly placement?: "rail" | "join-panel";
+  readonly placement?: TableControlsPlacement;
   /**
    * PROTOTYPE (wayfinder #81) — opens the session hand picker. Optional so
    * the live `App` is unaffected; Phase 2 makes it a peer of the other rail
@@ -43,30 +73,8 @@ export function TableControls({
   placement = "rail",
   onReviewHands,
 }: TableControlsProps) {
-  const layoutStyle: CSSProperties =
-    placement === "join-panel"
-      ? {
-          display: "flex",
-          flexDirection: "row",
-          width: "26em",
-          maxWidth: "calc(100vw - 2em)",
-          gap: "0.6em",
-          pointerEvents: "auto",
-        }
-      : {
-          position: "absolute",
-          right: "1.5em",
-          top: "50%",
-          transform: "translateY(-50%)",
-          display: "flex",
-          flexDirection: "column",
-          width: "13em",
-          gap: "0.6em",
-        };
-  const actionButtonStyle: CSSProperties =
-    placement === "join-panel"
-      ? { flex: "1 1 0", minWidth: 0 }
-      : { width: "100%" };
+  const layoutStyle = layoutStyles[placement];
+  const actionButtonStyle = actionButtonStyles[placement];
 
   return (
     <div data-placement={placement} style={layoutStyle}>
