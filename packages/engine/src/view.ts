@@ -1,4 +1,4 @@
-import { legalActions } from "./table.js";
+import { bigBlindSeat, legalActions, smallBlindSeat } from "./table.js";
 import type {
   ActionType,
   Card,
@@ -13,28 +13,45 @@ export interface SeatSnapshot {
   readonly folded: boolean;
 }
 
+/**
+ * Between hands there are no blinds: the engine button has already rotated
+ * on, so the `button` reported here is a forecast, and the blinds are far
+ * likelier than the button to move again before the deal (seats can be
+ * claimed, vacated or set to sit out). Deliberately no blind fields.
+ */
 interface NoHandView {
   readonly phase: "no-hand";
   readonly button: SeatId;
 }
 
-interface FoldedOutView {
-  readonly phase: "folded-out";
+/**
+ * The positional facts every hand-bearing view carries. `smallBlind` is the
+ * engine's honest answer, so heads-up it equals `button` — presentation
+ * (which of these to actually draw) is the client's call, not the rules
+ * core's. `dealtSeatCount` is how many seats were dealt in, fixed for the
+ * hand, so `2` means heads-up in any phase.
+ */
+interface HandPositions {
   readonly button: SeatId;
+  readonly smallBlind: SeatId;
+  readonly bigBlind: SeatId;
+  readonly dealtSeatCount: number;
+}
+
+interface FoldedOutView extends HandPositions {
+  readonly phase: "folded-out";
   readonly winner: SeatId;
 }
 
-interface ShowdownView {
+interface ShowdownView extends HandPositions {
   readonly phase: "showdown";
-  readonly button: SeatId;
   readonly board: readonly Card[];
   readonly results: readonly RevealedResult[];
   readonly winners: readonly SeatId[];
 }
 
-export interface PlayerViewBetting {
+export interface PlayerViewBetting extends HandPositions {
   readonly phase: "betting";
-  readonly button: SeatId;
   readonly street: Street;
   readonly board: readonly Card[];
   readonly toAct: readonly SeatId[];
@@ -45,9 +62,8 @@ export interface PlayerViewBetting {
   readonly legalActions: readonly ActionType[];
 }
 
-export interface TableViewBetting {
+export interface TableViewBetting extends HandPositions {
   readonly phase: "betting";
-  readonly button: SeatId;
   readonly street: Street;
   readonly board: readonly Card[];
   readonly toAct: readonly SeatId[];
@@ -82,13 +98,23 @@ export function view(
   }
 
   if (hand.status === "complete" && hand.reason === "folded-out") {
-    return { phase: "folded-out", button: hand.button, winner: hand.winner };
+    return {
+      phase: "folded-out",
+      button: hand.button,
+      smallBlind: hand.smallBlind,
+      bigBlind: hand.bigBlind,
+      dealtSeatCount: hand.dealtSeatCount,
+      winner: hand.winner,
+    };
   }
 
   if (hand.status === "complete") {
     return {
       phase: "showdown",
       button: hand.button,
+      smallBlind: hand.smallBlind,
+      bigBlind: hand.bigBlind,
+      dealtSeatCount: hand.dealtSeatCount,
       board: hand.board,
       winners: hand.winners,
       results: hand.results,
@@ -103,6 +129,9 @@ export function view(
   const tableView: TableViewBetting = {
     phase: "betting",
     button: hand.button,
+    smallBlind: smallBlindSeat(hand.ring, hand.button),
+    bigBlind: bigBlindSeat(hand.ring, hand.button),
+    dealtSeatCount: hand.ring.length,
     street: hand.street,
     board: hand.board,
     toAct: hand.toAct,

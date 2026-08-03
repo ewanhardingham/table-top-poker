@@ -115,6 +115,15 @@ export interface FoldedOutCompleteHandState {
   readonly reason: "folded-out";
   readonly seed: string;
   readonly button: SeatId;
+  /** Resolved from `ring` at completion — see `dealtSeatCount`. */
+  readonly smallBlind: SeatId;
+  readonly bigBlind: SeatId;
+  /**
+   * How many seats were dealt into this hand. Fixed for the hand (folds
+   * never reduce it), so `2` identifies a heads-up hand in every phase —
+   * which is exactly when `smallBlind === button`.
+   */
+  readonly dealtSeatCount: number;
   readonly winner: SeatId;
 }
 
@@ -123,6 +132,10 @@ export interface ShowdownCompleteHandState {
   readonly reason: "showdown";
   readonly seed: string;
   readonly button: SeatId;
+  /** Resolved from `ring` at completion — see `FoldedOutCompleteHandState`. */
+  readonly smallBlind: SeatId;
+  readonly bigBlind: SeatId;
+  readonly dealtSeatCount: number;
   readonly board: readonly Card[];
   readonly results: readonly RevealedResult[];
   readonly winners: readonly SeatId[];

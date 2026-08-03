@@ -15,6 +15,9 @@ describe("Hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [],
       toAct: [1],
@@ -58,6 +61,9 @@ describe("Hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [
         { rank: "A", suit: "spades" },
@@ -89,6 +95,9 @@ describe("Hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [],
       toAct: [1],
@@ -111,6 +120,9 @@ describe("Hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [],
       toAct: [1],
@@ -131,6 +143,9 @@ describe("Hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "turn",
       board: [],
       toAct: [0],
@@ -152,6 +167,9 @@ describe("Hand", () => {
     const view: PlayerView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "turn",
       board: [],
       toAct: [0],
@@ -176,6 +194,9 @@ describe("Hand", () => {
     const showdownView: PlayerView = {
       phase: "showdown",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       board: [
         { rank: "A", suit: "spades" },
         { rank: "K", suit: "hearts" },
@@ -272,7 +293,14 @@ describe("Hand", () => {
 
   describe("folded-out", () => {
     it("shows a win banner and no hole cards when everyone else folded", () => {
-      const view: PlayerView = { phase: "folded-out", button: 0, winner: 0 };
+      const view: PlayerView = {
+        phase: "folded-out",
+        button: 0,
+        smallBlind: 1,
+        bigBlind: 2,
+        dealtSeatCount: 3,
+        winner: 0,
+      };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
       expect(html).toMatch(/data-testid="hand"[^>]*data-phase="folded-out"/);
@@ -283,7 +311,14 @@ describe("Hand", () => {
     });
 
     it("shows a loss banner naming the winner when this seat folded", () => {
-      const view: PlayerView = { phase: "folded-out", button: 0, winner: 1 };
+      const view: PlayerView = {
+        phase: "folded-out",
+        button: 0,
+        smallBlind: 1,
+        bigBlind: 2,
+        dealtSeatCount: 3,
+        winner: 1,
+      };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
       expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="loss"/);
@@ -292,7 +327,14 @@ describe("Hand", () => {
     });
 
     it("never reveals a pair for a seat that folded out — folding is final", () => {
-      const view: PlayerView = { phase: "folded-out", button: 0, winner: 1 };
+      const view: PlayerView = {
+        phase: "folded-out",
+        button: 0,
+        smallBlind: 1,
+        bigBlind: 2,
+        dealtSeatCount: 3,
+        winner: 1,
+      };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
       expect(html).not.toMatch(/data-testid="hole-cards"/);

@@ -15,6 +15,9 @@ describe("Board", () => {
     const view: TableView = {
       phase: "betting",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       street: "flop",
       board: [
         { rank: "A", suit: "spades" },
@@ -35,7 +38,14 @@ describe("Board", () => {
   });
 
   it("names the winner in a hand-complete banner after everyone else folds", () => {
-    const view: TableView = { phase: "folded-out", button: 0, winner: 1 };
+    const view: TableView = {
+      phase: "folded-out",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      winner: 1,
+    };
     const html = renderToStaticMarkup(
       <Board
         view={view}
@@ -69,6 +79,9 @@ describe("Board", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       board: [
         { rank: "A", suit: "spades" },
         { rank: "K", suit: "hearts" },
@@ -126,6 +139,9 @@ describe("Board", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
       board: [
         { rank: "A", suit: "spades" },
         { rank: "K", suit: "hearts" },

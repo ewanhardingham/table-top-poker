@@ -17,8 +17,34 @@ export interface SeatsProps {
 type SeatStatus =
   "open" | "sitting-out" | "disconnected" | "folded" | "in-hand";
 
+/** Which positional marker a seat carries, if any. Never more than one. */
+type Position = "button" | "small-blind" | "big-blind";
+
+/**
+ * One diameter and one font size for all three markers, resolved against the
+ * pod rather than against the marker's own text. The two are set on separate
+ * elements on purpose: `width: 1.6em` and `fontSize: 0.6em` on the *same*
+ * element made the true diameter `1.6 x 0.6em`, which is why the button
+ * marker rendered at roughly a third of the avatar instead of half of it.
+ */
+const MARKER_DIAMETER = "1.6em";
+const MARKER_FONT_SIZE = "0.62em";
+
+const markerLabel: Record<Position, string> = {
+  button: "D",
+  "small-blind": "SB",
+  "big-blind": "BB",
+};
+
+const markerBackground: Record<Position, string> = {
+  button: color.buttonMarker,
+  "small-blind": color.blindSmallMarker,
+  "big-blind": color.blindBigMarker,
+};
+
 interface SeatVisual {
   readonly status: SeatStatus;
+  readonly position: Position | null;
   readonly isButton: boolean;
   readonly isActor: boolean;
   readonly isWinner: boolean;
@@ -26,6 +52,34 @@ interface SeatVisual {
   readonly handDescription: string | null;
   readonly avatarBackground: string;
   readonly avatarColor: string;
+}
+
+/**
+ * Which marker this seat carries. All three come off the same view, so the
+ * trio always moves on one tick and no seat ever carries two.
+ *
+ * Two suppressions, both deliberate:
+ *
+ * - Between hands (`no-hand`) only the button shows. The engine reports no
+ *   blinds without a hand, and the button it does report is already a
+ *   forecast of the next deal.
+ * - **Heads-up (`dealtSeatCount === 2`) only the button shows — no `SB` on
+ *   the button seat, and no `BB` on the other seat either.** The engine
+ *   honestly reports `smallBlind === button` heads-up (the button does post
+ *   the small blind), which would put two markers on one seat. Rather than
+ *   stack or combine them, a heads-up hand reverts to exactly the display
+ *   that existed before blind markers were added. This is a decision
+ *   (issue #160, decision 4), not an oversight.
+ */
+function positionFor(seatId: number, view: TableView | null): Position | null {
+  if (view === null) return null;
+  if (view.phase === "no-hand" || view.dealtSeatCount === 2) {
+    return seatId === view.button ? "button" : null;
+  }
+  if (seatId === view.button) return "button";
+  if (seatId === view.smallBlind) return "small-blind";
+  if (seatId === view.bigBlind) return "big-blind";
+  return null;
 }
 
 /**
@@ -98,6 +152,7 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
 
   return {
     status,
+    position: positionFor(seat.id, view),
     isButton: view !== null && seat.id === view.button,
     isActor: view?.phase === "betting" && view.toAct[0] === seat.id,
     isWinner,
@@ -164,28 +219,34 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                 }}
               />
             )}
-            {visual.isButton && (
+            {visual.position && (
               <span
-                data-testid={`seat-pod-${String(seat.id)}-button`}
+                data-testid={`seat-pod-${String(seat.id)}-${visual.position}`}
                 style={{
                   position: "absolute",
                   top: "-0.4em",
                   right: "-0.4em",
-                  width: "1.6em",
-                  height: "1.6em",
+                  width: MARKER_DIAMETER,
+                  height: MARKER_DIAMETER,
                   borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontFamily: font.mono,
-                  fontSize: "0.6em",
-                  fontWeight: 700,
-                  background: color.buttonMarker,
+                  background: markerBackground[visual.position],
                   color: color.pillInk,
                   boxShadow: shadow.card,
                 }}
               >
-                D
+                <span
+                  style={{
+                    fontFamily: font.mono,
+                    fontSize: MARKER_FONT_SIZE,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                  }}
+                >
+                  {markerLabel[visual.position]}
+                </span>
               </span>
             )}
           </div>
@@ -314,6 +375,8 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
             data-testid={`seat-pod-${String(seat.id)}`}
             data-status={visual.status}
             data-button={visual.isButton}
+            data-small-blind={visual.position === "small-blind"}
+            data-big-blind={visual.position === "big-blind"}
             data-turn={visual.isActor}
             data-winner={visual.isWinner}
             data-disconnected={seat.disconnected}
