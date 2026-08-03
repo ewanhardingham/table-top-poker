@@ -31,6 +31,12 @@ export const color = {
   lossBorder: "rgba(229,68,60,.34)",
   winBackground: "rgba(123,216,143,.1)",
   winBorder: "rgba(123,216,143,.4)",
+  /**
+   * The win green at plate weight: opaque enough to carry light text over a
+   * card face, where `winBackground` — tuned for a wash over the dark shell —
+   * would wash out to nothing.
+   */
+  winPlate: "rgba(32,78,42,.9)",
   winBright: "#7bd88f",
   winKicker: "#8fdfa1",
   winText: "#eef7ef",
