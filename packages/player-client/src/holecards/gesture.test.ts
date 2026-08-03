@@ -9,6 +9,7 @@ import {
 import { BEND_TRAVEL_PX, MOVE_SLOP_PX, REVEAL_THRESHOLD } from "./constants.js";
 import { foldThreshold } from "./geometry.js";
 import {
+  applyCardEvent,
   beginGesture,
   endGesture,
   moveGesture,
@@ -274,6 +275,58 @@ describe("the fold drag", () => {
     expect(pulledBack.events).toEqual([{ type: "FOLD_DISARMED" }]);
     expect(pulledBack.session.armed).toBe(false);
     expect(pulledBack.fold).toEqual({ offset: -20 });
+  });
+
+  it("disarms the session on FOLD_DISARMED so the release commits nothing", () => {
+    const armed = moveGesture(
+      dragging(FOLD_THRESHOLD_PX).session,
+      to(0, -(FOLD_THRESHOLD_PX + 40)),
+      onTurn,
+    ).session;
+    expect(endGesture(armed, { cancelled: false }).commitsFold).toBe(true);
+
+    const disarmed = applyCardEvent(armed, { type: "FOLD_DISARMED" });
+    if (disarmed === null) throw new Error("expected a live fold drag");
+
+    expect(disarmed).toEqual({ ...armed, armed: false });
+    expect(endGesture(disarmed, { cancelled: false }).commitsFold).toBe(false);
+  });
+
+  it("keeps the cards tracking the finger after a view disarms the drag", () => {
+    // §6: the surface never freezes under the player's hand. The drag is not
+    // ended, only disarmed, so the pair carries on following the finger.
+    const armed = moveGesture(
+      dragging(FOLD_THRESHOLD_PX).session,
+      to(0, -(FOLD_THRESHOLD_PX + 40)),
+      onTurn,
+    ).session;
+    const disarmed = applyCardEvent(armed, { type: "FOLD_DISARMED" });
+    if (disarmed === null) throw new Error("expected a live fold drag");
+
+    const moved = moveGesture(
+      disarmed,
+      to(0, -(FOLD_THRESHOLD_PX + 80)),
+      onTurn,
+    );
+    expect(moved.fold).toEqual({ offset: -(FOLD_THRESHOLD_PX + 80) });
+    expect(moved.session.classification).toBe("FoldDragging");
+  });
+
+  it("leaves the session alone for every other lifecycle event", () => {
+    // The pointer is ended by the pointer, and by nothing else: `finish` bails
+    // on a release it has no session for, so a session cleared out from under a
+    // held finger would leave the synthesised click to reveal the next pair.
+    const armed = dragging(FOLD_THRESHOLD_PX).session;
+
+    for (const event of [
+      { type: "CARDS_GONE" },
+      { type: "DEALT" },
+      { type: "RESET" },
+      { type: "SHOWDOWN_REVEAL" },
+    ] as const) {
+      expect(applyCardEvent(armed, event)).toBe(armed);
+    }
+    expect(applyCardEvent(null, { type: "FOLD_DISARMED" })).toBeNull();
   });
 
   it("arms in the same move as the classification when the flick is fast enough", () => {

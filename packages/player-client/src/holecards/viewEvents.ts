@@ -25,9 +25,11 @@ function samePair(
  * exactly what you do while others act — so a new street, a new board card,
  * another player's bet and a changed `toAct` must all produce nothing.
  *
- * `state` is the current lifecycle state; of the events derived here only
- * `CARDS_GONE` consults it. `FOLD_DISARMED` — fold legality disappearing under
- * a live drag — is the one §8 row still to arrive (#146).
+ * `state` is the current lifecycle state; `CARDS_GONE` and `FOLD_DISARMED`
+ * consult it. Fold legality disappearing under a live drag is the one §8
+ * disturbance that must reach an in-progress gesture. If the same view also
+ * removes the cards (clock expiry or eviction), `CARDS_GONE` ends the gesture
+ * and is the only event needed.
  */
 export function eventsForPropChange(
   prev: HoleCardPairProps,
@@ -55,6 +57,18 @@ export function eventsForPropChange(
     // does not un-reveal, and the next hand's `DEALT` is what turns the cards
     // back over.
     if (!prev.locked && next.locked) events.push({ type: "SHOWDOWN_REVEAL" });
+  }
+
+  // A Fold drag keeps following the finger when its legality disappears. The
+  // card removal that accompanies an expiry or eviction ends the gesture
+  // through `CARDS_GONE`, so there is no separate disarm event in that case.
+  if (
+    next.cards !== null &&
+    prev.actions.foldLegal &&
+    !next.actions.foldLegal &&
+    state.recognizer === "FoldDragging"
+  ) {
+    events.push({ type: "FOLD_DISARMED" });
   }
 
   // Only the falling edge, and only a Fold is waiting on it: the pair moved

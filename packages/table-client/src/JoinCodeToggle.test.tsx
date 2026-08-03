@@ -3,16 +3,14 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 
+const noop = () => {
+  /* unused in these tests */
+};
+
 describe("JoinCodeToggle", () => {
-  it("shows the room code and a Room label when closed", () => {
+  it("shows the room code and a Room label", () => {
     const html = renderToStaticMarkup(
-      <JoinCodeToggle
-        roomCode="ABCD"
-        open={false}
-        onToggle={() => {
-          /* unused in this test */
-        }}
-      />,
+      <JoinCodeToggle roomCode="ABCD" onOpen={noop} />,
     );
 
     expect(html).toContain('data-testid="join-code-toggle"');
@@ -20,17 +18,11 @@ describe("JoinCodeToggle", () => {
     expect(html).toContain("Room");
   });
 
-  it("shows a Hide code label when open", () => {
+  it("sits in the status-bar flow rather than positioning itself", () => {
     const html = renderToStaticMarkup(
-      <JoinCodeToggle
-        roomCode="ABCD"
-        open={true}
-        onToggle={() => {
-          /* unused in this test */
-        }}
-      />,
+      <JoinCodeToggle roomCode="ABCD" onOpen={noop} />,
     );
 
-    expect(html).toContain("Hide code");
+    expect(html).not.toContain("position:absolute");
   });
 });

@@ -1,4 +1,35 @@
 import { PillButton } from "@table-top-poker/ui-shared";
+import type { CSSProperties } from "react";
+
+export type TableControlsPlacement = "rail" | "join-panel";
+
+const layoutStyles: Record<TableControlsPlacement, CSSProperties> = {
+  rail: {
+    position: "absolute",
+    right: "1.5em",
+    top: "50%",
+    transform: "translateY(-50%)",
+    display: "flex",
+    flexDirection: "column",
+    width: "13em",
+    gap: "0.6em",
+  },
+  "join-panel": {
+    display: "flex",
+    flexDirection: "row",
+    width: "26em",
+    maxWidth: "calc(100vw - 2em)",
+    gap: "0.6em",
+    // The join overlay turns pointer events off so its invisible edges don't
+    // swallow clicks on the felt; the controls have to turn them back on.
+    pointerEvents: "auto",
+  },
+};
+
+const actionButtonStyles: Record<TableControlsPlacement, CSSProperties> = {
+  rail: { width: "100%" },
+  "join-panel": { flex: "1 1 0", minWidth: 0 },
+};
 
 export interface TableControlsProps {
   readonly canStartHand: boolean;
@@ -6,6 +37,7 @@ export interface TableControlsProps {
   readonly onStartHand: () => void;
   readonly onNextHand: () => void;
   readonly onEndSession: () => void;
+  readonly placement?: TableControlsPlacement;
   /**
    * PROTOTYPE (wayfinder #81) — opens the session hand picker. Optional so
    * the live `App` is unaffected; Phase 2 makes it a peer of the other rail
@@ -16,10 +48,11 @@ export interface TableControlsProps {
 }
 
 /**
- * The right-hand control rail — every table action the device offers, as one
- * group. Deal hand / Next hand are mutually exclusive with the felt's hand
- * state; Review hands and End session are always available once a room exists
- * (this component is only mounted then).
+ * The table action group — a right-hand control rail during a hand, or a
+ * group below the join panel while the room is waiting to start. Deal hand /
+ * Next hand are mutually exclusive with the felt's hand state; Review hands
+ * and End session are always available once a room exists (this component is
+ * only mounted then).
  *
  * The rail is a fixed-width column and every button fills it, so the actions
  * share one left and right edge instead of ragging off the right margin at
@@ -37,26 +70,20 @@ export function TableControls({
   onStartHand,
   onNextHand,
   onEndSession,
+  placement = "rail",
   onReviewHands,
 }: TableControlsProps) {
+  const layoutStyle = layoutStyles[placement];
+  const actionButtonStyle = actionButtonStyles[placement];
+
   return (
-    <div
-      style={{
-        position: "absolute",
-        right: "1.5em",
-        top: "50%",
-        transform: "translateY(-50%)",
-        display: "flex",
-        flexDirection: "column",
-        width: "13em",
-        gap: "0.6em",
-      }}
-    >
-      {canStartHand && (
+    <div data-placement={placement} style={layoutStyle}>
+      {(placement === "join-panel" || canStartHand) && (
         <PillButton
           data-testid="start-hand-button"
+          disabled={placement === "join-panel" && !canStartHand}
           onClick={onStartHand}
-          style={{ width: "100%" }}
+          style={actionButtonStyle}
         >
           Deal hand
         </PillButton>
@@ -65,7 +92,7 @@ export function TableControls({
         <PillButton
           data-testid="next-hand-button"
           onClick={onNextHand}
-          style={{ width: "100%" }}
+          style={actionButtonStyle}
         >
           Next hand
         </PillButton>
@@ -75,7 +102,7 @@ export function TableControls({
           tone="outline"
           data-testid="review-hands-button"
           onClick={onReviewHands}
-          style={{ width: "100%" }}
+          style={actionButtonStyle}
         >
           Review hands
         </PillButton>
@@ -84,7 +111,7 @@ export function TableControls({
         tone="outline"
         data-testid="end-session-button"
         onClick={onEndSession}
-        style={{ width: "100%" }}
+        style={actionButtonStyle}
       >
         End session
       </PillButton>

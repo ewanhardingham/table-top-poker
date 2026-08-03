@@ -37,6 +37,20 @@ const toneStyle: Record<PillButtonTone, CSSProperties> = {
 };
 
 /**
+ * One disabled look for every pill, whatever its tone. A disabled action still
+ * has to read as the same control it was a moment ago — same size, same
+ * position — so only the fill, the ink and the cursor change. This lives here
+ * rather than at the call sites: three of them had grown their own copy of it.
+ */
+const disabledStyle: CSSProperties = {
+  background: color.controlFill,
+  color: color.disabledText,
+  border: `1px solid ${color.border}`,
+  boxShadow: "none",
+  cursor: "default",
+};
+
+/**
  * The rounded pill used for table/player actions. `tone="solid"` is the
  * cream gradient for primary actions ("Deal hand", "Create room"); `tone="outline"`
  * is the muted mono-label pill used for secondary actions ("End session").
@@ -59,6 +73,7 @@ export function PillButton({
         fontFamily: font.body,
         ...toneStyle[tone],
         ...sizeStyle[size],
+        ...(rest.disabled ? disabledStyle : {}),
         ...style,
       }}
     />

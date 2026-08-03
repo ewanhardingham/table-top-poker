@@ -29,6 +29,7 @@ describe("StatusBar", () => {
     );
     expect(html).toContain('data-testid="connection-status"');
     expect(html).toContain("connected");
+    expect(html).toContain("height:30px");
   });
 
   it("shows the seat chip alongside the connection badge, on the same row", () => {

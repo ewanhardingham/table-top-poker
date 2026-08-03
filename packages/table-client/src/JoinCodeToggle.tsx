@@ -3,16 +3,12 @@ import type { CSSProperties } from "react";
 
 export interface JoinCodeToggleProps {
   readonly roomCode: string;
-  readonly open: boolean;
-  readonly onToggle: () => void;
+  readonly onOpen: () => void;
 }
 
 const wrapperStyle: CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  top: 22,
-  transform: "translateX(-50%)",
-  zIndex: 11,
+  flex: "none",
+  minWidth: 0,
 };
 
 const buttonStyle: CSSProperties = {
@@ -28,20 +24,21 @@ const buttonStyle: CSSProperties = {
 };
 
 /**
- * Top-centre pill that stays visible once a room exists, letting the table
- * device peek at the join code/QR mid-hand without losing the board view.
+ * Room pill in the status bar, letting the table device peek at the join
+ * code/QR mid-hand without losing the board view.
+ *
+ * It opens the join card but never closes it: `App` unmounts the pill while
+ * the card is up, so the card's own Hide button is the single close path. A
+ * pill that could also close would need a second label and a second state for
+ * a control that is off-screen whenever that state applies.
  */
-export function JoinCodeToggle({
-  roomCode,
-  open,
-  onToggle,
-}: JoinCodeToggleProps) {
+export function JoinCodeToggle({ roomCode, onOpen }: JoinCodeToggleProps) {
   return (
     <div style={wrapperStyle}>
       <button
         type="button"
         data-testid="join-code-toggle"
-        onClick={onToggle}
+        onClick={onOpen}
         style={buttonStyle}
       >
         <span
@@ -54,7 +51,7 @@ export function JoinCodeToggle({
             color: color.textDim,
           }}
         >
-          {open ? "Hide code" : "Room"}
+          Room
         </span>
         <span
           style={{

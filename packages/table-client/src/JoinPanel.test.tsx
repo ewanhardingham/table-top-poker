@@ -71,4 +71,25 @@ describe("JoinPanel", () => {
     expect(dismissableHtml).toContain('data-testid="join-panel-dismiss"');
     expect(pinnedHtml).not.toContain('data-testid="join-panel-dismiss"');
   });
+
+  it("renders optional controls below the join card", () => {
+    const html = renderToStaticMarkup(
+      <JoinPanel
+        roomCode="ABCD"
+        joinUrl="http://localhost:3000/join/ABCD"
+        qrCodeDataUrl="data:image/png;base64,xyz"
+        lobbyHint="Waiting for at least two players"
+        dismissable={false}
+        onDismiss={() => {
+          /* unused in this test */
+        }}
+        controls={<div data-testid="join-panel-controls">Controls</div>}
+      />,
+    );
+
+    expect(html).toContain('data-testid="join-panel-controls"');
+    expect(html.indexOf('data-testid="join-panel-code"')).toBeLessThan(
+      html.indexOf('data-testid="join-panel-controls"'),
+    );
+  });
 });

@@ -14,7 +14,6 @@ import {
 import { Board } from "./Board.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
 import { SeatCountPicker } from "./SeatCountPicker.js";
-import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
 import { Seats } from "./Seats.js";
@@ -121,7 +120,12 @@ export function App() {
 
   return (
     <div className="app-shell" data-testid="table-client-shell">
-      <StatusBar roomCode={roomCode} connectionStatus={connectionStatus} />
+      <StatusBar
+        roomCode={roomCode}
+        connectionStatus={connectionStatus}
+        showRoomCode={handInProgress && !joinOpen}
+        onOpenJoin={toggleJoin}
+      />
       <main className="felt">
         {roomCode === null ? (
           <SeatCountPicker
@@ -171,11 +175,6 @@ export function App() {
                 <Board view={handView} seats={seats} />
               </div>
             )}
-            <JoinCodeToggle
-              roomCode={roomCode}
-              open={joinOpen}
-              onToggle={toggleJoin}
-            />
             {showJoinPanel && (
               <JoinPanel
                 roomCode={roomCode}
@@ -184,6 +183,18 @@ export function App() {
                 lobbyHint={lobbyHint}
                 dismissable={handInProgress}
                 onDismiss={toggleJoin}
+                controls={
+                  handInProgress ? undefined : (
+                    <TableControls
+                      placement="join-panel"
+                      canStartHand={canStartHand}
+                      handComplete={handComplete}
+                      onStartHand={handleStartHand}
+                      onNextHand={handleNextHand}
+                      onEndSession={handleEndSession}
+                    />
+                  )
+                }
               />
             )}
             <SettingsToggle
@@ -204,13 +215,15 @@ export function App() {
                 }}
               />
             )}
-            <TableControls
-              canStartHand={canStartHand}
-              handComplete={handComplete}
-              onStartHand={handleStartHand}
-              onNextHand={handleNextHand}
-              onEndSession={handleEndSession}
-            />
+            {handInProgress && (
+              <TableControls
+                canStartHand={canStartHand}
+                handComplete={handComplete}
+                onStartHand={handleStartHand}
+                onNextHand={handleNextHand}
+                onEndSession={handleEndSession}
+              />
+            )}
           </div>
         )}
       </main>
