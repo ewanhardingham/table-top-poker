@@ -18,7 +18,7 @@ type SeatStatus =
   "open" | "sitting-out" | "disconnected" | "folded" | "in-hand";
 
 /** Which positional marker a seat carries, if any. Never more than one. */
-type Position = "button" | "small-blind" | "big-blind";
+type SeatMarker = "button" | "small-blind" | "big-blind";
 
 /**
  * One diameter and one font size for all three markers, resolved against the
@@ -30,13 +30,13 @@ type Position = "button" | "small-blind" | "big-blind";
 const MARKER_DIAMETER = "1.6em";
 const MARKER_FONT_SIZE = "0.62em";
 
-const markerLabel: Record<Position, string> = {
+const markerLabel: Record<SeatMarker, string> = {
   button: "D",
   "small-blind": "SB",
   "big-blind": "BB",
 };
 
-const markerBackground: Record<Position, string> = {
+const markerBackground: Record<SeatMarker, string> = {
   button: color.buttonMarker,
   "small-blind": color.blindSmallMarker,
   "big-blind": color.blindBigMarker,
@@ -44,8 +44,7 @@ const markerBackground: Record<Position, string> = {
 
 interface SeatVisual {
   readonly status: SeatStatus;
-  readonly position: Position | null;
-  readonly isButton: boolean;
+  readonly marker: SeatMarker | null;
   readonly isActor: boolean;
   readonly isWinner: boolean;
   readonly holeCards: readonly [CardType, CardType] | null;
@@ -71,9 +70,12 @@ interface SeatVisual {
  *   that existed before blind markers were added. This is a decision
  *   (issue #160, decision 4), not an oversight.
  */
-function positionFor(seatId: number, view: TableView | null): Position | null {
+function markerFor(seatId: number, view: TableView | null): SeatMarker | null {
   if (view === null) return null;
-  if (view.phase === "no-hand" || view.dealtSeatCount === 2) {
+  // Heads-up is a property of the deal, not of who is still live: folds never
+  // change it, so this reads the same in every phase of the hand.
+  const headsUp = view.phase !== "no-hand" && view.dealtSeatCount === 2;
+  if (view.phase === "no-hand" || headsUp) {
     return seatId === view.button ? "button" : null;
   }
   if (seatId === view.button) return "button";
@@ -152,8 +154,7 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
 
   return {
     status,
-    position: positionFor(seat.id, view),
-    isButton: view !== null && seat.id === view.button,
+    marker: markerFor(seat.id, view),
     isActor: view?.phase === "betting" && view.toAct[0] === seat.id,
     isWinner,
     holeCards: showdownResult?.holeCards ?? null,
@@ -219,9 +220,9 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                 }}
               />
             )}
-            {visual.position && (
+            {visual.marker && (
               <span
-                data-testid={`seat-pod-${String(seat.id)}-${visual.position}`}
+                data-testid={`seat-pod-${String(seat.id)}-${visual.marker}`}
                 style={{
                   position: "absolute",
                   top: "-0.4em",
@@ -232,7 +233,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: markerBackground[visual.position],
+                  background: markerBackground[visual.marker],
                   color: color.pillInk,
                   boxShadow: shadow.card,
                 }}
@@ -245,7 +246,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                     lineHeight: 1,
                   }}
                 >
-                  {markerLabel[visual.position]}
+                  {markerLabel[visual.marker]}
                 </span>
               </span>
             )}
@@ -374,9 +375,9 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
             key={seat.id}
             data-testid={`seat-pod-${String(seat.id)}`}
             data-status={visual.status}
-            data-button={visual.isButton}
-            data-small-blind={visual.position === "small-blind"}
-            data-big-blind={visual.position === "big-blind"}
+            data-button={visual.marker === "button"}
+            data-small-blind={visual.marker === "small-blind"}
+            data-big-blind={visual.marker === "big-blind"}
             data-turn={visual.isActor}
             data-winner={visual.isWinner}
             data-disconnected={seat.disconnected}
