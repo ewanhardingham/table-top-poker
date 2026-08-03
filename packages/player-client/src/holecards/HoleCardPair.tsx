@@ -198,7 +198,9 @@ export function HoleCardPair(props: HoleCardPairProps) {
         gap: "0.55em",
       }}
     >
-      <div className="hole-cards-surface">
+      {/* The positioning parent for the Check stamp, which is painted over the
+       * pair rather than laid out beside it. */}
+      <div style={{ position: "relative", display: "flex" }}>
         <button
           type="button"
           data-testid="hole-cards"
@@ -271,11 +273,17 @@ export function HoleCardPair(props: HoleCardPairProps) {
         </button>
         {checkConfirmed && <CheckStamp />}
       </div>
-      <GestureHint
-        dragLeft={hintDragLeft}
-        dragUp={hintDragUp}
-        axis={bendAxis}
-      />
+      {/* One value decides where the Check confirmation is painted, so the
+       * stamp and the hint below can never both claim it — or both drop it.
+       * The selector still returns the confirmation as a hint, because that is
+       * what `Announcer` speaks; only its sighted copy moves onto the cards. */}
+      {!checkConfirmed && (
+        <GestureHint
+          dragLeft={hintDragLeft}
+          dragUp={hintDragUp}
+          axis={bendAxis}
+        />
+      )}
       <Announcer hint={announced} />
     </div>
   );
@@ -347,11 +355,6 @@ function GestureHint({
 
   if (dragLeft === null || dragUp === null) return null;
 
-  // Check confirmation is painted as a stamp over the cards. Keep the
-  // selected hint alive for the status announcer below, but do not render its
-  // old two-line sighted copy beneath the pair.
-  if (dragLeft.id === "checked") return null;
-
   // One hint, not two: the axis is only a distinction while a bend is live.
   if (dragLeft.id === dragUp.id) return <HintBlock hint={dragLeft} />;
 
@@ -377,11 +380,10 @@ function HintBlock({ hint }: { readonly hint: Hint }) {
     <p
       data-testid="hole-cards-hint"
       data-hint={hint.id}
-      // News is announced; advice is not. A live region over the in-gesture
-      // prompts would read a bend out loud as the finger wandered across the
-      // diagonal, so only the Check confirmation asks for it — and it is
-      // `Announcer` that speaks it, leaving this copy purely visual.
-      {...(hint.announce ? { "aria-hidden": true } : {})}
+      // Everything that reaches here is advice about a gesture in progress,
+      // never news: the one announced hint is the Check confirmation, and that
+      // one is painted as a stamp over the cards instead of passing through
+      // this block. So there is nothing here for `Announcer` to double up on.
       style={{
         margin: 0,
         display: "grid",

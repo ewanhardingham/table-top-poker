@@ -113,6 +113,20 @@ describe("HoleCardPair", () => {
     expect(html).not.toContain('data-testid="hole-cards-hint"');
   });
 
+  // The confirmation is transient, so a settled pair claiming a Check just
+  // landed would be a lie. The other half of this — that the stamp *does*
+  // arrive on a gesture Check, and takes the sighted hint's place when it
+  // does — needs a rendered double-tap, which is the DOM test layer #156 is
+  // still deciding on.
+  it("stamps no Check confirmation over a pair that has not just checked", () => {
+    const html = renderToStaticMarkup(
+      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+    );
+
+    expect(html).not.toContain('data-testid="check-stamp"');
+    expect(html).not.toContain("CHECKED");
+  });
+
   it("mounts the live region empty, before there is any news to put in it", () => {
     const html = renderToStaticMarkup(
       <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
