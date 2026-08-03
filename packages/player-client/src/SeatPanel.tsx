@@ -1,25 +1,7 @@
-import {
-  PillButton,
-  color,
-  font,
-  fontSize,
-  radius,
-} from "@table-top-poker/ui-shared";
+import { PillButton, color } from "@table-top-poker/ui-shared";
 import type { SittingOutReason } from "@table-top-poker/protocol";
 import type { CSSProperties } from "react";
-
-export const playerTopPillStyle: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  height: 30,
-  padding: "0 12px",
-  borderRadius: radius.pill,
-  fontFamily: font.mono,
-  fontSize: fontSize.xs,
-  fontWeight: 600,
-  letterSpacing: "0.16em",
-  textTransform: "uppercase",
-};
+import { playerTopPillStyle } from "./topPillStyle.js";
 
 /**
  * Geometry only while disabled — `PillButton` owns the disabled fill, ink and

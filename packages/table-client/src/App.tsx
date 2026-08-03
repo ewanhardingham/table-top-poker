@@ -184,7 +184,7 @@ export function App() {
                 dismissable={handInProgress}
                 onDismiss={toggleJoin}
                 controls={
-                  !handInProgress ? (
+                  handInProgress ? undefined : (
                     <TableControls
                       placement="join-panel"
                       canStartHand={canStartHand}
@@ -193,7 +193,7 @@ export function App() {
                       onNextHand={handleNextHand}
                       onEndSession={handleEndSession}
                     />
-                  ) : undefined
+                  )
                 }
               />
             )}

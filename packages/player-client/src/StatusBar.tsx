@@ -1,7 +1,8 @@
 import { color, font, fontSize } from "@table-top-poker/ui-shared";
 import type { SittingOutReason } from "@table-top-poker/protocol";
 import type { CSSProperties } from "react";
-import { SeatPanel, playerTopPillStyle } from "./SeatPanel.js";
+import { SeatPanel } from "./SeatPanel.js";
+import { playerTopPillStyle } from "./topPillStyle.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface StatusBarProps {
