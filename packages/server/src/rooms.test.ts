@@ -257,6 +257,82 @@ describe("RoomStore", () => {
     });
   });
 
+  describe("ADR-0005: player self-leave", () => {
+    function claimWithToken(store: RoomStore, code: string, seatId: number) {
+      const result = store.claimSeat(code, seatId, `P${String(seatId)}`);
+      if (!("seat" in result)) throw new Error("expected a claimed seat");
+      const { token } = result.seat;
+      if (token === null) throw new Error("expected a token");
+      return token;
+    }
+
+    it("frees the seat back to the pool when the token matches", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      const token = claimWithToken(store, room.code, 0);
+
+      const result = store.leaveSeat(room.code, 0, token);
+
+      expect(result).not.toHaveProperty("error");
+      expect(room.seats[0]).toEqual({
+        id: 0,
+        claimed: false,
+        token: null,
+        sittingOut: false,
+        disconnected: false,
+      });
+    });
+
+    it("rejects a mismatched token and leaves the seat untouched", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      claimWithToken(store, room.code, 0);
+
+      const result = store.leaveSeat(room.code, 0, "not-the-token");
+
+      expect(result).toEqual({ error: "not-permitted" });
+      expect(room.seats[0]).toMatchObject({ claimed: true });
+    });
+
+    it("rejects leaving an unclaimed seat", () => {
+      const store = new RoomStore();
+      const room = store.create();
+
+      expect(store.leaveSeat(room.code, 0, "any")).toEqual({
+        error: "not-permitted",
+      });
+    });
+
+    it("reports room-not-found for an unknown room", () => {
+      const store = new RoomStore();
+      expect(store.leaveSeat("ZZZZ", 0, "any")).toEqual({
+        error: "room-not-found",
+      });
+    });
+
+    it("folds the current actor mid-hand, exactly as an eviction does", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      const tokens = [0, 1, 2].map((seatId) =>
+        claimWithToken(store, room.code, seatId),
+      );
+      store.dispatch(room.code, "table", "startHand");
+      const actor = store.currentActor(room.code);
+      if (actor === undefined) throw new Error("expected a current actor");
+
+      const result = store.leaveSeat(room.code, actor, tokens[actor] ?? "");
+
+      if ("error" in result) throw new Error("expected the leave to dispatch");
+      expect(result.dispatch?.steps.at(-1)?.event).toMatchObject({
+        type: "ActionTaken",
+        seatId: actor,
+        action: "fold",
+      });
+      expect(room.seats[actor]).toMatchObject({ claimed: false });
+      expect(store.currentActor(room.code)).not.toBe(actor);
+    });
+  });
+
   describe("seat-count changes", () => {
     function claimSeats(store: RoomStore, room: Room, ids: readonly number[]) {
       for (const seatId of ids) {

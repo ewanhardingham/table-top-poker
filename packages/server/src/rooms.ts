@@ -459,6 +459,25 @@ export class RoomStore {
   }
 
   /**
+   * A player releasing their own seat (ADR-0005) — the free-the-seat
+   * operation of {@link evictSeat}, gated on the caller presenting the
+   * seat's own token rather than on being the table device. Frees only the
+   * seat that token owns; a mismatched or stale token is `not-permitted`.
+   */
+  leaveSeat(
+    code: string,
+    seatId: SeatId,
+    token: string,
+  ): EvictSeatResult | { readonly error: "room-not-found" | "not-permitted" } {
+    const room = this.#rooms.get(code);
+    if (!room) return { error: "room-not-found" };
+    const seat = room.seats[seatId];
+    if (!seat?.claimed || seat.token !== token)
+      return { error: "not-permitted" };
+    return this.evictSeat(code, seatId);
+  }
+
+  /**
    * Changes the room's physical seat count. Growing is always safe and
    * immediate. A shrink would renumber the live engine ring, so it is queued
    * until the next deal-in recompute; outside a live hand it applies
