@@ -7,8 +7,9 @@ export interface SeatPosition {
 
 /**
  * Lays seats out along the two long edges of the felt — 1..k left to right
- * along the bottom, then back right to left along the top — matching the
- * design prototype's `posFor()` so the layout holds up across the table
+ * along the bottom, then back right to left along the top. The arrangement was
+ * seeded by the design prototype (`docs/design/`, historical — see its README);
+ * these percentages are the source of truth now, and are tuned for the table
  * device's actual viewport rather than the prototype's mocked one.
  */
 export function posFor(seatId: number, seatCount: number): SeatPosition {
