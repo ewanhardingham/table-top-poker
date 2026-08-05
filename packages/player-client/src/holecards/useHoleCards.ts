@@ -29,9 +29,10 @@ import {
   moveGesture,
   type GestureSession,
 } from "./gesture.js";
+import { planFinish } from "./finishPlan.js";
 import { pulse } from "./haptics.js";
 import type { HoleCardPairProps } from "./HoleCardPair.js";
-import { confirmsCheck, tapLanded, type TapWindow } from "./taps.js";
+import type { TapWindow } from "./taps.js";
 import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
 
 /**
@@ -322,24 +323,6 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     dispatch({ type: "ACTIVATED" });
   }, []);
 
-  /**
-   * The double-tap Action (§5, stories 27 and 28). `check` **is**
-   * `intent.check`, so the gesture and the ActionBar button reach the Action
-   * by the identical route and `canAct` — inside the intent, on the latest
-   * view — is the single gate deciding whether it may be sent. An off-turn or
-   * illegal double-tap therefore needs no guard here to be a no-op.
-   *
-   * `checkLegal` and `pending` are read for **rendering only**, exactly as the
-   * port promises: they decide whether to claim the Check landed. A stale prop
-   * can at worst show a confirmation for an Action the intent then refuses —
-   * never send one.
-   */
-  const sendCheck = (): void => {
-    const confirm = confirmsCheck(props.actions);
-    props.actions.check();
-    if (confirm) setCheckConfirmedAt(Date.now());
-  };
-
   const finish = (
     event: ReactPointerEvent<HTMLElement>,
     cancelled: boolean,
@@ -359,72 +342,46 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     // that already crossed the threshold is exempt: it committed on crossing,
     // and the turn is mid-flight with the peel under its control.
     if (!active.crossed) bend.set(0);
-    // **The commitment, and the only one a pointer lift makes** (§10). Decided
-    // off the session, which is a ref and therefore exactly as current as the
-    // events the reducer has been given — the state this hook renders with can
-    // lag a threshold crossed one pointer event ago, and a fast flick is the
-    // commonest way to fold, not an edge case.
-    const { events, commitsFold } = endGesture(active, { cancelled });
-    // Fold legality is sampled once, at classification (§4), so a drag can
-    // outlive the turn that made it legal. §6's answer is that such a drag
-    // **disarms** — the release commits nothing, and there is no rejection
-    // message, because the turn banner already explains it.
-    //
-    // Re-sampled here as well as on the prop change `eventsForPropChange`
-    // watches, because a release can beat the view that would have disarmed it.
-    // `pending` rides along for the same reason: a Fold cannot go out on top of
-    // an Action already in flight, and a departure the player watches and then
-    // has undone is worse than one that never starts.
-    //
-    // This is arming input, exactly as §2 licenses; `canAct` inside
-    // `intent.fold` remains the single gate on whether the Action is sent.
-    const commits =
-      commitsFold && props.actions.foldLegal && !props.actions.pending;
-    if (commitsFold && !commits) dispatch({ type: "FOLD_DISARMED" });
-    // The pair leaves with whatever face it had (§7). Read off presentation
-    // rather than the session, because a keyboard reveal committed before the
-    // press can land during the drag — and `Turning` is a point of no return,
-    // so a pair mid-flip is a pair that is going to be face-up.
-    if (commits) {
-      setLeavingFaceUp(
-        state.presentation === "Revealed" || state.presentation === "Turning",
-      );
+    // Everything a pointer lift decides — which events fire, which Actions
+    // leave the module, what the tap window becomes — is `planFinish`'s to
+    // answer (§156). Decided off the session, which is a ref and therefore
+    // exactly as current as the events the reducer has been given: the state
+    // this hook renders with can lag a threshold crossed one pointer event ago,
+    // and a fast flick is the commonest way to fold, not an edge case.
+    const plan = planFinish({
+      end: endGesture(active, { cancelled }),
+      actions: props.actions,
+      presentation: state.presentation,
+      tapWindow: tapWindow.current,
+      // The clock is monotonic, because a wall clock stepping backwards
+      // mid-hand would turn two unrelated taps into a Check (§5).
+      now: performance.now(),
+    });
+    tapWindow.current = plan.nextTapWindow;
+    // The pair leaves with whatever face it had (§7). Set here, before the
+    // effects replay, so it lands in the same commit as the `RELEASED` that
+    // moves the reducer into `Leaving`.
+    if (plan.leaving !== null) {
+      setLeavingFaceUp(plan.leaving.faceUp);
       setDeparting(props.cards);
     }
-    let tapped = false;
-    for (const cardEvent of events) {
-      if (cardEvent.type !== "TAPPED") {
-        dispatch(cardEvent);
-        continue;
+    // The hook owns only the imperative replay: the plan already fixed the
+    // order, and the two orderings that cost money — conceal before Check, and
+    // depart before Fold — are carried by the effect list, not by this loop.
+    // `fold`/`check` **are** `intent.fold`/`intent.check`, so gesture and
+    // button enter the identical function and `canAct` on the latest view stays
+    // the single legality gate: an armed release the server would refuse sends
+    // nothing here that the intent does not then drop.
+    for (const effect of plan.effects) {
+      if (effect.kind === "dispatch") {
+        dispatch(effect.event);
+      } else if (effect.action === "check") {
+        props.actions.check();
+      } else {
+        props.actions.fold();
       }
-      // A tap is only *provisionally* a tap: whether it is one, or the second
-      // half of a Check, is `taps` to decide. The clock is monotonic, because
-      // a wall clock stepping backwards mid-hand would turn two unrelated taps
-      // into an Action.
-      const tap = tapLanded(tapWindow.current, performance.now());
-      tapWindow.current = tap.window;
-      tapped = true;
-      dispatch(tap.event);
-      // Dispatched first, so the Action is sent against a pair that has
-      // already taken the conceal — the player sees the cards go down, then the
-      // confirmation, in that order and with no timer between them.
-      if (tap.event.type === "DOUBLE_TAPPED") sendCheck();
     }
-    // The two taps of a Check must be *consecutive*. A gesture that ended as
-    // anything else — a bend, a cancelled press — closes the window, so
-    // tap → quick peek → tap cannot compose an Action out of two taps the
-    // player never meant to pair. Sending a Check nobody asked for is the one
-    // failure here that costs money, so the window is closed rather than left
-    // open on a technicality of what the middle gesture happened to be.
-    if (!tapped) tapWindow.current = null;
-    // Sent after the dispatch, so the cards are already on their way to the
-    // muck when the Action goes: the departure is the player's own answer
-    // rather than the server's. `fold` **is** `intent.fold` — gesture and
-    // button enter the identical function, and `canAct` on the latest view
-    // stays the single legality gate, so an armed release the server would
-    // refuse sends nothing, and the pending Action it is waiting behind
-    // resolves the pair back to `FaceDown` as any rejection would.
-    if (commits) props.actions.fold();
+    if (plan.confirmCheck) setCheckConfirmedAt(Date.now());
   };
 
   const handlers: PairHandlers = {
