@@ -47,9 +47,10 @@ const baseStyle: CSSProperties = {
  * swapping an `<img>` src — required so Phase 3's flip animation can
  * cross-fade between the two branches instead of a network image swap.
  *
- * Face styling matches the prototype's hole card (the larger of its two
- * card treatments); the board card differs slightly (radius, border,
- * shadow) but the two aren't different enough to justify a second component.
+ * Face styling was seeded by the design prototype's hole card (`docs/design/`,
+ * historical — see its README) and is the source of truth now; the board card
+ * differs slightly (radius, border, shadow) but the two aren't different
+ * enough to justify a second component.
  */
 export function Card(props: CardProps) {
   if (props.faceDown) {
@@ -103,9 +104,9 @@ export function Card(props: CardProps) {
  *
  * Sized against the card, never in px, so it holds at every scale the card is
  * used at — seat pods and multi-way reveals shrink the whole box well under
- * `1em`. The prototype's ratio is `0.51em` (24px on its 164px card), which
+ * `1em`. The design prototype used `0.51em` (24px on its 164px card), which
  * read as too small on a real screen; this sits between that and the `1.1em`
- * it replaced.
+ * it replaced, and is not a figure to reconcile back against the prototype.
  *
  * There is an upper bound worth knowing about: much past `1.1em` the index
  * stops being a corner mark and reaches into the middle of the card, far

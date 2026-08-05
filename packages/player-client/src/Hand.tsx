@@ -131,10 +131,11 @@ function seatLabel(seatId: number, seats: readonly SeatView[]): string {
 }
 
 /**
- * Whose-turn state as `{ kicker, text, tone }`, matching the prototype's
- * banner copy — the same box carries the result once the hand's decided
- * (issue #63), rather than a separate card competing with the hole cards
- * for attention. Connection state wins over hand state: nothing can be
+ * Whose-turn state as `{ kicker, text, tone }`. The banner copy was seeded by
+ * the design prototype (`docs/design/`, historical — see its README) and is
+ * the source of truth now — the same box carries the result once the hand's
+ * decided (issue #63), rather than a separate card competing with the hole
+ * cards for attention. Connection state wins over hand state: nothing can be
  * acted on off-line, so that's surfaced first regardless of whose turn (or
  * whose win) the hand thinks it is.
  */
