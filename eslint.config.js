@@ -13,7 +13,6 @@ export default tseslint.config(
       "**/public/player/**",
       "**/public/table/**",
       ".release/**",
-      "docs/design/**",
     ],
   },
   eslint.configs.recommended,
