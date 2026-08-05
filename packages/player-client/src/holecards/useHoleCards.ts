@@ -89,8 +89,7 @@ export interface HoleCards {
 
 /**
  * A spring rather than a duration: the cards were being *carried*, and letting
- * go of something you are carrying has weight and a little overshoot. Carried
- * forward from the prototype.
+ * go of something you are carrying has weight and a little overshoot.
  */
 const RETURN_SPRING = { type: "spring", stiffness: 480, damping: 36 } as const;
 

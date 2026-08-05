@@ -118,8 +118,8 @@ function CurlingCard({
       const { width, height } = current;
 
       if (progress <= REVEAL_THRESHOLD) {
-        // The gentle diagonal curl the prototype settled on: the corner
-        // travels in towards the middle of the card as the bend deepens.
+        // A gentle diagonal curl: the corner travels in towards the middle
+        // of the card as the bend deepens.
         const travel = (progress / REVEAL_THRESHOLD) * CURL_TRAVEL;
         current.setPeelPosition(
           width - width * travel,
@@ -179,8 +179,7 @@ function CurlingCard({
  * the fingertip and the bottom-left region that the lifted flap uncovers. The
  * face's own bottom-right index therefore falls outside the visible curl
  * entirely — which is why a bend showed bare white card. This is that index
- * remapped to where the geometry actually puts it, exactly as the prototype
- * resolved the same problem.
+ * remapped to where the geometry actually puts it.
  *
  * The face's *own* corner indices are suppressed on this copy — see
  * `.peel-back .card-index` in `app-shell.css`. They are printed for a flat
