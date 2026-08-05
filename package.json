@@ -21,6 +21,7 @@
     "build:release": "bash scripts/build-release.sh",
     "clean": "tsc --build tsconfig.json --clean",
     "prototype:hole-cards": "bash scripts/run-hole-cards-prototype.sh",
+    "prototype:showdown-reveal": "bash scripts/run-showdown-reveal-prototype.sh",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write ."
