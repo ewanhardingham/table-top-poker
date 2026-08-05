@@ -20,7 +20,6 @@
     "build": "tsc --build tsconfig.json",
     "build:release": "bash scripts/build-release.sh",
     "clean": "tsc --build tsconfig.json --clean",
-    "prototype:hole-cards": "bash scripts/run-hole-cards-prototype.sh",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write ."

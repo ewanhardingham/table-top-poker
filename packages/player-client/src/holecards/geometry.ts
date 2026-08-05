@@ -9,7 +9,7 @@ export type BendAxis = "left" | "up";
 
 /**
  * Peel progress, 0 → 1, for a drag of `dx`/`dy` from where the finger landed
- * (Phase 3 spec #138 §15). Prototype-validated; read rather than re-derived.
+ * (Phase 3 spec #138 §15) — read from the spec rather than re-derived.
  *
  * Leftward and upward travel count **equally**, and only inward travel counts
  * at all. Two consequences the formula exists for:
