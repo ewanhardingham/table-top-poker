@@ -29,10 +29,7 @@ const LABELS: Record<ActionType, string> = {
   raise: "Raise",
 };
 
-/**
- * Per-button sub-caption ("muck"/"no bet"/…), seeded by the design prototype
- * (`docs/design/`, historical — see its README). This copy is the spec now.
- */
+/** Per-button sub-caption ("muck"/"no bet"/…). This copy is the spec. */
 const SUB_LABELS: Record<ActionType, string> = {
   fold: "muck",
   check: "no bet",

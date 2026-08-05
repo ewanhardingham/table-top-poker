@@ -2,10 +2,8 @@
  * Design tokens for the felt/night palette. `table-client` and
  * `player-client` both style against these rather than hard-coding values.
  *
- * The design prototype (`docs/design/table-top-poker-prototype.dc.html`)
- * seeded these values but is no longer the palette's source of truth: it has
- * since drifted from what ships. These tokens are. Don't reconcile a new
- * token against the prototype (issue #160, decision 9).
+ * These tokens are the palette's only source of truth — there is nothing else
+ * to reconcile a new token against (issue #160, decision 9).
  */
 
 const feltGradient =

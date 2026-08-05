@@ -7,6 +7,3 @@ package-lock.json
 # docs weren't written with Prettier's prose-wrap in mind, and reformatting
 # them is unrelated churn for whichever change first adds this config.
 *.md
-
-# Vendored/generated design-team prototype, not authored to this repo's style.
-docs/design/

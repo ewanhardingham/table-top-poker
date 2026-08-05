@@ -43,8 +43,8 @@ function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
  * "Hand complete" pill grouped directly above the community cards — the
  * two move as one unit rather than the banner pinned to the felt's edge
  * independently of the board it's describing. Never says "you" (unlike
- * player-client's identical-looking banner, docs/design decision from
- * issue #63) since the table has no single viewer to address.
+ * player-client's identical-looking banner, decision from issue #63)
+ * since the table has no single viewer to address.
  */
 function HandCompleteBanner({ text }: { readonly text: string }) {
   return (
