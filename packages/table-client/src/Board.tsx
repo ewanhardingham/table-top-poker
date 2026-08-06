@@ -5,17 +5,11 @@ import type {
 } from "@table-top-poker/protocol";
 import { Card, color, font } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
+import { seatLabel } from "./seatLabel.js";
 
 export interface BoardProps {
   readonly view: TableView;
   readonly seats?: readonly SeatView[];
-}
-
-function seatLabel(seatId: number, seats: readonly SeatView[]): string {
-  return (
-    seats.find((seat) => seat.id === seatId)?.displayName ??
-    `Seat ${String(seatId + 1)}`
-  );
 }
 
 /** The community cards, dealt in one at a time via Motion rather than CSS keyframes. */

@@ -14,6 +14,7 @@ import {
   shadow,
 } from "@table-top-poker/ui-shared";
 import { useState, type CSSProperties } from "react";
+import { seatLabel } from "./seatLabel.js";
 
 export interface HouseRulesSheetProps {
   readonly seatCount: number;
@@ -60,13 +61,6 @@ const stepperButtonStyle: CSSProperties = {
   color: color.textBright,
   cursor: "pointer",
 };
-
-function seatLabel(seatId: number, seats: readonly SeatView[]): string {
-  return (
-    seats.find((seat) => seat.id === seatId)?.displayName ??
-    `Seat ${String(seatId + 1)}`
-  );
-}
 
 /** The table-device House rules sheet; seat count is its first setting. */
 export function HouseRulesSheet({
