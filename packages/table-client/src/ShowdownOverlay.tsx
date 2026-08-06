@@ -6,6 +6,7 @@ import type {
 } from "@table-top-poker/protocol";
 import { Card, color, font } from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
+import { seatLabel } from "./seatLabel.js";
 
 /** The showdown shape of the table view — the only phase this overlay renders. */
 type ShowdownView = Extract<TableView, { phase: "showdown" }>;
@@ -28,13 +29,6 @@ export interface ShowdownOverlayProps {
   readonly onNextHand: () => void;
   readonly onViewTable: () => void;
   readonly onReopen: () => void;
-}
-
-function seatLabel(seatId: number, seats: readonly SeatView[]): string {
-  return (
-    seats.find((seat) => seat.id === seatId)?.displayName ??
-    `Seat ${String(seatId + 1)}`
-  );
 }
 
 /** A row of face-up cards at a given em scale. */
