@@ -6,7 +6,7 @@ import {
   MIN_SEAT_COUNT,
 } from "@table-top-poker/protocol";
 import { color } from "@table-top-poker/ui-shared";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   changeSeatCount,
   createRoom,
@@ -19,6 +19,7 @@ import { SeatCountPicker } from "./SeatCountPicker.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
 import { Seats } from "./Seats.js";
+import { ShowdownOverlay } from "./ShowdownOverlay.js";
 import { SettingsToggle } from "./SettingsToggle.js";
 import { StatusBar } from "./StatusBar.js";
 import { TableControls } from "./TableControls.js";
@@ -43,6 +44,15 @@ export function App() {
 
   const [menuSeatId, setMenuSeatId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  // "View table" collapses the showdown overlay without leaving showdown, so
+  // the felt's controls are reachable; the Showdown chip reopens it. Reset
+  // whenever the table is not at showdown, so each new showdown opens featured.
+  const [showdownCollapsed, setShowdownCollapsed] = useState(false);
+  const atShowdown = handView?.phase === "showdown";
+  useEffect(() => {
+    if (!atShowdown) setShowdownCollapsed(false);
+  }, [atShowdown]);
   const handleSeatClick = useCallback((seatId: number) => {
     setMenuSeatId((current) => (current === seatId ? null : seatId));
   }, []);
@@ -229,6 +239,21 @@ export function App() {
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
                 onEndSession={handleEndSession}
+              />
+            )}
+            {handView?.phase === "showdown" && (
+              <ShowdownOverlay
+                view={handView}
+                seats={seats}
+                collapsed={showdownCollapsed}
+                canDealNextHand={enoughPlayers}
+                onNextHand={handleNextHand}
+                onViewTable={() => {
+                  setShowdownCollapsed(true);
+                }}
+                onReopen={() => {
+                  setShowdownCollapsed(false);
+                }}
               />
             )}
           </div>

@@ -63,6 +63,41 @@ const completeHand: TableView = {
   winner: 0,
 };
 
+/** A showdown: the reveal overlay owns the result here. */
+const showdownHand: TableView = {
+  phase: "showdown",
+  button: 0,
+  smallBlind: 1,
+  bigBlind: 2,
+  dealtSeatCount: 2,
+  board: [
+    { rank: "A", suit: "spades" },
+    { rank: "K", suit: "hearts" },
+    { rank: "2", suit: "clubs" },
+    { rank: "7", suit: "diamonds" },
+    { rank: "9", suit: "clubs" },
+  ],
+  winners: [0],
+  results: [
+    {
+      seatId: 0,
+      rank: 1,
+      description: "Pair of Aces",
+      holeCards: [
+        { rank: "A", suit: "clubs" },
+        { rank: "3", suit: "hearts" },
+      ],
+      bestHand: [
+        { rank: "A", suit: "spades" },
+        { rank: "A", suit: "clubs" },
+        { rank: "K", suit: "hearts" },
+        { rank: "9", suit: "clubs" },
+        { rank: "7", suit: "diamonds" },
+      ],
+    },
+  ],
+};
+
 /** Puts the table in a room, with the seats claimed and hand state given. */
 function enterRoom(claimedSeats: number, handView: TableView | null) {
   store.overrides = {
@@ -169,6 +204,35 @@ describe("App", () => {
     const html = renderToStaticMarkup(<App />);
 
     expect(html).not.toMatch(/data-testid="next-hand-button"[^>]*disabled/);
+  });
+
+  it("renders the showdown reveal overlay at showdown, gating Next hand on player count", () => {
+    enterRoom(2, showdownHand);
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).toContain('data-testid="showdown-overlay"');
+    expect(html).toContain('data-testid="showdown-player-0"');
+    expect(html).not.toMatch(
+      /data-testid="showdown-next-hand-button"[^>]*disabled/,
+    );
+  });
+
+  it("disables the overlay's Next hand once the table drops below two players", () => {
+    enterRoom(1, showdownHand);
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).toMatch(
+      /data-testid="showdown-next-hand-button"[^>]*disabled/,
+    );
+    expect(html).toContain('data-testid="showdown-next-hand-blocked-hint"');
+  });
+
+  it("does not render the overlay for a fold-out ending", () => {
+    enterRoom(2, completeHand);
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).not.toContain('data-testid="showdown-overlay"');
+    expect(html).toContain('data-testid="hand-complete-banner"');
   });
 
   it("moves the controls to the rail and shows the room code once a hand starts", () => {
