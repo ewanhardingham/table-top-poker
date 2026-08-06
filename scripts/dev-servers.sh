@@ -6,12 +6,14 @@ state_dir="${DEV_SERVERS_STATE_DIR:-$repo_root/.dev}"
 pid_dir="$state_dir/pids"
 log_dir="$state_dir/logs"
 profile_file="$state_dir/profile"
+tailscale_serve_state_file="$state_dir/tailscale-serve-ports"
 
 server_port=3000
 table_port=5173
 player_port=5174
 
 readonly service_names=(server table player)
+readonly tailscale_service_ports=("$server_port" "$table_port" "$player_port")
 
 usage() {
   cat <<'EOF'
@@ -24,8 +26,9 @@ Usage:
 Profiles:
   local       Bind to localhost.
   wsl         Bind externally and use the detected WSL2 address.
-  tailscale   Bind externally and use TAILSCALE_ADDRESS, .env.local, or the
-              local Tailscale CLI to find the browser-facing address.
+  tailscale   Bind externally, configure Tailscale Serve for the dev ports,
+              and use TAILSCALE_ADDRESS, .env.local, or the local Tailscale
+              CLI to find the browser-facing address.
 
 Overrides:
   WSL2_ADDRESS=...          WSL2 address to advertise.
@@ -119,6 +122,115 @@ detect_tailscale_address() {
 
   [[ -n "$address" ]] || die "could not find a Tailscale address; set TAILSCALE_ADDRESS"
   printf '%s' "$address"
+}
+
+tailscale_serve_routes() {
+  local port
+
+  # Keep the table's established HTTPS URL on 443, while also exposing each
+  # dev service on its own port. A new service only needs its port added to
+  # tailscale_service_ports above; no separate Serve command is needed.
+  printf '443 %s\n' "$table_port"
+  for port in "${tailscale_service_ports[@]}"; do
+    printf '%s %s\n' "$port" "$port"
+  done
+}
+
+tailscale_serve_proxy_for_port() {
+  local command="$1"
+  local public_port="$2"
+  local config
+
+  config="$("$command" serve status --json </dev/null 2>/dev/null || true)"
+  [[ -n "$config" ]] || return 0
+
+  printf '%s' "$config" |
+    node -e '
+      let input = "";
+      process.stdin.setEncoding("utf8");
+      process.stdin.on("data", (chunk) => {
+        input += chunk;
+      });
+      process.stdin.on("end", () => {
+        try {
+          const config = JSON.parse(input);
+          const port = process.argv[1];
+          const address = Object.keys(config.Web ?? {}).find((value) =>
+            value.endsWith(":" + port),
+          );
+          const proxy = address
+            ? config.Web[address]?.Handlers?.["/"]?.Proxy
+            : undefined;
+          if (proxy) process.stdout.write(proxy);
+        } catch {
+          // An empty or older status response means the port is unconfigured.
+        }
+      });
+    ' "$public_port"
+}
+
+configure_tailscale_serve() {
+  local command public_port target_port existing_proxy
+
+  command="$(tailscale_command)"
+  if [[ -z "$command" ]]; then
+    printf '%s\n' 'dev-servers: Tailscale CLI is required for the tailscale profile.' >&2
+    return 1
+  fi
+
+  mkdir -p "$state_dir"
+  printf '%s\n' 'Configuring Tailscale Serve for the dev ports.'
+  while read -r public_port target_port; do
+    existing_proxy="$(tailscale_serve_proxy_for_port "$command" "$public_port")"
+    if [[ -n "$existing_proxy" ]]; then
+      if [[ "$existing_proxy" != "http://127.0.0.1:$target_port" ]]; then
+        printf 'dev-servers: refusing to overwrite Tailscale Serve port %s (currently %s).\n' \
+          "$public_port" "$existing_proxy" >&2
+        return 1
+      fi
+      printf '  serve  https://%s -> %s (already configured)\n' \
+        "$public_port" "$existing_proxy"
+      continue
+    fi
+
+    "$command" serve \
+      --https="$public_port" \
+      --bg \
+      --yes \
+      "http://127.0.0.1:$target_port" </dev/null >/dev/null
+    if [[ ! -f "$tailscale_serve_state_file" ]] ||
+      ! grep -Fqx "$public_port $target_port" "$tailscale_serve_state_file"; then
+      printf '%s %s\n' "$public_port" "$target_port" >> "$tailscale_serve_state_file"
+    fi
+    printf '  serve  https://%s -> http://127.0.0.1:%s\n' \
+      "$public_port" "$target_port"
+  done < <(tailscale_serve_routes)
+}
+
+remove_tailscale_serve() {
+  local command public_port target_port existing_proxy
+
+  [[ -s "$tailscale_serve_state_file" ]] || return 0
+
+  command="$(tailscale_command)"
+  if [[ -z "$command" ]]; then
+    printf '%s\n' 'dev-servers: could not find Tailscale CLI to remove managed Serve listeners.' >&2
+    return 1
+  fi
+
+  while read -r public_port target_port; do
+    [[ -n "$public_port" && -n "$target_port" ]] || continue
+    existing_proxy="$(tailscale_serve_proxy_for_port "$command" "$public_port")"
+    if [[ "$existing_proxy" == "http://127.0.0.1:$target_port" ]]; then
+      "$command" serve --https="$public_port" off </dev/null >/dev/null
+      printf '  serve  removed HTTPS port %s\n' "$public_port"
+    else
+      printf '  serve  preserved HTTPS port %s (it no longer matches the managed target)\n' \
+        "$public_port"
+    fi
+  done < "$tailscale_serve_state_file"
+
+  rm -f -- "$tailscale_serve_state_file"
 }
 
 resolve_profile() {
@@ -261,12 +373,29 @@ start_servers() {
     return 1
   fi
 
+  if [[ "$profile_name" == "tailscale" ]] && ! configure_tailscale_serve; then
+    stop_servers
+    return 1
+  fi
+
   cat <<EOF
 
 Dev servers are running:
+EOF
+  if [[ "$profile_name" == "tailscale" ]]; then
+    cat <<EOF
+  table:  https://$public_host/
+  table-dev: https://$public_host:$table_port/
+  player: https://$public_host:$player_port/
+  server: https://$public_host:$server_port
+EOF
+  else
+    cat <<EOF
   table:  http://$public_host:$table_port
   player: http://$public_host:$player_port
   server: http://$public_host:$server_port
+EOF
+  fi
 
 Stop them with: make dev-stop
 EOF
@@ -310,6 +439,7 @@ stop_servers() {
     printf '%s\n' 'No tracked dev servers are running.'
   fi
 
+  remove_tailscale_serve || true
   remove_pid_files
 }
 

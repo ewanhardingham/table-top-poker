@@ -236,9 +236,13 @@ export function App() {
                 canStartHand={canStartHand}
                 handComplete={handComplete}
                 canDealNextHand={enoughPlayers}
+                atShowdown={atShowdown}
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
                 onEndSession={handleEndSession}
+                onViewShowdown={() => {
+                  setShowdownCollapsed(false);
+                }}
               />
             )}
             {handView?.phase === "showdown" && (
@@ -250,9 +254,6 @@ export function App() {
                 onNextHand={handleNextHand}
                 onViewTable={() => {
                   setShowdownCollapsed(true);
-                }}
-                onReopen={() => {
-                  setShowdownCollapsed(false);
                 }}
               />
             )}

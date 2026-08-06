@@ -40,6 +40,24 @@ describe("TableControls", () => {
     expect(html).toContain('data-testid="next-hand-button"');
   });
 
+  it("swaps Next hand for View showdown at showdown", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete
+        canDealNextHand
+        atShowdown
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onViewShowdown={noop}
+      />,
+    );
+    expect(html).toContain('data-testid="view-showdown-button"');
+    expect(html).not.toContain('data-testid="next-hand-button"');
+    expect(html).toContain('data-testid="end-session-button"');
+  });
+
   it("shows neither deal control mid-hand", () => {
     const html = renderToStaticMarkup(
       <TableControls

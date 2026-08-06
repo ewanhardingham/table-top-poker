@@ -15,9 +15,10 @@ export interface ShowdownOverlayProps {
   readonly view: ShowdownView;
   readonly seats: readonly SeatView[];
   /**
-   * `true` once the operator hits "View table": the overlay collapses to a
-   * chip so the felt's own controls are reachable. Reset to `false` on each
-   * new showdown by the caller, so every hand opens featured.
+   * `true` once "View table" is pressed: the overlay animates out so the felt
+   * and its controls are reachable, and the rail's "View showdown" button
+   * brings it back. Reset to `false` on each new showdown by the caller, so
+   * every hand opens featured.
    */
   readonly collapsed: boolean;
   /**
@@ -28,7 +29,6 @@ export interface ShowdownOverlayProps {
   readonly canDealNextHand: boolean;
   readonly onNextHand: () => void;
   readonly onViewTable: () => void;
-  readonly onReopen: () => void;
 }
 
 /** A row of face-up cards at a given em scale. */
@@ -247,49 +247,6 @@ function OverlayButtons({
   );
 }
 
-/** The chip that reopens a collapsed overlay while still at showdown. */
-function ShowdownChip({ onClick }: { readonly onClick: () => void }) {
-  return (
-    <motion.button
-      type="button"
-      data-testid="showdown-chip"
-      onClick={onClick}
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 8 }}
-      style={{
-        position: "absolute",
-        top: "0.9em",
-        left: "50%",
-        transform: "translateX(-50%)",
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5em",
-        padding: "0.5rem 1.1rem",
-        borderRadius: "999px",
-        border: `1px solid ${color.winBorder}`,
-        cursor: "pointer",
-        background: color.surface,
-        color: color.text,
-        fontFamily: font.mono,
-        fontSize: "0.75rem",
-        letterSpacing: "0.16em",
-        textTransform: "uppercase",
-      }}
-    >
-      <span
-        style={{
-          width: "0.55em",
-          height: "0.55em",
-          borderRadius: "50%",
-          background: color.winBright,
-        }}
-      />
-      Showdown
-    </motion.button>
-  );
-}
-
 /**
  * The showdown reveal: a single centred panel over a dimmed felt (issue #169,
  * prototype variant E). It shows the board, every seat that reached showdown as
@@ -297,10 +254,10 @@ function ShowdownChip({ onClick }: { readonly onClick: () => void }) {
  * pulsing green glow. It supersedes the per-seat reveal and the felt's winner
  * mark — who won lives only here.
  *
- * "View table" collapses the panel to a chip so the felt's own controls (house
- * rules, end session, join QR) are reachable; the chip reopens it. The panel
- * always fits its bounding box — content scales to the viewport and never
- * scrolls, heads-up or full ring.
+ * "View table" animates the panel out so the felt's own controls (house rules,
+ * end session, join QR) are reachable; the rail's "View showdown" button brings
+ * it back. The panel always fits its bounding box — content scales to the
+ * viewport and never scrolls, heads-up or full ring.
  */
 export function ShowdownOverlay({
   view,
@@ -309,7 +266,6 @@ export function ShowdownOverlay({
   canDealNextHand,
   onNextHand,
   onViewTable,
-  onReopen,
 }: ShowdownOverlayProps) {
   const winnerIds = new Set(view.winners);
   const winners = view.results.filter((result) => winnerIds.has(result.seatId));
@@ -317,9 +273,7 @@ export function ShowdownOverlay({
 
   return (
     <AnimatePresence>
-      {collapsed ? (
-        <ShowdownChip key="chip" onClick={onReopen} />
-      ) : (
+      {!collapsed && (
         <motion.div
           key="overlay"
           data-testid="showdown-overlay"

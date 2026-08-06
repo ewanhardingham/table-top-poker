@@ -55,6 +55,14 @@ export interface TableControlsProps {
   readonly onStartHand: () => void;
   readonly onNextHand: () => void;
   readonly onEndSession: () => void;
+  /**
+   * At showdown the reveal overlay owns "Next hand", so the rail offers "View
+   * showdown" in that slot instead — reopening the overlay the operator
+   * collapsed with "View table". True only at the showdown phase, never at the
+   * fold-out ending, which keeps its own "Next hand".
+   */
+  readonly atShowdown?: boolean;
+  readonly onViewShowdown?: () => void;
   readonly placement?: TableControlsPlacement;
   /**
    * PROTOTYPE (wayfinder #81) — opens the session hand picker. Optional so
@@ -89,6 +97,8 @@ export function TableControls({
   onStartHand,
   onNextHand,
   onEndSession,
+  atShowdown = false,
+  onViewShowdown,
   placement = "rail",
   onReviewHands,
 }: TableControlsProps) {
@@ -107,22 +117,32 @@ export function TableControls({
           Deal hand
         </PillButton>
       )}
-      {handComplete && (
-        <div style={actionButtonStyle}>
-          <PillButton
-            data-testid="next-hand-button"
-            disabled={!canDealNextHand}
-            onClick={onNextHand}
-            style={{ width: "100%" }}
-          >
-            Next hand
-          </PillButton>
-          {!canDealNextHand && (
-            <div data-testid="next-hand-blocked-hint" style={hintStyle}>
-              Waiting for at least two players
-            </div>
-          )}
-        </div>
+      {atShowdown ? (
+        <PillButton
+          data-testid="view-showdown-button"
+          onClick={onViewShowdown}
+          style={actionButtonStyle}
+        >
+          View showdown
+        </PillButton>
+      ) : (
+        handComplete && (
+          <div style={actionButtonStyle}>
+            <PillButton
+              data-testid="next-hand-button"
+              disabled={!canDealNextHand}
+              onClick={onNextHand}
+              style={{ width: "100%" }}
+            >
+              Next hand
+            </PillButton>
+            {!canDealNextHand && (
+              <div data-testid="next-hand-blocked-hint" style={hintStyle}>
+                Waiting for at least two players
+              </div>
+            )}
+          </div>
+        )
       )}
       {onReviewHands && (
         <PillButton

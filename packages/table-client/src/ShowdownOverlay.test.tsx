@@ -82,7 +82,6 @@ function render(
       canDealNextHand
       onNextHand={() => undefined}
       onViewTable={() => undefined}
-      onReopen={() => undefined}
       {...props}
     />,
   );
@@ -146,7 +145,6 @@ describe("ShowdownOverlay", () => {
         canDealNextHand
         onNextHand={() => undefined}
         onViewTable={() => undefined}
-        onReopen={() => undefined}
       />,
     );
 
@@ -172,10 +170,9 @@ describe("ShowdownOverlay", () => {
     expect(html).not.toContain('data-testid="showdown-next-hand-blocked-hint"');
   });
 
-  it("collapses to a reopen chip, hiding the panel and its actions", () => {
+  it("renders nothing when collapsed — the rail reopens it", () => {
     const html = render(showdown, { collapsed: true });
 
-    expect(html).toContain('data-testid="showdown-chip"');
     expect(html).not.toContain('data-testid="showdown-overlay"');
     expect(html).not.toContain('data-testid="showdown-next-hand-button"');
   });
