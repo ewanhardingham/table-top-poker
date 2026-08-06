@@ -31,7 +31,7 @@ help:
 		'make dev                 Start locally (default)' \
 		'make dev-local           Start on localhost' \
 		'make dev-wsl             Start using the WSL2 IP address' \
-		'make dev-tailscale       Start using the Tailscale address' \
+		'make dev-tailscale       Start using Tailscale HTTPS Serve automatically' \
 		'make dev DEV_PROFILE=wsl Start with a selected profile' \
 		'make dev-stop            Stop all dev servers started by this repo' \
 		'make dev-restart         Restart using DEV_PROFILE' \

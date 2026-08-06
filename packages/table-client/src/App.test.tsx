@@ -215,6 +215,10 @@ describe("App", () => {
     expect(html).not.toMatch(
       /data-testid="showdown-next-hand-button"[^>]*disabled/,
     );
+    // The rail offers "View showdown" to reopen the overlay, not "Next hand" —
+    // dealing the next hand lives in the overlay itself.
+    expect(html).toContain('data-testid="view-showdown-button"');
+    expect(html).not.toContain('data-testid="next-hand-button"');
   });
 
   it("disables the overlay's Next hand once the table drops below two players", () => {
