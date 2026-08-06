@@ -1,0 +1,435 @@
+import type {
+  Card as CardType,
+  RevealedResult,
+  SeatView,
+  TableView,
+} from "@table-top-poker/protocol";
+import { Card, color, font } from "@table-top-poker/ui-shared";
+import { AnimatePresence, motion } from "motion/react";
+
+/** The showdown shape of the table view — the only phase this overlay renders. */
+type ShowdownView = Extract<TableView, { phase: "showdown" }>;
+
+export interface ShowdownOverlayProps {
+  readonly view: ShowdownView;
+  readonly seats: readonly SeatView[];
+  /**
+   * `true` once the operator hits "View table": the overlay collapses to a
+   * chip so the felt's own controls are reachable. Reset to `false` on each
+   * new showdown by the caller, so every hand opens featured.
+   */
+  readonly collapsed: boolean;
+  /**
+   * Whether enough players are dealt in for the server to accept `nextHand` —
+   * mirrors the rail's own gate. False disables "Next hand" with a reason
+   * rather than dealing into a rejection.
+   */
+  readonly canDealNextHand: boolean;
+  readonly onNextHand: () => void;
+  readonly onViewTable: () => void;
+  readonly onReopen: () => void;
+}
+
+function seatLabel(seatId: number, seats: readonly SeatView[]): string {
+  return (
+    seats.find((seat) => seat.id === seatId)?.displayName ??
+    `Seat ${String(seatId + 1)}`
+  );
+}
+
+/** A row of face-up cards at a given em scale. */
+function CardRow({
+  cards,
+  scale,
+  gap = "0.28em",
+}: {
+  readonly cards: readonly CardType[];
+  readonly scale: string;
+  readonly gap?: string;
+}) {
+  return (
+    <div style={{ display: "flex", gap, fontSize: scale }}>
+      {cards.map((card, i) => (
+        <Card key={i} rank={card.rank} suit={card.suit} />
+      ))}
+    </div>
+  );
+}
+
+/** The community cards, labelled, at the top of the overlay. */
+function BoardStrip({ board }: { readonly board: readonly CardType[] }) {
+  return (
+    <div
+      data-testid="showdown-board"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "clamp(0.35rem, 1vh, 0.6rem)",
+      }}
+    >
+      <span
+        style={{
+          fontFamily: font.mono,
+          fontSize: "0.75rem",
+          letterSpacing: "0.28em",
+          color: color.textMuted,
+        }}
+      >
+        BOARD
+      </span>
+      <CardRow cards={board} scale="min(1.5rem, 2.2vh)" gap="0.4em" />
+    </div>
+  );
+}
+
+/**
+ * One revealed seat: cards, name, and hand description. Winners glow (a gentle
+ * pulse via `.showdown-win-glow`) and, when `featured`, render larger so the
+ * result reads at a glance across the table.
+ */
+function OverlayPlayer({
+  result,
+  name,
+  isWinner,
+  featured = false,
+}: {
+  readonly result: RevealedResult;
+  readonly name: string;
+  readonly isWinner: boolean;
+  readonly featured?: boolean;
+}) {
+  return (
+    <div
+      data-testid={`showdown-player-${String(result.seatId)}`}
+      data-winner={isWinner}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "clamp(0.35rem, 1vh, 0.7rem)",
+      }}
+    >
+      <div
+        className={isWinner ? "showdown-win-glow" : undefined}
+        style={{
+          padding: featured ? "0.5rem" : "0.4rem",
+          borderRadius: "0.6rem",
+          border: `1px solid ${isWinner ? color.winBorder : "transparent"}`,
+          background: isWinner ? color.winPlate : undefined,
+        }}
+      >
+        <CardRow
+          cards={result.holeCards}
+          scale={featured ? "min(2.1rem, 3vh)" : "min(1.2rem, 1.8vh)"}
+        />
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.2rem",
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: "0.5em",
+            fontSize: featured ? "1.3rem" : "1rem",
+            fontWeight: 700,
+            color: isWinner ? color.winText : color.text,
+          }}
+        >
+          {name}
+          {isWinner && (
+            <span
+              style={{
+                fontFamily: font.mono,
+                fontSize: "0.6em",
+                letterSpacing: "0.16em",
+                color: color.winBright,
+              }}
+            >
+              WINS
+            </span>
+          )}
+        </div>
+        <div
+          style={{
+            fontFamily: font.mono,
+            fontSize: featured ? "0.85rem" : "0.72rem",
+            letterSpacing: "0.02em",
+            color: isWinner ? color.winBright : color.textDim,
+          }}
+        >
+          {result.description}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverlayButtons({
+  canDealNextHand,
+  onNextHand,
+  onViewTable,
+}: {
+  readonly canDealNextHand: boolean;
+  readonly onNextHand: () => void;
+  readonly onViewTable: () => void;
+}) {
+  return (
+    <div
+      style={{
+        marginTop: "0.4rem",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "0.5rem",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "1rem",
+        }}
+      >
+        <button
+          type="button"
+          data-testid="showdown-view-table-button"
+          onClick={onViewTable}
+          style={{
+            padding: "0.7rem 2.2rem",
+            borderRadius: "999px",
+            border: `1px solid ${color.borderStrong}`,
+            cursor: "pointer",
+            background: "transparent",
+            color: color.textMuted,
+            fontFamily: font.display,
+            fontSize: "1rem",
+            fontWeight: 800,
+            letterSpacing: "0.04em",
+          }}
+        >
+          View table
+        </button>
+        <button
+          type="button"
+          data-testid="showdown-next-hand-button"
+          disabled={!canDealNextHand}
+          onClick={onNextHand}
+          style={{
+            padding: "0.7rem 2.2rem",
+            borderRadius: "999px",
+            border: "none",
+            cursor: canDealNextHand ? "pointer" : "not-allowed",
+            background: color.pillGradient,
+            color: color.pillInk,
+            fontFamily: font.display,
+            fontSize: "1rem",
+            fontWeight: 800,
+            letterSpacing: "0.04em",
+            opacity: canDealNextHand ? 1 : 0.5,
+            boxShadow:
+              "0 16px 40px -14px rgba(229,68,60,.6), inset 0 1px 0 rgba(255,255,255,.5)",
+          }}
+        >
+          Next hand →
+        </button>
+      </div>
+      {!canDealNextHand && (
+        <div
+          data-testid="showdown-next-hand-blocked-hint"
+          style={{ fontSize: "0.8rem", color: color.textDim }}
+        >
+          Waiting for at least two players
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The chip that reopens a collapsed overlay while still at showdown. */
+function ShowdownChip({ onClick }: { readonly onClick: () => void }) {
+  return (
+    <motion.button
+      type="button"
+      data-testid="showdown-chip"
+      onClick={onClick}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 8 }}
+      style={{
+        position: "absolute",
+        top: "0.9em",
+        left: "50%",
+        transform: "translateX(-50%)",
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5em",
+        padding: "0.5rem 1.1rem",
+        borderRadius: "999px",
+        border: `1px solid ${color.winBorder}`,
+        cursor: "pointer",
+        background: color.surface,
+        color: color.text,
+        fontFamily: font.mono,
+        fontSize: "0.75rem",
+        letterSpacing: "0.16em",
+        textTransform: "uppercase",
+      }}
+    >
+      <span
+        style={{
+          width: "0.55em",
+          height: "0.55em",
+          borderRadius: "50%",
+          background: color.winBright,
+        }}
+      />
+      Showdown
+    </motion.button>
+  );
+}
+
+/**
+ * The showdown reveal: a single centred panel over a dimmed felt (issue #169,
+ * prototype variant E). It shows the board, every seat that reached showdown as
+ * name + cards + hand description, and the winner(s) featured larger with a
+ * pulsing green glow. It supersedes the per-seat reveal and the felt's winner
+ * mark — who won lives only here.
+ *
+ * "View table" collapses the panel to a chip so the felt's own controls (house
+ * rules, end session, join QR) are reachable; the chip reopens it. The panel
+ * always fits its bounding box — content scales to the viewport and never
+ * scrolls, heads-up or full ring.
+ */
+export function ShowdownOverlay({
+  view,
+  seats,
+  collapsed,
+  canDealNextHand,
+  onNextHand,
+  onViewTable,
+  onReopen,
+}: ShowdownOverlayProps) {
+  const winnerIds = new Set(view.winners);
+  const winners = view.results.filter((result) => winnerIds.has(result.seatId));
+  const rest = view.results.filter((result) => !winnerIds.has(result.seatId));
+
+  return (
+    <AnimatePresence>
+      {collapsed ? (
+        <ShowdownChip key="chip" onClick={onReopen} />
+      ) : (
+        <motion.div
+          key="overlay"
+          data-testid="showdown-overlay"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(5,4,4,.6)",
+            backdropFilter: "blur(2px)",
+            padding: "1.5rem",
+          }}
+        >
+          <motion.div
+            initial={{ scale: 0.96, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.96, opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            style={{
+              width: "min(97%, 92rem)",
+              maxHeight: "100%",
+              overflow: "hidden",
+              padding: "clamp(1rem, 2.4vh, 1.8rem)",
+              borderRadius: "1.2rem",
+              background: color.surfaceGradient,
+              border: `1px solid ${color.borderStrong}`,
+              boxShadow: "0 44px 90px -30px rgba(0,0,0,.95)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "clamp(0.6rem, 1.6vh, 1.4rem)",
+            }}
+          >
+            <span
+              style={{
+                fontFamily: font.display,
+                fontSize: "clamp(1rem, 2.2vh, 1.3rem)",
+                fontWeight: 800,
+                letterSpacing: "0.06em",
+                color: color.text,
+              }}
+            >
+              Showdown
+            </span>
+
+            <BoardStrip board={view.board} />
+
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: "clamp(1rem, 3vw, 2.4rem)",
+              }}
+            >
+              {winners.map((result) => (
+                <OverlayPlayer
+                  key={result.seatId}
+                  result={result}
+                  name={seatLabel(result.seatId, seats)}
+                  isWinner
+                  featured
+                />
+              ))}
+            </div>
+
+            {rest.length > 0 && (
+              <>
+                <div
+                  style={{ width: "100%", height: 1, background: color.border }}
+                />
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    justifyContent: "center",
+                    gap: "clamp(0.8rem, 2vw, 1.8rem)",
+                  }}
+                >
+                  {rest.map((result) => (
+                    <OverlayPlayer
+                      key={result.seatId}
+                      result={result}
+                      name={seatLabel(result.seatId, seats)}
+                      isWinner={false}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            <OverlayButtons
+              canDealNextHand={canDealNextHand}
+              onNextHand={onNextHand}
+              onViewTable={onViewTable}
+            />
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

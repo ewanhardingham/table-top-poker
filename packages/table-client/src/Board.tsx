@@ -88,24 +88,10 @@ function HandCompleteBanner({ text }: { readonly text: string }) {
   );
 }
 
-/** `winners.join(" & ") wins/split with <description>` — never "everyone folded". */
-function showdownText(
-  winners: readonly number[],
-  description: string | undefined,
-  seats: readonly SeatView[],
-): string {
-  const names = winners.map((winner) => seatLabel(winner, seats)).join(" & ");
-  const verb = winners.length > 1 ? "split" : "wins";
-  return description ? `${names} ${verb} — ${description}` : `${names} ${verb}`;
-}
-
 /**
- * The felt's centre content — community cards and, at showdown, a single
- * "hand complete" line naming the winner(s) and their hand. Each seat's own
- * revealed hole cards live at the seat pod (`Seats`' job), not duplicated
- * here — issue #60's showdown-reveal pass found showing every hand twice
- * (once here, once at the pod) was most of what made the felt unreadable
- * at a full 8-player table.
+ * The felt's centre content — community cards, plus a "hand complete" banner
+ * naming the winner only for the fold-out ending. At showdown the reveal
+ * overlay (issue #169) owns the result, so the felt shows just the board.
  */
 export function Board({ view, seats = [] }: BoardProps) {
   if (view.phase === "no-hand") {
@@ -127,9 +113,10 @@ export function Board({ view, seats = [] }: BoardProps) {
   }
 
   if (view.phase === "showdown") {
-    const winnerResult = view.results.find((result) =>
-      view.winners.includes(result.seatId),
-    );
+    // The reveal overlay (issue #169) owns the showdown result — winner(s),
+    // hands, and hole cards. The felt keeps only the community cards, so that
+    // "View table" reveals them behind the collapsed overlay; the redundant
+    // "Hand complete" banner is suppressed here.
     return (
       <div
         data-testid="board"
@@ -141,9 +128,6 @@ export function Board({ view, seats = [] }: BoardProps) {
           gap: "0.6em",
         }}
       >
-        <HandCompleteBanner
-          text={showdownText(view.winners, winnerResult?.description, seats)}
-        />
         <CommunityCards board={view.board} />
       </div>
     );

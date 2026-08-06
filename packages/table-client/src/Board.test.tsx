@@ -75,7 +75,7 @@ describe("Board", () => {
     expect(html).not.toContain('data-testid="community-cards"');
   });
 
-  it("names the winner and their hand in a hand-complete banner at showdown, without duplicating any seat's hole cards", () => {
+  it("shows only the community cards at showdown, suppressing the banner the overlay now owns", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
@@ -128,65 +128,11 @@ describe("Board", () => {
     const html = renderToStaticMarkup(<Board view={view} />);
 
     expect(html).toMatch(/data-testid="board"[^>]*data-phase="showdown"/);
-    expect(html).toContain('data-testid="hand-complete-banner"');
-    expect(html).toContain("Seat 1 wins — Pair of Aces");
+    // The overlay owns the result now, so the felt drops the banner entirely.
+    expect(html).not.toContain('data-testid="hand-complete-banner"');
+    expect(html).not.toContain("Pair of Aces");
     expect(html).toMatch(/data-testid="community-cards"/);
     // Only the 5 board cards — no seat's hole cards duplicated in the board.
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(5);
-  });
-
-  it("names every winner on a split pot", () => {
-    const view: TableView = {
-      phase: "showdown",
-      button: 0,
-      smallBlind: 1,
-      bigBlind: 2,
-      dealtSeatCount: 3,
-      board: [
-        { rank: "A", suit: "spades" },
-        { rank: "K", suit: "hearts" },
-        { rank: "2", suit: "clubs" },
-        { rank: "7", suit: "diamonds" },
-        { rank: "9", suit: "clubs" },
-      ],
-      winners: [0, 1],
-      results: [
-        {
-          seatId: 0,
-          rank: 1,
-          description: "Pair of Aces",
-          holeCards: [
-            { rank: "A", suit: "clubs" },
-            { rank: "3", suit: "hearts" },
-          ],
-          bestHand: [
-            { rank: "A", suit: "spades" },
-            { rank: "A", suit: "clubs" },
-            { rank: "K", suit: "hearts" },
-            { rank: "9", suit: "clubs" },
-            { rank: "7", suit: "diamonds" },
-          ],
-        },
-        {
-          seatId: 1,
-          rank: 1,
-          description: "Pair of Aces",
-          holeCards: [
-            { rank: "A", suit: "diamonds" },
-            { rank: "4", suit: "hearts" },
-          ],
-          bestHand: [
-            { rank: "A", suit: "spades" },
-            { rank: "A", suit: "diamonds" },
-            { rank: "K", suit: "hearts" },
-            { rank: "9", suit: "clubs" },
-            { rank: "7", suit: "diamonds" },
-          ],
-        },
-      ],
-    };
-    const html = renderToStaticMarkup(<Board view={view} />);
-
-    expect(html).toContain("Seat 1 &amp; Seat 2 split — Pair of Aces");
   });
 });

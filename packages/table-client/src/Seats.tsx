@@ -1,9 +1,5 @@
-import type {
-  Card as CardType,
-  SeatView,
-  TableView,
-} from "@table-top-poker/protocol";
-import { Card, color, font, shadow } from "@table-top-poker/ui-shared";
+import type { SeatView, TableView } from "@table-top-poker/protocol";
+import { color, font, shadow } from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
 import { posFor } from "./table/posFor.js";
 
@@ -47,8 +43,6 @@ interface SeatVisual {
   readonly marker: SeatMarker | null;
   readonly isActor: boolean;
   readonly isWinner: boolean;
-  readonly holeCards: readonly [CardType, CardType] | null;
-  readonly handDescription: string | null;
   readonly avatarBackground: string;
   readonly avatarColor: string;
 }
@@ -130,12 +124,10 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
     }
   }
 
+  // Showdown no longer marks a winning seat on the felt — the reveal overlay
+  // owns who-won (issue #169). Only the fold-out ending still crowns a seat.
   const isWinner =
-    view?.phase === "showdown"
-      ? view.winners.includes(seat.id)
-      : view?.phase === "folded-out"
-        ? view.winner === seat.id
-        : false;
+    view?.phase === "folded-out" ? view.winner === seat.id : false;
 
   const avatarBackground = !seat.claimed
     ? color.seatAvatarOpen
@@ -157,8 +149,6 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
     marker: markerFor(seat.id, view),
     isActor: view?.phase === "betting" && view.toAct[0] === seat.id,
     isWinner,
-    holeCards: showdownResult?.holeCards ?? null,
-    handDescription: showdownResult?.description ?? null,
     avatarBackground,
     avatarColor,
   };
@@ -272,47 +262,6 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
           </div>
         );
 
-        const holeCardsBlock = visual.holeCards && (
-          <div
-            key="cards"
-            data-testid={`seat-pod-${String(seat.id)}-hole-cards`}
-            style={{ display: "flex", gap: "0.15em", fontSize: "1.1em" }}
-          >
-            {visual.holeCards.map((c, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, rotateY: -92 }}
-                animate={{ opacity: 1, rotateY: 0 }}
-                transition={{ duration: 0.35, delay: i * 0.08 }}
-              >
-                <Card rank={c.rank} suit={c.suit} />
-              </motion.div>
-            ))}
-          </div>
-        );
-
-        // No "Winner —" prefix here (issue #60 follow-up to #63): the pod's
-        // own border/background already carries that, and so does the
-        // board's "Hand complete" banner — repeating it a third time here
-        // was just noise.
-        const captionBlock = visual.handDescription && (
-          <div
-            key="caption"
-            data-testid={`seat-pod-${String(seat.id)}-hand`}
-            style={{
-              fontFamily: font.mono,
-              fontSize: "0.6em",
-              letterSpacing: "0.03em",
-              textAlign: "center",
-              lineHeight: 1.3,
-              maxWidth: "7em",
-              color: visual.isWinner ? color.textBright : color.textDim,
-            }}
-          >
-            {visual.handDescription}
-          </div>
-        );
-
         const sittingOutBlock = visual.status === "sitting-out" && (
           <div
             key="sitting-out"
@@ -347,28 +296,15 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
           </div>
         );
 
-        // Boundary rule: the avatar is the fixed anchor `posFor` placed —
-        // cards and the hand-description caption only ever grow inward,
-        // toward the felt's centre, never past the seat toward the rail.
-        // Top row reads avatar → name → cards/status → caption top to bottom;
-        // bottom row is the mirror, so the name, status, and caption always
-        // end up on the table-facing side, closest to the centre everyone's
-        // looking at.
+        // Boundary rule: the avatar is the fixed anchor `posFor` placed — the
+        // name and status only ever grow inward, toward the felt's centre,
+        // never past the seat toward the rail. Top row reads avatar → name →
+        // status top to bottom; bottom row is the mirror, so the name and
+        // status always end up on the table-facing side, closest to the centre
+        // everyone's looking at.
         const stack = isTopRow
-          ? [
-              avatarBlock,
-              nameBlock,
-              holeCardsBlock,
-              sittingOutBlock,
-              captionBlock,
-            ]
-          : [
-              captionBlock,
-              sittingOutBlock,
-              holeCardsBlock,
-              nameBlock,
-              avatarBlock,
-            ];
+          ? [avatarBlock, nameBlock, sittingOutBlock]
+          : [sittingOutBlock, nameBlock, avatarBlock];
 
         return (
           <div

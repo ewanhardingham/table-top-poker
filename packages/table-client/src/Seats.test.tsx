@@ -271,7 +271,9 @@ describe("Seats", () => {
     expect(html).not.toContain('data-testid="seat-pod-0-disconnected"');
   });
 
-  it("marks the winning seat at showdown and reveals its hole cards", () => {
+  it("reveals nothing on the felt at showdown — no hole cards, hand, or winner mark", () => {
+    // The reveal overlay (issue #169) owns who-won and every hand; the seat
+    // pods stay plain so nothing shifts when the hand ends.
     const view: TableView = {
       phase: "showdown",
       button: 0,
@@ -306,13 +308,10 @@ describe("Seats", () => {
       ],
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
-    expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-winner="true"/);
-    expect(html).toContain('data-testid="seat-pod-0-hole-cards"');
-    expect(html).not.toContain('data-testid="seat-pod-1-hole-cards"');
-    // The hand description shows plainly — no "Winner —" prefix, since the
-    // pod's own winner styling and the board's banner already say so.
-    expect(html).toMatch(/data-testid="seat-pod-0-hand"[^>]*>Pair of Aces</);
-    expect(html).not.toContain("Winner");
+    expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-winner="false"/);
+    expect(html).not.toContain("hole-cards");
+    expect(html).not.toContain('data-testid="seat-pod-0-hand"');
+    expect(html).not.toContain("Pair of Aces");
   });
 
   it("keeps a revealed player in-hand when they sit out for the next hand", () => {
@@ -351,10 +350,10 @@ describe("Seats", () => {
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
 
-    expect(html).toMatch(
-      /data-testid="seat-pod-2"[^>]*data-status="in-hand"[^>]*data-winner="true"/,
-    );
-    expect(html).toContain('data-testid="seat-pod-2-hole-cards"');
+    // Reaching showdown keeps the seat in-hand rather than sitting-out, even
+    // though the felt no longer reveals its cards (the overlay does that).
+    expect(html).toMatch(/data-testid="seat-pod-2"[^>]*data-status="in-hand"/);
+    expect(html).not.toContain("hole-cards");
     expect(html).not.toContain('data-testid="seat-pod-2-sitting-out"');
     expect(html).not.toContain('data-testid="seat-pod-2-sitting-out-marker"');
     expect(html).not.toMatch(

@@ -38,3 +38,24 @@ body {
   gap: 12px;
   background: linear-gradient(160deg, #1a1516, #0a0708 60%, #161011);
 }
+
+/* The showdown overlay's winner glow. Its box-shadow gently pulses, so the
+ * win reads across the table without a hard border. The colour is ui-shared's
+ * `color.winBright` (#7bd88f), hard-coded here for the keyframe. */
+@keyframes showdown-win-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px #7bd88f,
+      0 0 18px 1px rgba(123, 216, 143, 0.28);
+  }
+  50% {
+    box-shadow:
+      0 0 0 2px #7bd88f,
+      0 0 28px 4px rgba(123, 216, 143, 0.42);
+  }
+}
+
+.showdown-win-glow {
+  animation: showdown-win-pulse 2s ease-in-out infinite;
+}
