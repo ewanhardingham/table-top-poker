@@ -123,6 +123,80 @@ describe("usePlayerStore", () => {
     expect(usePlayerStore.getState().handView).toBeNull();
   });
 
+  // Regression for #172: rejoining a new room used to render the previous
+  // room's hand result. The root cause lived in the seam below — clearing the
+  // room slice never touched the hand slice — so a teardown that only called
+  // clearRoom left the old result behind for the next room to display.
+  it("does not clear a stale hand result when only the room is torn down (#172)", () => {
+    usePlayerStore.getState().setRoomView({
+      code: "ABCD",
+      pendingSeatCount: null,
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
+    });
+    usePlayerStore.getState().setSeat({ seatId: 0, sittingOut: false });
+    usePlayerStore.getState().setHandView({
+      phase: "folded-out",
+      button: 0,
+      smallBlind: 0,
+      bigBlind: 0,
+      dealtSeatCount: 1,
+      winner: 0,
+    });
+
+    usePlayerStore.getState().clearRoom();
+
+    // The room is gone but the previous hand result survives — this is exactly
+    // why the teardown/join handlers must clear the hand as well.
+    expect(usePlayerStore.getState().roomCode).toBeNull();
+    expect(usePlayerStore.getState().handView).not.toBeNull();
+  });
+
+  // Regression for #172: the full room-ended reset the handler performs must
+  // leave no residue from the previous room, so a rejoin into the same seat
+  // position renders no prior-room result until a fresh hand-update arrives.
+  it("leaves a clean slate for the next room when the hand is cleared too (#172)", () => {
+    usePlayerStore.getState().setRoomView({
+      code: "ABCD",
+      pendingSeatCount: null,
+      seats: [
+        {
+          id: 0,
+          claimed: true,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        },
+      ],
+    });
+    usePlayerStore.getState().setSeat({ seatId: 0, sittingOut: false });
+    usePlayerStore.getState().setHandView({
+      phase: "folded-out",
+      button: 0,
+      smallBlind: 0,
+      bigBlind: 0,
+      dealtSeatCount: 1,
+      winner: 0,
+    });
+
+    // The room-ended teardown the handler runs: drop the seat and hand, then
+    // the room.
+    usePlayerStore.getState().clearSeat();
+    usePlayerStore.getState().clearHand();
+    usePlayerStore.getState().clearRoom();
+
+    expect(usePlayerStore.getState().roomCode).toBeNull();
+    expect(usePlayerStore.getState().seatId).toBeNull();
+    expect(usePlayerStore.getState().handView).toBeNull();
+  });
+
   it("marks an action pending on send, with no rejection yet", () => {
     usePlayerStore.getState().sendStarted("call");
     expect(usePlayerStore.getState().pendingAction).toBe("call");
