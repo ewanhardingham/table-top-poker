@@ -360,88 +360,92 @@ export function ShowdownOverlay({
               transformOrigin: "center center",
             }}
           >
-          <motion.div
-            initial={{ scale: 0.96, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.96, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
-            style={{
-              width: "100%",
-              padding: "clamp(1rem, 2.4vh, 1.8rem)",
-              borderRadius: "1.2rem",
-              background: color.surfaceGradient,
-              border: `1px solid ${color.borderStrong}`,
-              boxShadow: "0 44px 90px -30px rgba(0,0,0,.95)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "clamp(0.6rem, 1.6vh, 1.4rem)",
-            }}
-          >
-            <span
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
               style={{
-                fontFamily: font.display,
-                fontSize: "clamp(1rem, 2.2vh, 1.3rem)",
-                fontWeight: 800,
-                letterSpacing: "0.06em",
-                color: color.text,
-              }}
-            >
-              Showdown
-            </span>
-
-            <BoardStrip board={view.board} />
-
-            <div
-              style={{
+                width: "100%",
+                padding: "clamp(1rem, 2.4vh, 1.8rem)",
+                borderRadius: "1.2rem",
+                background: color.surfaceGradient,
+                border: `1px solid ${color.borderStrong}`,
+                boxShadow: "0 44px 90px -30px rgba(0,0,0,.95)",
                 display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                gap: "clamp(1rem, 3vw, 2.4rem)",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "clamp(0.6rem, 1.6vh, 1.4rem)",
               }}
             >
-              {winners.map((result) => (
-                <OverlayPlayer
-                  key={result.seatId}
-                  result={result}
-                  name={seatLabel(result.seatId, seats)}
-                  isWinner
-                  featured
-                />
-              ))}
-            </div>
+              <span
+                style={{
+                  fontFamily: font.display,
+                  fontSize: "clamp(1rem, 2.2vh, 1.3rem)",
+                  fontWeight: 800,
+                  letterSpacing: "0.06em",
+                  color: color.text,
+                }}
+              >
+                Showdown
+              </span>
 
-            {rest.length > 0 && (
-              <>
-                <div
-                  style={{ width: "100%", height: 1, background: color.border }}
-                />
-                <div
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    justifyContent: "center",
-                    gap: "clamp(0.8rem, 2vw, 1.8rem)",
-                  }}
-                >
-                  {rest.map((result) => (
-                    <OverlayPlayer
-                      key={result.seatId}
-                      result={result}
-                      name={seatLabel(result.seatId, seats)}
-                      isWinner={false}
-                    />
-                  ))}
-                </div>
-              </>
-            )}
+              <BoardStrip board={view.board} />
 
-            <OverlayButtons
-              canDealNextHand={canDealNextHand}
-              onNextHand={onNextHand}
-              onViewTable={onViewTable}
-            />
-          </motion.div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: "clamp(1rem, 3vw, 2.4rem)",
+                }}
+              >
+                {winners.map((result) => (
+                  <OverlayPlayer
+                    key={result.seatId}
+                    result={result}
+                    name={seatLabel(result.seatId, seats)}
+                    isWinner
+                    featured
+                  />
+                ))}
+              </div>
+
+              {rest.length > 0 && (
+                <>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 1,
+                      background: color.border,
+                    }}
+                  />
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      justifyContent: "center",
+                      gap: "clamp(0.8rem, 2vw, 1.8rem)",
+                    }}
+                  >
+                    {rest.map((result) => (
+                      <OverlayPlayer
+                        key={result.seatId}
+                        result={result}
+                        name={seatLabel(result.seatId, seats)}
+                        isWinner={false}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              <OverlayButtons
+                canDealNextHand={canDealNextHand}
+                onNextHand={onNextHand}
+                onViewTable={onViewTable}
+              />
+            </motion.div>
           </div>
         </motion.div>
       )}
