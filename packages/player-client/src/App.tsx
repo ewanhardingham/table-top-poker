@@ -33,6 +33,7 @@ export function App() {
   const moveSeat = usePlayerStore((state) => state.moveSeat);
   const clearSeat = usePlayerStore((state) => state.clearSeat);
   const clearRoom = usePlayerStore((state) => state.clearRoom);
+  const clearHand = usePlayerStore((state) => state.clearHand);
 
   const [defaultRoomCode] = useState(() =>
     typeof window === "undefined"
@@ -71,24 +72,27 @@ export function App() {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
     clearSeat();
+    clearHand();
     setSeatMoveMessage(null);
-  }, [clearSeat]);
+  }, [clearSeat, clearHand]);
 
   const handleEvicted = useCallback(() => {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
     clearSeat();
+    clearHand();
     setEvictionMessage("You have been evicted from the room");
     setSeatMoveMessage(null);
-  }, [clearSeat]);
+  }, [clearSeat, clearHand]);
 
   const handleRoomEnded = useCallback(() => {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
     clearSeat();
     clearRoom();
+    clearHand();
     setSeatMoveMessage(null);
-  }, [clearSeat, clearRoom]);
+  }, [clearSeat, clearRoom, clearHand]);
 
   const handleSeatMoved = useCallback(
     ({ from, to }: SeatMove) => {
@@ -147,9 +151,10 @@ export function App() {
     setSeatToken(null);
     clearSeat();
     clearRoom();
+    clearHand();
     setSeatMoveMessage(null);
     setEvictionMessage(null);
-  }, [roomCode, seatId, seatToken, clearSeat, clearRoom]);
+  }, [roomCode, seatId, seatToken, clearSeat, clearRoom, clearHand]);
 
   const intent = useActionIntent(send);
 
@@ -159,13 +164,17 @@ export function App() {
         .then((view) => {
           setEvictionMessage(null);
           setSeatMoveMessage(null);
+          // A freshly joined room has no hand for this player yet; drop any
+          // hand view carried over from a previous room so the seat picker
+          // and lobby never show stale hole cards (#171).
+          clearHand();
           setRoomView(view);
         })
         .catch(() => {
           setJoinError("room-not-found");
         });
     },
-    [setRoomView, setJoinError],
+    [setRoomView, setJoinError, clearHand],
   );
 
   const handleClaim = useCallback(
