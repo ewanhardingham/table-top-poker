@@ -115,6 +115,14 @@ describe("usePlayerStore", () => {
     expect(usePlayerStore.getState().seats).toEqual([]);
   });
 
+  it("clears the hand view so a new room starts without stale hole cards", () => {
+    usePlayerStore.getState().setHandView({ phase: "no-hand", button: 0 });
+    expect(usePlayerStore.getState().handView).not.toBeNull();
+
+    usePlayerStore.getState().clearHand();
+    expect(usePlayerStore.getState().handView).toBeNull();
+  });
+
   it("marks an action pending on send, with no rejection yet", () => {
     usePlayerStore.getState().sendStarted("call");
     expect(usePlayerStore.getState().pendingAction).toBe("call");
