@@ -73,6 +73,14 @@ describe("useTableStore", () => {
     expect(useTableStore.getState().pendingSeatCount).toBe(4);
   });
 
+  it("clears the hand view so a new room starts without stale hand state", () => {
+    useTableStore.getState().setHandView({ phase: "no-hand", button: 0 });
+    expect(useTableStore.getState().handView).not.toBeNull();
+
+    useTableStore.getState().clearHand();
+    expect(useTableStore.getState().handView).toBeNull();
+  });
+
   it("clears the room slice back to its initial state", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
