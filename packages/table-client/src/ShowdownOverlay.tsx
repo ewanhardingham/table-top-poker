@@ -6,7 +6,62 @@ import type {
 } from "@table-top-poker/protocol";
 import { Card, color, font } from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { seatLabel } from "./seatLabel.js";
+
+/**
+ * The burger (settings) toggle lives in the top-right of the felt at
+ * `top:20 right:24`, 52px square. The overlay reserves this much clearance at
+ * the top so its panel never creeps under it. Kept in sync with
+ * `SettingsToggle`.
+ */
+const BURGER_CLEARANCE = "5.25rem";
+
+/**
+ * Uniformly scales the measured content down until it fits inside the stage's
+ * padding box, so every element shrinks together rather than the panel
+ * clipping its own overflow. `offset*`/`client*` sizes are layout sizes and
+ * ignore CSS transforms, so applying the returned scale never feeds back into
+ * the measurement — no observer loop. Only ever scales down (never past 1).
+ */
+function useFitToBox() {
+  const stageRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current;
+    const content = contentRef.current;
+    if (stage === null || content === null) return;
+
+    function measure(): void {
+      if (stage === null || content === null) return;
+      const styles = getComputedStyle(stage);
+      const padX =
+        parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+      const padY =
+        parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom);
+      const availWidth = stage.clientWidth - padX;
+      const availHeight = stage.clientHeight - padY;
+      const naturalWidth = content.offsetWidth;
+      const naturalHeight = content.offsetHeight;
+      if (naturalWidth === 0 || naturalHeight === 0) return;
+      setScale(
+        Math.min(1, availWidth / naturalWidth, availHeight / naturalHeight),
+      );
+    }
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return { stageRef, contentRef, scale };
+}
 
 /** The showdown shape of the table view — the only phase this overlay renders. */
 type ShowdownView = Extract<TableView, { phase: "showdown" }>;
@@ -270,11 +325,13 @@ export function ShowdownOverlay({
   const winnerIds = new Set(view.winners);
   const winners = view.results.filter((result) => winnerIds.has(result.seatId));
   const rest = view.results.filter((result) => !winnerIds.has(result.seatId));
+  const { stageRef, contentRef, scale } = useFitToBox();
 
   return (
     <AnimatePresence>
       {!collapsed && (
         <motion.div
+          ref={stageRef}
           key="overlay"
           data-testid="showdown-overlay"
           initial={{ opacity: 0 }}
@@ -290,17 +347,26 @@ export function ShowdownOverlay({
             background: "rgba(5,4,4,.6)",
             backdropFilter: "blur(2px)",
             padding: "1.5rem",
+            // Keep the panel out from under the top-right burger menu.
+            paddingTop: BURGER_CLEARANCE,
           }}
         >
+          <div
+            ref={contentRef}
+            style={{
+              width: "min(97%, 92rem)",
+              flexShrink: 0,
+              transform: `scale(${String(scale)})`,
+              transformOrigin: "center center",
+            }}
+          >
           <motion.div
             initial={{ scale: 0.96, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.96, opacity: 0 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
             style={{
-              width: "min(97%, 92rem)",
-              maxHeight: "100%",
-              overflow: "hidden",
+              width: "100%",
               padding: "clamp(1rem, 2.4vh, 1.8rem)",
               borderRadius: "1.2rem",
               background: color.surfaceGradient,
@@ -376,6 +442,7 @@ export function ShowdownOverlay({
               onViewTable={onViewTable}
             />
           </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
