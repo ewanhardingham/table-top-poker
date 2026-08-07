@@ -4,11 +4,15 @@ import type { StateCreator } from "zustand";
 export interface HandSlice {
   readonly handView: TableView | null;
   readonly setHandView: (view: TableView) => void;
+  readonly clearHand: () => void;
 }
 
 export const createHandSlice: StateCreator<HandSlice> = (set) => ({
   handView: null,
   setHandView: (view) => {
     set({ handView: view });
+  },
+  clearHand: () => {
+    set({ handView: null });
   },
 });

@@ -36,6 +36,7 @@ export function App() {
   const handView = useTableStore((state) => state.handView);
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
   const clearRoom = useTableStore((state) => state.clearRoom);
+  const clearHand = useTableStore((state) => state.clearHand);
 
   const [joinOpen, setJoinOpen] = useState(false);
   const toggleJoin = useCallback(() => {
@@ -70,7 +71,8 @@ export function App() {
   const handleRoomEnded = useCallback(() => {
     setSettingsOpen(false);
     clearRoom();
-  }, [clearRoom]);
+    clearHand();
+  }, [clearRoom, clearHand]);
 
   const { send } = useWebSocket(roomCode, {
     onRoomEnded: handleRoomEnded,
@@ -91,11 +93,12 @@ export function App() {
       .then(() => {
         setSettingsOpen(false);
         clearRoom();
+        clearHand();
       })
       .catch((error: unknown) => {
         console.error(error);
       });
-  }, [roomCode, clearRoom]);
+  }, [roomCode, clearRoom, clearHand]);
 
   const handleChangeSeatCount = useCallback(
     (seatCount: number) => {
