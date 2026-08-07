@@ -68,31 +68,33 @@ export function App() {
       });
   }, [setRoomView, setSeat]);
 
-  const handleRejected = useCallback(() => {
+  // Drop this player out of their seat locally: forget the stored and in-memory
+  // seat token, and clear the seat and hand slices so no stale seat or hole
+  // cards survive into the next room (#171). Callers that also leave the room
+  // entirely add clearRoom() themselves.
+  const dropSeat = useCallback(() => {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
     clearSeat();
     clearHand();
-    setSeatMoveMessage(null);
   }, [clearSeat, clearHand]);
+
+  const handleRejected = useCallback(() => {
+    dropSeat();
+    setSeatMoveMessage(null);
+  }, [dropSeat]);
 
   const handleEvicted = useCallback(() => {
-    clearSeatToken(window.localStorage);
-    setSeatToken(null);
-    clearSeat();
-    clearHand();
+    dropSeat();
     setEvictionMessage("You have been evicted from the room");
     setSeatMoveMessage(null);
-  }, [clearSeat, clearHand]);
+  }, [dropSeat]);
 
   const handleRoomEnded = useCallback(() => {
-    clearSeatToken(window.localStorage);
-    setSeatToken(null);
-    clearSeat();
+    dropSeat();
     clearRoom();
-    clearHand();
     setSeatMoveMessage(null);
-  }, [clearSeat, clearRoom, clearHand]);
+  }, [dropSeat, clearRoom]);
 
   const handleSeatMoved = useCallback(
     ({ from, to }: SeatMove) => {
@@ -147,14 +149,11 @@ export function App() {
     if (roomCode !== null && seatId !== null && seatToken !== null) {
       leaveSeat(roomCode, seatId, seatToken);
     }
-    clearSeatToken(window.localStorage);
-    setSeatToken(null);
-    clearSeat();
+    dropSeat();
     clearRoom();
-    clearHand();
     setSeatMoveMessage(null);
     setEvictionMessage(null);
-  }, [roomCode, seatId, seatToken, clearSeat, clearRoom, clearHand]);
+  }, [roomCode, seatId, seatToken, dropSeat, clearRoom]);
 
   const intent = useActionIntent(send);
 
