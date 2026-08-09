@@ -12,6 +12,7 @@ import {
   createRoom,
   endSession,
   evictSeat,
+  fetchRoom,
 } from "./api/rooms.js";
 import { Board } from "./Board.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
@@ -23,6 +24,11 @@ import { ShowdownOverlay } from "./ShowdownOverlay.js";
 import { SettingsToggle } from "./SettingsToggle.js";
 import { StatusBar } from "./StatusBar.js";
 import { TableControls } from "./TableControls.js";
+import {
+  clearHostedRoom,
+  loadHostedRoom,
+  saveHostedRoom,
+} from "./storage/hostedRoom.js";
 import { useTableStore } from "./store/store.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
@@ -37,6 +43,26 @@ export function App() {
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
   const clearRoom = useTableStore((state) => state.clearRoom);
   const clearHand = useTableStore((state) => state.clearHand);
+
+  useEffect(() => {
+    // Silently re-attach to the room this table was hosting on mount (#175) —
+    // a refresh keeps the room alive server-side for the grace window (#130
+    // §7). Confirm the room is still live over HTTP before restoring: the WS
+    // handshake 404s once the room is gone, but the socket can't tell that
+    // from a transient drop and would retry forever, so this check is what
+    // decides the fall-through. A live room restores its code/QR and the
+    // socket reconnects; a gone room (or absent/malformed storage) clears the
+    // stored room and falls through to the create-room screen.
+    const stored = loadHostedRoom(window.localStorage);
+    if (stored === null) return;
+    fetchRoom(stored.code)
+      .then(() => {
+        setRoomCreated(stored);
+      })
+      .catch(() => {
+        clearHostedRoom(window.localStorage);
+      });
+  }, [setRoomCreated]);
 
   const [joinOpen, setJoinOpen] = useState(false);
   const toggleJoin = useCallback(() => {
@@ -69,6 +95,7 @@ export function App() {
   }, [roomCode, menuSeatId]);
 
   const handleRoomEnded = useCallback(() => {
+    clearHostedRoom(window.localStorage);
     setSettingsOpen(false);
     clearRoom();
     clearHand();
@@ -81,7 +108,10 @@ export function App() {
   const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
   const handleCreateRoom = useCallback(() => {
     createRoom(seatCount)
-      .then(setRoomCreated)
+      .then((room) => {
+        saveHostedRoom(window.localStorage, room);
+        setRoomCreated(room);
+      })
       .catch((error: unknown) => {
         console.error(error);
       });
@@ -91,6 +121,7 @@ export function App() {
     if (!roomCode) return;
     endSession(roomCode)
       .then(() => {
+        clearHostedRoom(window.localStorage);
         setSettingsOpen(false);
         clearRoom();
         clearHand();

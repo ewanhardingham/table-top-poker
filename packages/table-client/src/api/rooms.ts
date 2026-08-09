@@ -1,9 +1,25 @@
-import type { SeatCountChange } from "@table-top-poker/protocol";
+import type { RoomView, SeatCountChange } from "@table-top-poker/protocol";
 
 export interface CreatedRoom {
   readonly code: string;
   readonly joinUrl: string;
   readonly qrCodeDataUrl: string;
+}
+
+/**
+ * Confirms a room is still live before the table re-attaches on refresh
+ * (#175). The WebSocket handshake 404s for a dead room, but a browser socket
+ * can't tell that rejection from a transient drop, so the reconnect loop would
+ * retry forever — this HTTP check decides existence up front, mirroring the
+ * player client's reclaim-on-mount. Rejects on a 404 (grace window elapsed) or
+ * any non-2xx.
+ */
+export async function fetchRoom(code: string): Promise<RoomView> {
+  const response = await fetch(`/rooms/${code}/join`, { method: "POST" });
+  if (!response.ok) {
+    throw new Error(`failed to fetch room: ${String(response.status)}`);
+  }
+  return (await response.json()) as RoomView;
 }
 
 /** `seatCount` is the table size the creator picked — 2-8, re-validated server-side. */
