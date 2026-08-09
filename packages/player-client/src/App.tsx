@@ -16,6 +16,8 @@ import {
   saveSeatToken,
 } from "./storage/seatToken.js";
 import { usePlayerStore } from "./store/store.js";
+// PROTOTYPE (#181): tactile sound tuning panel, throwaway. Remove with branch.
+import { PrototypeSoundPanel } from "./prototype-sound/PrototypeSoundPanel.js";
 import { useLobbyWebSocket } from "./ws/useLobbyWebSocket.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
@@ -271,6 +273,7 @@ export function App() {
       />
       {seatMoveMessage && <SeatMovedNotice message={seatMoveMessage} />}
       <main className="hand">{content}</main>
+      <PrototypeSoundPanel surface="player" />
     </div>
   );
 }

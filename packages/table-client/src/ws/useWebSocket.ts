@@ -1,6 +1,8 @@
 import type { ClientCommand, ServerMessage } from "@table-top-poker/protocol";
 import { useCallback, useEffect, useRef } from "react";
 import { useTableStore } from "../store/store.js";
+// PROTOTYPE (#181): tactile sound layer, throwaway. Remove with the branch.
+import { onHandUpdate } from "../prototype-sound/prototypeAudio.js";
 import { getWebSocketUrl } from "./getWebSocketUrl.js";
 
 export interface UseWebSocketOptions {
@@ -75,6 +77,13 @@ export function useWebSocket(
         } else if (message.type === "hand-update") {
           // The server only ever sends a table-role socket a `view(state, 'table')`.
           setHandView(message.view);
+          // PROTOTYPE (#181): sound fires on the live event only, never on a
+          // view-snapshot below — so a reconnect can't replay a burst of cues.
+          onHandUpdate({
+            surface: "table",
+            event: message.event,
+            view: message.view,
+          });
         } else if (message.type === "view-snapshot") {
           setHandView(message.view);
         } else if (message.type === "room-ended") {

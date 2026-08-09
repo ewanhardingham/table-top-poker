@@ -30,6 +30,8 @@ import {
   saveHostedRoom,
 } from "./storage/hostedRoom.js";
 import { useTableStore } from "./store/store.js";
+// PROTOTYPE (#181): tactile sound tuning panel, throwaway. Remove with branch.
+import { PrototypeSoundPanel } from "./prototype-sound/PrototypeSoundPanel.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
 export function App() {
@@ -294,6 +296,7 @@ export function App() {
           </div>
         )}
       </main>
+      <PrototypeSoundPanel surface="table" />
     </div>
   );
 }
