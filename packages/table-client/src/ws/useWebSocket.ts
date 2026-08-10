@@ -7,6 +7,7 @@ import {
   applyRoomSoundSettings,
   createBeatQueue,
   onHandUpdate,
+  realClock,
   tableBeatDuration,
 } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useRef } from "react";
@@ -66,10 +67,7 @@ export function useWebSocket(
     // the closing action's sound instead of landing on top of it (#186). Each
     // beat applies its view (the animation) and fires its sound together.
     const beats = createBeatQueue<TableView>({
-      now: () => Date.now(),
-      schedule: (fn, delayMs) => {
-        setTimeout(fn, delayMs);
-      },
+      ...realClock,
       apply: (beat) => {
         if (!active) return;
         setHandView(beat.view);

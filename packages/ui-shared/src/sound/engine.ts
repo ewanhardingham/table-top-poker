@@ -29,7 +29,7 @@ import {
   type SoundSettings,
   type TableView,
 } from "@table-top-poker/protocol";
-import { type CueName, cueAllowed } from "./cues.js";
+import { type CueName, cueAllowed, cueSettleMs } from "./cues.js";
 
 export type Surface = "table" | "player";
 
@@ -91,11 +91,12 @@ export const TIMINGS = {
    * The check knock is the longest cue at ~1.32s, so the next player's your-turn
    * prompt would otherwise start on top of it (on another device, but heard in
    * the same room). Every surface sees the broadcast `ActionTaken` check event,
-   * so each independently holds the prompt this long — the knock's length plus a
-   * small gap — so the knock is heard out first. This is the phone's equivalent
-   * of the table's beat queue, which the phone has no part in.
+   * so each independently holds the prompt for the knock's settle time — its
+   * length plus the shared buffer (`cueSettleMs`), the same figure the table's
+   * beat queue uses — so the knock is heard out first. This is the phone's
+   * equivalent of the table's beat queue, which the phone has no part in.
    */
-  checkKnockSettleMs: 1400,
+  checkKnockSettleMs: cueSettleMs("check"),
 } as const;
 
 /**

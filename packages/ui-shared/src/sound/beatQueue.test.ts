@@ -1,7 +1,7 @@
 import type { HandEvent } from "@table-top-poker/protocol";
 import { describe, expect, it } from "vitest";
 import { type Beat, createBeatQueue, tableBeatDuration } from "./beatQueue.js";
-import { CUE_DURATIONS_MS } from "./cues.js";
+import { CUE_DURATIONS_MS, cueSettleMs } from "./cues.js";
 
 // Beats carry a view in production; the queue never inspects it, so the tests
 // use the event alone as the payload.
@@ -65,7 +65,7 @@ function rig() {
   };
 }
 
-const KNOCK = CUE_DURATIONS_MS.check + 90;
+const KNOCK = cueSettleMs("check");
 
 describe("beat queue", () => {
   it("applies an idle beat immediately", () => {

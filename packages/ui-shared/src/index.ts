@@ -24,3 +24,4 @@ export {
 export type { HandUpdateArgs, Surface } from "./sound/webAudio.js";
 export { createBeatQueue, tableBeatDuration } from "./sound/beatQueue.js";
 export type { Beat, BeatEffects, BeatQueue } from "./sound/beatQueue.js";
+export { realClock } from "./sound/realClock.js";
