@@ -58,37 +58,76 @@ body {
 }
 
 /*
- * The seat picker adds the name form below the grid after a seat is tapped.
- * On a short phone viewport, four vertical cards plus that form cannot all
- * retain their desktop-sized intrinsic height. Switch the cards to a compact
- * horizontal treatment and give the grid the remaining height so its tracks
- * shrink before the picker ever paints one card into the next row.
+ * The seat picker's geometry lives here, not in the component's inline styles,
+ * so the container query below can restyle the card without fighting inline
+ * styles with `!important`. The component keeps only prop-driven visuals
+ * (the selected ring, the taken-seat fade) inline.
+ *
+ * The grid sizes each row up to a comfortable card height but may shrink:
+ * tapping a seat adds the name form below the grid, and on a short viewport
+ * the tracks give up height instead of painting one card into the next row.
  */
-@media (max-height: 850px) {
-  .seat-grid {
-    flex: 1 1 0 !important;
-    min-height: 0;
-    grid-template-rows: repeat(
-      var(--seat-row-count),
-      minmax(0, 1fr)
-    ) !important;
-  }
+.seat-grid {
+  display: grid;
+  grid-template-rows: repeat(var(--seat-row-count), minmax(0, 108px));
+  gap: 12px;
+  /* Grow no taller than the tracks ask, but shrink when the picker is short. */
+  flex: 0 1 auto;
+  min-height: 0;
+}
 
-  .seat-option {
-    min-height: 0 !important;
-    padding: 6px !important;
-  }
+.seat-option {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  /* Clip rather than spill into the next row while a card is mid-shrink. */
+  overflow: hidden;
+  /* Each card queries its own height to choose a layout (iOS Safari 16+). */
+  container: seat / size;
+}
 
+.seat-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 16px;
+  text-align: left;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.seat-avatar {
+  width: 44px;
+  height: 44px;
+}
+
+/*
+ * Below this card height the stacked avatar-over-text layout stops fitting,
+ * so lay the card out horizontally and shrink the avatar. The threshold is the
+ * card's own height, not the viewport's, so it fires whenever the grid has
+ * squeezed a card short — on any phone or orientation, with no viewport-height
+ * breakpoint to keep in step as new, taller devices appear.
+ */
+@container seat (max-height: 92px) {
   .seat-row {
-    flex-direction: row !important;
-    align-items: center !important;
-    justify-content: flex-start !important;
-    gap: 8px !important;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    padding: 6px 8px;
   }
 
   .seat-avatar {
-    width: 32px !important;
-    height: 32px !important;
+    width: 32px;
+    height: 32px;
   }
 }
 
