@@ -47,16 +47,23 @@ const descriptionStyle: CSSProperties = {
   color: color.textMuted,
 };
 
-function seatGridStyle(seatCount: number): CSSProperties {
+type SeatGridStyle = CSSProperties & {
+  readonly "--seat-row-count": number;
+};
+
+function seatGridStyle(seatCount: number): SeatGridStyle {
   const rowCount = Math.max(1, Math.ceil(seatCount / 2));
 
   return {
+    "--seat-row-count": rowCount,
     display: "grid",
     gridTemplateColumns: seatCount <= 1 ? "1fr" : "repeat(2, minmax(0, 1fr))",
-    gridTemplateRows: `repeat(${String(rowCount)}, minmax(0, 1fr))`,
+    // A selected seat adds the name form below this grid. Keep each track at
+    // the card's minimum instead of shrinking the tracks underneath the
+    // cards; the picker owns any compact-viewport overflow.
+    gridTemplateRows: "repeat(var(--seat-row-count), minmax(108px, auto))",
     gap: 12,
-    flex: "1 1 0",
-    minHeight: 0,
+    flex: "none",
   };
 }
 
@@ -233,6 +240,7 @@ export function SeatPicker({
         Pick where you're sitting. Seat order sets the button and blinds.
       </div>
       <div
+        className="seat-grid"
         data-testid="seat-grid"
         data-seat-count={seats.length}
         style={seatGridStyle(seats.length)}
@@ -241,7 +249,9 @@ export function SeatPicker({
           const selected = selectedSeatId === seat.id;
           const content = (
             <>
-              <span style={avatarStyle(seat.claimed)}>{seat.id + 1}</span>
+              <span className="seat-avatar" style={avatarStyle(seat.claimed)}>
+                {seat.id + 1}
+              </span>
               <span style={textColStyle}>
                 <span style={seatTitleStyle}>
                   {seat.claimed
@@ -257,14 +267,18 @@ export function SeatPicker({
           return (
             <div
               key={seat.id}
+              className="seat-option"
               data-testid={`seat-option-${String(seat.id)}`}
               style={seatStyle(seat.claimed, selected)}
             >
               {seat.claimed ? (
-                <div style={rowStyle}>{content}</div>
+                <div className="seat-row" style={rowStyle}>
+                  {content}
+                </div>
               ) : (
                 <button
                   type="button"
+                  className="seat-row"
                   data-testid={`claim-seat-${String(seat.id)}`}
                   onClick={() => {
                     setSelectionLost(null);
