@@ -54,26 +54,17 @@ type SeatGridStyle = CSSProperties & {
 function seatGridStyle(seatCount: number): SeatGridStyle {
   const rowCount = Math.max(1, Math.ceil(seatCount / 2));
 
+  // Row count and column count are data, so they stay inline; the grid's
+  // sizing and shrink behaviour live in the `.seat-grid` CSS rule.
   return {
     "--seat-row-count": rowCount,
-    display: "grid",
     gridTemplateColumns: seatCount <= 1 ? "1fr" : "repeat(2, minmax(0, 1fr))",
-    // A selected seat adds the name form below this grid. Keep each track at
-    // the card's minimum instead of shrinking the tracks underneath the
-    // cards; the picker owns any compact-viewport overflow.
-    gridTemplateRows: "repeat(var(--seat-row-count), minmax(108px, auto))",
-    gap: 12,
-    flex: "none",
   };
 }
 
 function seatStyle(claimed: boolean, selected: boolean): CSSProperties {
   return {
-    display: "flex",
-    minHeight: 108,
-    height: "100%",
     borderRadius: radius.control,
-    padding: 16,
     ...(claimed
       ? {
           border: `1px solid ${color.border}`,
@@ -93,28 +84,8 @@ function seatStyle(claimed: boolean, selected: boolean): CSSProperties {
   };
 }
 
-const rowStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 12,
-  width: "100%",
-  height: "100%",
-  minHeight: 0,
-  textAlign: "left",
-  background: "none",
-  border: 0,
-  padding: 0,
-  font: "inherit",
-  color: "inherit",
-  cursor: "pointer",
-};
-
 function avatarStyle(claimed: boolean): CSSProperties {
   return {
-    width: 44,
-    height: 44,
     borderRadius: radius.pill,
     flex: "none",
     display: "flex",
@@ -272,9 +243,7 @@ export function SeatPicker({
               style={seatStyle(seat.claimed, selected)}
             >
               {seat.claimed ? (
-                <div className="seat-row" style={rowStyle}>
-                  {content}
-                </div>
+                <div className="seat-row">{content}</div>
               ) : (
                 <button
                   type="button"
@@ -284,7 +253,6 @@ export function SeatPicker({
                     setSelectionLost(null);
                     setSelectedSeatId(seat.id);
                   }}
-                  style={rowStyle}
                   aria-pressed={selected}
                 >
                   {content}
