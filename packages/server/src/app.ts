@@ -482,7 +482,14 @@ export async function buildApp(
   await app.register(fastifyWebsocket);
 
   app.get("/", (_request, reply) => {
-    return reply.type("text/html").send(readIndexOr(publicTableIndexPath));
+    // The HTML shell names the current fingerprinted bundle, so it must never
+    // be cached: a stale shell pins a long-lived kiosk to an old build even
+    // across app restarts (the disk cache survives them). `no-store` forces a
+    // fresh shell every load; the hashed assets it points at stay cacheable.
+    return reply
+      .type("text/html")
+      .header("cache-control", "no-store")
+      .send(readIndexOr(publicTableIndexPath));
   });
 
   app.post("/rooms", async (request, reply) => {
@@ -592,7 +599,11 @@ export async function buildApp(
     if (playerOrigin) {
       return reply.redirect(`${playerOrigin}/join/${room.code}`);
     }
-    return reply.type("text/html").send(readIndexOr(publicPlayerIndexPath));
+    // See the table shell above: never cache the HTML that names the bundle.
+    return reply
+      .type("text/html")
+      .header("cache-control", "no-store")
+      .send(readIndexOr(publicPlayerIndexPath));
   });
 
   app.post<RoomSeatRoute>(
