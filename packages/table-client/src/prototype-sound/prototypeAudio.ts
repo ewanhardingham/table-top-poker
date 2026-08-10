@@ -68,11 +68,15 @@ export const CUES = {
     ],
   },
   check: {
-    // Two distinct knuckle knocks on the table — the poker "knock to check".
-    // Synthesized (public domain); the old CC0 stand-ins stay as A/B.
+    // A real fist-on-wood knock — the poker "knock to check". The two Pixabay
+    // recordings are genuine knocks (door = ~2s natural knock-knock, kk = a
+    // crisp short knock); Pixabay Content License, not CC0 (flagged). The synth
+    // double-knock and old CC0 stand-ins stay as A/B.
     label: "Check — knock knock (own)",
     options: [
-      { id: "knock", file: "check-knock/check-knock__synth.wav" },
+      { id: "door", file: "check-knock/knock-door__pixabay-175164.mp3" },
+      { id: "kk", file: "check-knock/knock-kk__pixabay-40474.mp3" },
+      { id: "synth", file: "check-knock/check-knock__synth.wav" },
       { id: "drop", file: "check-knock/knock-a__drop_003.ogg" },
       { id: "bong", file: "check-knock/knock-b__bong_001.ogg" },
     ],

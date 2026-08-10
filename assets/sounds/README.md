@@ -30,11 +30,14 @@ because neither CC0 pack had a good "action on you" sound:
   `scripts/synth-knock.py` (wooden knuckle knocks; check is the two-knock
   "knock to check"). Regen with
   `SOUNDS_DIR=assets/sounds python3 scripts/synth-knock.py`.
-- `turn-notify__pixabay-269292.mp3` — the human-picked default, from Pixabay
-  (<https://pixabay.com/sound-effects/film-special-effects-notification-2-269292/>).
-  **Pixabay Content License, NOT CC0** — royalty-free with no attribution, but
-  it can't be redistributed standalone. **The real build must confirm this
-  licence is acceptable or re-source a CC0 equivalent.**
+- `your-turn/turn-notify__pixabay-269292.mp3` (your-turn prompt) and
+  `check-knock/knock-*__pixabay-*.mp3` (real fist-on-wood knocks for check) —
+  from Pixabay. **Pixabay Content License, NOT CC0** — royalty-free with no
+  attribution, but can't be redistributed standalone. **The real build must
+  confirm this licence is acceptable or re-source CC0 equivalents.** Sources:
+  notification `.../film-special-effects-notification-2-269292/`,
+  door knock `.../film-special-effects-door-knock-175164/`,
+  knock `.../film-special-effects-knock-knock-knock-40474/` on pixabay.com.
 
 ## Cues (a couple of options each to A/B)
 
