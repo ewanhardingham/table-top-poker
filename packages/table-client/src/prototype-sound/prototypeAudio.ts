@@ -70,6 +70,15 @@ export const CUES = {
       { id: "fan", file: "flip/flip-c-board__card-fan-1.ogg" },
     ],
   },
+  yourTurn: {
+    // Not card foley — the only "action on you" cues in the palette. Weakest
+    // area (like check was); tune or replace by ear.
+    label: "Your turn (own)",
+    options: [
+      { id: "pluck", file: "your-turn/turn-b__pluck_002.ogg" },
+      { id: "question", file: "your-turn/turn-a__question_001.ogg" },
+    ],
+  },
   handStart: {
     label: "Hand start — shuffle",
     options: [{ id: "shuffle", file: "bonus/hand-start__card-shuffle.ogg" }],
@@ -251,11 +260,20 @@ if (typeof document !== "undefined") {
 
 // --- event → sound ----------------------------------------------------------
 
+/** Edge-detect "it just became my turn" so the prompt fires once, not per view. */
+let lastMyTurn = false;
+
+/**
+ * When the current hand's hole-card sweep finishes (ms epoch). The your-turn
+ * prompt is deferred until then so a player hears their cards land before the
+ * prompt. Reset each hand; 0 means no sweep pending.
+ */
+let dealSweepEndsAt = 0;
+
 /**
  * The single entry point the WebSocket hooks call on every `hand-update`
  * (never on `view-snapshot`). `seatId` is the phone's own seat; omitted on the
- * table surface. `view` is unused for now (the your-turn chime was cut) but
- * kept on the signature so re-deriving a view-based cue stays a one-line add.
+ * table surface.
  */
 export function onHandUpdate(args: {
   surface: Surface;
@@ -268,17 +286,22 @@ export function onHandUpdate(args: {
 
   switch (event.type) {
     case "HandStarted":
+      lastMyTurn = false;
+      dealSweepEndsAt = 0;
       if (surface === "table") playCue("handStart");
       break;
 
     case "HoleCardsDealt": {
-      // A dealer's sweep around the whole table: one distinct slide per card
-      // dealt (two players = four cards), spaced by the wider hole-deal gap so
-      // each dealt card is obvious. Plays in FULL on both the table and each
-      // phone — the phone hears the deal reach over and deal it in (this
-      // refines #180, where a phone heard only its own two cards).
-      const total = event.deals.reduce((n, d) => n + d.cards.length, 0);
-      staggeredCue("deal", total, dealStaggerMs);
+      // A dealer's sweep, one distinct slide per card, spaced by the wider
+      // hole-deal gap so each dealt card is obvious. The table hears the whole
+      // table dealt; each phone hears only its own two cards (#180). The
+      // your-turn cue below is held until this sweep ends.
+      const count =
+        surface === "table"
+          ? event.deals.reduce((n, d) => n + d.cards.length, 0)
+          : (event.deals.find((d) => d.seatId === seatId)?.cards.length ?? 0);
+      dealSweepEndsAt = Date.now() + count * dealStaggerMs;
+      staggeredCue("deal", count, dealStaggerMs);
       break;
     }
 
@@ -307,16 +330,44 @@ export function onHandUpdate(args: {
     case "ShowdownReached":
     case "HandFoldedOut":
     case "HandComplete":
-      // No dedicated cue.
+      // No dedicated cue (your-turn is derived from the view below).
       break;
+  }
+
+  // "Action on you": derived from the phone's view, edge-detected so it fires
+  // once when the turn arrives, and held until the deal sweep has finished so
+  // the player hears their cards land first, then the prompt.
+  if (surface === "player") {
+    const { view } = args;
+    const myTurn =
+      view.phase === "betting" &&
+      "legalActions" in view &&
+      view.legalActions.length > 0;
+    if (myTurn && !lastMyTurn) {
+      const wait = Math.max(0, dealSweepEndsAt - Date.now());
+      setTimeout(() => {
+        playCue("yourTurn");
+      }, wait);
+    }
+    lastMyTurn = myTurn;
   }
 }
 
-/** Fire a cue once per card, staggered, so multi-card deals read as distinct. */
-function staggeredCue(cue: CueName, count: number, staggerMs: number): void {
-  for (let i = 0; i < count; i++) {
-    setTimeout(() => {
-      playCue(cue);
-    }, i * staggerMs);
-  }
+/**
+ * Fire a cue once per card, staggered so multi-card deals read as distinct.
+ * The buffer is decoded up front, then the spaced plays run from cache — so
+ * the gaps hold even on the first deal after unlocking, when an
+ * on-demand decode would otherwise resolve all at once and collapse them.
+ */
+function staggeredCue(cue: CueName, count: number, gapMs: number): void {
+  if (count <= 0) return;
+  void loadBuffer(fileFor(cue))
+    .then(() => {
+      for (let i = 0; i < count; i++) {
+        setTimeout(() => {
+          playCue(cue);
+        }, i * gapMs);
+      }
+    })
+    .catch(() => undefined);
 }
