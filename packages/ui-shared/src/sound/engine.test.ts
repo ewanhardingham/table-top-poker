@@ -141,6 +141,27 @@ describe("event → cue mapping", () => {
     expect(r.played).toEqual(["board", "board", "board"]);
   });
 
+  it("holds the board past a check knock that closed the street", () => {
+    const r = rig();
+    // The check that closes the street arrives just before the board deal.
+    r.engine.onHandUpdate({
+      surface: "table",
+      event: actionTaken(1, "check"),
+      view: noHandView,
+    });
+    r.engine.onHandUpdate({
+      surface: "table",
+      event: boardDealt("flop", 3),
+      view: noHandView,
+    });
+    // The lead-in stretches to the knock's settle, not the plain 600ms.
+    expect(r.scheduled.map((s) => s.delayMs)).toEqual([
+      TIMINGS.checkKnockSettleMs,
+      TIMINGS.checkKnockSettleMs + TIMINGS.boardStaggerMs,
+      TIMINGS.checkKnockSettleMs + 2 * TIMINGS.boardStaggerMs,
+    ]);
+  });
+
   it("stays silent on the board on the player surface", () => {
     const r = rig();
     r.engine.onHandUpdate({
@@ -297,6 +318,27 @@ describe("your-turn prompt", () => {
     expect(turnPrompt?.delayMs).toBe(
       TIMINGS.dealStaggerMs + TIMINGS.turnAfterDealMs,
     );
+    r.flush();
+    expect(r.played).toContain("yourTurn");
+  });
+
+  it("holds the prompt past a check knock from the player who passed the turn", () => {
+    const r = rig();
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: { type: "HandStarted", seed: "s", button: 0 },
+      view: noHandView,
+    });
+    // Seat 1 checks mid-hand and the turn passes to me in the same update.
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: actionTaken(1, "check"),
+      view: bettingView(true),
+    });
+    const turnPrompt = r.scheduled.at(-1);
+    expect(turnPrompt?.delayMs).toBe(TIMINGS.checkKnockSettleMs);
     r.flush();
     expect(r.played).toContain("yourTurn");
   });
