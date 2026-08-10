@@ -3,6 +3,7 @@ import {
   apply,
   createInitialState,
   DEFAULT_SEAT_COUNT,
+  DEFAULT_SOUND_SETTINGS,
   decide,
   MAX_SEAT_COUNT,
   MAX_DISPLAY_NAME_LENGTH,
@@ -22,6 +23,7 @@ import {
   type SeatCountChangeError,
   type SeatMove,
   type SittingOutReason,
+  type SoundSettings,
 } from "@table-top-poker/protocol";
 import { generateRoomCode } from "./room-code.js";
 
@@ -59,6 +61,8 @@ export interface Room {
   engine: EngineState | null;
   /** A live-hand shrink waits here until the next deal-in recompute. */
   pendingSeatCount: number | null;
+  /** Room-wide tactile-sound settings (#182), set by the table. */
+  soundSettings: SoundSettings;
 }
 
 export type ClaimSeatError =
@@ -346,6 +350,7 @@ export class RoomStore {
       seats: makeSeats(seatCount),
       engine: null,
       pendingSeatCount: null,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
     };
     this.#rooms.set(code, room);
     return room;
@@ -525,6 +530,22 @@ export class RoomStore {
     return appliedSeatCountChange(room, repack.moves);
   }
 
+  /**
+   * Replaces the room's tactile-sound settings (#182). The whole triple is
+   * written atomically; the table owns these and phones simply obey them, so
+   * there is nothing to validate beyond the room existing (the HTTP edge has
+   * already parsed the booleans).
+   */
+  changeSoundSettings(
+    code: string,
+    settings: SoundSettings,
+  ): SoundSettings | { error: "room-not-found" } {
+    const room = this.#rooms.get(code);
+    if (!room) return { error: "room-not-found" };
+    room.soundSettings = settings;
+    return room.soundSettings;
+  }
+
   /** Whether `seatId` reads as "sitting out" in the room's public view — see `isSittingOut`. */
   isSittingOut(code: string, seatId: SeatId): boolean {
     const room = this.#rooms.get(code);
@@ -670,6 +691,7 @@ export function toRoomView(room: Room): RoomView {
   return {
     code: room.code,
     pendingSeatCount: room.pendingSeatCount,
+    soundSettings: room.soundSettings,
     seats: room.seats.map((seat) => {
       const reason = sittingOutReason(room, seat.id);
       return {

@@ -3,6 +3,7 @@ import {
   MIN_SEAT_COUNT,
   type SeatView,
   type SeatMove,
+  type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
   Panel,
@@ -21,7 +22,9 @@ export interface HouseRulesSheetProps {
   readonly pendingSeatCount: number | null;
   readonly seats: readonly SeatView[];
   readonly handInProgress: boolean;
+  readonly soundSettings: SoundSettings;
   readonly onApply: (seatCount: number) => void;
+  readonly onChangeSoundSettings: (next: SoundSettings) => void;
   readonly onClose: () => void;
 }
 
@@ -62,13 +65,98 @@ const stepperButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
+/**
+ * A single on/off switch. `nested` renders the smaller, indented variant used
+ * by the sub-settings under a master toggle; `disabled` greys it out and blocks
+ * interaction (a category toggle while its master is off).
+ */
+function Toggle({
+  label,
+  checked,
+  disabled = false,
+  nested = false,
+  testId,
+  onChange,
+}: {
+  readonly label: string;
+  readonly checked: boolean;
+  readonly disabled?: boolean;
+  readonly nested?: boolean;
+  readonly testId: string;
+  readonly onChange: (next: boolean) => void;
+}) {
+  const width = nested ? 42 : 50;
+  const height = nested ? 24 : 28;
+  const knob = height - 8;
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 20,
+        paddingLeft: nested ? 22 : 0,
+        opacity: disabled ? 0.4 : 1,
+      }}
+    >
+      <span
+        style={{
+          fontSize: nested ? fontSize.md : fontSize.lg,
+          fontWeight: nested ? 500 : 600,
+          color: nested ? color.textDim : color.text,
+        }}
+      >
+        {label}
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={label}
+        data-testid={testId}
+        disabled={disabled}
+        onClick={() => {
+          onChange(!checked);
+        }}
+        style={{
+          flex: "none",
+          width,
+          height,
+          borderRadius: height / 2,
+          border: 0,
+          padding: 0,
+          position: "relative",
+          background: checked ? color.textBright : color.controlFill,
+          cursor: disabled ? "not-allowed" : "pointer",
+          transition: "background .15s",
+        }}
+      >
+        <span
+          style={{
+            position: "absolute",
+            top: 4,
+            left: checked ? width - knob - 4 : 4,
+            width: knob,
+            height: knob,
+            borderRadius: "50%",
+            background: checked ? color.control : color.textBright,
+            transition: "left .15s",
+          }}
+        />
+      </button>
+    </div>
+  );
+}
+
 /** The table-device House rules sheet; seat count is its first setting. */
 export function HouseRulesSheet({
   seatCount,
   pendingSeatCount,
   seats,
   handInProgress,
+  soundSettings,
   onApply,
+  onChangeSoundSettings,
   onClose,
 }: HouseRulesSheetProps) {
   const [draft, setDraft] = useState(pendingSeatCount ?? seatCount);
@@ -268,6 +356,47 @@ export function HouseRulesSheet({
                 </span>
               </div>
             ) : null}
+          </div>
+
+          <div
+            data-testid="sound-settings"
+            style={{
+              paddingTop: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              borderTop: `1px solid ${color.mutedSurface}`,
+              marginTop: 4,
+            }}
+          >
+            <Toggle
+              label="Sound"
+              checked={soundSettings.sounds}
+              testId="sound-master-toggle"
+              onChange={(sounds) => {
+                onChangeSoundSettings({ ...soundSettings, sounds });
+              }}
+            />
+            <Toggle
+              label="Cards"
+              nested
+              checked={soundSettings.cards}
+              disabled={!soundSettings.sounds}
+              testId="sound-cards-toggle"
+              onChange={(cards) => {
+                onChangeSoundSettings({ ...soundSettings, cards });
+              }}
+            />
+            <Toggle
+              label="Notifications"
+              nested
+              checked={soundSettings.notifications}
+              disabled={!soundSettings.sounds}
+              testId="sound-notifications-toggle"
+              onChange={(notifications) => {
+                onChangeSoundSettings({ ...soundSettings, notifications });
+              }}
+            />
           </div>
 
           <div

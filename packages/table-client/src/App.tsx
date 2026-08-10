@@ -4,11 +4,13 @@ import {
   isHandComplete,
   isHandLive,
   MIN_SEAT_COUNT,
+  type SoundSettings,
 } from "@table-top-poker/protocol";
 import { color } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useState } from "react";
 import {
   changeSeatCount,
+  changeSoundSettings,
   createRoom,
   endSession,
   evictSeat,
@@ -38,6 +40,7 @@ export function App() {
   const qrCodeDataUrl = useTableStore((state) => state.qrCodeDataUrl);
   const seats = useTableStore((state) => state.seats);
   const pendingSeatCount = useTableStore((state) => state.pendingSeatCount);
+  const soundSettings = useTableStore((state) => state.soundSettings);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
@@ -141,6 +144,18 @@ export function App() {
         .catch((error: unknown) => {
           console.error(error);
         });
+    },
+    [roomCode],
+  );
+
+  // Sound toggles apply the instant they're flipped (a mute you can hear stop),
+  // unlike seat count which commits on Done. The whole triple is sent each time.
+  const handleChangeSoundSettings = useCallback(
+    (next: SoundSettings) => {
+      if (roomCode === null) return;
+      changeSoundSettings(roomCode, next).catch((error: unknown) => {
+        console.error(error);
+      });
     },
     [roomCode],
   );
@@ -259,7 +274,9 @@ export function App() {
                 pendingSeatCount={pendingSeatCount}
                 seats={seats}
                 handInProgress={isHandLive(handView)}
+                soundSettings={soundSettings}
                 onApply={handleChangeSeatCount}
+                onChangeSoundSettings={handleChangeSoundSettings}
                 onClose={() => {
                   setSettingsOpen(false);
                 }}
