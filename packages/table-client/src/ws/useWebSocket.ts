@@ -1,4 +1,8 @@
 import type { ClientCommand, ServerMessage } from "@table-top-poker/protocol";
+import {
+  applyRoomSoundSettings,
+  onHandUpdate,
+} from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useRef } from "react";
 import { useTableStore } from "../store/store.js";
 import { getWebSocketUrl } from "./getWebSocketUrl.js";
@@ -72,9 +76,19 @@ export function useWebSocket(
         const message: ServerMessage = JSON.parse(event.data) as ServerMessage;
         if (message.type === "room-view") {
           setRoomView(message.view);
+          // Mirror the room's sound settings (#182) into the audio engine's
+          // gate so cue playback honours the table-controlled master/category.
+          applyRoomSoundSettings(message.view.soundSettings);
         } else if (message.type === "hand-update") {
           // The server only ever sends a table-role socket a `view(state, 'table')`.
           setHandView(message.view);
+          // Cues fire on the live event only, never on the `view-snapshot`
+          // below — so a reconnect can't replay a burst (#175).
+          onHandUpdate({
+            surface: "table",
+            event: message.event,
+            view: message.view,
+          });
         } else if (message.type === "view-snapshot") {
           setHandView(message.view);
         } else if (message.type === "room-ended") {

@@ -15,3 +15,10 @@ export type {
 export { Panel } from "./Panel.js";
 export type { PanelProps } from "./Panel.js";
 export { color, font, fontSize, radius, shadow } from "./theme.js";
+export {
+  applyRoomSoundSettings,
+  onHandUpdate,
+  playRevealFlip,
+  unlockAudio,
+} from "./sound/webAudio.js";
+export type { HandUpdateArgs, Surface } from "./sound/webAudio.js";

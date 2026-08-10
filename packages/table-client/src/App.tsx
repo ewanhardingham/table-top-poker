@@ -6,7 +6,7 @@ import {
   MIN_SEAT_COUNT,
   type SoundSettings,
 } from "@table-top-poker/protocol";
-import { color } from "@table-top-poker/ui-shared";
+import { color, unlockAudio } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useState } from "react";
 import {
   changeSeatCount,
@@ -110,6 +110,8 @@ export function App() {
 
   const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
   const handleCreateRoom = useCallback(() => {
+    // Hosting the table is the kiosk's audio-unlock gesture (#178).
+    void unlockAudio();
     createRoom(seatCount)
       .then((room) => {
         saveHostedRoom(window.localStorage, room);
@@ -161,10 +163,14 @@ export function App() {
   );
 
   const handleStartHand = useCallback(() => {
+    // Also an unlock gesture, so a table that rejoined after a refresh (with no
+    // fresh create-room tap) still wakes its audio before the deal.
+    void unlockAudio();
     send({ type: "startHand" });
   }, [send]);
 
   const handleNextHand = useCallback(() => {
+    void unlockAudio();
     send({ type: "nextHand" });
   }, [send]);
 

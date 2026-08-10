@@ -1,4 +1,5 @@
 import type { Card } from "@table-top-poker/protocol";
+import { playRevealFlip } from "@table-top-poker/ui-shared";
 import { animate, useMotionValue, type MotionValue } from "motion/react";
 import {
   useCallback,
@@ -204,6 +205,20 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
       bend.set(0);
     }
   }, [state.presentation, bend]);
+
+  // A card-flip cue on reveal/conceal (#186). Entering `Turning` is every
+  // reveal (keyboard, bend-peel, showdown); `Revealed → FaceDown` is a
+  // conceal. A fresh deal reaches `FaceDown` from elsewhere and keeps its own
+  // deal cue instead.
+  const prevPresentation = useRef(state.presentation);
+  useEffect(() => {
+    const from = prevPresentation.current;
+    const to = state.presentation;
+    prevPresentation.current = to;
+    if (to === "Turning" || (from === "Revealed" && to === "FaceDown")) {
+      playRevealFlip();
+    }
+  }, [state.presentation]);
 
   /**
    * Whether the pair is on its way to the muck **right now**.
