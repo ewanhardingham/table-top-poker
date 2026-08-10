@@ -6,13 +6,15 @@
 //
 // Design decisions baked in here (the things the prototype is checking):
 //  - Mostly card foley. deal / board / fold / reveal-conceal flip are genuine
-//    card sounds; the check knock, showdown flourish and hand-start shuffle
-//    were all cut by ear. The one non-card cue left is the "your turn" prompt,
-//    a human-picked notification (Pixabay, not CC0 — flagged); the palette had
-//    no good card sound for it and the interface chimes were rejected.
+//    card sounds; the showdown flourish and hand-start shuffle were cut by ear.
+//    check is a synthesized double knuckle-knock (the poker knock-to-check),
+//    and the one non-card cue is the "your turn" prompt — a human-picked
+//    notification (Pixabay, not CC0 — flagged), since the palette had no good
+//    card sound for it and the interface chimes were rejected.
 //  - Cue ownership per #180: the TABLE is the dealer/center voice (the whole
 //    hole-card deal sweep, the board); each PHONE is its own player (its own
-//    two hole cards, own fold, own reveal/conceal flip, own your-turn prompt).
+//    two hole cards, own fold, own check knock, own reveal/conceal flip, own
+//    your-turn prompt).
 //  - Multi-card deals sound per card: the flop is three distinct board taps
 //    (board gap), a phone's hole cards are two distinct slides (the wider hole
 //    gap) — one `setTimeout` per card. The your-turn prompt is held a beat
@@ -63,6 +65,16 @@ export const CUES = {
     options: [
       { id: "shove-1", file: "fold/fold-a__card-shove-1.ogg" },
       { id: "shove-3", file: "fold/fold-b__card-shove-3.ogg" },
+    ],
+  },
+  check: {
+    // Two distinct knuckle knocks on the table — the poker "knock to check".
+    // Synthesized (public domain); the old CC0 stand-ins stay as A/B.
+    label: "Check — knock knock (own)",
+    options: [
+      { id: "knock", file: "check-knock/check-knock__synth.wav" },
+      { id: "drop", file: "check-knock/knock-a__drop_003.ogg" },
+      { id: "bong", file: "check-knock/knock-b__bong_001.ogg" },
     ],
   },
   flip: {
@@ -349,14 +361,12 @@ export function onHandUpdate(args: {
       break;
 
     case "ActionTaken":
-      // Only the acting player's own phone voices the fold muck; the table
-      // stays silent. check/call/raise are unallocated (cut or no asset yet).
-      if (
-        surface === "player" &&
-        event.seatId === seatId &&
-        event.action === "fold"
-      ) {
-        playCue("fold");
+      // Only the acting player's own phone voices its fold muck / check knock;
+      // the table stays silent (#180). call/raise are unallocated (no chip
+      // asset yet).
+      if (surface === "player" && event.seatId === seatId) {
+        if (event.action === "fold") playCue("fold");
+        else if (event.action === "check") playCue("check");
       }
       break;
 

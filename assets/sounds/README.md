@@ -25,9 +25,11 @@ pack's `card-slide-1.ogg`).
 Two exceptions live under `your-turn/`, both added during the #181 prototype
 because neither CC0 pack had a good "action on you" sound:
 
-- `turn-*__synth.wav` — **synthesized from scratch** (public domain, no
-  sampled source) by `scripts/synth-knock.py`. Regen with
-  `OUT_DIR=assets/sounds/your-turn python3 scripts/synth-knock.py`.
+- `your-turn/turn-*__synth.wav` and `check-knock/check-knock__synth.wav` —
+  **synthesized from scratch** (public domain, no sampled source) by
+  `scripts/synth-knock.py` (wooden knuckle knocks; check is the two-knock
+  "knock to check"). Regen with
+  `SOUNDS_DIR=assets/sounds python3 scripts/synth-knock.py`.
 - `turn-notify__pixabay-269292.mp3` — the human-picked default, from Pixabay
   (<https://pixabay.com/sound-effects/film-special-effects-notification-2-269292/>).
   **Pixabay Content License, NOT CC0** — royalty-free with no attribution, but

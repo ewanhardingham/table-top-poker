@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Synthesize tactile 'action on you' knocks for the sound prototype (#181).
+"""Synthesize tactile knocks for the sound prototype (#181).
 
 Public domain (CC0) — generated from scratch, no sampled source. A wooden
 knock is a sharp filtered-noise click plus a couple of fast-decaying low
-resonances (the body of the table). The double-knock is the poker 'your
-action' tap-tap; the single tap is a softer A/B.
+resonances (the body of the table). Emits:
+
+  your-turn/turn-knock__synth.wav   double knock (a your-turn A/B option)
+  your-turn/turn-tap__synth.wav     single soft tap
+  check-knock/check-knock__synth.wav two firm, clearly-spaced knocks (check)
+
+Run: SOUNDS_DIR=assets/sounds python3 scripts/synth-knock.py
 """
 import math
 import os
@@ -14,23 +19,22 @@ import wave
 SR = 44100
 
 
-def knock(peak_delay=0.0):
-    """One wooden knock as a list of float samples (~70ms)."""
-    n = int(0.070 * SR)
+def knock(f1=190.0, f2=430.0, click_tau=0.0035, body_tau1=0.030,
+          body_tau2=0.017, dur=0.070):
+    """One wooden knock as a list of float samples."""
+    n = int(dur * SR)
     out = []
-    # Deterministic pseudo-noise so the asset is reproducible.
-    seed = 12345
+    seed = 12345  # deterministic pseudo-noise, so the asset is reproducible
     prev = 0.0
     for i in range(n):
         t = i / SR
-        # LCG noise, lightly low-passed (one-pole) to sound woody not hissy.
         seed = (1103515245 * seed + 12345) & 0x7FFFFFFF
         white = (seed / 0x7FFFFFFF) * 2.0 - 1.0
-        prev = prev * 0.6 + white * 0.4
-        click = prev * math.exp(-t / 0.0035)
+        prev = prev * 0.6 + white * 0.4  # one-pole low-pass: woody, not hissy
+        click = prev * math.exp(-t / click_tau)
         body = (
-            0.6 * math.sin(2 * math.pi * 190 * t) * math.exp(-t / 0.030)
-            + 0.35 * math.sin(2 * math.pi * 430 * t) * math.exp(-t / 0.017)
+            0.6 * math.sin(2 * math.pi * f1 * t) * math.exp(-t / body_tau1)
+            + 0.35 * math.sin(2 * math.pi * f2 * t) * math.exp(-t / body_tau2)
         )
         out.append(0.5 * click + body)
     return out
@@ -48,27 +52,40 @@ def mix(events):
     return [0.85 * v / peak for v in acc]
 
 
+def scale(buf, g):
+    return [g * v for v in buf]
+
+
 def write_wav(path, samples):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with wave.open(path, "w") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
         w.setframerate(SR)
-        frames = b"".join(
+        w.writeframes(b"".join(
             struct.pack("<h", max(-32767, min(32767, int(v * 32767))))
             for v in samples
-        )
-        w.writeframes(frames)
+        ))
 
 
-out_dir = os.environ["OUT_DIR"]
-os.makedirs(out_dir, exist_ok=True)
+base = os.environ.get("SOUNDS_DIR", "assets/sounds")
 
-# Double knock: two taps ~115ms apart, the second a touch softer.
-double = mix([(0.0, knock()), (0.115, [0.85 * v for v in knock()])])
-write_wav(os.path.join(out_dir, "turn-knock__synth.wav"), double)
+# your-turn: light double knock + a softer single tap (kept as A/B options).
+write_wav(
+    os.path.join(base, "your-turn", "turn-knock__synth.wav"),
+    mix([(0.0, knock()), (0.115, scale(knock(), 0.85))]),
+)
+write_wav(
+    os.path.join(base, "your-turn", "turn-tap__synth.wav"),
+    mix([(0.0, scale(knock(), 0.8))]),
+)
 
-# Single soft tap.
-single = mix([(0.0, [0.8 * v for v in knock()])])
-write_wav(os.path.join(out_dir, "turn-tap__synth.wav"), single)
+# check: two firm, lower, clearly-spaced knocks — the poker "knock to check".
+# Lower body and a wider 160ms gap so the two hits read as distinct.
+firm = dict(f1=160.0, f2=360.0, body_tau1=0.045, body_tau2=0.022, dur=0.090)
+write_wav(
+    os.path.join(base, "check-knock", "check-knock__synth.wav"),
+    mix([(0.0, knock(**firm)), (0.160, scale(knock(**firm), 0.9))]),
+)
 
-print("wrote:", sorted(os.listdir(out_dir)))
+print("wrote synth knocks under", base)
