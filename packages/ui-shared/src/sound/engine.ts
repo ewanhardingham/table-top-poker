@@ -1,14 +1,16 @@
 // The production tactile-sound layer (#186), ported from the tuned logic in
 // `proto/sound-181`'s throwaway prototype — minus its A/B tuning store and
 // on-screen panel. Turns the live `HandEvent` stream into heard, tactile card
-// cues, gated by the room settings (#184) and playing the canonical AAC assets
+// cues, gated by the room settings (#184) and playing the canonical WAV assets
 // (#185).
 //
 // Design decisions baked in here (per the map, #177, and its decisions):
-//  - Cue ownership (#180): the TABLE is the dealer/center voice (the whole
-//    hole-card deal sweep, the board); each PHONE is its own player (its own
-//    two hole cards, own fold, own check knock, own reveal/conceal flip, own
-//    your-turn prompt).
+//  - Cue ownership (revised #180): hole cards are a per-player cue — each PHONE
+//    voices only its OWN two hole cards (plus its own fold, check knock,
+//    reveal/conceal flip and your-turn prompt). The TABLE is the community
+//    voice: it voices only the shared board, and stays silent through the deal.
+//    (The table was originally the dealer voice for the whole hole-card sweep;
+//    that felt like too much on the felt, so the deal is now phone-only.)
 //  - Multi-card deals sound per card: the flop is three distinct board taps
 //    (board gap), a phone's hole cards are two distinct slides (the wider hole
 //    gap) — one scheduled play per card. The your-turn prompt is held a beat
@@ -168,14 +170,13 @@ export function createSoundEngine(
         break;
 
       case "HoleCardsDealt": {
-        // A dealer's sweep, one distinct slide per card, spaced by the wider
-        // hole-deal gap so each dealt card is obvious. The table hears the
-        // whole table dealt; each phone hears only its own two cards (#180).
-        // The your-turn cue below is held until this sweep ends.
+        // Hole cards are a per-player cue only (revised #180): each phone voices
+        // its OWN two cards as two distinct slides spaced by the wider hole-deal
+        // gap; the table stays silent on the deal. The your-turn cue below is
+        // held until this phone's own sweep ends.
+        if (surface !== "player") break;
         const count =
-          surface === "table"
-            ? event.deals.reduce((n, d) => n + d.cards.length, 0)
-            : (event.deals.find((d) => d.seatId === seatId)?.cards.length ?? 0);
+          event.deals.find((d) => d.seatId === seatId)?.cards.length ?? 0;
         lastHoleCardAt =
           effects.now() + Math.max(0, count - 1) * TIMINGS.dealStaggerMs;
         staggeredCue("deal", count, TIMINGS.dealStaggerMs);
@@ -184,7 +185,8 @@ export function createSoundEngine(
 
       case "BoardDealt":
         // One tap per board card, staggered — three distinct taps on the flop,
-        // one each on the turn and river. Table only (the center voice, #180).
+        // one each on the turn and river. Table only (the community voice —
+        // the board is the one deal the table still speaks for, revised #180).
         // The lead-in keeps the taps in step with the card-drop animation and
         // clear of a short closing action; it deliberately does NOT wait out a
         // long check knock, so the tap never detaches from the card landing.
