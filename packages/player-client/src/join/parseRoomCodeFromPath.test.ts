@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseRoomCodeFromPath } from "./parseRoomCodeFromPath.js";
+import {
+  joinPathForCode,
+  parseRoomCodeFromPath,
+} from "./parseRoomCodeFromPath.js";
 
 describe("parseRoomCodeFromPath", () => {
   it("extracts and upper-cases a room code from a /join/:code path", () => {
@@ -12,5 +15,15 @@ describe("parseRoomCodeFromPath", () => {
 
   it("returns null for a code of the wrong length", () => {
     expect(parseRoomCodeFromPath("/join/abc")).toBeNull();
+  });
+});
+
+describe("joinPathForCode", () => {
+  it("builds the /join/:code path for a room", () => {
+    expect(joinPathForCode("AB3D")).toBe("/join/AB3D");
+  });
+
+  it("round-trips with parseRoomCodeFromPath", () => {
+    expect(parseRoomCodeFromPath(joinPathForCode("AB3D"))).toBe("AB3D");
   });
 });
