@@ -78,7 +78,31 @@ describe("SeatPicker", () => {
     expect(html).toContain('data-testid="seat-grid"');
     expect(html).toContain('data-seat-count="6"');
     expect(html).toContain("grid-template-columns:repeat(2, minmax(0, 1fr));");
-    expect(html).toContain("grid-template-rows:repeat(3, minmax(0, 1fr));");
+    expect(html).toContain("--seat-row-count:3;");
+    expect(html).toContain(
+      "grid-template-rows:repeat(var(--seat-row-count), minmax(108px, auto));",
+    );
+  });
+
+  it("keeps every seat row at least as tall as its card", () => {
+    const html = renderToStaticMarkup(
+      <SeatPicker
+        error={null}
+        onClaim={() => undefined}
+        seats={Array.from({ length: 8 }, (_, id) => ({
+          id,
+          claimed: false,
+          sittingOut: false,
+          sittingOutReason: null,
+          disconnected: false,
+        }))}
+      />,
+    );
+
+    expect(html).toContain("--seat-row-count:4;");
+    expect(html).toContain(
+      "grid-template-rows:repeat(var(--seat-row-count), minmax(108px, auto));",
+    );
   });
 
   it("shows a friendly message for a known claim error", () => {
