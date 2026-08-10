@@ -315,6 +315,14 @@ let lastHoleCardAt = 0;
 const TURN_AFTER_DEAL_MS = 700;
 
 /**
+ * A board deal always follows the action that closed the street (a check or
+ * call), so its sound would otherwise land right on top of that closing
+ * action's — the check knock especially. Hold the board cue this long so the
+ * closing sound clears first and the two never overlap.
+ */
+const BOARD_LEAD_IN_MS = 600;
+
+/**
  * The single entry point the WebSocket hooks call on every `hand-update`
  * (never on `view-snapshot`). `seatId` is the phone's own seat; omitted on the
  * table surface.
@@ -351,8 +359,9 @@ export function onHandUpdate(args: {
     case "BoardDealt":
       // One tap per board card, staggered — three distinct taps on the flop,
       // one each on the turn and river. Table only (the center voice, #180).
+      // Led in so it doesn't collide with the check/call that closed the street.
       if (surface === "table") {
-        staggeredCue("board", event.cards.length, staggerMs);
+        staggeredCue("board", event.cards.length, staggerMs, BOARD_LEAD_IN_MS);
       }
       break;
 
@@ -407,14 +416,22 @@ export function onHandUpdate(args: {
  * the gaps hold even on the first deal after unlocking, when an
  * on-demand decode would otherwise resolve all at once and collapse them.
  */
-function staggeredCue(cue: CueName, count: number, gapMs: number): void {
+function staggeredCue(
+  cue: CueName,
+  count: number,
+  gapMs: number,
+  startDelayMs = 0,
+): void {
   if (count <= 0) return;
   void loadBuffer(fileFor(cue))
     .then(() => {
       for (let i = 0; i < count; i++) {
-        setTimeout(() => {
-          playCue(cue);
-        }, i * gapMs);
+        setTimeout(
+          () => {
+            playCue(cue);
+          },
+          startDelayMs + i * gapMs,
+        );
       }
     })
     .catch(() => undefined);
