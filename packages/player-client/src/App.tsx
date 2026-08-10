@@ -7,7 +7,10 @@ import { useActionIntent } from "./actions/useActionIntent.js";
 import { claimErrorCode } from "./claimError.js";
 import { Hand } from "./Hand.js";
 import { JoinForm } from "./JoinForm.js";
-import { parseRoomCodeFromPath } from "./join/parseRoomCodeFromPath.js";
+import {
+  joinPathForCode,
+  parseRoomCodeFromPath,
+} from "./join/parseRoomCodeFromPath.js";
 import { SeatPicker } from "./SeatPicker.js";
 import { SeatMovedNotice } from "./SeatMovedNotice.js";
 import { StatusBar } from "./StatusBar.js";
@@ -36,7 +39,7 @@ export function App() {
   const clearRoom = usePlayerStore((state) => state.clearRoom);
   const clearHand = usePlayerStore((state) => state.clearHand);
 
-  const [defaultRoomCode] = useState(() =>
+  const [defaultRoomCode, setDefaultRoomCode] = useState(() =>
     typeof window === "undefined"
       ? ""
       : (parseRoomCodeFromPath(window.location.pathname) ?? ""),
@@ -68,6 +71,19 @@ export function App() {
         clearSeatToken(window.localStorage);
       });
   }, [setRoomView, setSeat]);
+
+  // Keep the browser URL and the join-form prefill pointing at the room the
+  // player is actually in. Without this the address bar stays pinned to the
+  // first `/join/:code` it loaded, so a player who joins several rooms in one
+  // session keeps landing back on the join screen prefilled with the *first*
+  // code rather than the one they last used. `replaceState` (not push) so this
+  // never adds back-button history. We only rewrite on an active room; leaving
+  // keeps the last room's path, which is what the prefill should offer next.
+  useEffect(() => {
+    if (typeof window === "undefined" || roomCode === null) return;
+    window.history.replaceState(null, "", joinPathForCode(roomCode));
+    setDefaultRoomCode(roomCode);
+  }, [roomCode]);
 
   // Drop this player out of their seat locally: forget the stored and in-memory
   // seat token, and clear the seat and hand slices so no stale seat or hole
