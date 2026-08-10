@@ -1,19 +1,24 @@
 import type { SoundSettings } from "@table-top-poker/protocol";
 
 /**
- * The six production cues, each backed by one canonical AAC `.m4a` asset
- * (#185) served same-origin from `public/sounds/`. Card foley — deal, board,
- * fold, flip (reveal/conceal), check-knock — plus the one non-card cue, the
- * your-turn prompt. `call`/`raise` are deliberately unallocated: no chip asset
- * exists yet.
+ * The six production cues, each backed by one canonical `.wav` asset (#185)
+ * served same-origin from `public/sounds/`. Card foley — deal, board, fold,
+ * flip (reveal/conceal), check-knock — plus the one non-card cue, the your-turn
+ * prompt. `call`/`raise` are deliberately unallocated: no chip asset exists yet.
+ *
+ * WAV (uncompressed PCM), not AAC/`.m4a`: iOS Safari's `decodeAudioData` reject
+ * the AAC set on some devices (an iPadOS 27 table returned "Decoding failed" for
+ * every file while the same build decoded them on an iPhone) — PCM needs no
+ * codec, so it decodes on every surface. The clips are short, so the size cost
+ * is a few hundred KB each, warmed once on unlock.
  */
 export const CUE_FILES = {
-  deal: "deal.m4a",
-  board: "board.m4a",
-  fold: "fold.m4a",
-  check: "check.m4a",
-  flip: "flip.m4a",
-  yourTurn: "your-turn.m4a",
+  deal: "deal.wav",
+  board: "board.wav",
+  fold: "fold.wav",
+  check: "check.wav",
+  flip: "flip.wav",
+  yourTurn: "your-turn.wav",
 } as const satisfies Record<string, string>;
 
 export type CueName = keyof typeof CUE_FILES;

@@ -48,13 +48,21 @@ async function loadBuffer(cue: CueName): Promise<AudioBuffer | undefined> {
   // bare `/sounds/…` only resolves in dev, where Vite serves `public/` at the
   // root. `import.meta.env.BASE_URL` ("/" in dev, "/table/" | "/player/" in the
   // build) makes the URL land on the staged asset on both.
-  const response = await fetch(
-    `${import.meta.env.BASE_URL}sounds/${CUE_FILES[cue]}`,
-  );
-  const bytes = await response.arrayBuffer();
-  const buffer = await context().decodeAudioData(bytes);
-  buffers.set(cue, buffer);
-  return buffer;
+  try {
+    const response = await fetch(
+      `${import.meta.env.BASE_URL}sounds/${CUE_FILES[cue]}`,
+    );
+    const bytes = await response.arrayBuffer();
+    const buffer = await context().decodeAudioData(bytes);
+    buffers.set(cue, buffer);
+    return buffer;
+  } catch (error) {
+    // A missing or undecodable asset must not become an unhandled rejection —
+    // the cue just stays silent. (WAV assets decode everywhere, so this is a
+    // belt-and-braces guard; see the format note in `cues.ts`.)
+    console.warn(`sound: could not load cue "${cue}"`, error);
+    return undefined;
+  }
 }
 
 /**
