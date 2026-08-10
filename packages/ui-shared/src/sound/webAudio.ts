@@ -43,7 +43,14 @@ function audioAvailable(): boolean {
 async function loadBuffer(cue: CueName): Promise<AudioBuffer | undefined> {
   const cached = buffers.get(cue);
   if (cached) return cached;
-  const response = await fetch(`/sounds/${CUE_FILES[cue]}`);
+  // Base-relative, not root-absolute: the assets are staged under each client's
+  // deploy base (`/table/sounds/…`, `/player/sounds/…`) in a release build, so a
+  // bare `/sounds/…` only resolves in dev, where Vite serves `public/` at the
+  // root. `import.meta.env.BASE_URL` ("/" in dev, "/table/" | "/player/" in the
+  // build) makes the URL land on the staged asset on both.
+  const response = await fetch(
+    `${import.meta.env.BASE_URL}sounds/${CUE_FILES[cue]}`,
+  );
   const bytes = await response.arrayBuffer();
   const buffer = await context().decodeAudioData(bytes);
   buffers.set(cue, buffer);
