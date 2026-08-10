@@ -25,19 +25,17 @@ pack's `card-slide-1.ogg`).
 Two exceptions live under `your-turn/`, both added during the #181 prototype
 because neither CC0 pack had a good "action on you" sound:
 
-- `your-turn/turn-*__synth.wav` and `check-knock/check-knock__synth.wav` —
-  **synthesized from scratch** (public domain, no sampled source) by
-  `scripts/synth-knock.py` (wooden knuckle knocks; check is the two-knock
-  "knock to check"). Regen with
+- `your-turn/turn-*__synth.wav` — **synthesized from scratch** (public domain,
+  no sampled source) by `scripts/synth-knock.py`. Regen with
   `SOUNDS_DIR=assets/sounds python3 scripts/synth-knock.py`.
-- `your-turn/turn-notify__pixabay-269292.mp3` (your-turn prompt) and
-  `check-knock/knock-*__pixabay-*.mp3` (real fist-on-wood knocks for check) —
-  from Pixabay. **Pixabay Content License, NOT CC0** — royalty-free with no
+- `check-knock/check-knock__custom.m4a` — the check knock, **recorded by the
+  human** (their own audio). The real build should confirm provenance/licence
+  and pick a consistent format (it's `.m4a`/AAC; the rest are `.ogg`/`.wav`).
+- `your-turn/turn-notify__pixabay-269292.mp3` — the your-turn prompt, from
+  Pixabay. **Pixabay Content License, NOT CC0** — royalty-free with no
   attribution, but can't be redistributed standalone. **The real build must
-  confirm this licence is acceptable or re-source CC0 equivalents.** Sources:
-  notification `.../film-special-effects-notification-2-269292/`,
-  door knock `.../film-special-effects-door-knock-175164/`,
-  knock `.../film-special-effects-knock-knock-knock-40474/` on pixabay.com.
+  confirm this licence is acceptable or re-source a CC0 equivalent.** Source:
+  `.../film-special-effects-notification-2-269292/` on pixabay.com.
 
 ## Cues (a couple of options each to A/B)
 

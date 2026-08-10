@@ -7,7 +7,8 @@ resonances (the body of the table). Emits:
 
   your-turn/turn-knock__synth.wav   double knock (a your-turn A/B option)
   your-turn/turn-tap__synth.wav     single soft tap
-  check-knock/check-knock__synth.wav two firm, clearly-spaced knocks (check)
+
+(The check cue now uses a knock the human recorded themselves, not a synth.)
 
 Run: SOUNDS_DIR=assets/sounds python3 scripts/synth-knock.py
 """
@@ -78,14 +79,6 @@ write_wav(
 write_wav(
     os.path.join(base, "your-turn", "turn-tap__synth.wav"),
     mix([(0.0, scale(knock(), 0.8))]),
-)
-
-# check: two firm, lower, clearly-spaced knocks — the poker "knock to check".
-# Lower body and a wider 160ms gap so the two hits read as distinct.
-firm = dict(f1=160.0, f2=360.0, body_tau1=0.045, body_tau2=0.022, dur=0.090)
-write_wav(
-    os.path.join(base, "check-knock", "check-knock__synth.wav"),
-    mix([(0.0, knock(**firm)), (0.160, scale(knock(**firm), 0.9))]),
 )
 
 print("wrote synth knocks under", base)

@@ -7,7 +7,7 @@
 // Design decisions baked in here (the things the prototype is checking):
 //  - Mostly card foley. deal / board / fold / reveal-conceal flip are genuine
 //    card sounds; the showdown flourish and hand-start shuffle were cut by ear.
-//    check is a synthesized double knuckle-knock (the poker knock-to-check),
+//    check is a knock the human recorded themselves (the poker knock-to-check),
 //    and the one non-card cue is the "your turn" prompt — a human-picked
 //    notification (Pixabay, not CC0 — flagged), since the palette had no good
 //    card sound for it and the interface chimes were rejected.
@@ -68,18 +68,10 @@ export const CUES = {
     ],
   },
   check: {
-    // A real fist-on-wood knock — the poker "knock to check". The two Pixabay
-    // recordings are genuine knocks (door = ~2s natural knock-knock, kk = a
-    // crisp short knock); Pixabay Content License, not CC0 (flagged). The synth
-    // double-knock and old CC0 stand-ins stay as A/B.
+    // The poker "knock to check" — a knock the human recorded themselves
+    // (their own audio; sort out licensing/format for the real build).
     label: "Check — knock knock (own)",
-    options: [
-      { id: "door", file: "check-knock/knock-door__pixabay-175164.mp3" },
-      { id: "kk", file: "check-knock/knock-kk__pixabay-40474.mp3" },
-      { id: "synth", file: "check-knock/check-knock__synth.wav" },
-      { id: "drop", file: "check-knock/knock-a__drop_003.ogg" },
-      { id: "bong", file: "check-knock/knock-b__bong_001.ogg" },
-    ],
+    options: [{ id: "custom", file: "check-knock/check-knock__custom.m4a" }],
   },
   flip: {
     label: "Reveal / conceal flip (own)",
