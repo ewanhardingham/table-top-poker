@@ -47,26 +47,24 @@ const descriptionStyle: CSSProperties = {
   color: color.textMuted,
 };
 
-function seatGridStyle(seatCount: number): CSSProperties {
+type SeatGridStyle = CSSProperties & {
+  readonly "--seat-row-count": number;
+};
+
+function seatGridStyle(seatCount: number): SeatGridStyle {
   const rowCount = Math.max(1, Math.ceil(seatCount / 2));
 
+  // Row count and column count are data, so they stay inline; the grid's
+  // sizing and shrink behaviour live in the `.seat-grid` CSS rule.
   return {
-    display: "grid",
+    "--seat-row-count": rowCount,
     gridTemplateColumns: seatCount <= 1 ? "1fr" : "repeat(2, minmax(0, 1fr))",
-    gridTemplateRows: `repeat(${String(rowCount)}, minmax(0, 1fr))`,
-    gap: 12,
-    flex: "1 1 0",
-    minHeight: 0,
   };
 }
 
 function seatStyle(claimed: boolean, selected: boolean): CSSProperties {
   return {
-    display: "flex",
-    minHeight: 108,
-    height: "100%",
     borderRadius: radius.control,
-    padding: 16,
     ...(claimed
       ? {
           border: `1px solid ${color.border}`,
@@ -86,28 +84,8 @@ function seatStyle(claimed: boolean, selected: boolean): CSSProperties {
   };
 }
 
-const rowStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 12,
-  width: "100%",
-  height: "100%",
-  minHeight: 0,
-  textAlign: "left",
-  background: "none",
-  border: 0,
-  padding: 0,
-  font: "inherit",
-  color: "inherit",
-  cursor: "pointer",
-};
-
 function avatarStyle(claimed: boolean): CSSProperties {
   return {
-    width: 44,
-    height: 44,
     borderRadius: radius.pill,
     flex: "none",
     display: "flex",
@@ -233,6 +211,7 @@ export function SeatPicker({
         Pick where you're sitting. Seat order sets the button and blinds.
       </div>
       <div
+        className="seat-grid"
         data-testid="seat-grid"
         data-seat-count={seats.length}
         style={seatGridStyle(seats.length)}
@@ -241,7 +220,9 @@ export function SeatPicker({
           const selected = selectedSeatId === seat.id;
           const content = (
             <>
-              <span style={avatarStyle(seat.claimed)}>{seat.id + 1}</span>
+              <span className="seat-avatar" style={avatarStyle(seat.claimed)}>
+                {seat.id + 1}
+              </span>
               <span style={textColStyle}>
                 <span style={seatTitleStyle}>
                   {seat.claimed
@@ -257,20 +238,21 @@ export function SeatPicker({
           return (
             <div
               key={seat.id}
+              className="seat-option"
               data-testid={`seat-option-${String(seat.id)}`}
               style={seatStyle(seat.claimed, selected)}
             >
               {seat.claimed ? (
-                <div style={rowStyle}>{content}</div>
+                <div className="seat-row">{content}</div>
               ) : (
                 <button
                   type="button"
+                  className="seat-row"
                   data-testid={`claim-seat-${String(seat.id)}`}
                   onClick={() => {
                     setSelectionLost(null);
                     setSelectedSeatId(seat.id);
                   }}
-                  style={rowStyle}
                   aria-pressed={selected}
                 >
                   {content}
