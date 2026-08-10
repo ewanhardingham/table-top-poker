@@ -74,11 +74,13 @@ export const CUES = {
     ],
   },
   yourTurn: {
-    // The palette had no good "action on you" card sound, so knock/tap are
-    // synthesized (public domain) — a wooden knuckle-knock on the table, the
-    // natural poker "your action" tap. The old interface chimes stay as A/B.
+    // Human-sourced notification from Pixabay (Pixabay Content License —
+    // royalty-free, no attribution, but NOT CC0 like the rest of the palette;
+    // flagged for the real build). The synth knock/tap and interface chimes
+    // stay as A/B.
     label: "Your turn (own)",
     options: [
+      { id: "notify", file: "your-turn/turn-notify__pixabay-269292.mp3" },
       { id: "knock", file: "your-turn/turn-knock__synth.wav" },
       { id: "tap", file: "your-turn/turn-tap__synth.wav" },
       { id: "pluck", file: "your-turn/turn-b__pluck_002.ogg" },
@@ -266,6 +268,14 @@ if (typeof document !== "undefined") {
 let lastMyTurn = false;
 
 /**
+ * Bumped every time the turn state changes. A deferred your-turn prompt
+ * captures the token when scheduled and only plays if it still matches when
+ * the timer fires — so acting (or the hand ending) before the deferral
+ * elapses cancels the stale prompt instead of firing it after the fact.
+ */
+let turnToken = 0;
+
+/**
  * When the current hand's last hole card lands (ms epoch). The your-turn
  * prompt is deferred to this plus `TURN_AFTER_DEAL_MS`, so a player hears
  * their cards settle and a clear beat before the prompt. Later streets set
@@ -348,13 +358,17 @@ export function onHandUpdate(args: {
       view.phase === "betting" &&
       "legalActions" in view &&
       view.legalActions.length > 0;
+    if (myTurn !== lastMyTurn) turnToken++;
     if (myTurn && !lastMyTurn) {
+      const token = turnToken;
       const wait = Math.max(
         0,
         lastHoleCardAt + TURN_AFTER_DEAL_MS - Date.now(),
       );
       setTimeout(() => {
-        playCue("yourTurn");
+        // Still this same turn when the deferral elapses? A newer turn-state
+        // change (I acted, or the hand ended) bumps the token and cancels it.
+        if (token === turnToken) playCue("yourTurn");
       }, wait);
     }
     lastMyTurn = myTurn;

@@ -11,9 +11,9 @@ later decision (see the map's *Not yet specified*).
 
 ## Sources & license
 
-Every file is **CC0 1.0 (public domain)** by Kenney Vleugels — no attribution
-required, personal + commercial use permitted. Full license text sits beside
-this file:
+**Most** files are **CC0 1.0 (public domain)** by Kenney Vleugels — no
+attribution required, personal + commercial use permitted. Full license text
+sits beside this file:
 
 - `LICENSE-casino-audio.txt` — Kenney **Casino Audio** pack, <https://kenney.nl/assets/casino-audio>
 - `LICENSE-interface-sounds.txt` — Kenney **Interface Sounds** pack, <https://kenney.nl/assets/interface-sounds>
@@ -22,11 +22,17 @@ The Kenney files are `.ogg`. Filenames keep the original pack name after `__`
 so provenance is traceable (e.g. `deal-a__card-slide-1.ogg` came from the
 pack's `card-slide-1.ogg`).
 
-The two `your-turn/turn-*__synth.wav` files are **not** from a pack: they were
-**synthesized from scratch** (public domain, no sampled source) by
-`scripts/synth-knock.py` during the #181 prototype, because neither CC0 pack
-had a good "action on you" sound — a wooden knuckle-knock on the table. Regen
-with `OUT_DIR=assets/sounds/your-turn python3 scripts/synth-knock.py`.
+Two exceptions live under `your-turn/`, both added during the #181 prototype
+because neither CC0 pack had a good "action on you" sound:
+
+- `turn-*__synth.wav` — **synthesized from scratch** (public domain, no
+  sampled source) by `scripts/synth-knock.py`. Regen with
+  `OUT_DIR=assets/sounds/your-turn python3 scripts/synth-knock.py`.
+- `turn-notify__pixabay-269292.mp3` — the human-picked default, from Pixabay
+  (<https://pixabay.com/sound-effects/film-special-effects-notification-2-269292/>).
+  **Pixabay Content License, NOT CC0** — royalty-free with no attribution, but
+  it can't be redistributed standalone. **The real build must confirm this
+  licence is acceptable or re-source a CC0 equivalent.**
 
 ## Cues (a couple of options each to A/B)
 
