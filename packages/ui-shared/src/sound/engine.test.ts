@@ -91,26 +91,47 @@ const bettingView = (myTurn: boolean): PlayerView => ({
   dealtSeatCount: 2,
 });
 
+/**
+ * The table's redacted `HoleCardsDealt`: the server strips every seat's cards
+ * before the event reaches the table role (secrecy, #130 §4), so its `deals`
+ * arrive empty. The sweep count must come from the view, not this payload.
+ */
+const tableHoleCardsDealt = (): HandEvent => ({
+  type: "HoleCardsDealt",
+  deals: [],
+});
+
+/** A table betting view for a hand dealt to `dealtSeatCount` seats. */
+const tableBettingView = (dealtSeatCount: number): TableView => ({
+  phase: "betting",
+  street: "preflop",
+  board: [],
+  toAct: [0],
+  seats: Array.from({ length: dealtSeatCount }, (_, seatId) => ({
+    seatId,
+    folded: false,
+  })),
+  button: 0,
+  smallBlind: 0,
+  bigBlind: 1,
+  dealtSeatCount,
+});
+
 const noHandView: TableView = { phase: "no-hand", button: 0 };
 
 describe("event → cue mapping", () => {
-  it("sweeps one deal cue per dealt card on the table, spaced by the deal gap", () => {
+  it("stays silent on the table through the hole-card deal (revised #180)", () => {
     const r = rig();
+    // Hole cards are a per-player cue now: the table voices only the board, so
+    // a HoleCardsDealt on the table surface schedules and plays nothing.
     r.engine.onHandUpdate({
       surface: "table",
-      event: holeCardsDealt([0, 1, 2]),
-      view: noHandView,
+      event: tableHoleCardsDealt(),
+      view: tableBettingView(3),
     });
-    expect(r.scheduled.map((s) => s.delayMs)).toEqual([
-      0,
-      TIMINGS.dealStaggerMs,
-      2 * TIMINGS.dealStaggerMs,
-      3 * TIMINGS.dealStaggerMs,
-      4 * TIMINGS.dealStaggerMs,
-      5 * TIMINGS.dealStaggerMs,
-    ]);
+    expect(r.scheduled).toEqual([]);
     r.flush();
-    expect(r.played).toEqual(["deal", "deal", "deal", "deal", "deal", "deal"]);
+    expect(r.played).toEqual([]);
   });
 
   it("plays only the phone's own two hole cards, not the whole table's", () => {
