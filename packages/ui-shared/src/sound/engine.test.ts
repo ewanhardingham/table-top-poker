@@ -12,6 +12,7 @@ import { createSoundEngine, type SoundEngine, TIMINGS } from "./engine.js";
 const ALL_ON: SoundSettings = {
   sounds: true,
   cards: true,
+  actions: true,
   notifications: true,
 };
 
@@ -250,7 +251,12 @@ describe("event → cue mapping", () => {
 
 describe("room-settings gate", () => {
   it("silences everything when the master switch is off", () => {
-    const r = rig({ sounds: false, cards: true, notifications: true });
+    const r = rig({
+      sounds: false,
+      cards: true,
+      actions: true,
+      notifications: true,
+    });
     r.engine.onHandUpdate({
       surface: "table",
       event: holeCardsDealt([0]),
@@ -262,7 +268,12 @@ describe("room-settings gate", () => {
   });
 
   it("silences card cues but not notifications when cards is off", () => {
-    const r = rig({ sounds: true, cards: false, notifications: true });
+    const r = rig({
+      sounds: true,
+      cards: false,
+      actions: true,
+      notifications: true,
+    });
     r.engine.playRevealFlip();
     r.flush();
     expect(r.played).toEqual([]);
@@ -284,8 +295,36 @@ describe("room-settings gate", () => {
     expect(r.played).toEqual(["yourTurn"]);
   });
 
+  it("silences action cues but not card cues when actions is off", () => {
+    const r = rig({
+      sounds: true,
+      cards: true,
+      actions: false,
+      notifications: true,
+    });
+    // A fold/check on the acting player's own phone is silenced.
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 1,
+      event: actionTaken(1, "fold"),
+      view: noHandView,
+    });
+    r.flush();
+    expect(r.played).toEqual([]);
+
+    // A card cue (reveal flip) still passes.
+    r.engine.playRevealFlip();
+    r.flush();
+    expect(r.played).toEqual(["flip"]);
+  });
+
   it("silences the your-turn prompt when notifications is off", () => {
-    const r = rig({ sounds: true, cards: true, notifications: false });
+    const r = rig({
+      sounds: true,
+      cards: true,
+      actions: true,
+      notifications: false,
+    });
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 0,
@@ -301,6 +340,7 @@ describe("room-settings gate", () => {
     r.engine.applyRoomSoundSettings({
       sounds: true,
       cards: false,
+      actions: true,
       notifications: true,
     });
     r.engine.playRevealFlip();

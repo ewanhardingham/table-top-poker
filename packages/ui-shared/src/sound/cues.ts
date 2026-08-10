@@ -61,27 +61,36 @@ export function cueSettleMs(cue: CueName): number {
 
 /**
  * Which room-level category (#182) each cue belongs to. `cards` is the tactile
- * card foley; `notifications` is the your-turn prompt. A cue plays only when
- * the room's master switch and its category are both on — see `cueAllowed`.
+ * card foley (deal, board, flip); `actions` is player actions (fold, check);
+ * `notifications` is the your-turn prompt. A cue plays only when the room's
+ * master switch and its category are both on — see `cueAllowed`.
  */
-export const CUE_CATEGORY: Record<CueName, "cards" | "notifications"> = {
+export const CUE_CATEGORY: Record<
+  CueName,
+  "cards" | "actions" | "notifications"
+> = {
   deal: "cards",
   board: "cards",
-  fold: "cards",
-  check: "cards",
+  fold: "actions",
+  check: "actions",
   flip: "cards",
   yourTurn: "notifications",
 };
 
 /**
  * Whether the room's settings (#182) currently allow this cue: the master
- * switch on, and the cue's category (cards / notifications) on. This is the
- * real mute path — the table owns it and it reaches every surface via
+ * switch on, and the cue's category (cards / actions / notifications) on. This
+ * is the real mute path — the table owns it and it reaches every surface via
  * `room-view`.
  */
 export function cueAllowed(settings: SoundSettings, cue: CueName): boolean {
   if (!settings.sounds) return false;
-  return CUE_CATEGORY[cue] === "cards"
-    ? settings.cards
-    : settings.notifications;
+  switch (CUE_CATEGORY[cue]) {
+    case "cards":
+      return settings.cards;
+    case "actions":
+      return settings.actions;
+    case "notifications":
+      return settings.notifications;
+  }
 }

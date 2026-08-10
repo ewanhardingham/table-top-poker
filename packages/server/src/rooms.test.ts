@@ -1013,7 +1013,12 @@ describe("changeSoundSettings", () => {
   it("replaces the whole triple atomically", () => {
     const store = new RoomStore();
     const room = store.create();
-    const settings = { sounds: true, cards: false, notifications: true };
+    const settings = {
+      sounds: true,
+      cards: false,
+      actions: true,
+      notifications: true,
+    };
 
     const result = store.changeSoundSettings(room.code, settings);
 

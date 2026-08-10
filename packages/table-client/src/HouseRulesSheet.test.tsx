@@ -140,7 +140,12 @@ describe("HouseRulesSheet", () => {
         pendingSeatCount={null}
         seats={seats.slice(0, 4)}
         handInProgress
-        soundSettings={{ sounds: true, cards: false, notifications: true }}
+        soundSettings={{
+          sounds: true,
+          cards: false,
+          actions: true,
+          notifications: true,
+        }}
         onApply={noop}
         onChangeSoundSettings={noop}
         onClose={noop}
@@ -156,6 +161,9 @@ describe("HouseRulesSheet", () => {
       'aria-checked="false" aria-label="Cards" data-testid="sound-cards-toggle" style=',
     );
     expect(html).toContain(
+      'aria-checked="true" aria-label="Actions" data-testid="sound-actions-toggle" style=',
+    );
+    expect(html).toContain(
       'aria-checked="true" aria-label="Notifications" data-testid="sound-notifications-toggle" style=',
     );
   });
@@ -167,7 +175,12 @@ describe("HouseRulesSheet", () => {
         pendingSeatCount={null}
         seats={seats.slice(0, 4)}
         handInProgress
-        soundSettings={{ sounds: false, cards: true, notifications: true }}
+        soundSettings={{
+          sounds: false,
+          cards: true,
+          actions: true,
+          notifications: true,
+        }}
         onApply={noop}
         onChangeSoundSettings={noop}
         onClose={noop}
@@ -175,6 +188,7 @@ describe("HouseRulesSheet", () => {
     );
 
     expect(html).toContain('data-testid="sound-cards-toggle" disabled=""');
+    expect(html).toContain('data-testid="sound-actions-toggle" disabled=""');
     expect(html).toContain(
       'data-testid="sound-notifications-toggle" disabled=""',
     );

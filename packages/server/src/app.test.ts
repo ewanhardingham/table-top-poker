@@ -238,7 +238,12 @@ describe("POST /rooms/:code/sound", () => {
 
   it("persists the settings on the room view", async () => {
     const code = await createRoom();
-    const settings = { sounds: true, cards: false, notifications: true };
+    const settings = {
+      sounds: true,
+      cards: false,
+      actions: true,
+      notifications: true,
+    };
 
     const response = await app.inject({
       method: "POST",
@@ -269,7 +274,12 @@ describe("POST /rooms/:code/sound", () => {
     const response = await app.inject({
       method: "POST",
       url: "/rooms/ZZZZ/sound",
-      payload: { sounds: true, cards: true, notifications: true },
+      payload: {
+        sounds: true,
+        cards: true,
+        actions: true,
+        notifications: true,
+      },
     });
     expect(response.statusCode).toBe(404);
   });
