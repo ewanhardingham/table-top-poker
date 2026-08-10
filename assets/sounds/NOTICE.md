@@ -1,14 +1,20 @@
 # Sound asset provenance
 
-The canonical production sound set: six cue files, one per cue, encoded as **AAC
-in an `.m4a` container** (`-c:a aac -b:a 160k`). AAC is the only lossy codec
-`decodeAudioData` handles universally across the Pi Chromium kiosk, all iOS
-Safari, and Android Chrome — see the format decision in issue #183.
+The canonical production sound set: six cue files, one per cue, as
+**uncompressed PCM WAV** (`-c:a pcm_s16le`, 44.1 kHz stereo).
+
+The set was originally AAC/`.m4a` (the #183 format decision, on the belief that
+`decodeAudioData` handled AAC universally). That proved wrong: iOS Safari's
+`decodeAudioData` rejected the AAC files on some devices — an iPadOS 27 table
+returned "Decoding failed" for every cue while the same build decoded them on an
+iPhone. PCM carries no codec for the decoder to refuse, so it decodes on every
+surface (Pi Chromium kiosk, iOS Safari, Android Chrome); the clips are short, so
+the size cost is a few hundred KB each, warmed once on unlock.
 
 ## Naming scheme
 
 One file per cue at the root of this directory, named after the cue in
-kebab-case: `<cue>.m4a`. No A/B/C alternatives and no non-AAC formats are kept
+kebab-case: `<cue>.wav`. No A/B/C alternatives and no other formats are kept
 here — the alternatives explored during prototyping live only on the
 `proto/sound-181` branch.
 
@@ -16,12 +22,12 @@ here — the alternatives explored during prototyping live only on the
 
 | Cue | File | Original source | Licence |
 |-----|------|-----------------|---------|
-| deal | `deal.m4a` | Kenney "Casino Audio" — `deal/deal-a__card-slide-1.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
-| board | `board.m4a` | Kenney "Casino Audio" — `flip/flip-a__card-place-1.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
-| fold | `fold.m4a` | Kenney "Casino Audio" — `fold/fold-a__card-shove-1.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
-| flip | `flip.m4a` | Kenney "Casino Audio" — `flip/flip-b__card-place-2.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
-| check | `check.m4a` | Original project recording — `check-knock/check-knock__custom.m4a` (fist-on-wood knock) | Own recording — project holds the rights outright |
-| yourTurn | `your-turn.m4a` | Pixabay sound #269292 — `your-turn/turn-notify__pixabay-269292.mp3` | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
+| deal | `deal.wav` | Kenney "Casino Audio" — `deal/deal-a__card-slide-1.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| board | `board.wav` | Kenney "Casino Audio" — `flip/flip-a__card-place-1.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| fold | `fold.wav` | Kenney "Casino Audio" — `fold/fold-a__card-shove-1.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| flip | `flip.wav` | Kenney "Casino Audio" — `flip/flip-b__card-place-2.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
+| check | `check.wav` | Original project recording — `check-knock/check-knock__custom.m4a` (fist-on-wood knock) | Own recording — project holds the rights outright |
+| yourTurn | `your-turn.wav` | Pixabay sound #269292 — `your-turn/turn-notify__pixabay-269292.mp3` | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
 
 ## Licence notes
 
@@ -42,5 +48,5 @@ here — the alternatives explored during prototyping live only on the
 Each client stages its copy under `public/sounds/`. Vite copies each client's
 `public/` into its `build/`, and `scripts/build-release.sh` stages those bundles
 under `packages/server/public/{table,player}`, where `@fastify/static` serves
-them same-origin — reachable at `/table/sounds/<cue>.m4a` and
-`/player/sounds/<cue>.m4a`. No build-script change is needed.
+them same-origin — reachable at `/table/sounds/<cue>.wav` and
+`/player/sounds/<cue>.wav`. No build-script change is needed.
