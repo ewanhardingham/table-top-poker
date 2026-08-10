@@ -567,8 +567,9 @@ export async function buildApp(
   app.post<RoomCodeRoute>("/rooms/:code/seats/count", changeSeatCount);
 
   /**
-   * Table-device sound settings (#182): the room-wide master/cards/notifications
-   * toggles. Same ungated table-action boundary as `/seats/count` — the table
+   * Table-device sound settings (#182): the room-wide
+   * master/cards/actions/notifications toggles. Same ungated table-action
+   * boundary as `/seats/count` — the table
    * owns these and pushes them to every surface via the broadcast `room-view`.
    */
   app.post<RoomCodeRoute>("/rooms/:code/sound", (request, reply) => {

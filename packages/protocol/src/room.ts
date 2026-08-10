@@ -70,15 +70,17 @@ export type SeatCountChangeError =
 
 /**
  * The room-wide tactile-sound settings (#182), owned by the table and pushed to
- * every surface on `room-view`. `sounds` is the master switch; `cards` and
- * `notifications` are the two cue categories under it (cards = the tactile card
- * foley — deal, board, fold, flip, check-knock; notifications = the your-turn
- * prompt). A cue plays only when the master and its category are both on. Phones
- * hold no local override in this cut — they obey these settings verbatim.
+ * every surface on `room-view`. `sounds` is the master switch; `cards`,
+ * `actions` and `notifications` are the three cue categories under it (cards =
+ * the tactile card foley — deal, board, flip; actions = player actions —
+ * fold, check; notifications = the your-turn prompt). A cue plays only when the
+ * master and its category are both on. Phones hold no local override in this
+ * cut — they obey these settings verbatim.
  */
 export interface SoundSettings {
   readonly sounds: boolean;
   readonly cards: boolean;
+  readonly actions: boolean;
   readonly notifications: boolean;
 }
 
@@ -86,17 +88,19 @@ export interface SoundSettings {
 export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
   sounds: true,
   cards: true,
+  actions: true,
   notifications: true,
 };
 
 /**
- * Body of the table-only sound-settings request (#182). The whole triple is
- * sent every time, so the master and both categories stay a single atomic
+ * Body of the table-only sound-settings request (#182). The whole set is
+ * sent every time, so the master and all categories stay a single atomic
  * write — no partial-update ordering to reason about.
  */
 export const ChangeSoundSettingsRequestSchema = z.strictObject({
   sounds: z.boolean(),
   cards: z.boolean(),
+  actions: z.boolean(),
   notifications: z.boolean(),
 });
 

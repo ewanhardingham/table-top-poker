@@ -388,6 +388,16 @@ export function HouseRulesSheet({
               }}
             />
             <Toggle
+              label="Actions"
+              nested
+              checked={soundSettings.actions}
+              disabled={!soundSettings.sounds}
+              testId="sound-actions-toggle"
+              onChange={(actions) => {
+                onChangeSoundSettings({ ...soundSettings, actions });
+              }}
+            />
+            <Toggle
               label="Notifications"
               nested
               checked={soundSettings.notifications}
