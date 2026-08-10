@@ -115,7 +115,25 @@ export function PrototypeSoundPanel({ surface }: { surface: Surface }) {
       </div>
 
       <div style={row}>
-        <span>card stagger</span>
+        <span style={{ width: "5.2em" }}>hole deal gap</span>
+        <input
+          type="range"
+          min={0}
+          max={600}
+          step={20}
+          value={s.dealStaggerMs}
+          onChange={(e) => {
+            s.setDealStagger(Number(e.target.value));
+          }}
+          style={{ flex: 1 }}
+        />
+        <span style={{ width: "3.6em", textAlign: "right" }}>
+          {s.dealStaggerMs}ms
+        </span>
+      </div>
+
+      <div style={row}>
+        <span style={{ width: "5.2em" }}>board gap</span>
         <input
           type="range"
           min={0}
@@ -127,7 +145,7 @@ export function PrototypeSoundPanel({ surface }: { surface: Surface }) {
           }}
           style={{ flex: 1 }}
         />
-        <span style={{ width: "3.2em", textAlign: "right" }}>
+        <span style={{ width: "3.6em", textAlign: "right" }}>
           {s.staggerMs}ms
         </span>
       </div>

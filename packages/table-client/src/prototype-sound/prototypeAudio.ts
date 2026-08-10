@@ -97,8 +97,13 @@ interface SoundState {
   unlocked: boolean;
   muted: boolean;
   volume: number;
-  /** Inter-card delay for multi-card deals (hole-card sweep, flop), ms. */
+  /** Gap between board cards (the flop's three taps), ms. */
   staggerMs: number;
+  /**
+   * Gap between hole cards in the dealer's sweep, ms — larger than the board
+   * gap so each dealt card is obvious as the deal reaches around the table.
+   */
+  dealStaggerMs: number;
   selected: Record<CueName, string>;
   enabled: Record<CueName, boolean>;
   /** Surfaced last cue that played, for the panel's live state readout. */
@@ -107,6 +112,7 @@ interface SoundState {
   setMuted: (v: boolean) => void;
   setVolume: (v: number) => void;
   setStagger: (v: number) => void;
+  setDealStagger: (v: number) => void;
   selectOption: (cue: CueName, optionId: string) => void;
   setEnabled: (cue: CueName, v: boolean) => void;
   setLastPlayed: (v: string) => void;
@@ -117,6 +123,7 @@ export const useSoundStore = create<SoundState>((set) => ({
   muted: false,
   volume: 0.8,
   staggerMs: 90,
+  dealStaggerMs: 320,
   selected: defaultSelection(),
   enabled: allEnabled(),
   lastPlayed: "—",
@@ -131,6 +138,9 @@ export const useSoundStore = create<SoundState>((set) => ({
   },
   setStagger: (v) => {
     set({ staggerMs: v });
+  },
+  setDealStagger: (v) => {
+    set({ dealStaggerMs: v });
   },
   selectOption: (cue, optionId) => {
     set((s) => ({ selected: { ...s.selected, [cue]: optionId } }));
@@ -254,7 +264,7 @@ export function onHandUpdate(args: {
   seatId?: number;
 }): void {
   const { surface, event, seatId } = args;
-  const { staggerMs } = useSoundStore.getState();
+  const { staggerMs, dealStaggerMs } = useSoundStore.getState();
 
   switch (event.type) {
     case "HandStarted":
@@ -262,14 +272,13 @@ export function onHandUpdate(args: {
       break;
 
     case "HoleCardsDealt": {
-      // Dealer's sweep: one deal tick per card, staggered. The table hears the
-      // whole table dealt; a phone hears only its own two cards (two distinct
-      // slides).
-      const cardCount =
-        surface === "table"
-          ? event.deals.reduce((n, d) => n + d.cards.length, 0)
-          : (event.deals.find((d) => d.seatId === seatId)?.cards.length ?? 0);
-      staggeredCue("deal", cardCount, staggerMs);
+      // A dealer's sweep around the whole table: one distinct slide per card
+      // dealt (two players = four cards), spaced by the wider hole-deal gap so
+      // each dealt card is obvious. Plays in FULL on both the table and each
+      // phone — the phone hears the deal reach over and deal it in (this
+      // refines #180, where a phone heard only its own two cards).
+      const total = event.deals.reduce((n, d) => n + d.cards.length, 0);
+      staggeredCue("deal", total, dealStaggerMs);
       break;
     }
 
