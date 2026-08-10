@@ -1,4 +1,5 @@
 import type { SeatMove } from "@table-top-poker/protocol";
+import { unlockAudio } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionBar } from "./ActionBar.js";
 import { claimSeat, joinRoom, leaveSeat } from "./api/rooms.js";
@@ -179,6 +180,9 @@ export function App() {
   const handleClaim = useCallback(
     (seat: number, name: string) => {
       if (roomCode === null) return;
+      // The seat tap is this phone's audio-unlock gesture (#178): resume the
+      // context and warm the buffers now, while we're inside the user gesture.
+      void unlockAudio();
       claimSeat(roomCode, seat, name)
         .then((claim) => {
           setClaimError(null);

@@ -4,6 +4,10 @@ import type {
   SeatMove,
   ServerMessage,
 } from "@table-top-poker/protocol";
+import {
+  applyRoomSoundSettings,
+  onHandUpdate,
+} from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useRef } from "react";
 import { usePlayerStore } from "../store/store.js";
 import { getWebSocketUrl } from "./getWebSocketUrl.js";
@@ -142,6 +146,9 @@ export function useWebSocket(
         switch (message.type) {
           case "room-view":
             setRoomView(message.view);
+            // Phones obey the table's sound settings (#182); mirror them into
+            // the audio engine's gate so cue playback honours the room.
+            applyRoomSoundSettings(message.view.soundSettings);
             {
               const seat = message.view.seats.find(
                 (candidate) => candidate.id === activeConnection.seatId,
@@ -160,6 +167,14 @@ export function useWebSocket(
             // The server only ever sends a seat's socket its own `view(state, seatId)`.
             setHandView(message.view as PlayerView);
             viewSnapshotReceived();
+            // Cues fire on the live event only, never on the `view-snapshot`
+            // below — so a reconnect/refresh can't replay a burst (#175).
+            onHandUpdate({
+              surface: "player",
+              event: message.event,
+              view: message.view,
+              seatId: activeConnection.seatId,
+            });
             break;
           case "view-snapshot":
             setHandView(message.view as PlayerView);
