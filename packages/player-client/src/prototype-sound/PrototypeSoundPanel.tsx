@@ -119,7 +119,7 @@ export function PrototypeSoundPanel({ surface }: { surface: Surface }) {
         <input
           type="range"
           min={0}
-          max={600}
+          max={900}
           step={20}
           value={s.dealStaggerMs}
           onChange={(e) => {
@@ -137,7 +137,7 @@ export function PrototypeSoundPanel({ surface }: { surface: Surface }) {
         <input
           type="range"
           min={0}
-          max={250}
+          max={400}
           step={10}
           value={s.staggerMs}
           onChange={(e) => {

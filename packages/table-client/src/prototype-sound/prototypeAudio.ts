@@ -5,15 +5,17 @@
 // on-screen panel can tune cues by ear.
 //
 // Design decisions baked in here (the things the prototype is checking):
-//  - Card sounds only. The non-card interface cues (your-turn chime, check
-//    knock, showdown flourish) were cut by ear — every remaining cue is
-//    genuine card foley.
-//  - Cue ownership per #180: the TABLE is the dealer/center voice (hole-card
-//    deal sweep, board, hand-start shuffle); the PHONE is the player's own
-//    hands (own fold, own hole cards, own reveal/conceal flip).
-//  - Multi-card deals sound per card: the flop is three distinct board taps,
-//    a phone's hole cards are two distinct slides — one `setTimeout` per card,
-//    staggered by `staggerMs`.
+//  - Mostly card foley. deal / board / fold / reveal-conceal flip are genuine
+//    card sounds; the check knock, showdown flourish and hand-start shuffle
+//    were all cut by ear. The one non-card cue left is the "your turn" prompt
+//    (an action-on-you indicator the palette has no good sound for — flagged).
+//  - Cue ownership per #180: the TABLE is the dealer/center voice (the whole
+//    hole-card deal sweep, the board); each PHONE is its own player (its own
+//    two hole cards, own fold, own reveal/conceal flip, own your-turn prompt).
+//  - Multi-card deals sound per card: the flop is three distinct board taps
+//    (board gap), a phone's hole cards are two distinct slides (the wider hole
+//    gap) — one `setTimeout` per card. The your-turn prompt is held a beat
+//    past the last hole card so cards land first, then the prompt.
 //  - Sounds fire ONLY from `hand-update` (which carries the raw event), never
 //    from `view-snapshot` — so a reconnect/refresh mid-hand can't replay a
 //    burst of cues (the map's rejoin worry, #175).
@@ -127,8 +129,8 @@ export const useSoundStore = create<SoundState>((set) => ({
   unlocked: false,
   muted: false,
   volume: 0.8,
-  staggerMs: 90,
-  dealStaggerMs: 320,
+  staggerMs: 250,
+  dealStaggerMs: 600,
   selected: defaultSelection(),
   enabled: allEnabled(),
   lastPlayed: "—",
@@ -260,11 +262,15 @@ if (typeof document !== "undefined") {
 let lastMyTurn = false;
 
 /**
- * When the current hand's hole-card sweep finishes (ms epoch). The your-turn
- * prompt is deferred until then so a player hears their cards land before the
- * prompt. Reset each hand; 0 means no sweep pending.
+ * When the current hand's last hole card lands (ms epoch). The your-turn
+ * prompt is deferred to this plus `TURN_AFTER_DEAL_MS`, so a player hears
+ * their cards settle and a clear beat before the prompt. Later streets set
+ * this well in the past, so a mid-hand turn prompts without the pause.
  */
-let dealSweepEndsAt = 0;
+let lastHoleCardAt = 0;
+
+/** The deliberate beat between the last hole card and the your-turn prompt. */
+const TURN_AFTER_DEAL_MS = 700;
 
 /**
  * The single entry point the WebSocket hooks call on every `hand-update`
@@ -283,7 +289,7 @@ export function onHandUpdate(args: {
   switch (event.type) {
     case "HandStarted":
       lastMyTurn = false;
-      dealSweepEndsAt = 0;
+      lastHoleCardAt = 0;
       break;
 
     case "HoleCardsDealt": {
@@ -295,7 +301,7 @@ export function onHandUpdate(args: {
         surface === "table"
           ? event.deals.reduce((n, d) => n + d.cards.length, 0)
           : (event.deals.find((d) => d.seatId === seatId)?.cards.length ?? 0);
-      dealSweepEndsAt = Date.now() + count * dealStaggerMs;
+      lastHoleCardAt = Date.now() + Math.max(0, count - 1) * dealStaggerMs;
       staggeredCue("deal", count, dealStaggerMs);
       break;
     }
@@ -339,7 +345,10 @@ export function onHandUpdate(args: {
       "legalActions" in view &&
       view.legalActions.length > 0;
     if (myTurn && !lastMyTurn) {
-      const wait = Math.max(0, dealSweepEndsAt - Date.now());
+      const wait = Math.max(
+        0,
+        lastHoleCardAt + TURN_AFTER_DEAL_MS - Date.now(),
+      );
       setTimeout(() => {
         playCue("yourTurn");
       }, wait);
