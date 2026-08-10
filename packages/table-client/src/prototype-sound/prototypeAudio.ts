@@ -7,8 +7,9 @@
 // Design decisions baked in here (the things the prototype is checking):
 //  - Mostly card foley. deal / board / fold / reveal-conceal flip are genuine
 //    card sounds; the check knock, showdown flourish and hand-start shuffle
-//    were all cut by ear. The one non-card cue left is the "your turn" prompt
-//    (an action-on-you indicator the palette has no good sound for — flagged).
+//    were all cut by ear. The one non-card cue left is the "your turn" prompt,
+//    a synthesized wooden knuckle-knock (the palette had no good card sound
+//    for it; the interface chimes were rejected).
 //  - Cue ownership per #180: the TABLE is the dealer/center voice (the whole
 //    hole-card deal sweep, the board); each PHONE is its own player (its own
 //    two hole cards, own fold, own reveal/conceal flip, own your-turn prompt).
@@ -73,10 +74,13 @@ export const CUES = {
     ],
   },
   yourTurn: {
-    // Not card foley — the only "action on you" cues in the palette. Weakest
-    // area (like check was); tune or replace by ear.
+    // The palette had no good "action on you" card sound, so knock/tap are
+    // synthesized (public domain) — a wooden knuckle-knock on the table, the
+    // natural poker "your action" tap. The old interface chimes stay as A/B.
     label: "Your turn (own)",
     options: [
+      { id: "knock", file: "your-turn/turn-knock__synth.wav" },
+      { id: "tap", file: "your-turn/turn-tap__synth.wav" },
       { id: "pluck", file: "your-turn/turn-b__pluck_002.ogg" },
       { id: "question", file: "your-turn/turn-a__question_001.ogg" },
     ],

@@ -18,9 +18,15 @@ this file:
 - `LICENSE-casino-audio.txt` — Kenney **Casino Audio** pack, <https://kenney.nl/assets/casino-audio>
 - `LICENSE-interface-sounds.txt` — Kenney **Interface Sounds** pack, <https://kenney.nl/assets/interface-sounds>
 
-All files are `.ogg`. Filenames keep the original pack name after `__` so
-provenance is traceable (e.g. `deal-a__card-slide-1.ogg` came from the pack's
-`card-slide-1.ogg`).
+The Kenney files are `.ogg`. Filenames keep the original pack name after `__`
+so provenance is traceable (e.g. `deal-a__card-slide-1.ogg` came from the
+pack's `card-slide-1.ogg`).
+
+The two `your-turn/turn-*__synth.wav` files are **not** from a pack: they were
+**synthesized from scratch** (public domain, no sampled source) by
+`scripts/synth-knock.py` during the #181 prototype, because neither CC0 pack
+had a good "action on you" sound — a wooden knuckle-knock on the table. Regen
+with `OUT_DIR=assets/sounds/your-turn python3 scripts/synth-knock.py`.
 
 ## Cues (a couple of options each to A/B)
 
