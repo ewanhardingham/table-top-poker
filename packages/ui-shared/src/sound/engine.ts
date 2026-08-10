@@ -82,10 +82,19 @@ export const TIMINGS = {
   /**
    * A board deal always follows the action that closed the street (a check or
    * call), so its sound would otherwise land right on top of that closing
-   * action's — the check knock especially. Hold the board cue this long so the
-   * closing sound clears first and the two never overlap.
+   * action's. Hold the board cue at least this long so a short closing sound
+   * clears first; a check knock overrides it with `checkKnockSettleMs` below.
    */
   boardLeadInMs: 600,
+  /**
+   * The check knock is the longest cue at ~1.32s, and both the board deal that
+   * a closing check triggers and the next player's your-turn prompt would
+   * otherwise start on top of it (on other devices, but heard in the same
+   * room). Every surface sees the broadcast `ActionTaken` check event, so each
+   * independently holds the following cue this long — the knock's length plus a
+   * small gap — so the knock is heard out first.
+   */
+  checkKnockSettleMs: 1400,
 } as const;
 
 /**
@@ -116,6 +125,14 @@ export function createSoundEngine(
    * well in the past, so a mid-hand turn prompts without the pause.
    */
   let lastHoleCardAt = 0;
+  /**
+   * When the most recent check knock will have finished sounding (ms epoch),
+   * so the board deal it closes and the next player's your-turn prompt can be
+   * held until the knock clears. Set from any seat's check on every surface —
+   * the event is broadcast, so all devices agree on when the knock ends —
+   * reset each hand, and naturally stale once a knock's worth of time passes.
+   */
+  let checkKnockUntil = 0;
 
   function playCue(cue: CueName): void {
     if (cueAllowed(settings, cue)) effects.play(cue);
@@ -145,6 +162,7 @@ export function createSoundEngine(
       case "HandStarted":
         lastMyTurn = false;
         lastHoleCardAt = 0;
+        checkKnockUntil = 0;
         break;
 
       case "HoleCardsDealt": {
@@ -167,19 +185,29 @@ export function createSoundEngine(
         // one each on the turn and river. Table only (the center voice, #180).
         // Led in so it doesn't collide with the check/call that closed the street.
         if (surface === "table") {
+          // Hold the board past whichever is longer: the plain lead-in, or a
+          // check knock still ringing out from the action that closed the street.
+          const leadIn = Math.max(
+            TIMINGS.boardLeadInMs,
+            checkKnockUntil - effects.now(),
+          );
           staggeredCue(
             "board",
             event.cards.length,
             TIMINGS.boardStaggerMs,
-            TIMINGS.boardLeadInMs,
+            leadIn,
           );
         }
         break;
 
       case "ActionTaken":
-        // Only the acting player's own phone voices its fold muck / check
-        // knock; the table stays silent (#180). call/raise are unallocated
-        // (no chip asset yet).
+        // A check is heard on every surface's clock (the event is broadcast),
+        // so each engine notes when the knock will clear even though only the
+        // acting player's own phone actually voices it. call/raise are
+        // unallocated (no chip asset yet); the table stays silent (#180).
+        if (event.action === "check") {
+          checkKnockUntil = effects.now() + TIMINGS.checkKnockSettleMs;
+        }
         if (surface === "player" && event.seatId === seatId) {
           if (event.action === "fold") playCue("fold");
           else if (event.action === "check") playCue("check");
@@ -207,9 +235,12 @@ export function createSoundEngine(
       if (myTurn !== lastMyTurn) turnToken++;
       if (myTurn && !lastMyTurn) {
         const token = turnToken;
+        // Hold the prompt past the deal-sweep beat and past any check knock
+        // still sounding from the previous player's move that passed the turn.
         const wait = Math.max(
           0,
           lastHoleCardAt + TIMINGS.turnAfterDealMs - effects.now(),
+          checkKnockUntil - effects.now(),
         );
         effects.schedule(() => {
           // Still this same turn when the deferral elapses? A newer turn-state
