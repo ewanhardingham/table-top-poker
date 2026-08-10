@@ -21,6 +21,22 @@ export type CueName = keyof typeof CUE_FILES;
 export const CUE_NAMES = Object.keys(CUE_FILES) as CueName[];
 
 /**
+ * The measured length of each cue's AAC asset, in ms (rounded up from the
+ * container duration). The beat queue uses these as an action's execution time
+ * so the next beat — the board deal especially — opens only once the sound it
+ * would collide with has finished. Keep in step with the assets in
+ * `public/sounds/`; the check knock is the long one that drove this (#186).
+ */
+export const CUE_DURATIONS_MS: Record<CueName, number> = {
+  deal: 601,
+  board: 690,
+  fold: 766,
+  check: 1323,
+  flip: 460,
+  yourTurn: 2143,
+};
+
+/**
  * Which room-level category (#182) each cue belongs to. `cards` is the tactile
  * card foley; `notifications` is the your-turn prompt. A cue plays only when
  * the room's master switch and its category are both on — see `cueAllowed`.
