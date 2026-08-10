@@ -79,10 +79,6 @@ export const CUES = {
       { id: "question", file: "your-turn/turn-a__question_001.ogg" },
     ],
   },
-  handStart: {
-    label: "Hand start — shuffle",
-    options: [{ id: "shuffle", file: "bonus/hand-start__card-shuffle.ogg" }],
-  },
 } as const satisfies Record<string, CueDef>;
 
 export type CueName = keyof typeof CUES;
@@ -288,7 +284,6 @@ export function onHandUpdate(args: {
     case "HandStarted":
       lastMyTurn = false;
       dealSweepEndsAt = 0;
-      if (surface === "table") playCue("handStart");
       break;
 
     case "HoleCardsDealt": {
