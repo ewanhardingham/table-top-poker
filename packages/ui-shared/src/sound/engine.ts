@@ -80,19 +80,20 @@ export const TIMINGS = {
   /** The deliberate beat between the last hole card and the your-turn prompt. */
   turnAfterDealMs: 700,
   /**
-   * A board deal always follows the action that closed the street (a check or
-   * call), so its sound would otherwise land right on top of that closing
-   * action's. Hold the board cue at least this long so a short closing sound
-   * clears first; a check knock overrides it with `checkKnockSettleMs` below.
+   * A small offset from the board beat opening to its first tap, so the tap
+   * lands as the card-drop animation settles rather than the instant it starts.
+   * The big gap that keeps the board clear of the closing action's sound is the
+   * beat queue's job now (`tableBeatDuration`), not this lead-in — so this stays
+   * short and the tap never detaches from the card.
    */
-  boardLeadInMs: 600,
+  boardLeadInMs: 150,
   /**
-   * The check knock is the longest cue at ~1.32s, and both the board deal that
-   * a closing check triggers and the next player's your-turn prompt would
-   * otherwise start on top of it (on other devices, but heard in the same
-   * room). Every surface sees the broadcast `ActionTaken` check event, so each
-   * independently holds the following cue this long — the knock's length plus a
-   * small gap — so the knock is heard out first.
+   * The check knock is the longest cue at ~1.32s, so the next player's your-turn
+   * prompt would otherwise start on top of it (on another device, but heard in
+   * the same room). Every surface sees the broadcast `ActionTaken` check event,
+   * so each independently holds the prompt this long — the knock's length plus a
+   * small gap — so the knock is heard out first. This is the phone's equivalent
+   * of the table's beat queue, which the phone has no part in.
    */
   checkKnockSettleMs: 1400,
 } as const;
@@ -126,11 +127,11 @@ export function createSoundEngine(
    */
   let lastHoleCardAt = 0;
   /**
-   * When the most recent check knock will have finished sounding (ms epoch),
-   * so the board deal it closes and the next player's your-turn prompt can be
-   * held until the knock clears. Set from any seat's check on every surface —
-   * the event is broadcast, so all devices agree on when the knock ends —
-   * reset each hand, and naturally stale once a knock's worth of time passes.
+   * When the most recent check knock will have finished sounding (ms epoch), so
+   * the next player's your-turn prompt can be held until the knock clears. Set
+   * from any seat's check on every surface — the event is broadcast, so all
+   * devices agree on when the knock ends — reset each hand, and naturally stale
+   * once a knock's worth of time passes.
    */
   let checkKnockUntil = 0;
 
@@ -183,19 +184,15 @@ export function createSoundEngine(
       case "BoardDealt":
         // One tap per board card, staggered — three distinct taps on the flop,
         // one each on the turn and river. Table only (the center voice, #180).
-        // Led in so it doesn't collide with the check/call that closed the street.
+        // The lead-in keeps the taps in step with the card-drop animation and
+        // clear of a short closing action; it deliberately does NOT wait out a
+        // long check knock, so the tap never detaches from the card landing.
         if (surface === "table") {
-          // Hold the board past whichever is longer: the plain lead-in, or a
-          // check knock still ringing out from the action that closed the street.
-          const leadIn = Math.max(
-            TIMINGS.boardLeadInMs,
-            checkKnockUntil - effects.now(),
-          );
           staggeredCue(
             "board",
             event.cards.length,
             TIMINGS.boardStaggerMs,
-            leadIn,
+            TIMINGS.boardLeadInMs,
           );
         }
         break;

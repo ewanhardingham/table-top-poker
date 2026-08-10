@@ -125,7 +125,7 @@ describe("event → cue mapping", () => {
     expect(r.played).toEqual(["deal", "deal"]);
   });
 
-  it("taps the board per card on the table, led in past the closing action", () => {
+  it("taps the board per card on the table, offset to the card-drop animation", () => {
     const r = rig();
     r.engine.onHandUpdate({
       surface: "table",
@@ -141,9 +141,10 @@ describe("event → cue mapping", () => {
     expect(r.played).toEqual(["board", "board", "board"]);
   });
 
-  it("holds the board past a check knock that closed the street", () => {
+  it("keeps the board lead-in synced to the card animation, not the check knock", () => {
     const r = rig();
-    // The check that closes the street arrives just before the board deal.
+    // Even when a check closed the street, the board stays on its plain lead-in
+    // so the taps track the card-drop animation instead of waiting out the knock.
     r.engine.onHandUpdate({
       surface: "table",
       event: actionTaken(1, "check"),
@@ -154,11 +155,10 @@ describe("event → cue mapping", () => {
       event: boardDealt("flop", 3),
       view: noHandView,
     });
-    // The lead-in stretches to the knock's settle, not the plain 600ms.
     expect(r.scheduled.map((s) => s.delayMs)).toEqual([
-      TIMINGS.checkKnockSettleMs,
-      TIMINGS.checkKnockSettleMs + TIMINGS.boardStaggerMs,
-      TIMINGS.checkKnockSettleMs + 2 * TIMINGS.boardStaggerMs,
+      TIMINGS.boardLeadInMs,
+      TIMINGS.boardLeadInMs + TIMINGS.boardStaggerMs,
+      TIMINGS.boardLeadInMs + 2 * TIMINGS.boardStaggerMs,
     ]);
   });
 
