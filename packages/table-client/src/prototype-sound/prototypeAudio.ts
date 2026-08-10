@@ -8,8 +8,8 @@
 //  - Mostly card foley. deal / board / fold / reveal-conceal flip are genuine
 //    card sounds; the check knock, showdown flourish and hand-start shuffle
 //    were all cut by ear. The one non-card cue left is the "your turn" prompt,
-//    a synthesized wooden knuckle-knock (the palette had no good card sound
-//    for it; the interface chimes were rejected).
+//    a human-picked notification (Pixabay, not CC0 — flagged); the palette had
+//    no good card sound for it and the interface chimes were rejected.
 //  - Cue ownership per #180: the TABLE is the dealer/center voice (the whole
 //    hole-card deal sweep, the board); each PHONE is its own player (its own
 //    two hole cards, own fold, own reveal/conceal flip, own your-turn prompt).
@@ -131,45 +131,65 @@ interface SoundState {
   setLastPlayed: (v: string) => void;
 }
 
-export const useSoundStore = create<SoundState>((set) => ({
-  unlocked: false,
-  muted: false,
-  volume: 0.8,
-  staggerMs: 250,
-  dealStaggerMs: 600,
-  selected: defaultSelection(),
-  enabled: allEnabled(),
-  lastPlayed: "—",
-  setUnlocked: (v) => {
-    set({ unlocked: v });
-  },
-  setMuted: (v) => {
-    set({ muted: v });
-  },
-  setVolume: (v) => {
-    set({ volume: v });
-  },
-  setStagger: (v) => {
-    set({ staggerMs: v });
-  },
-  setDealStagger: (v) => {
-    set({ dealStaggerMs: v });
-  },
-  selectOption: (cue, optionId) => {
-    set((s) => ({ selected: { ...s.selected, [cue]: optionId } }));
-  },
-  setEnabled: (cue, v) => {
-    set((s) => ({ enabled: { ...s.enabled, [cue]: v } }));
-  },
-  setLastPlayed: (v) => {
-    set({ lastPlayed: v });
-  },
-}));
+// Pin the store (and the buffer cache / AudioContext below) to globalThis. This
+// module is a stateful singleton shared by the WebSocket hook, the hole-card
+// hook and the panel; a partial HMR update can otherwise leave those importers
+// on different module instances, so the panel writes one store while the hook
+// reads a stale one and the wrong (or old-default) cue plays. One store on the
+// global keeps every instance — however HMR splits them — reading the same
+// selection.
+const soundGlobal = globalThis as unknown as {
+  __ttpSoundStore?: ReturnType<typeof createSoundStore>;
+  __ttpSoundBuffers?: Map<string, AudioBuffer>;
+};
+
+function createSoundStore() {
+  return create<SoundState>((set) => ({
+    unlocked: false,
+    muted: false,
+    volume: 0.8,
+    staggerMs: 250,
+    dealStaggerMs: 600,
+    selected: defaultSelection(),
+    enabled: allEnabled(),
+    lastPlayed: "—",
+    setUnlocked: (v) => {
+      set({ unlocked: v });
+    },
+    setMuted: (v) => {
+      set({ muted: v });
+    },
+    setVolume: (v) => {
+      set({ volume: v });
+    },
+    setStagger: (v) => {
+      set({ staggerMs: v });
+    },
+    setDealStagger: (v) => {
+      set({ dealStaggerMs: v });
+    },
+    selectOption: (cue, optionId) => {
+      set((s) => ({ selected: { ...s.selected, [cue]: optionId } }));
+    },
+    setEnabled: (cue, v) => {
+      set((s) => ({ enabled: { ...s.enabled, [cue]: v } }));
+    },
+    setLastPlayed: (v) => {
+      set({ lastPlayed: v });
+    },
+  }));
+}
+
+export const useSoundStore = (soundGlobal.__ttpSoundStore ??=
+  createSoundStore());
 
 // --- audio engine -----------------------------------------------------------
 
 let ctx: AudioContext | null = null;
-const buffers = new Map<string, AudioBuffer>();
+const buffers = (soundGlobal.__ttpSoundBuffers ??= new Map<
+  string,
+  AudioBuffer
+>());
 
 function context(): AudioContext {
   ctx ??= new AudioContext();
