@@ -31,6 +31,8 @@ import {
 } from "./gesture.js";
 import { planFinish } from "./finishPlan.js";
 import { pulse } from "./haptics.js";
+// PROTOTYPE (#181): tactile sound layer, throwaway. Remove with the branch.
+import { playRevealFlip } from "../prototype-sound/prototypeAudio.js";
 import type { HoleCardPairProps } from "./HoleCardPair.js";
 import type { TapWindow } from "./taps.js";
 import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
@@ -204,6 +206,20 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
       bend.set(0);
     }
   }, [state.presentation, bend]);
+
+  // PROTOTYPE (#181): a card-flip sound on reveal/conceal. Entering `Turning`
+  // is every reveal (keyboard, bend-peel, showdown); `Revealed → FaceDown` is
+  // a conceal. A fresh deal reaches `FaceDown` from elsewhere and keeps its own
+  // deal sound. Remove this effect (and the import) with the branch.
+  const prevPresentation = useRef(state.presentation);
+  useEffect(() => {
+    const from = prevPresentation.current;
+    const to = state.presentation;
+    prevPresentation.current = to;
+    if (to === "Turning" || (from === "Revealed" && to === "FaceDown")) {
+      playRevealFlip();
+    }
+  }, [state.presentation]);
 
   /**
    * Whether the pair is on its way to the muck **right now**.

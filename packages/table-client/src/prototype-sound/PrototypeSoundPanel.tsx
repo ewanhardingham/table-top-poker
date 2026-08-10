@@ -115,7 +115,7 @@ export function PrototypeSoundPanel({ surface }: { surface: Surface }) {
       </div>
 
       <div style={row}>
-        <span>deal stagger</span>
+        <span>card stagger</span>
         <input
           type="range"
           min={0}

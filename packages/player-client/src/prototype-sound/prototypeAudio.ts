@@ -5,9 +5,15 @@
 // on-screen panel can tune cues by ear.
 //
 // Design decisions baked in here (the things the prototype is checking):
+//  - Card sounds only. The non-card interface cues (your-turn chime, check
+//    knock, showdown flourish) were cut by ear — every remaining cue is
+//    genuine card foley.
 //  - Cue ownership per #180: the TABLE is the dealer/center voice (hole-card
-//    deal riffle, board, showdown); the PHONE is the player's own hands
-//    (your-turn, own check-knock, own fold, own hole cards).
+//    deal sweep, board, hand-start shuffle); the PHONE is the player's own
+//    hands (own fold, own hole cards, own reveal/conceal flip).
+//  - Multi-card deals sound per card: the flop is three distinct board taps,
+//    a phone's hole cards are two distinct slides — one `setTimeout` per card,
+//    staggered by `staggerMs`.
 //  - Sounds fire ONLY from `hand-update` (which carries the raw event), never
 //    from `view-snapshot` — so a reconnect/refresh mid-hand can't replay a
 //    burst of cues (the map's rejoin worry, #175).
@@ -27,8 +33,10 @@ export interface CueDef {
 }
 
 /**
- * The starter palette (#179) laid out as A/B(/C) options per cue. Files are
- * served from each client's `public/sounds/` (copied from `assets/sounds/`).
+ * The card cues, each with A/B(/C) options to compare by ear. Files are served
+ * from each client's `public/sounds/` (copied from `assets/sounds/`). Defaults
+ * are the first option, set from the human's picks: deal=slide-1, board=place-1,
+ * fold=shove-1.
  */
 export const CUES = {
   deal: {
@@ -39,11 +47,12 @@ export const CUES = {
     ],
   },
   board: {
-    label: "Board — flop / turn / river",
+    label: "Board — per card (flop ×3)",
     options: [
-      { id: "fan", file: "flip/flip-c-board__card-fan-1.ogg" },
       { id: "place-1", file: "flip/flip-a__card-place-1.ogg" },
+      { id: "slide-1", file: "deal/deal-a__card-slide-1.ogg" },
       { id: "place-2", file: "flip/flip-b__card-place-2.ogg" },
+      { id: "fan", file: "flip/flip-c-board__card-fan-1.ogg" },
     ],
   },
   fold: {
@@ -53,29 +62,16 @@ export const CUES = {
       { id: "shove-3", file: "fold/fold-b__card-shove-3.ogg" },
     ],
   },
-  check: {
-    label: "Check — knock (own)",
+  flip: {
+    label: "Reveal / conceal flip (own)",
     options: [
-      { id: "drop", file: "check-knock/knock-a__drop_003.ogg" },
-      { id: "bong", file: "check-knock/knock-b__bong_001.ogg" },
-    ],
-  },
-  yourTurn: {
-    label: "Your turn (own)",
-    options: [
-      { id: "question", file: "your-turn/turn-a__question_001.ogg" },
-      { id: "pluck", file: "your-turn/turn-b__pluck_002.ogg" },
-    ],
-  },
-  showdown: {
-    label: "Showdown",
-    options: [
-      { id: "confirm", file: "showdown/showdown-a__confirmation_001.ogg" },
-      { id: "maximize", file: "showdown/showdown-b__maximize_004.ogg" },
+      { id: "place-2", file: "flip/flip-b__card-place-2.ogg" },
+      { id: "place-1", file: "flip/flip-a__card-place-1.ogg" },
+      { id: "fan", file: "flip/flip-c-board__card-fan-1.ogg" },
     ],
   },
   handStart: {
-    label: "Hand start — shuffle (bonus)",
+    label: "Hand start — shuffle",
     options: [{ id: "shuffle", file: "bonus/hand-start__card-shuffle.ogg" }],
   },
 } as const satisfies Record<string, CueDef>;
@@ -101,7 +97,7 @@ interface SoundState {
   unlocked: boolean;
   muted: boolean;
   volume: number;
-  /** Inter-card delay for the dealer's hole-card sweep, ms. */
+  /** Inter-card delay for multi-card deals (hole-card sweep, flop), ms. */
   staggerMs: number;
   selected: Record<CueName, string>;
   enabled: Record<CueName, boolean>;
@@ -176,6 +172,9 @@ function fileFor(cue: CueName): string {
 }
 
 function playFile(file: string): void {
+  // Inert without Web Audio (jsdom under vitest, SSR) so tests that reveal a
+  // pair stay silent instead of throwing on `new AudioContext()`.
+  if (typeof AudioContext === "undefined") return;
   const { volume } = useSoundStore.getState();
   void loadBuffer(file).then((buffer) => {
     const c = context();
@@ -195,6 +194,15 @@ function playCue(cue: CueName): void {
   const file = fileFor(cue);
   playFile(file);
   s.setLastPlayed(`${cue} · ${file.split("/").pop() ?? file}`);
+}
+
+/**
+ * Play the reveal/conceal flip cue. Called by the player client's hole-card
+ * hook when the pair flips face-up (reveal) or back face-down (conceal) — a
+ * client-side presentation change, not a wire event.
+ */
+export function playRevealFlip(): void {
+  playCue("flip");
 }
 
 /**
@@ -233,21 +241,11 @@ if (typeof document !== "undefined") {
 
 // --- event → sound ----------------------------------------------------------
 
-/** Edge-detect "it just became my turn" so your-turn chimes once, not per view. */
-let lastMyTurn = false;
-
-function isMyTurn(view: PlayerView | TableView): boolean {
-  return (
-    view.phase === "betting" &&
-    "legalActions" in view &&
-    view.legalActions.length > 0
-  );
-}
-
 /**
  * The single entry point the WebSocket hooks call on every `hand-update`
  * (never on `view-snapshot`). `seatId` is the phone's own seat; omitted on the
- * table surface.
+ * table surface. `view` is unused for now (the your-turn chime was cut) but
+ * kept on the signature so re-deriving a view-based cue stays a one-line add.
  */
 export function onHandUpdate(args: {
   surface: Surface;
@@ -255,59 +253,61 @@ export function onHandUpdate(args: {
   view: PlayerView | TableView;
   seatId?: number;
 }): void {
-  const { surface, event, view, seatId } = args;
+  const { surface, event, seatId } = args;
   const { staggerMs } = useSoundStore.getState();
 
   switch (event.type) {
     case "HandStarted":
-      lastMyTurn = false;
       if (surface === "table") playCue("handStart");
       break;
 
     case "HoleCardsDealt": {
       // Dealer's sweep: one deal tick per card, staggered. The table hears the
-      // whole table dealt; a phone hears only its own two cards.
+      // whole table dealt; a phone hears only its own two cards (two distinct
+      // slides).
       const cardCount =
         surface === "table"
           ? event.deals.reduce((n, d) => n + d.cards.length, 0)
           : (event.deals.find((d) => d.seatId === seatId)?.cards.length ?? 0);
-      for (let i = 0; i < cardCount; i++) {
-        setTimeout(() => {
-          playCue("deal");
-        }, i * staggerMs);
-      }
+      staggeredCue("deal", cardCount, staggerMs);
       break;
     }
 
     case "BoardDealt":
-      if (surface === "table") playCue("board");
-      break;
-
-    case "ActionTaken":
-      // Only the acting player's own phone voices check/fold; the table stays
-      // silent on these. call/raise are unallocated (no chip asset yet).
-      if (surface === "player" && event.seatId === seatId) {
-        if (event.action === "fold") playCue("fold");
-        else if (event.action === "check") playCue("check");
+      // One tap per board card, staggered — three distinct taps on the flop,
+      // one each on the turn and river. Table only (the center voice, #180).
+      if (surface === "table") {
+        staggeredCue("board", event.cards.length, staggerMs);
       }
       break;
 
-    case "ShowdownReached":
-      if (surface === "table") playCue("showdown");
+    case "ActionTaken":
+      // Only the acting player's own phone voices the fold muck; the table
+      // stays silent. check/call/raise are unallocated (cut or no asset yet).
+      if (
+        surface === "player" &&
+        event.seatId === seatId &&
+        event.action === "fold"
+      ) {
+        playCue("fold");
+      }
       break;
 
     case "StreetStarted":
     case "StreetClosed":
+    case "ShowdownReached":
     case "HandFoldedOut":
     case "HandComplete":
-      // No dedicated cue (your-turn is derived from the view below).
+      // No dedicated cue.
       break;
   }
+}
 
-  // your-turn is derived from the view (the actor), not from a dedicated event.
-  if (surface === "player") {
-    const myTurn = isMyTurn(view);
-    if (myTurn && !lastMyTurn) playCue("yourTurn");
-    lastMyTurn = myTurn;
+/** Fire a cue once per card, staggered, so multi-card deals read as distinct. */
+function staggeredCue(cue: CueName, count: number, staggerMs: number): void {
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      playCue(cue);
+    }, i * staggerMs);
   }
 }
