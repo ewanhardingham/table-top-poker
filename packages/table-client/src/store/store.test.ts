@@ -1,3 +1,4 @@
+import { DEFAULT_SOUND_SETTINGS } from "@table-top-poker/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useTableStore } from "./store.js";
 
@@ -33,6 +34,7 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
       seats: [
         {
           id: 0,
@@ -59,6 +61,7 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: 4,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
       seats: [
         {
           id: 0,
@@ -85,6 +88,7 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
       seats: [
         {
           id: 0,

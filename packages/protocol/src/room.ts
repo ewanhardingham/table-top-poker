@@ -68,6 +68,46 @@ export type SeatCountChangeError =
   | "invalid-seat-count"
   | "seat-count-below-floor";
 
+/**
+ * The room-wide tactile-sound settings (#182), owned by the table and pushed to
+ * every surface on `room-view`. `sounds` is the master switch; `cards` and
+ * `notifications` are the two cue categories under it (cards = the tactile card
+ * foley — deal, board, fold, flip, check-knock; notifications = the your-turn
+ * prompt). A cue plays only when the master and its category are both on. Phones
+ * hold no local override in this cut — they obey these settings verbatim.
+ */
+export interface SoundSettings {
+  readonly sounds: boolean;
+  readonly cards: boolean;
+  readonly notifications: boolean;
+}
+
+/** A fresh room starts fully audible. */
+export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
+  sounds: true,
+  cards: true,
+  notifications: true,
+};
+
+/**
+ * Body of the table-only sound-settings request (#182). The whole triple is
+ * sent every time, so the master and both categories stay a single atomic
+ * write — no partial-update ordering to reason about.
+ */
+export const ChangeSoundSettingsRequestSchema = z.strictObject({
+  sounds: z.boolean(),
+  cards: z.boolean(),
+  notifications: z.boolean(),
+});
+
+export type ChangeSoundSettingsRequest = z.infer<
+  typeof ChangeSoundSettingsRequestSchema
+>;
+
+/** Errors returned by the table device's sound-settings route. */
+export type SoundSettingsChangeError =
+  "room-not-found" | "invalid-request-body";
+
 /** The sources from which a client or server can answer whether a hand is live. */
 export type HandStateSource = EngineState | PlayerView | TableView | null;
 
@@ -136,6 +176,8 @@ export interface RoomView {
   readonly seats: readonly SeatView[];
   /** A shrink queued until the next deal-in, or null when none is queued. */
   readonly pendingSeatCount: number | null;
+  /** Room-wide tactile-sound settings (#182), replayed on join/reconnect. */
+  readonly soundSettings: SoundSettings;
 }
 
 /** Pushed over the room's WebSocket whenever seat state changes. */

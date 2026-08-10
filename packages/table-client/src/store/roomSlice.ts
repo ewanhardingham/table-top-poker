@@ -1,4 +1,9 @@
-import type { RoomView, SeatView } from "@table-top-poker/protocol";
+import {
+  DEFAULT_SOUND_SETTINGS,
+  type RoomView,
+  type SeatView,
+  type SoundSettings,
+} from "@table-top-poker/protocol";
 import type { StateCreator } from "zustand";
 
 export interface RoomSlice {
@@ -7,6 +12,7 @@ export interface RoomSlice {
   readonly qrCodeDataUrl: string | null;
   readonly seats: readonly SeatView[];
   readonly pendingSeatCount: number | null;
+  readonly soundSettings: SoundSettings;
   readonly setRoomCreated: (room: {
     code: string;
     joinUrl: string;
@@ -22,6 +28,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
   qrCodeDataUrl: null,
   seats: [],
   pendingSeatCount: null,
+  soundSettings: DEFAULT_SOUND_SETTINGS,
   setRoomCreated: ({ code, joinUrl, qrCodeDataUrl }) => {
     set({ roomCode: code, joinUrl, qrCodeDataUrl, pendingSeatCount: null });
   },
@@ -30,6 +37,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
       roomCode: view.code,
       seats: view.seats,
       pendingSeatCount: view.pendingSeatCount,
+      soundSettings: view.soundSettings,
     });
   },
   clearRoom: () => {
@@ -39,6 +47,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
       qrCodeDataUrl: null,
       seats: [],
       pendingSeatCount: null,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
     });
   },
 });

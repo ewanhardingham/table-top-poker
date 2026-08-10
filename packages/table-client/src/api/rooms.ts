@@ -1,4 +1,8 @@
-import type { RoomView, SeatCountChange } from "@table-top-poker/protocol";
+import type {
+  RoomView,
+  SeatCountChange,
+  SoundSettings,
+} from "@table-top-poker/protocol";
 
 export interface CreatedRoom {
   readonly code: string;
@@ -66,4 +70,22 @@ export async function changeSeatCount(
     throw new Error(`failed to change seat count: ${String(response.status)}`);
   }
   return (await response.json()) as SeatCountChange;
+}
+
+/** The table device's room-wide tactile-sound settings (#182). */
+export async function changeSoundSettings(
+  code: string,
+  settings: SoundSettings,
+): Promise<SoundSettings> {
+  const response = await fetch(`/rooms/${code}/sound`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `failed to change sound settings: ${String(response.status)}`,
+    );
+  }
+  return (await response.json()) as SoundSettings;
 }

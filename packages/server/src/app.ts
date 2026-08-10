@@ -2,6 +2,7 @@ import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import {
   ChangeSeatCountRequestSchema,
+  ChangeSoundSettingsRequestSchema,
   ClaimSeatRequestSchema,
   LeaveSeatRequestSchema,
   ClientCommandSchema,
@@ -557,6 +558,26 @@ export async function buildApp(
   };
 
   app.post<RoomCodeRoute>("/rooms/:code/seats/count", changeSeatCount);
+
+  /**
+   * Table-device sound settings (#182): the room-wide master/cards/notifications
+   * toggles. Same ungated table-action boundary as `/seats/count` — the table
+   * owns these and pushes them to every surface via the broadcast `room-view`.
+   */
+  app.post<RoomCodeRoute>("/rooms/:code/sound", (request, reply) => {
+    const body = ChangeSoundSettingsRequestSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({ error: "invalid-request-body" });
+    }
+    const room = findRoomOrReject(rooms, request.params.code, reply);
+    if (!room) return;
+    const result = rooms.changeSoundSettings(room.code, body.data);
+    if ("error" in result) {
+      return reply.code(404).send({ error: result.error });
+    }
+    broadcastRoomView(room.code);
+    return result;
+  });
 
   /**
    * Where the QR code's join URL lands. `PLAYER_CLIENT_ORIGIN` points dev at

@@ -1,4 +1,7 @@
-import type { SeatView } from "@table-top-poker/protocol";
+import {
+  DEFAULT_SOUND_SETTINGS,
+  type SeatView,
+} from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -78,7 +81,9 @@ describe("HouseRulesSheet", () => {
         pendingSeatCount={4}
         seats={seats}
         handInProgress
+        soundSettings={DEFAULT_SOUND_SETTINGS}
         onApply={noop}
+        onChangeSoundSettings={noop}
         onClose={noop}
       />,
     );
@@ -97,7 +102,9 @@ describe("HouseRulesSheet", () => {
         pendingSeatCount={3}
         seats={seats}
         handInProgress
+        soundSettings={DEFAULT_SOUND_SETTINGS}
         onApply={noop}
+        onChangeSoundSettings={noop}
         onClose={noop}
       />,
     );
@@ -116,11 +123,60 @@ describe("HouseRulesSheet", () => {
         pendingSeatCount={null}
         seats={seats.slice(0, 4)}
         handInProgress
+        soundSettings={DEFAULT_SOUND_SETTINGS}
         onApply={noop}
+        onChangeSoundSettings={noop}
         onClose={noop}
       />,
     );
 
     expect(html).toContain("Applies immediately");
+  });
+
+  it("renders the sound toggles reflecting the room settings", () => {
+    const html = renderToStaticMarkup(
+      <HouseRulesSheet
+        seatCount={4}
+        pendingSeatCount={null}
+        seats={seats.slice(0, 4)}
+        handInProgress
+        soundSettings={{ sounds: true, cards: false, notifications: true }}
+        onApply={noop}
+        onChangeSoundSettings={noop}
+        onClose={noop}
+      />,
+    );
+
+    expect(html).toContain('data-testid="sound-master-toggle"');
+    // Attribute order in the rendered tag is aria-checked, aria-label,
+    // data-testid, [disabled], style — so these contiguous substrings pin both
+    // the checked state and, via data-testid → style, that no disabled sits
+    // between them (master on ⇒ categories interactive).
+    expect(html).toContain(
+      'aria-checked="false" aria-label="Cards" data-testid="sound-cards-toggle" style=',
+    );
+    expect(html).toContain(
+      'aria-checked="true" aria-label="Notifications" data-testid="sound-notifications-toggle" style=',
+    );
+  });
+
+  it("disables the category toggles when the master is off", () => {
+    const html = renderToStaticMarkup(
+      <HouseRulesSheet
+        seatCount={4}
+        pendingSeatCount={null}
+        seats={seats.slice(0, 4)}
+        handInProgress
+        soundSettings={{ sounds: false, cards: true, notifications: true }}
+        onApply={noop}
+        onChangeSoundSettings={noop}
+        onClose={noop}
+      />,
+    );
+
+    expect(html).toContain('data-testid="sound-cards-toggle" disabled=""');
+    expect(html).toContain(
+      'data-testid="sound-notifications-toggle" disabled=""',
+    );
   });
 });

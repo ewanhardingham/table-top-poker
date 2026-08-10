@@ -1,5 +1,6 @@
 import {
   DEFAULT_SEAT_COUNT,
+  DEFAULT_SOUND_SETTINGS,
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
   type RoomView,
@@ -160,6 +161,7 @@ describe("rooms HTTP routes", () => {
     expect(joined.json<RoomView>()).toEqual({
       code,
       pendingSeatCount: null,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
       seats: unclaimedSeats(),
     });
   });
@@ -211,6 +213,65 @@ describe("rooms HTTP routes", () => {
       url: `/rooms/${code}/join`,
     });
     expect(joined.statusCode).toBe(404);
+  });
+});
+
+describe("POST /rooms/:code/sound", () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    app = await buildApp();
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function createRoom(): Promise<string> {
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
+    return created.json<RoomCreatedBody>().code;
+  }
+
+  it("persists the settings on the room view", async () => {
+    const code = await createRoom();
+    const settings = { sounds: true, cards: false, notifications: true };
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/sound`,
+      payload: settings,
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(settings);
+
+    const joined = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/join`,
+    });
+    expect(joined.json<RoomView>().soundSettings).toEqual(settings);
+  });
+
+  it("rejects a malformed body", async () => {
+    const code = await createRoom();
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/sound`,
+      payload: { sounds: "yes" },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("404s an unknown room", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms/ZZZZ/sound",
+      payload: { sounds: true, cards: true, notifications: true },
+    });
+    expect(response.statusCode).toBe(404);
   });
 });
 
@@ -951,6 +1012,7 @@ describe("WebSocket upgrade", () => {
       view: {
         code: room.code,
         pendingSeatCount: null,
+        soundSettings: DEFAULT_SOUND_SETTINGS,
         seats: unclaimedSeats(),
       },
     });

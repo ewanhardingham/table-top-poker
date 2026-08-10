@@ -1,5 +1,6 @@
 import {
   DEFAULT_SEAT_COUNT,
+  DEFAULT_SOUND_SETTINGS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
@@ -979,6 +980,7 @@ describe("toRoomView", () => {
     expect(view).toEqual({
       code: room.code,
       pendingSeatCount: null,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
       seats: [
         {
           id: 0,
@@ -996,6 +998,34 @@ describe("toRoomView", () => {
           disconnected: false,
         })),
       ],
+    });
+  });
+});
+
+describe("changeSoundSettings", () => {
+  it("defaults a fresh room to fully audible", () => {
+    const store = new RoomStore();
+    const room = store.create();
+
+    expect(toRoomView(room).soundSettings).toEqual(DEFAULT_SOUND_SETTINGS);
+  });
+
+  it("replaces the whole triple atomically", () => {
+    const store = new RoomStore();
+    const room = store.create();
+    const settings = { sounds: true, cards: false, notifications: true };
+
+    const result = store.changeSoundSettings(room.code, settings);
+
+    expect(result).toEqual(settings);
+    expect(toRoomView(room).soundSettings).toEqual(settings);
+  });
+
+  it("reports an unknown room", () => {
+    const store = new RoomStore();
+
+    expect(store.changeSoundSettings("ZZZZ", DEFAULT_SOUND_SETTINGS)).toEqual({
+      error: "room-not-found",
     });
   });
 });
