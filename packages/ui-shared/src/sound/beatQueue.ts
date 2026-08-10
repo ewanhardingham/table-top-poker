@@ -16,24 +16,26 @@
 // Pure over injected effects (`now`, `schedule`, `apply`, `duration`) so the
 // ordering and the gaps are unit-testable without timers or a DOM.
 import type { HandEvent } from "@table-top-poker/protocol";
-import { CUE_DURATIONS_MS } from "./cues.js";
-
-/** A small breath after a beat's sound tail before the next beat opens. */
-const BEAT_GAP_MS = 90;
+import { CUE_DURATIONS_MS, cueSettleMs } from "./cues.js";
 
 /**
  * The table's execution time for each event — how long it blocks the next
  * beat. Only the sounded moments hold: a check knock and a fold muck (heard on
  * a player's phone, but the table must wait them out before dealing), and a
- * board deal (so a multi-card run-out spaces itself). `call`/`raise` have no
- * cue yet, and view-only events (street/showdown transitions) don't block —
- * they ride out immediately behind whatever beat precedes them.
+ * board deal (so a multi-card run-out spaces itself). View-only events
+ * (street/showdown transitions) don't block — they ride out immediately behind
+ * whatever beat precedes them.
  */
 export function tableBeatDuration(event: HandEvent): number {
   switch (event.type) {
     case "ActionTaken":
-      if (event.action === "check") return CUE_DURATIONS_MS.check + BEAT_GAP_MS;
-      if (event.action === "fold") return CUE_DURATIONS_MS.fold + BEAT_GAP_MS;
+      if (event.action === "check") return cueSettleMs("check");
+      if (event.action === "fold") return cueSettleMs("fold");
+      // A call closes a street too, but has no chip cue yet (#186 leaves
+      // call/raise unallocated), so there is no sound for the board to wait
+      // out — it blocks for nothing. Wired here so it isn't forgotten: when a
+      // chip asset lands, give `call` a duration and return its `cueSettleMs`.
+      if (event.action === "call") return 0;
       return 0;
     case "BoardDealt":
       return CUE_DURATIONS_MS.board;

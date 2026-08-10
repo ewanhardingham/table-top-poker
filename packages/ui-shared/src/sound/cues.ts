@@ -37,6 +37,24 @@ export const CUE_DURATIONS_MS: Record<CueName, number> = {
 };
 
 /**
+ * The fraction past a cue's measured length to hold the next beat: a tail so
+ * the following beat opens after the sound has clearly finished rather than
+ * clipping its decay. 1.3 = the clip plus 30%.
+ */
+export const CUE_SETTLE_BUFFER = 1.3;
+
+/**
+ * How long a sounded cue should hold the next presentation beat — its measured
+ * length plus the settle buffer, rounded up to whole ms. The one source of
+ * truth for both the table's beat queue (`tableBeatDuration`) and the phone's
+ * your-turn hold (`checkKnockSettleMs`), so retuning an asset's length moves
+ * both in step instead of leaving a hand-copied constant to drift.
+ */
+export function cueSettleMs(cue: CueName): number {
+  return Math.ceil(CUE_DURATIONS_MS[cue] * CUE_SETTLE_BUFFER);
+}
+
+/**
  * Which room-level category (#182) each cue belongs to. `cards` is the tactile
  * card foley; `notifications` is the your-turn prompt. A cue plays only when
  * the room's master switch and its category are both on — see `cueAllowed`.

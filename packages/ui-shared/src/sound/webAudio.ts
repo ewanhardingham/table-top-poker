@@ -11,6 +11,7 @@ import {
   type HandUpdateArgs,
   type SoundEngine,
 } from "./engine.js";
+import { realClock } from "./realClock.js";
 
 // Pin the context, buffer cache and engine to `globalThis`. This module is a
 // stateful singleton shared by the WS hook and the hole-card hook; a partial
@@ -69,10 +70,7 @@ function playCueSound(cue: CueName): void {
 
 const engine = (soundGlobal.__ttpSoundEngine ??= createSoundEngine({
   play: playCueSound,
-  now: () => Date.now(),
-  schedule: (fn, delayMs) => {
-    setTimeout(fn, delayMs);
-  },
+  ...realClock,
 }));
 
 export type { HandUpdateArgs, Surface } from "./engine.js";
