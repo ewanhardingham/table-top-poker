@@ -147,22 +147,3 @@ body {
 .peel-back .card-index {
   display: none !important;
 }
-
-/*
- * Android Chrome still *starts* a text selection on a long-press even under
- * `user-select: none` — it cancels the selection a frame later, but paints the
- * highlight in between, and (unlike desktop) fires no cancelable `selectstart`
- * to stop it (#195). `user-select: none` already keeps the selection from
- * persisting; this makes the transient paint invisible while it lasts, so the
- * cards stay visually stable. Scoped to the hole-card surface so a room code or
- * join URL elsewhere on the screen stays selectable.
- */
-[data-testid="hole-cards"]::selection,
-[data-testid="hole-cards"] ::selection {
-  background: transparent;
-}
-
-[data-testid="hole-cards"]::-moz-selection,
-[data-testid="hole-cards"] ::-moz-selection {
-  background: transparent;
-}

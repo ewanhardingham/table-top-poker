@@ -211,13 +211,6 @@ export function HoleCardPair(props: HoleCardPairProps) {
           onClick={locked ? undefined : activate}
           // Long-press must not raise the OS callout menu over the cards (§16).
           onContextMenu={preventDefault}
-          // …nor leave a text-selection highlight behind it. The CSS below
-          // forbids selection, but Android Chrome still *starts* one on a
-          // long-press and paints the highlight a frame before cancelling it.
-          // Cancelling `selectstart` outright is the only thing that stops the
-          // flash, and React has no synthetic event for it — so it is attached
-          // natively here (#195).
-          ref={suppressSelectStart}
           {...(locked ? {} : handlers)}
           aria-disabled={locked}
           aria-label={accessibleName(shown, presentation, locked)}
@@ -340,23 +333,6 @@ const nothingDiscovered: ReadonlySet<TeachableGesture> = new Set();
 
 function preventDefault(event: { preventDefault: () => void }) {
   event.preventDefault();
-}
-
-/**
- * A callback ref that binds a `selectstart` canceller to the pair's surface for
- * as long as it is mounted. Module-scoped so its identity is stable and React
- * never detaches and rebinds it between renders. Selection bubbles, so one
- * listener on the surface catches a long-press that lands on either card's text
- * (#195). The `void` branch is the detach call React makes with `null`.
- */
-export function suppressSelectStart(
-  node: HTMLElement | null,
-): (() => void) | undefined {
-  if (node === null) return undefined;
-  node.addEventListener("selectstart", preventDefault);
-  return () => {
-    node.removeEventListener("selectstart", preventDefault);
-  };
 }
 
 /**
