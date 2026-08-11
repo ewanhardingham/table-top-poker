@@ -2,7 +2,7 @@ import type { Card } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { HoleCardPair } from "./HoleCardPair.js";
+import { HoleCardPair, suppressSelectStart } from "./HoleCardPair.js";
 import type { CardActions } from "./ports.js";
 
 const actions: CardActions = {
@@ -135,5 +135,58 @@ describe("HoleCardPair", () => {
     // A live region inserted along with its own text is not reliably
     // announced, so the region has to be here first — with nothing in it.
     expect(html).toMatch(/<span role="status"[^>]*><\/span>/);
+  });
+});
+
+// The declared `user-select: none` is not enough on Android Chrome: a
+// long-press still *starts* a selection and paints a transient highlight before
+// the CSS cancels it (#195). Cancelling `selectstart` is what stops the flash,
+// and — unlike `contextmenu` — React has no synthetic event for it, so the
+// surface binds a native listener through this callback ref. The regression is
+// on the wiring itself; the visual outcome is a real-device acceptance step.
+describe("suppressSelectStart", () => {
+  interface FakeNode {
+    readonly listeners: Map<string, EventListener>;
+    readonly node: HTMLElement;
+  }
+
+  function fakeNode(): FakeNode {
+    const listeners = new Map<string, EventListener>();
+    const node = {
+      addEventListener: (type: string, listener: EventListener) => {
+        listeners.set(type, listener);
+      },
+      removeEventListener: (type: string) => {
+        listeners.delete(type);
+      },
+    } as unknown as HTMLElement;
+    return { listeners, node };
+  }
+
+  it("cancels a selectstart raised on the surface", () => {
+    const { listeners, node } = fakeNode();
+    suppressSelectStart(node);
+
+    const listener = listeners.get("selectstart");
+    expect(listener).toBeDefined();
+
+    let prevented = false;
+    listener?.({
+      preventDefault: () => (prevented = true),
+    } as unknown as Event);
+    expect(prevented).toBe(true);
+  });
+
+  it("removes the listener when the surface unmounts", () => {
+    const { listeners, node } = fakeNode();
+    const cleanup = suppressSelectStart(node);
+
+    expect(typeof cleanup).toBe("function");
+    cleanup?.();
+    expect(listeners.has("selectstart")).toBe(false);
+  });
+
+  it("does nothing when React detaches the ref with null", () => {
+    expect(suppressSelectStart(null)).toBeUndefined();
   });
 });
