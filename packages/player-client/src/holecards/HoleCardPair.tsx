@@ -5,12 +5,7 @@ import type { CSSProperties } from "react";
 import { BendableCard } from "./BendableCard.js";
 import type { Presentation } from "./cardState.js";
 import { CheckStamp } from "./CheckStamp.js";
-import {
-  selectHint,
-  type Hint,
-  type HintContext,
-  type TeachableGesture,
-} from "./coaching.js";
+import { selectHint, type Hint, type HintContext } from "./coaching.js";
 import { DEAL_IN_MS } from "./constants.js";
 import type { BendAxis } from "./geometry.js";
 import type { CardActions } from "./ports.js";
@@ -135,6 +130,9 @@ export function HoleCardPair(props: HoleCardPairProps) {
     leavingFaceUp,
     departing,
     checkConfirmed,
+    quiet,
+    coarsePointer,
+    discovered,
   } = useHoleCards(props);
   // The lifecycle's lock, not the prop: the prop is the *input* the adapter
   // turns into `SHOWDOWN_REVEAL`, and once locked the pair stays locked until
@@ -167,9 +165,11 @@ export function HoleCardPair(props: HoleCardPairProps) {
     foldLegal: actions.foldLegal,
     pending: actions.pending,
     locked,
-    // The quiet interval only gates the teaching hints, which arrive with the
-    // discovery set they retire against (#147). In-gesture prompts never wait.
-    quiet: false,
+    // The two device inputs the hook watches on the selector's behalf: the
+    // touch gate, and the ~2s of stillness the teaching hints wait for (§11).
+    // In-gesture prompts consult neither.
+    coarsePointer,
+    quiet,
     checkConfirmed,
   };
   // Both variants of the live hint, because the axis they swap on is a
@@ -177,12 +177,12 @@ export function HoleCardPair(props: HoleCardPairProps) {
   // pair every time a bend wandered across the diagonal (§13).
   const hintDragLeft = selectHint(
     { ...state, presentation, bendAxis: "left" },
-    nothingDiscovered,
+    discovered,
     hintContext,
   );
   const hintDragUp = selectHint(
     { ...state, presentation, bendAxis: "up" },
-    nothingDiscovered,
+    discovered,
     hintContext,
   );
   // An announced hint is news, and news does not depend on which way a finger
@@ -323,8 +323,6 @@ const visuallyHidden: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const nothingDiscovered: ReadonlySet<TeachableGesture> = new Set();
-
 function preventDefault(event: { preventDefault: () => void }) {
   event.preventDefault();
 }
@@ -375,7 +373,7 @@ function GestureHint({
   );
 }
 
-function HintBlock({ hint }: { readonly hint: Hint }) {
+export function HintBlock({ hint }: { readonly hint: Hint }) {
   return (
     <p
       data-testid="hole-cards-hint"
