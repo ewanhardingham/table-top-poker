@@ -13,6 +13,14 @@ export const REVEAL_THRESHOLD = 0.9;
 /** Full bend travel, in px, over which peel progress runs 0 → 1. */
 export const BEND_TRAVEL_PX = 176;
 
+/**
+ * The corner the bend affordance is drawn in, named once so the coaching copy
+ * follows the rendered zone rather than hard-coding "bottom-right" (§11). The
+ * `BendZone` and the `teach-bend` hint both read it, so if the overlapped
+ * layout ever mirrors, the words the surface teaches follow it.
+ */
+export const BEND_CORNER = { vertical: "bottom", horizontal: "right" } as const;
+
 /** Floor of the fold threshold, in px. */
 export const MIN_FOLD_DISTANCE_PX = 148;
 

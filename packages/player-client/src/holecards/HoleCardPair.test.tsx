@@ -2,7 +2,14 @@ import type { Card } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { HoleCardPair } from "./HoleCardPair.js";
+import type { CardState } from "./cardState.js";
+import {
+  selectHint,
+  type HintContext,
+  type TeachableGesture,
+} from "./coaching.js";
+import type { BendAxis } from "./geometry.js";
+import { HintBlock, HoleCardPair } from "./HoleCardPair.js";
 import type { CardActions } from "./ports.js";
 
 const actions: CardActions = {
@@ -138,5 +145,103 @@ describe("HoleCardPair", () => {
     // A live region inserted along with its own text is not reliably
     // announced, so the region has to be here first — with nothing in it.
     expect(html).toMatch(/<span role="status"[^>]*><\/span>/);
+  });
+
+  it("renders the words the selector chose, for every hint it can choose", () => {
+    // The copy lives in the selector and this is the only thing that prints it,
+    // so the surface can never teach a gesture in different words from the ones
+    // the §11 table settles.
+    const cases: readonly {
+      readonly state: Partial<CardState & { bendAxis: BendAxis }>;
+      readonly ctx?: Partial<HintContext>;
+      readonly discovered?: readonly TeachableGesture[];
+    }[] = [
+      { state: {}, ctx: { checkConfirmed: true } },
+      { state: { presentation: "Peeking", recognizer: "Bending" } },
+      {
+        state: {
+          presentation: "Peeking",
+          recognizer: "Bending",
+          bendAxis: "up",
+        },
+      },
+      { state: { recognizer: "FoldDragging" } },
+      { state: { recognizer: "FoldDragging", armed: true } },
+      { state: {} },
+      { state: { presentation: "Revealed" }, discovered: ["bend"] },
+      { state: {}, discovered: ["bend", "conceal"] },
+      { state: {}, discovered: ["bend", "conceal", "check"] },
+    ];
+
+    const rendered = cases.map(({ state, ctx, discovered }) => {
+      const hint = selectHint(
+        {
+          presentation: "FaceDown",
+          recognizer: "Idle",
+          armed: false,
+          locked: false,
+          bendAxis: "left",
+          ...state,
+        },
+        new Set(discovered ?? []),
+        {
+          checkLegal: true,
+          foldLegal: true,
+          pending: false,
+          locked: false,
+          coarsePointer: true,
+          quiet: true,
+          checkConfirmed: false,
+          ...ctx,
+        },
+      );
+      if (hint === null) throw new Error("the selector chose no hint");
+      const html = renderToStaticMarkup(<HintBlock hint={hint} />);
+
+      expect(html).toContain(`data-hint="${hint.id}"`);
+      expect(html).toContain(hint.line1);
+      if (hint.line2 !== null) expect(html).toContain(hint.line2);
+      return hint.id;
+    });
+
+    // All nine of them, each rendered by the same block.
+    expect(new Set(rendered).size).toBe(9);
+  });
+
+  it("names the corner the bend affordance is actually drawn in", () => {
+    // "bottom-right" tracks the rendered zone rather than being hard-coded: if
+    // the overlapped layout ever mirrors, the copy follows it.
+    const html = renderToStaticMarkup(
+      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+    );
+    const zone = /<span data-bend-zone="true"[^>]*style="([^"]*)"/.exec(html);
+    const zoneStyle = zone?.[1];
+    if (zoneStyle === undefined) throw new Error("no bend zone rendered");
+    const sides = ["top", "bottom", "left", "right"].filter((side) =>
+      new RegExp(`(^|;)${side}:`).test(zoneStyle),
+    );
+
+    const bendHint = selectHint(
+      {
+        presentation: "FaceDown",
+        recognizer: "Idle",
+        armed: false,
+        locked: false,
+        bendAxis: "left",
+      },
+      new Set(),
+      {
+        checkLegal: true,
+        foldLegal: true,
+        pending: false,
+        locked: false,
+        coarsePointer: true,
+        quiet: true,
+        checkConfirmed: false,
+      },
+    );
+
+    expect(sides).toHaveLength(2);
+    for (const side of sides) expect(bendHint?.line1).toContain(side);
   });
 });
