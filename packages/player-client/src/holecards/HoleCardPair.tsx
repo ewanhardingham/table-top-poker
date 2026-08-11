@@ -236,6 +236,12 @@ export function HoleCardPair(props: HoleCardPairProps) {
             WebkitTouchCallout: "none",
             WebkitUserSelect: "none",
             touchAction: "none",
+            // Android Chrome paints a blue box over any tappable element while
+            // it is pressed, and a long-press holds that state long enough to
+            // read as a highlight sitting on the cards (#195). The cards do
+            // their own press feedback (the bend, the flip); this OS wash on top
+            // is noise, so it is turned off.
+            WebkitTapHighlightColor: "transparent",
           }}
         >
           <motion.span
