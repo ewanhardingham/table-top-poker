@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseLogOptions, parseSeats } from "./cli-args.js";
+import { parseRecordingOptions, parseSeats } from "./cli-args.js";
 
 describe("parseSeats", () => {
   it("defaults to seats 0, 1, 2", () => {
@@ -17,42 +17,52 @@ describe("parseSeats", () => {
   });
 });
 
-describe("parseLogOptions", () => {
-  it("returns null when --log-dir is absent", () => {
-    expect(parseLogOptions(["--seats", "0,1"])).toBeNull();
+describe("parseRecordingOptions", () => {
+  it("returns null when --recordings-dir is absent — recording stays optional in the harness", () => {
+    expect(parseRecordingOptions(["--seats", "0,1"])).toBeNull();
   });
 
-  it("requires a value after --log-dir", () => {
-    expect(() => parseLogOptions(["--log-dir"])).toThrow(/--log-dir requires/);
+  it("requires a value after --recordings-dir", () => {
+    expect(() => parseRecordingOptions(["--recordings-dir"])).toThrow(
+      /--recordings-dir requires/,
+    );
   });
 
-  it("defaults --game-id to a sortable timestamp when omitted", () => {
-    const options = parseLogOptions(["--log-dir", "/tmp/logs"]);
-    expect(options?.logDir).toBe("/tmp/logs");
-    expect(options?.gameId).toMatch(
+  it("defaults --room-id to a sortable timestamp when omitted", () => {
+    const options = parseRecordingOptions(["--recordings-dir", "/tmp/rec"]);
+    expect(options?.recordingsDir).toBe("/tmp/rec");
+    expect(options?.roomId).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z$/,
     );
   });
 
-  it("uses an explicit --game-id when given", () => {
-    const options = parseLogOptions([
-      "--log-dir",
-      "/tmp/logs",
-      "--game-id",
+  it("uses an explicit --room-id when given", () => {
+    const options = parseRecordingOptions([
+      "--recordings-dir",
+      "/tmp/rec",
+      "--room-id",
       "friday-game",
     ]);
-    expect(options).toEqual({ logDir: "/tmp/logs", gameId: "friday-game" });
+    expect(options).toEqual({
+      recordingsDir: "/tmp/rec",
+      roomId: "friday-game",
+    });
   });
 
-  it("rejects a --game-id that isn't a safe path segment", () => {
+  it("rejects a --room-id that isn't a safe path segment", () => {
     expect(() =>
-      parseLogOptions(["--log-dir", "/tmp/logs", "--game-id", "../escape"]),
-    ).toThrow(/game-id/);
+      parseRecordingOptions([
+        "--recordings-dir",
+        "/tmp/rec",
+        "--room-id",
+        "../escape",
+      ]),
+    ).toThrow(/room id/);
   });
 
-  it("requires a value after --game-id", () => {
+  it("requires a value after --room-id", () => {
     expect(() =>
-      parseLogOptions(["--log-dir", "/tmp/logs", "--game-id"]),
-    ).toThrow(/--game-id requires/);
+      parseRecordingOptions(["--recordings-dir", "/tmp/rec", "--room-id"]),
+    ).toThrow(/--room-id requires/);
   });
 });

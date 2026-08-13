@@ -42,6 +42,12 @@ export interface Seat {
 }
 
 export interface Room {
+  /**
+   * The Room's durable opaque identity, naming its Room recording directory
+   * on disk. Distinct from `code`, which is a live human-typed handle that is
+   * re-rolled on collision and means nothing once the Room ends.
+   */
+  readonly id: string;
   readonly code: string;
   readonly seats: Seat[];
   engine: EngineState | null;
@@ -50,6 +56,21 @@ export interface Room {
   pendingShotClock: ShotClockSettings | null;
   soundSettings: SoundSettings;
   shotClockSettings: ShotClockSettings;
+}
+
+/**
+ * A Room that has its durable identity and a reserved join code but is not
+ * yet joinable. Room creation is transactional with recording creation: the
+ * caller stages, writes `room.json`, and only then commits — so a Room whose
+ * recording could not be created never enters the live store and never hands
+ * out a code or a QR.
+ */
+export interface StagedRoom {
+  readonly room: Room;
+  /** Publishes the Room into the live store and returns it. */
+  commit(): Room;
+  /** Abandons the Room and releases its reserved code. */
+  discard(): void;
 }
 
 export type ClaimSeatError =
@@ -293,28 +314,45 @@ function resolveButtonFor(
 
 export class RoomStore {
   readonly #rooms = new Map<string, Room>();
+  /** Codes reserved by staged-but-uncommitted rooms, so two never collide. */
+  readonly #stagedCodes = new Set<string>();
   readonly #random: () => number;
   readonly #generateToken: () => string;
   readonly #generateSeed: () => string;
+  readonly #generateRoomId: () => string;
 
   constructor(
     random: () => number = Math.random,
     generateToken: () => string = randomUUID,
     generateSeed: () => string = randomUUID,
+    generateRoomId: () => string = randomUUID,
   ) {
     this.#random = random;
     this.#generateToken = generateToken;
     this.#generateSeed = generateSeed;
+    this.#generateRoomId = generateRoomId;
   }
 
-  create(seatCount: number = DEFAULT_SEAT_COUNT): Room {
+  /**
+   * Stages a room sized to the creator's chosen seat count (issue #74),
+   * without publishing it. The range is a domain rule, not a UI one, so an
+   * out-of-range count is a caller bug and throws — the HTTP edge parses the
+   * untrusted body with `CreateRoomRequestSchema` and answers 400 before ever
+   * reaching here.
+   */
+  stage(seatCount: number = DEFAULT_SEAT_COUNT): StagedRoom {
     if (!SeatCountSchema.safeParse(seatCount).success) {
       throw new RangeError(
         `seat count must be an integer in ${String(MIN_SEAT_COUNT)}-${String(MAX_SEAT_COUNT)}, got ${String(seatCount)}`,
       );
     }
-    const code = generateRoomCode((c) => this.#rooms.has(c), this.#random);
+    const code = generateRoomCode(
+      (c) => this.#rooms.has(c) || this.#stagedCodes.has(c),
+      this.#random,
+    );
+    this.#stagedCodes.add(code);
     const room: Room = {
+      id: this.#generateRoomId(),
       code,
       seats: makeSeats(seatCount),
       engine: null,
@@ -324,8 +362,26 @@ export class RoomStore {
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
     };
-    this.#rooms.set(code, room);
-    return room;
+    return {
+      room,
+      commit: () => {
+        this.#stagedCodes.delete(code);
+        this.#rooms.set(code, room);
+        return room;
+      },
+      discard: () => {
+        this.#stagedCodes.delete(code);
+      },
+    };
+  }
+
+  /**
+   * Stages and immediately publishes a room. The uninterrupted path is only
+   * safe where nothing else has to succeed first; the HTTP create route uses
+   * {@link stage} so the Room's recording is written before it is joinable.
+   */
+  create(seatCount: number = DEFAULT_SEAT_COUNT): Room {
+    return this.stage(seatCount).commit();
   }
 
   get(code: string): Room | undefined {

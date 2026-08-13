@@ -14,6 +14,6 @@
   },
   "dependencies": {
     "@table-top-poker/engine": "*",
-    "@table-top-poker/persistence": "*"
+    "@table-top-poker/recording": "*"
   }
 }
