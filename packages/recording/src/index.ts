@@ -1,10 +1,7 @@
 export { nodeFileSystem } from "./file-system.js";
 export type { RecordingFileSystem } from "./file-system.js";
-export { createMemoryFileSystem } from "./memory-file-system.js";
-export type {
-  FailableOperation,
-  MemoryFileSystem,
-} from "./memory-file-system.js";
+export { handStartContextFor } from "./hand-start-context.js";
+export type { HandPositions } from "./hand-start-context.js";
 export {
   assertValidRoomId,
   handRecordingPaths,

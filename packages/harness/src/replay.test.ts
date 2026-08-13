@@ -6,10 +6,13 @@ import {
 } from "@table-top-poker/engine";
 import type { HandEvent, Rejection } from "@table-top-poker/engine";
 import {
-  createMemoryFileSystem,
   DirectoryRecordings,
   handRecordingPaths,
 } from "@table-top-poker/recording";
+import {
+  createMemoryFileSystem,
+  parseRecordedLines,
+} from "@table-top-poker/recording/testing";
 import { runHarness } from "./harness.js";
 
 function collectingWritable(): { writable: Writable; lines: () => string[] } {
@@ -21,13 +24,6 @@ function collectingWritable(): { writable: Writable; lines: () => string[] } {
     },
   });
   return { writable, lines: () => chunks.join("").split("\n").slice(0, -1) };
-}
-
-function parseJsonLines(contents: string): unknown[] {
-  return contents
-    .trim()
-    .split("\n")
-    .map((line) => JSON.parse(line) as unknown);
 }
 
 function withoutVersion<T extends { v: number }>(record: T): Omit<T, "v"> {
@@ -81,8 +77,8 @@ describe("replay guarantee", () => {
       .lines()
       .map((line) => JSON.parse(line) as HandEvent | Rejection);
 
-    const persisted = parseJsonLines(
-      fileSystem.read(hand1.eventsPath) ?? "",
+    const persisted = parseRecordedLines(
+      fileSystem.read(hand1.eventsPath),
     ) as ((HandEvent | Rejection) & { v: number })[];
 
     expect(persisted.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(true);

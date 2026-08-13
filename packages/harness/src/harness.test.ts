@@ -5,14 +5,15 @@ import {
   ENGINE_LOG_VERSION,
 } from "@table-top-poker/engine";
 import {
-  createMemoryFileSystem,
   DirectoryRecordings,
   handRecordingPaths,
 } from "@table-top-poker/recording";
-import type {
-  MemoryFileSystem,
-  RoomRecording,
-} from "@table-top-poker/recording";
+import type { RoomRecording } from "@table-top-poker/recording";
+import {
+  createMemoryFileSystem,
+  parseRecordedLines,
+} from "@table-top-poker/recording/testing";
+import type { MemoryFileSystem } from "@table-top-poker/recording/testing";
 import { runHarness } from "./harness.js";
 
 function collectingWritable(): { writable: Writable; lines: () => string[] } {
@@ -184,10 +185,10 @@ describe("runHarness", () => {
       fileSystem: MemoryFileSystem,
       filePath: string,
     ): { type: string; v: number; reason?: string }[] {
-      return (fileSystem.read(filePath) ?? "")
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as { type: string; v: number });
+      return parseRecordedLines(fileSystem.read(filePath)) as {
+        type: string;
+        v: number;
+      }[];
     }
 
     it("records every command and event without changing stdout", async () => {

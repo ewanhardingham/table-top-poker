@@ -5,8 +5,6 @@ import type { RecordingFileSystem } from "./file-system.js";
 export type FailableOperation = keyof RecordingFileSystem;
 
 export interface MemoryFileSystem extends RecordingFileSystem {
-  /** File contents by absolute path — the whole disk, for assertions. */
-  readonly files: ReadonlyMap<string, string>;
   /** Contents of one file, or undefined if it does not exist. */
   read(filePath: string): string | undefined;
   /** Every file path currently on the fake disk, sorted. */
@@ -94,7 +92,6 @@ export function createMemoryFileSystem(): MemoryFileSystem {
   }
 
   return {
-    files,
     read(filePath) {
       return files.get(filePath);
     },
@@ -115,6 +112,9 @@ export function createMemoryFileSystem(): MemoryFileSystem {
       targetedFailures.clear();
     },
 
+    exists(target) {
+      return Promise.resolve(files.has(target) || dirs.has(target));
+    },
     mkdir(dir) {
       return settle(() => {
         checkFailure("mkdir", dir);

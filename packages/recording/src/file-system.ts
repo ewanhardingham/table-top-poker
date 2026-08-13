@@ -1,4 +1,5 @@
 import {
+  access,
   appendFile,
   mkdir,
   rename,
@@ -24,6 +25,8 @@ import {
  * each simple operation.
  */
 export interface RecordingFileSystem {
+  /** Whether a file or directory is already there. */
+  exists(target: string): Promise<boolean>;
   /** Creates `dir` and any missing parents; succeeds if it already exists. */
   mkdir(dir: string): Promise<void>;
   /** Creates or replaces `filePath` wholesale. */
@@ -40,6 +43,14 @@ export interface RecordingFileSystem {
 
 /** The real disk. The only implementation production ever runs against. */
 export const nodeFileSystem: RecordingFileSystem = {
+  async exists(target) {
+    try {
+      await access(target);
+      return true;
+    } catch {
+      return false;
+    }
+  },
   async mkdir(dir) {
     await mkdir(dir, { recursive: true });
   },
