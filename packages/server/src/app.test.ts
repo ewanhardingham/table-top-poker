@@ -1237,8 +1237,11 @@ describe("WebSocket upgrade", () => {
       socket.on("error", reject);
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(messages).toHaveLength(1);
-    expect(messages[0]).toEqual({
+    // A table also gets its (empty) hand listing on connect; this test is
+    // about the room views, so count only those.
+    const roomViews = () => messages.filter((m) => m.type === "room-view");
+    expect(roomViews()).toHaveLength(1);
+    expect(roomViews()[0]).toEqual({
       type: "room-view",
       view: {
         code: room.code,
@@ -1257,9 +1260,8 @@ describe("WebSocket upgrade", () => {
     });
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    expect(messages).toHaveLength(2);
-    expect(messages[1]?.type).toBe("room-view");
-    expect((messages[1] as { view: RoomView }).view.seats[0]).toEqual({
+    expect(roomViews()).toHaveLength(2);
+    expect((roomViews()[1] as { view: RoomView }).view.seats[0]).toEqual({
       id: 0,
       claimed: true,
       displayName: "Avery",
@@ -2862,6 +2864,258 @@ describe("presence and reconnection", () => {
     expect(rooms.get(room.code)).toBeDefined();
     expect(reconnectedTable.messages).not.toContainEqual({
       type: "room-ended",
+    });
+  });
+});
+
+describe("hand summaries over WebSocket", () => {
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms, recordings: testRecordings() });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function connect(query: string): {
+    socket: WebSocket;
+    messages: ServerMessage[];
+  } {
+    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/ws?${query}`);
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    return { socket, messages };
+  }
+
+  async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+  }
+
+  async function settle(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  async function claimAndConnect(
+    code: string,
+    seatId: number,
+  ): Promise<{ socket: WebSocket; messages: ServerMessage[] }> {
+    const claim = rooms.claimSeat(code, seatId, `P${String(seatId)}`);
+    if (!("seat" in claim)) throw new Error("expected a claimed seat");
+    const conn = connect(
+      `room=${code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
+    );
+    await opened(conn.socket);
+    return conn;
+  }
+
+  /** A three-seat room with the table and every seat connected. */
+  async function seatedRoom(): Promise<{
+    code: string;
+    table: { socket: WebSocket; messages: ServerMessage[] };
+    seats: Record<number, { socket: WebSocket; messages: ServerMessage[] }>;
+  }> {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seats = {
+      0: await claimAndConnect(room.code, 0),
+      1: await claimAndConnect(room.code, 1),
+      2: await claimAndConnect(room.code, 2),
+    };
+    await settle();
+    return { code: room.code, table, seats };
+  }
+
+  /** Folds whoever is on the clock until the hand is over. */
+  async function foldToTheEnd(
+    code: string,
+    seats: Record<number, { socket: WebSocket }>,
+  ): Promise<void> {
+    for (let i = 0; i < 8; i++) {
+      if (rooms.get(code)?.engine?.hand?.status === "complete") return;
+      const actor = rooms.currentActor(code);
+      if (actor === undefined) throw new Error("expected a current actor");
+      seats[actor]?.socket.send(JSON.stringify({ type: "fold" }));
+      await settle();
+    }
+    throw new Error("hand did not complete");
+  }
+
+  function summariesIn(messages: ServerMessage[]) {
+    return messages.filter((m) => m.type === "hand-summary");
+  }
+
+  it("pushes one summary to the table the moment a hand completes", async () => {
+    const { code, table, seats } = await seatedRoom();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    expect(summariesIn(table.messages)).toHaveLength(0);
+
+    await foldToTheEnd(code, seats);
+
+    const summaries = summariesIn(table.messages);
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]?.summary).toMatchObject({
+      handOrdinal: 1,
+      bettingShape: { kind: "walk" },
+      streetReached: "preflop",
+      board: [],
+    });
+    // Deal order is button-relative, so assert the field, not its rotation.
+    expect([...(summaries[0]?.summary.seatsDealtIn ?? [])].sort()).toEqual([
+      0, 1, 2,
+    ]);
+    expect(summaries[0]?.summary.survivors).toHaveLength(1);
+    expect(summaries[0]?.summary.outcome.kind).toBe("folded-out");
+    expect(Date.parse(summaries[0]?.summary.startedAt ?? "")).not.toBeNaN();
+  });
+
+  it("never pushes a summary to a player's socket", async () => {
+    const { code, table, seats } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    for (const seat of Object.values(seats)) {
+      expect(summariesIn(seat.messages)).toHaveLength(0);
+      expect(seat.messages.some((m) => m.type === "hand-list")).toBe(false);
+    }
+  });
+
+  it("numbers hands 1-based across the room's life", async () => {
+    const { code, table, seats } = await seatedRoom();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+    table.socket.send(JSON.stringify({ type: "nextHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    expect(
+      summariesIn(table.messages).map((m) => m.summary.handOrdinal),
+    ).toEqual([1, 2]);
+  });
+
+  it("gives a table that connects mid-session the whole accumulated list", async () => {
+    const { code, table, seats } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+    table.socket.send(JSON.stringify({ type: "nextHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    // The kiosk reloads; Phase 1's catch-up snapshot carries no summaries.
+    table.socket.close();
+    await settle();
+    const reloaded = connect(`room=${code}&role=table`);
+    await opened(reloaded.socket);
+    await settle();
+
+    const list = reloaded.messages.find((m) => m.type === "hand-list");
+    expect(list?.summaries.map((s) => s.handOrdinal)).toEqual([1, 2]);
+  });
+
+  it("answers a list-hands request with the accumulated list", async () => {
+    const { code, table, seats } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    table.messages.length = 0;
+    table.socket.send(JSON.stringify({ type: "list-hands" }));
+    await settle();
+
+    const list = table.messages.find((m) => m.type === "hand-list");
+    expect(list?.summaries).toHaveLength(1);
+    expect(table.messages.some((m) => m.type === "command-rejected")).toBe(
+      false,
+    );
+  });
+
+  it("refuses a list-hands request from a player's socket", async () => {
+    const { seats } = await seatedRoom();
+    const seat = seats[0];
+    if (seat === undefined) throw new Error("expected a connected seat");
+    seat.socket.send(JSON.stringify({ type: "list-hands" }));
+    await settle();
+
+    expect(seat.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "not-permitted",
+    });
+    expect(seat.messages.some((m) => m.type === "hand-list")).toBe(false);
+  });
+
+  it("rejects a malformed replay request at the same boundary as a command", async () => {
+    const { table } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 0 }));
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "invalid-command",
+    });
+  });
+
+  it("keeps the hand listing out of RoomView", async () => {
+    const { code, table, seats } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    const view = table.messages.findLast((m) => m.type === "room-view")?.view;
+    expect(JSON.stringify(view)).not.toContain("handOrdinal");
+  });
+
+  it("starts a fresh table's listing empty rather than silent", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "hand-list",
+      summaries: [],
+    });
+  });
+
+  it("discards the listing when the room ends", async () => {
+    const { code, table, seats } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    await app.inject({ method: "POST", url: `/rooms/${code}/end` });
+    await settle();
+
+    const revived = rooms.create();
+    const freshTable = connect(`room=${revived.code}&role=table`);
+    await opened(freshTable.socket);
+    await settle();
+
+    expect(freshTable.messages).toContainEqual({
+      type: "hand-list",
+      summaries: [],
     });
   });
 });
