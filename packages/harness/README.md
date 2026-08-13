@@ -65,40 +65,49 @@ cat commands.jsonl | npx harness > run2.jsonl
 diff run1.jsonl run2.jsonl && echo "identical"
 ```
 
-## Persistence
+## Room recording
 
-Pass `--log-dir` to have the harness write both the command stream (ground
-truth for replay) and the event stream (audit trail) to disk as it plays,
-append-as-you-go — see Phase 1 spec #130 §5:
+Pass `--recordings-dir` to have the harness write a Room recording as it
+plays, append-as-you-go, in exactly the layout the server writes (Phase 2
+spec #129 §3) — so the dev stepper can read what the harness just produced:
 
 ```sh
-cat commands.jsonl | npx harness --log-dir ./logs --game-id friday-game
+cat commands.jsonl | npx harness --recordings-dir ./recordings --room-id friday-game
 ```
 
-This produces, per hand, `./logs/friday-game/hand-0001.commands.jsonl` and
-`./logs/friday-game/hand-0001.events.jsonl`, plus a `game.jsonl` manifest
-recording the seating once. `--game-id` defaults to a sortable UTC
-timestamp if omitted, and must be a safe path segment
-(`[A-Za-z0-9._-]+`).
+This produces `./recordings/friday-game/`, containing an immutable
+`room.json` written before the first command is read, and per hand a
+`hand-0001.context.json` sidecar, `hand-0001.commands.jsonl` and
+`hand-0001.events.jsonl`.
 
-Each logged line is exactly the `Command`/`HandEvent`/`Rejection` JSON the
+A harness run has no live Room, so it synthesises one: `--room-id` is the
+**Room ID**, defaulting to a sortable UTC timestamp and required to be a safe
+path segment (`[A-Za-z0-9._-]+`), and `room.json`'s `code` is `null` — a
+recording that was never joinable through a join code.
+
+Recording stays optional here. The always-on Room invariant binds the server,
+which hosts players who would not otherwise know whether their session is
+being recorded; it does not bind a developer piping commands through a CLI.
+
+Each recorded line is exactly the `Command`/`HandEvent`/`Rejection` JSON the
 harness reads or writes on stdin/stdout, plus one extra field: `v`, the
 schema version tag (`ENGINE_LOG_VERSION` from `@table-top-poker/engine`).
-Old logs stay interpretable against the build they were written by even
+Old recordings stay interpretable against the build they were written by even
 after a later schema change bumps the tag for new ones. Because the extra
-field is additive, a persisted `*.commands.jsonl` file re-pipes through
-the harness exactly like a plain command file — the replay procedure
-above works unmodified on a logged file:
+field is additive, a recorded `*.commands.jsonl` file re-pipes through the
+harness exactly like a plain command file — the replay procedure above works
+unmodified on it:
 
 ```sh
-cat logs/friday-game/hand-0001.commands.jsonl | npx harness --seats 0,1,2
+cat recordings/friday-game/hand-0001.commands.jsonl | npx harness --seats 0,1,2
 ```
 
-Seating isn't recorded in the command stream itself (it's fixed for a
-game's whole life, set by `--seats` at startup) — replaying a logged game
-requires passing the same `--seats` it was originally run with. The
-`game.jsonl` manifest records the seating for a human or later replay
-tooling to read back; the harness CLI itself doesn't consume it.
+Seating isn't recorded in the command stream itself (it's fixed for a run's
+whole life, set by `--seats` at startup) — replaying a recorded run requires
+passing the same `--seats` it was originally run with. Each hand's
+`*.context.json` sidecar records the participating seats and starting button
+for a human or later replay tooling to read back; the harness CLI itself
+doesn't consume it.
 
 ## Failure modes
 

@@ -9,12 +9,65 @@ import {
 import { describe, expect, it } from "vitest";
 import { type Room, RoomStore, toRoomView } from "./rooms.js";
 
+/** A deterministic `Math.random` stand-in, repeating its last value forever. */
+function sequenceOf(values: readonly number[]): () => number {
+  let index = 0;
+  return () => values[index++] ?? values.at(-1) ?? 0;
+}
+
 describe("RoomStore", () => {
   it("creates a room with a fresh code", () => {
     const store = new RoomStore();
     const room = store.create();
     expect(room.code).toHaveLength(4);
     expect(store.get(room.code)).toBe(room);
+  });
+
+  describe("durable identity and staged creation", () => {
+    it("gives every room an opaque id distinct from its join code", () => {
+      const store = new RoomStore();
+      const first = store.create();
+      const second = store.create();
+
+      expect(first.id).not.toBe(first.code);
+      expect(first.id).not.toBe(second.id);
+      expect(first.id.length).toBeGreaterThan(first.code.length);
+    });
+
+    it("leaves a staged room unjoinable until it is committed", () => {
+      const store = new RoomStore();
+      const staged = store.stage(4);
+
+      expect(store.get(staged.room.code)).toBeUndefined();
+      expect(staged.commit()).toBe(staged.room);
+      expect(store.get(staged.room.code)).toBe(staged.room);
+    });
+
+    it("never publishes a discarded room, and frees its code again", () => {
+      const store = new RoomStore();
+      const staged = store.stage(4);
+      staged.discard();
+
+      expect(store.get(staged.room.code)).toBeUndefined();
+      // The reserved code is released, so the generator may reuse it.
+      const replacement = store.create(4);
+      expect(store.get(replacement.code)).toBe(replacement);
+    });
+
+    it("does not hand two staged rooms the same code", () => {
+      // A generator this predictable would collide immediately if staged
+      // codes were not reserved alongside live ones.
+      const store = new RoomStore(
+        // Roll "AAAA" twice — the second stage must reject its own first
+        // roll as taken and re-roll, which it can only do if staged codes are
+        // reserved alongside live ones.
+        sequenceOf([0, 0, 0, 0, 0, 0, 0, 0, 0.5, 0.5, 0.5, 0.5]),
+      );
+      const first = store.stage();
+      const second = store.stage();
+
+      expect(second.room.code).not.toBe(first.room.code);
+    });
   });
 
   it("creates a room with 8 unclaimed seats", () => {
