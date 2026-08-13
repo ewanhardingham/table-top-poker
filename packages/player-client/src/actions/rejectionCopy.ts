@@ -25,5 +25,9 @@ export function rejectionCopy(
       return "Not enough players to start.";
     case "not-permitted":
       return "That's not something you can do.";
+    case "replay-not-supported":
+      // Replay is a table-device surface; a phone never sends the request
+      // this answers, so this exists only to keep the switch exhaustive.
+      return "Hand review isn't available here.";
   }
 }

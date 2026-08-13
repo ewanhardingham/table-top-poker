@@ -222,6 +222,27 @@ stepper shows the prefix with a warning.
 _Avoid_: Calling either corruption — a disagreement between complete records
 is the corrupt case, and it is a hard failure.
 
+**Hand summary**:
+What one completed Hand looks like in a list of them — its ordinal and
+start time, the Button, the Seats dealt in and the Survivors, the public
+Board, the Street reached, the Betting shape and the outcome. Derived once,
+by a pure function over the Hand's Events, so the server and anything
+replaying from disk cannot disagree about it.
+_Avoid_: Calling it a Hand context — that is the document a Hand recording
+opens with, not this projection of a finished Hand.
+
+**Betting shape**:
+How the betting went, as one of five structured descriptors — a walk, a
+preflop raise, checked down, one raise, or a raise war with its raise
+count. It is what makes otherwise identical fold-outs distinguishable in a
+list. Structured, never prose: the wording belongs to whichever client
+renders it.
+
+**Survivor**:
+A Seat that was dealt into a Hand and never folded. One Survivor means the
+Hand folded out; two or more mean it reached Showdown. Distinct from the
+Seats dealt in, which folding never reduces.
+
 ## Hand lifecycle
 
 ```
