@@ -160,7 +160,9 @@ The typed value the engine returns when a Command is not valid —
 `{ type: 'Rejection', reason, command }`. Never thrown, never itself an
 Event, never processed by `apply`. Delivered only to the Device that sent
 the Command, and kept in the Hand recording for audit; it is absent from
-every player-facing shape, including Replay.
+every player-facing shape, including the table-facing Replay position type.
+A Replay of a Hand still carries its Rejections, as the validated developer
+transcript they are.
 _Avoid_: Calling a Rejection an error or an event.
 
 **Room ID**:
@@ -192,9 +194,12 @@ Rejections. Replaying it never requires any other Hand.
 **Replay**:
 Rebuilding a Hand from its Hand recording by re-running its Commands
 through the engine and validating the generated Events against the
-persisted ones. A pure engine capability. Replay obeys live visibility
-exactly: it re-projects `view`, so a muck stays mucked and a folded Seat's
-cards are shown to no one.
+persisted ones. A pure engine capability, taking no audience, redaction or
+`revealEverything` option: it returns complete `EngineState` per position,
+and the visibility split is made by surface. The table surface obeys live
+visibility exactly by re-projecting `view(state, 'table')`, so a muck stays
+mucked and a folded Seat's cards are shown to no one; the local dev stepper
+renders the complete state directly.
 _Avoid_: Treating Replay as a stored playback or a recording of views.
 
 **Replay position**:
@@ -202,6 +207,17 @@ A point within a replayed Hand, addressed as an Event ordinal — position
 *n* is the state after applying *n* Events, and carries that *n*th Event
 alongside it. Position 0 is the starting state with no Event. A Rejection
 occurs *at* a position without advancing it.
+
+**Incomplete replay**:
+A Replay that stops early with everything it did read agreeing — the
+recoverable prefix of a damaged Hand, never a corrupt one. Two causes: a
+single clearly *torn record*, the final JSONL line a `SIGKILL` cut mid-write,
+which the reading adapter discards; and an *orphaned Command*, where the
+Command log runs past the persisted Events because the outcome was never
+recorded. The table hand picker must not offer an incomplete Hand; the dev
+stepper shows the prefix with a warning.
+_Avoid_: Calling either corruption — a disagreement between complete records
+is the corrupt case, and it is a hard failure.
 
 ## Hand lifecycle
 

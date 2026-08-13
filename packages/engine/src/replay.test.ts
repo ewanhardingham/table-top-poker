@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { apply } from "./apply.js";
-import { decide } from "./decide.js";
 import { replayHand } from "./replay.js";
 import type {
   ReplayAuditRecord,
@@ -9,6 +8,7 @@ import type {
   ReplayInput,
   ReplaySources,
 } from "./replay.js";
+import { play } from "./test-utils.js";
 import type { Command, EngineState, HandEvent, Rejection } from "./types.js";
 import { must } from "./util.js";
 import { ENGINE_LOG_VERSION } from "./version.js";
@@ -46,11 +46,13 @@ function record(
   let current = state;
   for (const command of commands) {
     recording.commands.push({ ...command, v: ENGINE_LOG_VERSION });
-    const outcome = decide(current, command);
-    for (const generated of Array.isArray(outcome) ? outcome : [outcome]) {
-      recording.events.push({ ...generated, v: ENGINE_LOG_VERSION });
-      if (generated.type !== "Rejection") current = apply(current, generated);
+    const outcome = play(current, command);
+    const generated =
+      "rejection" in outcome ? [outcome.rejection] : outcome.events;
+    for (const item of generated) {
+      recording.events.push({ ...item, v: ENGINE_LOG_VERSION });
     }
+    current = outcome.state;
   }
   return { recording, state: current };
 }
@@ -441,6 +443,32 @@ describe("replayHand: incomplete, not corrupt", () => {
     expect(outcome.positions.at(-1)?.event).toEqual({
       type: "ActionTaken",
       seatId: 1,
+      action: "fold",
+    });
+  });
+
+  it("is corrupt, not incomplete, when a surviving tail record disagrees", () => {
+    const recording = foldOutHand();
+    // The last operation generated three events and only one was recorded —
+    // and that one contradicts the Command log. Less evidence than there are
+    // Commands is incomplete only while nothing disagrees.
+    const events = recording.events.slice(0, 5);
+    events[4] = {
+      type: "ActionTaken",
+      seatId: 0,
+      action: "fold",
+      v: ENGINE_LOG_VERSION,
+    };
+    const outcome = replayHand(inputFrom(recording, { events }));
+
+    expect(outcome.status).toBe("failed");
+    if (outcome.status !== "failed") return;
+    expect(outcome.failure.kind).toBe("record-mismatch");
+    if (outcome.failure.kind !== "record-mismatch") return;
+    expect(outcome.failure.record).toBe(4);
+    expect(outcome.failure.generated).toEqual({
+      type: "ActionTaken",
+      seatId: 2,
       action: "fold",
     });
   });
