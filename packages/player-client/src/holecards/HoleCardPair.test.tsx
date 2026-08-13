@@ -110,6 +110,9 @@ describe("HoleCardPair", () => {
     expect(html).toContain("touch-action:none");
     expect(html).toContain("-webkit-touch-callout:none");
     expect(html).toContain("user-select:none");
+    // Android Chrome's press wash reads as a highlight on the cards during a
+    // long-press; the surface does its own press feedback, so it is turned off.
+    expect(html).toContain("-webkit-tap-highlight-color:transparent");
   });
 
   it("renders no hint while the pair is settled", () => {
