@@ -6,6 +6,7 @@ import type {
 } from "@table-top-poker/engine";
 import { z } from "zod";
 import type { CommandRejectedMessage, HandUpdateMessage } from "./hand.js";
+import type { HandSummary } from "./summary.js";
 
 /**
  * How many seats a room may be created with (issue #74). Two is the
@@ -219,6 +220,28 @@ export interface RoomEndedMessage {
   readonly type: "room-ended";
 }
 
+/**
+ * The session's hands so far, oldest ordinal first — sent when a table
+ * identity connects, and in answer to a `list-hands` request. Deliberately
+ * its own message and not part of `RoomView`, which changes on a different
+ * cadence (seats, presence) and should not grow on every seat change
+ * (Phase 2 spec #129 §5). Replaces the recipient's list wholesale.
+ */
+export interface HandListMessage {
+  readonly type: "hand-list";
+  readonly summaries: readonly HandSummary[];
+}
+
+/**
+ * One hand's summary, pushed the moment that hand completes. Appends to the
+ * list a `hand-list` established, so a table that connected mid-session
+ * never has to re-request the hands it already holds.
+ */
+export interface HandSummaryMessage {
+  readonly type: "hand-summary";
+  readonly summary: HandSummary;
+}
+
 export type ServerMessage =
   | RoomViewMessage
   | PlayerEvictedMessage
@@ -226,4 +249,6 @@ export type ServerMessage =
   | HandUpdateMessage
   | CommandRejectedMessage
   | ViewSnapshotMessage
-  | RoomEndedMessage;
+  | RoomEndedMessage
+  | HandListMessage
+  | HandSummaryMessage;

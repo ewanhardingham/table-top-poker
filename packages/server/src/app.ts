@@ -7,9 +7,12 @@ import {
   LeaveSeatRequestSchema,
   ClientCommandSchema,
   CreateRoomRequestSchema,
+  ReplayRequestSchema,
+  summarise,
   view,
   type CommandRejectedMessage,
   type HandEvent,
+  type HandSummary,
   isHandComplete,
   type SeatId,
   type SeatCountChangeError,
@@ -245,6 +248,23 @@ export async function buildApp(
   const now = options.now ?? (() => new Date());
   /** One open recording per live room, keyed by join code like every other map here. */
   const roomRecordings = new Map<string, RoomRecording>();
+  /**
+   * Every completed hand of a room, oldest first, held for the Room's life —
+   * no disk read is involved (Phase 2 spec #129 §5). A server restart
+   * destroys the Room outright, so there is no session whose listing would
+   * need rebuilding.
+   */
+  const handSummaries = new Map<string, HandSummary[]>();
+  /**
+   * The hand currently being dealt, accumulating the Events the room has
+   * already broadcast, so `summarise` can be handed the whole hand the
+   * moment it completes. `startedAt` is stamped here rather than inside
+   * `summarise`, which stays free of a clock.
+   */
+  const handsInProgress = new Map<
+    string,
+    { readonly startedAt: string; readonly events: HandEvent[] }
+  >();
   const pingIntervalMs = options.pingIntervalMs ?? 10_000;
   const missedPongLimit = options.missedPongLimit ?? 2;
   const graceWindowMs = options.graceWindowMs ?? 60_000;
@@ -402,8 +422,67 @@ export async function buildApp(
       tableGraceTimers.delete(code);
     }
     actionClock.clear(code);
+    handSummaries.delete(code);
+    handsInProgress.delete(code);
     closeRecording(code);
     rooms.end(code);
+  }
+
+  /**
+   * The hand listing is a table-device surface (Phase 2 spec #129 §6), so
+   * summaries go only to table identities — a player's socket never receives
+   * one, and never asks for one.
+   */
+  function sendToTables(code: string, message: ServerMessage): void {
+    const sockets = roomSockets.get(code);
+    if (!sockets) return;
+    for (const socket of sockets) {
+      if (socketIdentity.get(socket) === "table") send(socket, message);
+    }
+  }
+
+  function sendHandList(socket: WebSocket, code: string): void {
+    send(socket, {
+      type: "hand-list",
+      summaries: handSummaries.get(code) ?? [],
+    });
+  }
+
+  /**
+   * Feeds the Events the room just broadcast into the hand being recorded,
+   * and summarises that hand the moment it completes — the same moment
+   * "Review hands" becomes reachable (§6). Only a hand seen whole, from its
+   * `HandStarted` to its `HandComplete`, is ever summarised, so a listing
+   * can't be built from a partial recording (§4).
+   */
+  function accumulateHandSummary(
+    code: string,
+    steps: readonly DispatchStep[],
+  ): void {
+    for (const step of steps) {
+      if (step.event.type === "HandStarted") {
+        handsInProgress.set(code, {
+          startedAt: new Date().toISOString(),
+          events: [],
+        });
+      }
+      const inProgress = handsInProgress.get(code);
+      if (inProgress === undefined) continue;
+      inProgress.events.push(step.event);
+      if (step.event.type !== "HandComplete") continue;
+
+      handsInProgress.delete(code);
+      const summaries = handSummaries.get(code) ?? [];
+      const summary = summarise(inProgress.events, {
+        // 1-based across the Room's life, matching the recording's
+        // `hand-NNNN` partition.
+        handOrdinal: summaries.length + 1,
+        startedAt: inProgress.startedAt,
+      });
+      summaries.push(summary);
+      handSummaries.set(code, summaries);
+      sendToTables(code, { type: "hand-summary", summary });
+    }
   }
 
   /**
@@ -541,6 +620,9 @@ export async function buildApp(
     for (const step of result.steps) {
       fanOutHandUpdate(code, step);
     }
+    // After the fan-out: the summary describes a hand the room has already
+    // seen, so no table learns of a completed hand before its last Event.
+    accumulateHandSummary(code, result.steps);
     if (options.actionClock === "preserve") {
       if (rooms.currentActor(code) === undefined) actionClock.clear(code);
     } else {
@@ -874,6 +956,11 @@ export async function buildApp(
         const room = rooms.get(code);
         if (room) {
           broadcastRoomView(code);
+          // Incremental pushes alone would leave a reloaded table with an
+          // empty picker for hands it had already seen — Phase 1's catch-up
+          // is one view snapshot, which carries no summaries (§5). Sent even
+          // when empty, so the picker has a definite starting state.
+          if (identity === "table") sendHandList(socket, code);
           // One fresh snapshot on connect, never event replay (§7, §9).
           if (room.engine !== null) {
             if (identity === "table") {
@@ -912,7 +999,24 @@ export async function buildApp(
 
           const parseResult = ClientCommandSchema.safeParse(parsed);
           if (!parseResult.success) {
-            sendRejection(socket, "invalid-command");
+            // A replay request rides this same socket and this same Zod
+            // boundary, in its own schema, even though it never reaches
+            // `decide` (§5).
+            const replay = ReplayRequestSchema.safeParse(parsed);
+            if (!replay.success) {
+              sendRejection(socket, "invalid-command");
+              return;
+            }
+            if (socketIdentity.get(socket) !== "table") {
+              sendRejection(socket, "not-permitted");
+              return;
+            }
+            if (replay.data.type === "list-hands") {
+              sendHandList(socket, code);
+            }
+            // `get-hand` is served by the Replay capability, which lands with
+            // the recording read path; the request shape is validated here so
+            // that ticket adds a response, not a boundary.
             return;
           }
 
