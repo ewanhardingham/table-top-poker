@@ -21,7 +21,7 @@ function readJsonLines(filePath: string): unknown[] {
   return lines.map((line) => JSON.parse(line) as unknown);
 }
 
-describe("HandLog crash durability", () => {
+describe("Room recording crash durability", () => {
   const dirs: string[] = [];
 
   beforeAll(() => {
@@ -40,8 +40,8 @@ describe("HandLog crash durability", () => {
   });
 
   it("SIGKILL mid-hand leaves a partial but line-by-line-parseable log, with no completed write lost", async () => {
-    const logDir = mkdtempSync(path.join(tmpdir(), "durability-"));
-    dirs.push(logDir);
+    const recordingsDir = mkdtempSync(path.join(tmpdir(), "durability-"));
+    dirs.push(recordingsDir);
 
     const child = spawn(
       process.execPath,
@@ -49,9 +49,9 @@ describe("HandLog crash durability", () => {
         cliPath,
         "--seats",
         "0,1,2",
-        "--log-dir",
-        logDir,
-        "--game-id",
+        "--recordings-dir",
+        recordingsDir,
+        "--room-id",
         "crash-test",
       ],
       { stdio: ["pipe", "pipe", "pipe"] },
@@ -63,8 +63,8 @@ describe("HandLog crash durability", () => {
     });
 
     // Send commands one at a time, waiting for at least one new stdout line
-    // after each — proof the harness (and therefore the logger, which
-    // writes synchronously before `decide` runs) has processed it.
+    // after each — proof the harness (and therefore the recording, whose
+    // append is awaited before the events are emitted) has processed it.
     for (const command of commands) {
       const before = stdout.length;
       child.stdin.write(JSON.stringify(command) + "\n");
@@ -87,36 +87,38 @@ describe("HandLog crash durability", () => {
     child.kill("SIGKILL");
     await exited;
 
-    const commandsPath = path.join(
-      logDir,
-      "crash-test",
-      "hand-0001.commands.jsonl",
-    );
-    const eventsPath = path.join(
-      logDir,
-      "crash-test",
-      "hand-0001.events.jsonl",
-    );
+    const roomDir = path.join(recordingsDir, "crash-test");
+    const commandsPath = path.join(roomDir, "hand-0001.commands.jsonl");
+    const eventsPath = path.join(roomDir, "hand-0001.events.jsonl");
+
+    // room.json is written before the run reads a single command, so even a
+    // Room killed mid-hand is identifiable on disk.
+    expect(
+      JSON.parse(readFileSync(path.join(roomDir, "room.json"), "utf8")) as {
+        roomId: string;
+        code: string | null;
+      },
+    ).toMatchObject({ roomId: "crash-test", code: null });
 
     // Every line that made it to disk must be a complete, parseable record —
     // no torn write from the kill landing mid-append.
-    const loggedCommands = readJsonLines(commandsPath) as {
+    const recordedCommands = readJsonLines(commandsPath) as {
       v: number;
       type: string;
     }[];
-    const loggedEvents = readJsonLines(eventsPath) as {
+    const recordedEvents = readJsonLines(eventsPath) as {
       v: number;
       type: string;
     }[];
 
-    expect(loggedCommands.length).toBeGreaterThan(0);
-    expect(loggedEvents.length).toBeGreaterThan(0);
+    expect(recordedCommands.length).toBeGreaterThan(0);
+    expect(recordedEvents.length).toBeGreaterThan(0);
 
-    // The logged commands are a prefix of what was actually sent — nothing
+    // The recorded commands are a prefix of what was actually sent — nothing
     // sent-and-acknowledged is missing, and nothing beyond what was sent
     // could have leaked in.
-    expect(loggedCommands.map((r) => r.type)).toEqual(
-      commands.slice(0, loggedCommands.length).map((c) => c.type),
+    expect(recordedCommands.map((r) => r.type)).toEqual(
+      commands.slice(0, recordedCommands.length).map((c) => c.type),
     );
   }, 20_000);
 });

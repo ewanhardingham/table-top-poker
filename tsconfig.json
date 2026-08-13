@@ -2,7 +2,7 @@
   "files": [],
   "references": [
     { "path": "packages/engine" },
-    { "path": "packages/persistence" },
+    { "path": "packages/recording" },
     { "path": "packages/harness" },
     { "path": "packages/protocol" },
     { "path": "packages/server" },

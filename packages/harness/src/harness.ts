@@ -7,20 +7,26 @@ import type {
   HandEvent,
   Rejection,
 } from "@table-top-poker/engine";
-import type { HandLog } from "./persistence.js";
+import type {
+  HandStartContext,
+  RoomRecording,
+} from "@table-top-poker/recording";
 
 export interface RunHarnessOptions {
   readonly state: EngineState;
   readonly input: Readable;
   readonly output: Writable;
-  /** Optional append-as-you-go persistence — see Phase 1 spec #130 §5. */
-  readonly log?: HandLog;
+  /** Optional Room recording — see Phase 2 spec #129 §3, "The harness writes the same layout". */
+  readonly recording?: RoomRecording;
+  /** Overridable for tests; the recording's only clock. */
+  readonly now?: () => Date;
 }
 
-// A logged command line carries an extra `v` field (see persistence.ts's
-// `LoggedCommand`) but is otherwise a bare `Command` — decide() only reads
-// the fields it knows about, so the extra field is silently ignored and a
-// persisted command log re-pipes through the harness unmodified.
+// A recorded command line carries an extra `v` field (see the recording
+// package's `RecordedCommand`) but is otherwise a bare `Command` — decide()
+// only reads the fields it knows about, so the extra field is silently
+// ignored and a recorded command stream re-pipes through the harness
+// unmodified.
 function parseCommand(line: string): Command {
   try {
     return JSON.parse(line) as Command;
@@ -42,6 +48,7 @@ function parseCommand(line: string): Command {
  */
 export async function runHarness(options: RunHarnessOptions): Promise<void> {
   let state = options.state;
+  const now = options.now ?? (() => new Date());
   const lines = createInterface({
     input: options.input,
     crlfDelay: Infinity,
@@ -51,7 +58,6 @@ export async function runHarness(options: RunHarnessOptions): Promise<void> {
     if (line.trim() === "") continue;
 
     const command = parseCommand(line);
-    options.log?.logCommand(command);
     // decide()'s Command union is exhaustive only at compile time; this
     // input is untrusted JSON, so an unrecognized `type` falls off the
     // engine's switch at runtime and returns undefined, not a type error.
@@ -62,14 +68,29 @@ export async function runHarness(options: RunHarnessOptions): Promise<void> {
     }
 
     if (!Array.isArray(result)) {
-      options.log?.logEvent(result);
+      await options.recording?.append({ command, outcome: result });
       options.output.write(JSON.stringify(result) + "\n");
       continue;
     }
 
+    // The whole operation is recorded as one unit, so the Hand context has to
+    // be resolved before any of it is written — which means folding the
+    // events into state first, then writing, then emitting.
+    const opensHand = result.some((event) => event.type === "HandStarted");
+    const startedAt = opensHand ? now().toISOString() : undefined;
     for (const event of result) {
       state = apply(state, event);
-      options.log?.logEvent(event);
+    }
+    const context: HandStartContext | undefined =
+      startedAt === undefined
+        ? undefined
+        : { startedAt, seats: state.seats, button: state.button };
+    await options.recording?.append({
+      ...(context === undefined ? {} : { context }),
+      command,
+      outcome: result,
+    });
+    for (const event of result) {
       options.output.write(JSON.stringify(event) + "\n");
     }
   }

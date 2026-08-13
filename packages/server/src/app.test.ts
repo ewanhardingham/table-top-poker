@@ -1,5 +1,6 @@
 import {
   DEFAULT_SEAT_COUNT,
+  ENGINE_LOG_VERSION,
   DEFAULT_SOUND_SETTINGS,
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
@@ -7,20 +8,29 @@ import {
   type ServerMessage,
 } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import {
+  createMemoryFileSystem,
+  DirectoryRecordings,
+} from "@table-top-poker/recording";
+import type { MemoryFileSystem } from "@table-top-poker/recording";
 import { buildApp } from "./app.js";
 import { RoomStore, toRoomView } from "./rooms.js";
+
+const RECORDINGS_ROOT = "/recordings";
+
+/**
+ * Recording is a Room invariant, so there is no "off" to pass here. Every app
+ * under test records exactly as production does; the filesystem underneath is
+ * the in-memory fake, so nothing touches a disk and a test that cares can read
+ * back what was written.
+ */
+function testRecordings(): DirectoryRecordings {
+  return new DirectoryRecordings(RECORDINGS_ROOT, createMemoryFileSystem());
+}
 
 const publicTableDir = fileURLToPath(
   new URL("../public/table", import.meta.url),
@@ -68,7 +78,7 @@ describe("rooms HTTP routes", () => {
   let app: FastifyInstance;
 
   beforeEach(async () => {
-    app = await buildApp();
+    app = await buildApp({ recordings: testRecordings() });
   });
 
   afterEach(async () => {
@@ -220,7 +230,7 @@ describe("POST /rooms/:code/sound", () => {
   let app: FastifyInstance;
 
   beforeEach(async () => {
-    app = await buildApp();
+    app = await buildApp({ recordings: testRecordings() });
   });
 
   afterEach(async () => {
@@ -294,13 +304,13 @@ describe("GET /join/:code", () => {
   });
 
   it("404s for an unknown room code", async () => {
-    app = await buildApp();
+    app = await buildApp({ recordings: testRecordings() });
     const response = await app.inject({ method: "GET", url: "/join/ZZZZ" });
     expect(response.statusCode).toBe(404);
   });
 
   it("serves the same-origin placeholder when no player origin is configured", async () => {
-    app = await buildApp();
+    app = await buildApp({ recordings: testRecordings() });
     const created = await app.inject({
       method: "POST",
       url: "/rooms",
@@ -316,7 +326,7 @@ describe("GET /join/:code", () => {
 
   it("redirects to PLAYER_CLIENT_ORIGIN when configured", async () => {
     process.env.PLAYER_CLIENT_ORIGIN = "http://192.168.1.50:5174";
-    app = await buildApp();
+    app = await buildApp({ recordings: testRecordings() });
     const created = await app.inject({
       method: "POST",
       url: "/rooms",
@@ -335,7 +345,7 @@ describe("GET /join/:code", () => {
   it("serves a release build staged at public/player over the placeholder", async () => {
     stageBuiltIndex(publicPlayerDir, "real player client");
     try {
-      app = await buildApp();
+      app = await buildApp({ recordings: testRecordings() });
       const created = await app.inject({
         method: "POST",
         url: "/rooms",
@@ -364,7 +374,7 @@ describe("GET /", () => {
   });
 
   it("serves the same-origin placeholder when no table build is staged", async () => {
-    app = await buildApp();
+    app = await buildApp({ recordings: testRecordings() });
     const response = await app.inject({ method: "GET", url: "/" });
     expect(response.statusCode).toBe(200);
     expect(response.headers["content-type"]).toMatch(/^text\/html/);
@@ -373,7 +383,7 @@ describe("GET /", () => {
   it("serves a release build staged at public/table over the placeholder", async () => {
     stageBuiltIndex(publicTableDir, "real table client");
     try {
-      app = await buildApp();
+      app = await buildApp({ recordings: testRecordings() });
       const response = await app.inject({ method: "GET", url: "/" });
       expect(response.statusCode).toBe(200);
       expect(response.body).toContain("real table client");
@@ -389,7 +399,7 @@ describe("seat claim/evict routes", () => {
 
   beforeEach(async () => {
     rooms = new RoomStore();
-    app = await buildApp({ rooms });
+    app = await buildApp({ rooms, recordings: testRecordings() });
   });
 
   afterEach(async () => {
@@ -618,7 +628,7 @@ describe("seat-count settings route", () => {
 
   beforeEach(async () => {
     rooms = new RoomStore();
-    app = await buildApp({ rooms });
+    app = await buildApp({ rooms, recordings: testRecordings() });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
     if (address === null || typeof address === "string") {
@@ -754,7 +764,7 @@ describe("seat-count movement over WebSocket", () => {
 
   beforeEach(async () => {
     rooms = new RoomStore();
-    app = await buildApp({ rooms });
+    app = await buildApp({ rooms, recordings: testRecordings() });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
     if (address === null || typeof address === "string") {
@@ -896,7 +906,7 @@ describe("WebSocket upgrade", () => {
 
   beforeEach(async () => {
     rooms = new RoomStore();
-    app = await buildApp({ rooms });
+    app = await buildApp({ rooms, recordings: testRecordings() });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
     if (address === null || typeof address === "string") {
@@ -1085,7 +1095,7 @@ describe("hand command dispatch over WebSocket", () => {
 
   beforeEach(async () => {
     rooms = new RoomStore();
-    app = await buildApp({ rooms });
+    app = await buildApp({ rooms, recordings: testRecordings() });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
     if (address === null || typeof address === "string") {
@@ -1639,31 +1649,117 @@ describe("hand command dispatch over WebSocket", () => {
   });
 });
 
-describe("hand persistence", () => {
-  it("writes a completed hand's commands and events as replayable JSONL", async () => {
-    const handLogDir = mkdtempSync(path.join(tmpdir(), "server-hands-"));
+describe("room recording", () => {
+  const RECORDING_ROOM_SEATS = 2;
+
+  interface RecordingApp {
+    readonly app: FastifyInstance;
+    readonly rooms: RoomStore;
+    readonly fileSystem: MemoryFileSystem;
+    readonly port: number;
+  }
+
+  async function startRecordingApp(): Promise<RecordingApp> {
+    const fileSystem = createMemoryFileSystem();
     const rooms = new RoomStore();
-    const app = await buildApp({ rooms, handLogDir });
+    const app = await buildApp({
+      rooms,
+      recordings: new DirectoryRecordings(RECORDINGS_ROOT, fileSystem),
+    });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
     if (address === null || typeof address === "string") {
       throw new Error("expected a bound TCP address");
     }
+    return { app, rooms, fileSystem, port: address.port };
+  }
 
-    const room = rooms.create(2);
+  async function createRoom(app: FastifyInstance): Promise<string> {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: RECORDING_ROOM_SEATS },
+    });
+    return response.json<RoomCreatedBody>().code;
+  }
+
+  function readJsonLines(
+    fileSystem: MemoryFileSystem,
+    filePath: string,
+  ): unknown[] {
+    const contents = fileSystem.read(filePath);
+    if (contents === undefined) throw new Error(`no such file ${filePath}`);
+    return contents
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as unknown);
+  }
+
+  it("writes room.json before the join code is returned, keyed by the durable room id", async () => {
+    const { app, rooms, fileSystem } = await startRecordingApp();
+    try {
+      const code = await createRoom(app);
+      const room = rooms.get(code);
+      if (!room) throw new Error("expected the created room to be live");
+
+      expect(room.id).not.toBe(room.code);
+      const manifest = readJsonLines(
+        fileSystem,
+        `${RECORDINGS_ROOT}/${room.id}/room.json`,
+      )[0];
+      expect(manifest).toEqual({
+        layoutVersion: 1,
+        roomId: room.id,
+        code: room.code,
+        createdAt: expect.any(String) as unknown,
+      });
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("creates no joinable room when the recording cannot be written", async () => {
+    const fileSystem = createMemoryFileSystem();
+    const rooms = new RoomStore();
+    const app = await buildApp({
+      rooms,
+      recordings: new DirectoryRecordings(RECORDINGS_ROOT, fileSystem),
+    });
+    fileSystem.failAlways("writeFile");
+    try {
+      const response = await app.inject({
+        method: "POST",
+        url: "/rooms",
+        payload: { seatCount: RECORDING_ROOM_SEATS },
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: "recording-unavailable" });
+      expect(fileSystem.paths()).toEqual([]);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("writes a completed hand's context, commands and events as replayable JSONL", async () => {
+    const { app, rooms, fileSystem, port } = await startRecordingApp();
+    const code = await createRoom(app);
+    const room = rooms.get(code);
+    if (!room) throw new Error("expected the created room to be live");
+
     const table = new WebSocket(
-      `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&role=table`,
+      `ws://127.0.0.1:${String(port)}/ws?room=${code}&role=table`,
     );
-    const seat0Claim = rooms.claimSeat(room.code, 0, "P0");
-    const seat1Claim = rooms.claimSeat(room.code, 1, "P1");
+    const seat0Claim = rooms.claimSeat(code, 0, "P0");
+    const seat1Claim = rooms.claimSeat(code, 1, "P1");
     if (!("seat" in seat0Claim) || !("seat" in seat1Claim)) {
       throw new Error("expected both seats to be claimed");
     }
     const seat1 = new WebSocket(
-      `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&seat=1&token=${seat1Claim.seat.token ?? ""}`,
+      `ws://127.0.0.1:${String(port)}/ws?room=${code}&seat=1&token=${seat1Claim.seat.token ?? ""}`,
     );
     const seat0 = new WebSocket(
-      `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&seat=0&token=${seat0Claim.seat.token ?? ""}`,
+      `ws://127.0.0.1:${String(port)}/ws?room=${code}&seat=0&token=${seat0Claim.seat.token ?? ""}`,
     );
     const tableMessages: ServerMessage[] = [];
     const seat1Messages: ServerMessage[] = [];
@@ -1702,6 +1798,25 @@ describe("hand persistence", () => {
       throw new Error("timed out waiting for command rejection");
     }
 
+    /** Appends are queued, so the last one lands just after its broadcast. */
+    async function waitForRecordedLines(
+      filePath: string,
+      count: number,
+    ): Promise<void> {
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (
+          (fileSystem.read(filePath)?.trimEnd().split("\n").length ?? 0) >=
+          count
+        ) {
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error(
+        `timed out waiting for ${String(count)} lines in ${filePath}`,
+      );
+    }
+
     try {
       await Promise.all(
         [table, seat0, seat1].map(
@@ -1722,21 +1837,33 @@ describe("hand persistence", () => {
       seat0.send(JSON.stringify({ type: "fold" }));
       await waitForEvent("HandComplete");
 
-      const gameDir = path.join(handLogDir, room.code);
-      const commandsPath = path.join(gameDir, "hand-0001.commands.jsonl");
-      const eventsPath = path.join(gameDir, "hand-0001.events.jsonl");
-      const readJsonLines = (filePath: string): unknown[] =>
-        readFileSync(filePath, "utf8")
-          .trim()
-          .split("\n")
-          .map((line) => JSON.parse(line) as unknown);
-      const commands = readJsonLines(commandsPath) as {
+      const roomDir = `${RECORDINGS_ROOT}/${room.id}`;
+      const commandsPath = `${roomDir}/hand-0001.commands.jsonl`;
+      const eventsPath = `${roomDir}/hand-0001.events.jsonl`;
+      await waitForRecordedLines(commandsPath, 3);
+
+      const context = readJsonLines(
+        fileSystem,
+        `${roomDir}/hand-0001.context.json`,
+      )[0] as Record<string, unknown>;
+      expect(context).toEqual({
+        v: ENGINE_LOG_VERSION,
+        roomId: room.id,
+        handOrdinal: 1,
+        startedAt: expect.any(String) as unknown,
+        seats: [0, 1],
+        button: 0,
+      });
+      // No cards, no state snapshot — the sidecar is a bootstrap, not a save.
+      expect(Object.keys(context)).not.toContain("hand");
+
+      const commands = readJsonLines(fileSystem, commandsPath) as {
         type: string;
         seatId: number;
         seed?: string;
         v: number;
       }[];
-      const events = readJsonLines(eventsPath) as {
+      const events = readJsonLines(fileSystem, eventsPath) as {
         type: string;
         seed?: string;
         v: number;
@@ -1747,21 +1874,21 @@ describe("hand persistence", () => {
         "fold",
         "fold",
       ]);
-      expect(commands[0]?.type).toBe("startHand");
       expect(commands[0]?.seatId).toBe(0);
       expect(typeof commands[0]?.seed).toBe("string");
-      expect(Number.isInteger(commands[0]?.v)).toBe(true);
       expect(events.at(-1)?.type).toBe("HandComplete");
-      expect(Number.isInteger(events.at(-1)?.v)).toBe(true);
       expect(events.some((event) => event.type === "Rejection")).toBe(true);
       expect(events[0]?.seed).toBe(commands[0]?.seed);
-      expect(events.every((event) => Number.isInteger(event.v))).toBe(true);
+      // ENGINE_LOG_VERSION, unchanged by Phase 2 — see spec #129 §3.
+      expect(commands.every((c) => c.v === ENGINE_LOG_VERSION)).toBe(true);
+      expect(events.every((event) => event.v === ENGINE_LOG_VERSION)).toBe(
+        true,
+      );
     } finally {
       table.close();
       seat0.close();
       seat1.close();
       await app.close();
-      rmSync(handLogDir, { recursive: true, force: true });
     }
   });
 });
@@ -1774,7 +1901,11 @@ describe("action clock", () => {
 
   beforeEach(async () => {
     rooms = new RoomStore();
-    app = await buildApp({ rooms, actionClockMs: ACTION_CLOCK_MS });
+    app = await buildApp({
+      rooms,
+      recordings: testRecordings(),
+      actionClockMs: ACTION_CLOCK_MS,
+    });
     await app.listen({ port: 0, host: "127.0.0.1" });
     const address = app.server.address();
     if (address === null || typeof address === "string") {
@@ -1996,6 +2127,7 @@ describe("presence and reconnection", () => {
     rooms = new RoomStore();
     app = await buildApp({
       rooms,
+      recordings: testRecordings(),
       pingIntervalMs: 15,
       missedPongLimit: 2,
       graceWindowMs: 60,

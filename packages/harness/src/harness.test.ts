@@ -1,14 +1,19 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { Readable, Writable } from "node:stream";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   createInitialState,
   ENGINE_LOG_VERSION,
 } from "@table-top-poker/engine";
+import {
+  createMemoryFileSystem,
+  DirectoryRecordings,
+  handRecordingPaths,
+} from "@table-top-poker/recording";
+import type {
+  MemoryFileSystem,
+  RoomRecording,
+} from "@table-top-poker/recording";
 import { runHarness } from "./harness.js";
-import { HandLog, handLogPaths } from "./persistence.js";
 
 function collectingWritable(): { writable: Writable; lines: () => string[] } {
   const chunks: string[] = [];
@@ -159,23 +164,35 @@ describe("runHarness", () => {
     expect(events[0]?.type).toBe("HandStarted");
   });
 
-  describe("with logging enabled", () => {
-    const dirs: string[] = [];
+  describe("with recording enabled", () => {
+    const RECORDINGS_ROOT = "/recordings";
+    const ROOM_ID = "harness-room";
+    const ROOM_DIR = `${RECORDINGS_ROOT}/${ROOM_ID}`;
 
-    function tempLogDir(): string {
-      const dir = mkdtempSync(path.join(tmpdir(), "harness-log-"));
-      dirs.push(dir);
-      return dir;
+    async function openRecording(
+      fileSystem: MemoryFileSystem,
+    ): Promise<RoomRecording> {
+      const recordings = new DirectoryRecordings(RECORDINGS_ROOT, fileSystem);
+      return recordings.create({
+        roomId: ROOM_ID,
+        code: null,
+        createdAt: "2026-08-13T20:00:00.000Z",
+      });
     }
 
-    afterEach(() => {
-      for (const dir of dirs.splice(0))
-        rmSync(dir, { recursive: true, force: true });
-    });
+    function recordedLines(
+      fileSystem: MemoryFileSystem,
+      filePath: string,
+    ): { type: string; v: number; reason?: string }[] {
+      return (fileSystem.read(filePath) ?? "")
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as { type: string; v: number });
+    }
 
-    it("writes every command and event to the log without changing stdout", async () => {
-      const logDir = tempLogDir();
-      const log = new HandLog(logDir, "game-1", [0, 1, 2]);
+    it("records every command and event without changing stdout", async () => {
+      const fileSystem = createMemoryFileSystem();
+      const recording = await openRecording(fileSystem);
       const commandLines = [
         JSON.stringify({ type: "startHand", seatId: 0, seed: "seed-1" }),
         JSON.stringify({ type: "call", seatId: 1 }),
@@ -187,34 +204,58 @@ describe("runHarness", () => {
         state: createInitialState([0, 1, 2]),
         input,
         output: writable,
-        log,
+        recording,
       });
 
-      const hand1 = handLogPaths(path.join(logDir, "game-1"), 1);
-      const loggedCommands = readFileSync(hand1.commandsPath, {
-        encoding: "utf8",
-      })
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as { type: string; v: number });
-      expect(loggedCommands.map((r) => r.type)).toEqual(["startHand", "call"]);
-      expect(loggedCommands.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(
+      const hand1 = handRecordingPaths(ROOM_DIR, 1);
+      const recordedCommands = recordedLines(fileSystem, hand1.commandsPath);
+      expect(recordedCommands.map((r) => r.type)).toEqual([
+        "startHand",
+        "call",
+      ]);
+      expect(recordedCommands.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(
         true,
       );
 
-      const loggedEvents = readFileSync(hand1.eventsPath, { encoding: "utf8" })
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as { type: string; v: number });
-      expect(loggedEvents.map((r) => r.type)).toEqual(
+      const recordedEvents = recordedLines(fileSystem, hand1.eventsPath);
+      expect(recordedEvents.map((r) => r.type)).toEqual(
         lines().map((line) => (JSON.parse(line) as { type: string }).type),
       );
-      expect(loggedEvents.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(true);
+      expect(recordedEvents.every((r) => r.v === ENGINE_LOG_VERSION)).toBe(
+        true,
+      );
     });
 
-    it("logs a Rejection raised mid-hand to that hand's event log", async () => {
-      const logDir = tempLogDir();
-      const log = new HandLog(logDir, "game-1", [0, 1, 2]);
+    it("opens each Hand with a context sidecar carrying its seats and button", async () => {
+      const fileSystem = createMemoryFileSystem();
+      const recording = await openRecording(fileSystem);
+      const input = Readable.from([
+        JSON.stringify({ type: "startHand", seatId: 0, seed: "seed-1" }) + "\n",
+      ]);
+      const { writable } = collectingWritable();
+
+      await runHarness({
+        state: createInitialState([0, 1, 2]),
+        input,
+        output: writable,
+        recording,
+        now: () => new Date("2026-08-13T20:01:00.000Z"),
+      });
+
+      const hand1 = handRecordingPaths(ROOM_DIR, 1);
+      expect(JSON.parse(fileSystem.read(hand1.contextPath) ?? "")).toEqual({
+        v: ENGINE_LOG_VERSION,
+        roomId: ROOM_ID,
+        handOrdinal: 1,
+        startedAt: "2026-08-13T20:01:00.000Z",
+        seats: [0, 1, 2],
+        button: 0,
+      });
+    });
+
+    it("records a Rejection raised mid-hand as that hand's outcome", async () => {
+      const fileSystem = createMemoryFileSystem();
+      const recording = await openRecording(fileSystem);
       const input = Readable.from(
         [
           { type: "startHand", seatId: 0, seed: "seed-1" },
@@ -227,15 +268,11 @@ describe("runHarness", () => {
         state: createInitialState([0, 1, 2]),
         input,
         output: writable,
-        log,
+        recording,
       });
 
-      const hand1 = handLogPaths(path.join(logDir, "game-1"), 1);
-      const loggedEvents = readFileSync(hand1.eventsPath, { encoding: "utf8" })
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as { type: string; reason?: string });
-      const rejection = loggedEvents.at(-1);
+      const hand1 = handRecordingPaths(ROOM_DIR, 1);
+      const rejection = recordedLines(fileSystem, hand1.eventsPath).at(-1);
       expect(rejection?.type).toBe("Rejection");
       expect(rejection?.reason).toBe("action-not-legal");
     });
