@@ -7,11 +7,17 @@ import type {
   Rejection,
   SeatId,
 } from "./types.js";
+import { must } from "./util.js";
 import { ENGINE_LOG_VERSION } from "./version.js";
 
 /**
- * The Hand-start context a recording holds: the participating Seats and the
- * Button the Hand was dealt on. Not a state snapshot — it carries no cards.
+ * The Hand context (CONTEXT.md), narrowed to the two facts Replay bootstraps
+ * from: the participating Seats and the Button the Hand was dealt on. Not a
+ * state snapshot — it carries no cards.
+ *
+ * The recording's own context document also carries the Hand ordinal and
+ * `startedAt`; neither enters the engine. The ordinal addresses a file in a
+ * layout the engine knows nothing about, and `startedAt` is a clock.
  */
 export interface ReplayHandContext {
   readonly v: number;
@@ -39,7 +45,7 @@ export interface ReplaySources {
 }
 
 /** A clearly torn final JSONL record the caller's reader discarded. */
-export interface TornRecord {
+export interface ReplayTornRecord {
   readonly file: string;
   readonly line: number;
 }
@@ -50,7 +56,7 @@ export interface ReplayInput {
   readonly commands: readonly ReplayCommandRecord[];
   /** The persisted Event/`Rejection` stream, as audit evidence. */
   readonly events: readonly ReplayAuditRecord[];
-  readonly tornRecord?: TornRecord | null;
+  readonly tornRecord?: ReplayTornRecord | null;
 }
 
 /**
@@ -117,11 +123,11 @@ export type ReplayOutcome =
   | ({ readonly status: "complete" } & ReplayFlipbook)
   | ({
       readonly status: "incomplete";
-      readonly tornRecord: TornRecord | null;
+      readonly tornRecord: ReplayTornRecord | null;
       /**
-       * The ordinal of the first Command with no complete audit evidence —
-       * where replay stopped. Null when only a torn record made it
-       * incomplete.
+       * The zero-based ordinal, in the Command log, of the first Command with
+       * no complete audit evidence — where replay stopped. Null when only a
+       * torn record made the replay incomplete.
        */
       readonly orphanedCommand: number | null;
     } & ReplayFlipbook)
@@ -169,16 +175,46 @@ export function replayHand(input: ReplayInput): ReplayOutcome {
   };
   const positions: ReplayPosition[] = [{ position: 0, event: null, state }];
   const rejections: ReplayRejection[] = [];
-  let record = 0;
+  let audit = 0;
 
   for (const [ordinal, commandRecord] of input.commands.entries()) {
-    const outcome = decide(state, asCommand(commandRecord, ordinal === 0));
-    const generated = Array.isArray(outcome) ? outcome : [outcome];
+    const command =
+      ordinal === 0
+        ? openingCommand(commandRecord)
+        : bareCommand(commandRecord);
+    const outcome = decide(state, command);
+    const generated = Array.isArray(outcome)
+      ? outcome
+      : [asRecorded(outcome, commandRecord)];
+
+    // Whatever evidence survives is compared before anything is concluded
+    // from its length: a truncated operation is only *incomplete* when the
+    // records that did survive agree. One that contradicts them is corrupt.
+    const corroborated = Math.min(
+      generated.length,
+      input.events.length - audit,
+    );
+    for (let offset = 0; offset < corroborated; offset += 1) {
+      const item = must(generated[offset]);
+      const persisted = withoutVersion(must(input.events[audit + offset]));
+      if (!equal(item, persisted)) {
+        return {
+          status: "failed",
+          failure: {
+            kind: "record-mismatch",
+            record: audit + offset,
+            generated: item,
+            persisted,
+            file: input.sources.events,
+          },
+        };
+      }
+    }
 
     // Only a fully corroborated operation is committed: a half-recorded one
     // leaves the flipbook at the last complete position rather than applying
     // events no audit record backs.
-    if (record + generated.length > input.events.length) {
+    if (corroborated < generated.length) {
       return {
         status: "incomplete",
         positions,
@@ -187,28 +223,12 @@ export function replayHand(input: ReplayInput): ReplayOutcome {
         orphanedCommand: ordinal,
       };
     }
-    for (const [offset, item] of generated.entries()) {
-      const persisted = input.events[record + offset];
-      if (persisted === undefined || !equal(item, withoutVersion(persisted))) {
-        return {
-          status: "failed",
-          failure: {
-            kind: "record-mismatch",
-            record: record + offset,
-            generated: item,
-            persisted:
-              persisted === undefined ? null : withoutVersion(persisted),
-            file: input.sources.events,
-          },
-        };
-      }
-    }
 
     for (const [offset, item] of generated.entries()) {
       if (item.type === "Rejection") {
         rejections.push({
           position: positions.length - 1,
-          record: record + offset,
+          record: audit + offset,
           rejection: item,
         });
         continue;
@@ -216,16 +236,16 @@ export function replayHand(input: ReplayInput): ReplayOutcome {
       state = apply(state, item);
       positions.push({ position: positions.length, event: item, state });
     }
-    record += generated.length;
+    audit += generated.length;
   }
 
-  const trailing = input.events[record];
+  const trailing = input.events[audit];
   if (trailing !== undefined) {
     return {
       status: "failed",
       failure: {
         kind: "record-mismatch",
-        record,
+        record: audit,
         generated: null,
         persisted: withoutVersion(trailing),
         file: input.sources.events,
@@ -249,17 +269,36 @@ export function replayHand(input: ReplayInput): ReplayOutcome {
 /**
  * A Hand's Command log opens with the operation that started it, which for
  * every Hand after the first is a `nextHand`. `decide` only accepts that
- * against a completed Hand, and Replay is scoped to one Hand — so the opening
- * Command is run as the `startHand` it behaved as. Both take the same path
- * through `beginHand`, on the same seed and the same recorded Button, so the
- * generated Events are identical to the ones the live run recorded.
+ * against a *completed* Hand, and Replay is scoped to one Hand starting from
+ * no Hand at all — so the opening Command is run as the `startHand` it
+ * behaved as. Both take the same path through `beginHand`, on the same seed
+ * and the same recorded Button, so the generated Events are identical to the
+ * ones the live run recorded.
  */
-function asCommand(record: ReplayCommandRecord, opensHand: boolean): Command {
-  const { v, ...command } = record;
-  void v;
-  if (opensHand && command.type === "nextHand") {
+function openingCommand(record: ReplayCommandRecord): Command {
+  const command = bareCommand(record);
+  if (command.type === "nextHand") {
     return { type: "startHand", seatId: command.seatId, seed: command.seed };
   }
+  return command;
+}
+
+/**
+ * Restores the Command as *recorded* onto a generated Rejection. `decide`
+ * echoes back whatever Command it was handed, so without this the opening
+ * `nextHand`-as-`startHand` substitution above would leak into the comparison
+ * and report a faithful recording as corrupt.
+ */
+function asRecorded(
+  rejection: Rejection,
+  record: ReplayCommandRecord,
+): Rejection {
+  return { ...rejection, command: bareCommand(record) };
+}
+
+function bareCommand(record: ReplayCommandRecord): Command {
+  const { v, ...command } = record;
+  void v;
   return command;
 }
 
