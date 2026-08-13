@@ -7,10 +7,8 @@ import type {
   HandEvent,
   Rejection,
 } from "@table-top-poker/engine";
-import type {
-  HandStartContext,
-  RoomRecording,
-} from "@table-top-poker/recording";
+import { handStartContextFor } from "@table-top-poker/recording";
+import type { RoomRecording } from "@table-top-poker/recording";
 
 export interface RunHarnessOptions {
   readonly state: EngineState;
@@ -57,15 +55,10 @@ export async function runHarness(options: RunHarnessOptions): Promise<void> {
     // The whole operation is recorded as one unit, so the Hand context has to
     // be resolved before any of it is written — which means folding the
     // events into state first, then writing, then emitting.
-    const opensHand = result.some((event) => event.type === "HandStarted");
-    const startedAt = opensHand ? now().toISOString() : undefined;
     for (const event of result) {
       state = apply(state, event);
     }
-    const context: HandStartContext | undefined =
-      startedAt === undefined
-        ? undefined
-        : { startedAt, seats: state.seats, button: state.button };
+    const context = handStartContextFor(result, state, now);
     await options.recording?.append({
       ...(context === undefined ? {} : { context }),
       command,

@@ -18,9 +18,10 @@ import {
   type SeatMove,
   type ServerMessage,
 } from "@table-top-poker/protocol";
+import { handStartContextFor } from "@table-top-poker/recording";
 import type {
-  HandStartContext,
   Recordings,
+  RoomOperation,
   RoomRecording,
 } from "@table-top-poker/recording";
 import Fastify, {
@@ -216,6 +217,30 @@ function authenticateSeat(
   };
 }
 
+/**
+ * Turns an accepted dispatch into the whole operation the recording takes.
+ * The state right after `HandStarted` is where a Hand's seats and button are
+ * fixed; nothing later in the same operation moves them.
+ */
+function toHandOperation(
+  result: DispatchSuccess,
+  now: () => Date,
+): RoomOperation {
+  const events = result.steps.map((step) => step.event);
+  const opening = result.steps.find(
+    (step) => step.event.type === "HandStarted",
+  );
+  const context =
+    opening === undefined
+      ? undefined
+      : handStartContextFor(events, opening.state, now);
+  return {
+    ...(context === undefined ? {} : { context }),
+    command: result.command,
+    outcome: events,
+  };
+}
+
 function seatCountBodyError(
   issues: readonly { readonly path: readonly PropertyKey[] }[],
 ): Extract<
@@ -331,13 +356,20 @@ export async function buildApp(
    * disk stays there — closing releases the writer, it does not discard the
    * recording.
    */
-  function closeRecording(code: string): void {
+  async function drainRecording(code: string): Promise<void> {
     const recording = roomRecordings.get(code);
     if (recording === undefined) return;
     roomRecordings.delete(code);
-    void recording.close().catch((error: unknown) => {
+    try {
+      await recording.close();
+    } catch (error) {
       app.log.error({ err: error, room: code }, "recording close failed");
-    });
+    }
+  }
+
+  /** Fire-and-forget drain, for the synchronous room-teardown path. */
+  function closeRecording(code: string): void {
+    void drainRecording(code);
   }
 
   /** Cosmetic presence toggle for a seat's socket — never touches `rooms.dispatch`. */
@@ -380,26 +412,6 @@ export async function buildApp(
   }
 
   /**
-   * The Hand context a dispatch opens a Hand with, or undefined when it
-   * doesn't. `startedAt` is read here — the moment the operation is staged —
-   * rather than when the append confirms, so a stalling disk cannot backdate
-   * when the Hand actually began for the players (Phase 2 spec #129 §3).
-   */
-  function handStartContext(
-    result: DispatchSuccess,
-  ): HandStartContext | undefined {
-    const opening = result.steps.find(
-      (step) => step.event.type === "HandStarted",
-    );
-    if (opening === undefined) return undefined;
-    return {
-      startedAt: now().toISOString(),
-      seats: opening.state.seats,
-      button: opening.state.button,
-    };
-  }
-
-  /**
    * Hands the room's recording one whole engine operation — the command, the
    * events or rejection it produced, and the Hand context when it opens a
    * Hand. The recording owns ordering, so this is not awaited here; issue
@@ -409,28 +421,30 @@ export async function buildApp(
     code: string,
     result: DispatchRejection | DispatchSuccess,
   ): void {
+    if (result.command === undefined) return;
     const recording = roomRecordings.get(code);
-    if (recording === undefined || result.command === undefined) return;
+    if (recording === undefined) {
+      // Every room created through `POST /rooms` has one. Reaching here means
+      // play is happening unrecorded, which the Room invariant forbids — so
+      // it is a loud bug, never a quiet skip (Phase 2 spec #129 §3).
+      app.log.error({ room: code }, "dispatch in a room with no recording");
+      return;
+    }
 
-    const context = "steps" in result ? handStartContext(result) : undefined;
-    const outcome =
+    const operation =
       "steps" in result
-        ? result.steps.map((step) => step.event)
-        : result.rejection;
-    if (outcome === undefined) return;
+        ? toHandOperation(result, now)
+        : result.rejection === undefined
+          ? undefined
+          : { command: result.command, outcome: result.rejection };
+    if (operation === undefined) return;
 
-    void recording
-      .append({
-        ...(context === undefined ? {} : { context }),
-        command: result.command,
-        outcome,
-      })
-      .catch((error: unknown) => {
-        // Filesystem detail belongs in operational logs, never on the wire.
-        // Telling the table and blocking play is issue #121's recording-paused
-        // state; until then a failure is loud here and nowhere else.
-        app.log.error({ err: error, room: code }, "recording append failed");
-      });
+    void recording.append(operation).catch((error: unknown) => {
+      // Filesystem detail belongs in operational logs, never on the wire.
+      // Telling the table and blocking play is issue #121's recording-paused
+      // state; until then a failure is loud here and nowhere else.
+      app.log.error({ err: error, room: code }, "recording append failed");
+    });
   }
 
   const pingTimer = setInterval(() => {
@@ -448,11 +462,17 @@ export async function buildApp(
     }
   }, pingIntervalMs);
 
-  app.addHook("onClose", (_instance, done) => {
+  // Draining every open recording is part of closing the app, not of ending
+  // each Room: `systemctl restart poker` on a deploy closes the process, not
+  // the Rooms, and an append in flight at that moment would otherwise be lost.
+  app.addHook("onClose", async () => {
     clearInterval(pingTimer);
     for (const timer of tableGraceTimers.values()) clearTimeout(timer);
     for (const code of botActionTimers.keys()) clearBotActionTimer(code);
-    done();
+    const draining = [...roomRecordings.keys()].map((code) =>
+      drainRecording(code),
+    );
+    await Promise.all(draining);
   });
 
   function fanOutHandUpdate(code: string, step: DispatchStep): void {

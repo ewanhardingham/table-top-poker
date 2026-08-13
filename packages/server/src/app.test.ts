@@ -15,11 +15,12 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { DirectoryRecordings } from "@table-top-poker/recording";
 import {
   createMemoryFileSystem,
-  DirectoryRecordings,
-} from "@table-top-poker/recording";
-import type { MemoryFileSystem } from "@table-top-poker/recording";
+  parseRecordedLines,
+} from "@table-top-poker/recording/testing";
+import type { MemoryFileSystem } from "@table-top-poker/recording/testing";
 import { ActionClock } from "./action-clock.js";
 import { buildApp } from "./app.js";
 import { RoomStore, toRoomView } from "./rooms.js";
@@ -1889,10 +1890,7 @@ describe("room recording", () => {
   ): unknown[] {
     const contents = fileSystem.read(filePath);
     if (contents === undefined) throw new Error(`no such file ${filePath}`);
-    return contents
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line) as unknown);
+    return parseRecordedLines(contents);
   }
 
   it("writes room.json before the join code is returned, keyed by the durable room id", async () => {

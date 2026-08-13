@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ENGINE_LOG_VERSION } from "@table-top-poker/engine";
 import type { Command, HandEvent, Rejection } from "@table-top-poker/engine";
-import { createMemoryFileSystem } from "./memory-file-system.js";
-import type { MemoryFileSystem } from "./memory-file-system.js";
+import { createMemoryFileSystem, parseRecordedLines } from "./testing.js";
+import type { MemoryFileSystem } from "./testing.js";
 import { handRecordingPaths, roomManifestPath } from "./paths.js";
 import { RECORDING_LAYOUT_VERSION } from "./records.js";
 import type { HandStartContext } from "./records.js";
@@ -31,10 +31,7 @@ function context(startedAt = "2026-08-13T20:00:00.000Z"): HandStartContext {
 }
 
 function lines(fs: MemoryFileSystem, filePath: string): unknown[] {
-  return (fs.read(filePath) ?? "")
-    .split("\n")
-    .filter((line) => line !== "")
-    .map((line) => JSON.parse(line) as unknown);
+  return parseRecordedLines(fs.read(filePath));
 }
 
 async function openRecording(
@@ -80,15 +77,46 @@ describe("DirectoryRecordings.create", () => {
     expect(fs.paths()).toEqual([]);
   });
 
-  it("rejects a room id that is not a safe path segment", async () => {
-    const recordings = new DirectoryRecordings(ROOT, createMemoryFileSystem());
-    await expect(
-      recordings.create({
-        roomId: "../escape",
-        code: null,
-        createdAt: "2026-08-13T19:59:00.000Z",
-      }),
-    ).rejects.toThrow(/room id/);
+  it.each(["../escape", "..", ".", "has spaces", "nested/id", ""])(
+    "rejects the room id %o, which cannot name a directory of its own",
+    async (roomId) => {
+      const recordings = new DirectoryRecordings(
+        ROOT,
+        createMemoryFileSystem(),
+      );
+      await expect(
+        recordings.create({
+          roomId,
+          code: null,
+          createdAt: "2026-08-13T19:59:00.000Z",
+        }),
+      ).rejects.toThrow(/room id/);
+    },
+  );
+
+  it("refuses to reopen a directory that already holds a recording", async () => {
+    const fs = createMemoryFileSystem();
+    await openRecording(fs);
+
+    await expect(openRecording(fs)).rejects.toThrow(/already exists/);
+  });
+
+  it("rolls back only what it created, never a recording already on disk", async () => {
+    const fs = createMemoryFileSystem();
+    // A previous run under the same room id — the harness's `--room-id` is a
+    // developer-chosen label, so this is reachable in practice.
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+    const before = fs.paths();
+
+    // `room.json` is immutable, so the reopen is refused rather than rolled
+    // back over — and nothing already written is touched either way.
+    await expect(openRecording(fs)).rejects.toThrow();
+    expect(fs.paths()).toEqual(before);
   });
 
   it("records a code of null for a recording that was never joinable", async () => {

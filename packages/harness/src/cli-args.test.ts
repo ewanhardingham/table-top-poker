@@ -41,11 +41,11 @@ describe("parseRecordingOptions", () => {
       "--recordings-dir",
       "/tmp/rec",
       "--room-id",
-      "friday-game",
+      "friday-room",
     ]);
     expect(options).toEqual({
       recordingsDir: "/tmp/rec",
-      roomId: "friday-game",
+      roomId: "friday-room",
     });
   });
 

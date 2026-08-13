@@ -2,11 +2,18 @@ import path from "node:path";
 
 const ROOM_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 
-/** The Room ID becomes a directory name, so it must be a safe path segment. */
+/**
+ * The Room ID becomes a directory name, so it must be a safe path segment.
+ *
+ * The character class alone is not enough: `.` and `..` are built entirely
+ * from characters it allows, and `..` resolves *above* the recordings root.
+ * The server only ever supplies a UUID, but the harness takes `--room-id`
+ * from a developer's argv.
+ */
 export function assertValidRoomId(roomId: string): void {
-  if (!ROOM_ID_PATTERN.test(roomId)) {
+  if (!ROOM_ID_PATTERN.test(roomId) || roomId === "." || roomId === "..") {
     throw new Error(
-      `room id: "${roomId}" must match ${ROOM_ID_PATTERN.source} (it becomes a directory name)`,
+      `room id: "${roomId}" must match ${ROOM_ID_PATTERN.source} and name a directory of its own (it becomes a directory name)`,
     );
   }
 }
