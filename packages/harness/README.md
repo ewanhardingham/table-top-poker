@@ -72,10 +72,10 @@ plays, append-as-you-go, in exactly the layout the server writes (Phase 2
 spec #129 §3) — so the dev stepper can read what the harness just produced:
 
 ```sh
-cat commands.jsonl | npx harness --recordings-dir ./recordings --room-id friday-game
+cat commands.jsonl | npx harness --recordings-dir ./recordings --room-id friday-room
 ```
 
-This produces `./recordings/friday-game/`, containing an immutable
+This produces `./recordings/friday-room/`, containing an immutable
 `room.json` written before the first command is read, and per hand a
 `hand-0001.context.json` sidecar, `hand-0001.commands.jsonl` and
 `hand-0001.events.jsonl`.
@@ -99,7 +99,7 @@ harness exactly like a plain command file — the replay procedure above works
 unmodified on it:
 
 ```sh
-cat recordings/friday-game/hand-0001.commands.jsonl | npx harness --seats 0,1,2
+cat recordings/friday-room/hand-0001.commands.jsonl | npx harness --seats 0,1,2
 ```
 
 Seating isn't recorded in the command stream itself (it's fixed for a run's

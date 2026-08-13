@@ -79,20 +79,29 @@ export class DirectoryRecordings implements Recordings {
       createdAt: options.createdAt,
     };
     const manifestPath = roomManifestPath(roomDir);
+    const stagingPath = `${manifestPath}.tmp`;
+
+    // `room.json` is immutable, so a directory that already has one is a
+    // finished recording — never something to reopen or write over. The
+    // server's ids are UUIDs and cannot collide, but the harness takes
+    // `--room-id` from argv and a developer will reuse one.
+    if (await this.#fs.exists(manifestPath)) {
+      throw new Error(
+        `could not create the recording for room ${options.roomId}: ${manifestPath} already exists`,
+      );
+    }
+    const directoryExisted = await this.#fs.exists(roomDir);
 
     try {
       await this.#fs.mkdir(roomDir);
-      await this.#fs.writeFile(
-        `${manifestPath}.tmp`,
-        JSON.stringify(manifest) + "\n",
-      );
-      await this.#fs.rename(`${manifestPath}.tmp`, manifestPath);
+      await this.#fs.writeFile(stagingPath, JSON.stringify(manifest) + "\n");
+      await this.#fs.rename(stagingPath, manifestPath);
     } catch (cause) {
-      try {
-        await this.#fs.remove(roomDir);
-      } catch {
-        // The rollback is a write on the filesystem that just refused one.
-        // The create still fails, which is what keeps the Room unjoinable.
+      // Roll back only what this call could have created. Removing `roomDir`
+      // outright would be a recursive delete of whatever was already there.
+      await this.#tolerate(() => this.#fs.remove(stagingPath));
+      if (!directoryExisted) {
+        await this.#tolerate(() => this.#fs.remove(roomDir));
       }
       throw new Error(
         `could not create the recording for room ${options.roomId}`,
@@ -106,5 +115,18 @@ export class DirectoryRecordings implements Recordings {
       fileSystem: this.#fs,
       ...(this.#retries === undefined ? {} : { retries: this.#retries }),
     });
+  }
+
+  /**
+   * A rollback is itself a write on the filesystem that just refused one.
+   * The create is failing either way, and that failure is what keeps the Room
+   * unjoinable, so a repair that cannot run must not mask it.
+   */
+  async #tolerate(work: () => Promise<void>): Promise<void> {
+    try {
+      await work();
+    } catch {
+      // Deliberately swallowed — see above.
+    }
   }
 }
