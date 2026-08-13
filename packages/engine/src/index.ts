@@ -14,7 +14,7 @@ export type {
   ReplayPosition,
   ReplayRejection,
   ReplaySources,
-  TornRecord,
+  ReplayTornRecord,
 } from "./replay.js";
 export { createInitialState } from "./room.js";
 export { legalActions } from "./table.js";
