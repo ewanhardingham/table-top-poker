@@ -16,7 +16,11 @@ import {
   type SeatMove,
   type ServerMessage,
 } from "@table-top-poker/protocol";
-import { HandLog } from "@table-top-poker/persistence";
+import type {
+  HandStartContext,
+  Recordings,
+  RoomRecording,
+} from "@table-top-poker/recording";
 import Fastify, {
   type FastifyInstance,
   type FastifyReply,
@@ -61,8 +65,16 @@ function readIndexOr(stagedPath: string): Buffer {
 
 export interface BuildAppOptions {
   readonly rooms?: RoomStore;
-  /** Root directory for append-as-you-go per-game hand logs. */
-  readonly handLogDir?: string;
+  /**
+   * Where each Room's durable recording is created. Required, and with no
+   * "off" value: recording is a Room invariant (Phase 2 spec #129 §3), so a
+   * Room that cannot be recorded is never created. Tests pass a
+   * `DirectoryRecordings` over an in-memory filesystem, which records
+   * everything a real run would without touching a disk.
+   */
+  readonly recordings: Recordings;
+  /** Overridable for tests only; production reads the wall clock. */
+  readonly now?: () => Date;
   /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
   readonly actionClockMs?: number;
   /** How often the server pings every open socket (Phase 1 spec #130 §7). */
@@ -202,10 +214,12 @@ function seatCountBodyError(
 }
 
 export async function buildApp(
-  options: BuildAppOptions = {},
+  options: BuildAppOptions,
 ): Promise<FastifyInstance> {
   const rooms = options.rooms ?? new RoomStore();
-  const handLogs = new Map<string, HandLog>();
+  const now = options.now ?? (() => new Date());
+  /** One open recording per live room, keyed by join code like every other map here. */
+  const roomRecordings = new Map<string, RoomRecording>();
   const pingIntervalMs = options.pingIntervalMs ?? 10_000;
   const missedPongLimit = options.missedPongLimit ?? 2;
   const graceWindowMs = options.graceWindowMs ?? 60_000;
@@ -308,6 +322,20 @@ export async function buildApp(
     }
   }
 
+  /**
+   * Drains and closes a room's recording as the room goes away. What is on
+   * disk stays there — closing releases the writer, it does not discard the
+   * recording.
+   */
+  function closeRecording(code: string): void {
+    const recording = roomRecordings.get(code);
+    if (recording === undefined) return;
+    roomRecordings.delete(code);
+    void recording.close().catch((error: unknown) => {
+      app.log.error({ err: error, room: code }, "recording close failed");
+    });
+  }
+
   /** Cosmetic presence toggle for a seat's socket — never touches `rooms.dispatch`. */
   function markPresence(socket: WebSocket, disconnected: boolean): void {
     const identity = socketIdentity.get(socket);
@@ -321,8 +349,8 @@ export async function buildApp(
    * Ends a room the same way whether triggered by "End session" or the
    * table device's own reconnect grace window elapsing (Phase 1 spec #130
    * §7): notify every socket, close them, discard the transport bookkeeping,
-   * then discard the room itself. Hand logs on disk are untouched — this
-   * only ever touches in-memory state.
+   * then discard the room itself. The Room recording on disk is closed, not
+   * removed — Phase 1's keep-everything-forever retention is binding.
    */
   function endRoom(code: string): void {
     const sockets = roomSockets.get(code);
@@ -342,36 +370,62 @@ export async function buildApp(
       tableGraceTimers.delete(code);
     }
     actionClock.clear(code);
-    handLogs.delete(code);
+    closeRecording(code);
     rooms.end(code);
   }
 
-  /** Persists the exact engine command and resulting events for replay/audit. */
-  function logDispatch(
+  /**
+   * The Hand context a dispatch opens a Hand with, or undefined when it
+   * doesn't. `startedAt` is read here — the moment the operation is staged —
+   * rather than when the append confirms, so a stalling disk cannot backdate
+   * when the Hand actually began for the players (Phase 2 spec #129 §3).
+   */
+  function handStartContext(
+    result: DispatchSuccess,
+  ): HandStartContext | undefined {
+    const opening = result.steps.find(
+      (step) => step.event.type === "HandStarted",
+    );
+    if (opening === undefined) return undefined;
+    return {
+      startedAt: now().toISOString(),
+      seats: opening.state.seats,
+      button: opening.state.button,
+    };
+  }
+
+  /**
+   * Hands the room's recording one whole engine operation — the command, the
+   * events or rejection it produced, and the Hand context when it opens a
+   * Hand. The recording owns ordering, so this is not awaited here; issue
+   * #118 moves the await in front of the broadcast.
+   */
+  function recordDispatch(
     code: string,
     result: DispatchRejection | DispatchSuccess,
   ): void {
-    if (options.handLogDir === undefined) return;
-    if (result.command === undefined) return;
-    const room = rooms.get(code);
-    const seats = room?.engine?.seats;
-    if (room === undefined || seats === undefined) return;
+    const recording = roomRecordings.get(code);
+    if (recording === undefined || result.command === undefined) return;
 
-    let log = handLogs.get(code);
-    if (log === undefined) {
-      log = new HandLog(options.handLogDir, code, seats);
-      handLogs.set(code, log);
-    }
-    if ("steps" in result) {
-      const startsHand = result.steps.some(
-        (step) => step.event.type === "HandStarted",
-      );
-      log.logCommand(result.command, startsHand);
-      for (const step of result.steps) log.logEvent(step.event);
-    } else if (result.rejection !== undefined) {
-      log.logCommand(result.command, false);
-      log.logEvent(result.rejection);
-    }
+    const context = "steps" in result ? handStartContext(result) : undefined;
+    const outcome =
+      "steps" in result
+        ? result.steps.map((step) => step.event)
+        : result.rejection;
+    if (outcome === undefined) return;
+
+    void recording
+      .append({
+        ...(context === undefined ? {} : { context }),
+        command: result.command,
+        outcome,
+      })
+      .catch((error: unknown) => {
+        // Filesystem detail belongs in operational logs, never on the wire.
+        // Telling the table and blocking play is issue #121's recording-paused
+        // state; until then a failure is loud here and nowhere else.
+        app.log.error({ err: error, room: code }, "recording append failed");
+      });
   }
 
   const pingTimer = setInterval(() => {
@@ -463,7 +517,7 @@ export async function buildApp(
     if (result.seatMoves !== undefined) {
       applySeatMoves(code, result.seatMoves);
     }
-    logDispatch(code, result);
+    recordDispatch(code, result);
     for (const step of result.steps) {
       fanOutHandUpdate(code, step);
     }
@@ -502,7 +556,26 @@ export async function buildApp(
       });
     }
 
-    const room = rooms.create(body.data.seatCount);
+    // Creating the Room is transactional with creating its recording: the
+    // Room is staged, `room.json` is written, and only a confirmed write
+    // publishes it. A Room that cannot be recorded is never joinable and
+    // never gets a code or a QR (Phase 2 spec #129 §3).
+    const staged = rooms.stage(body.data.seatCount);
+    let recording: RoomRecording;
+    try {
+      recording = await options.recordings.create({
+        roomId: staged.room.id,
+        code: staged.room.code,
+        createdAt: now().toISOString(),
+      });
+    } catch (error) {
+      staged.discard();
+      app.log.error({ err: error }, "could not create the room recording");
+      return reply.code(503).send({ error: "recording-unavailable" });
+    }
+
+    const room = staged.commit();
+    roomRecordings.set(room.code, recording);
     const url = joinUrl(request.headers.host ?? "localhost", room.code);
     const qrCodeDataUrl = await roomQrCodeDataUrl(url);
     return { code: room.code, joinUrl: url, qrCodeDataUrl };
@@ -862,7 +935,7 @@ export async function buildApp(
             return;
           }
           if ("reason" in dispatchResult) {
-            logDispatch(code, dispatchResult);
+            recordDispatch(code, dispatchResult);
             sendRejection(socket, dispatchResult.reason);
             return;
           }

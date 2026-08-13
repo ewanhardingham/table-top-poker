@@ -15,9 +15,9 @@ User=poker
 Group=poker
 WorkingDirectory=/opt/poker/current
 EnvironmentFile=/etc/poker/poker.env
-# Keep hand logs outside versioned releases; an EnvironmentFile value can
-# override this default for a different persistent volume.
-Environment=HAND_LOG_DIR=/var/lib/poker/hands
+# Keep Room recordings outside versioned releases; an EnvironmentFile value
+# can override this default for a different persistent volume.
+Environment=RECORDINGS_DIR=/var/lib/poker/recordings
 ExecStart=/usr/local/bin/node /opt/poker/current/packages/server/dist/server.js
 Restart=always
 RestartSec=2
