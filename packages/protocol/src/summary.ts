@@ -39,8 +39,14 @@ export type HandOutcome =
  * in the session, and when it began. Everything else in a `HandSummary` is
  * derived, which is what keeps `summarise` free of a clock and of ambient
  * state.
+ *
+ * Deliberately *not* named `HandContext`: that term is taken, and means the
+ * four-field document a Hand recording opens with (`CONTEXT.md`). This is a
+ * strict subset — the Seats and Button it also carries are derivable from the
+ * Events, so asking a caller for them would invite two answers to one
+ * question.
  */
-export interface HandContext {
+export interface HandSummaryContext {
   /** 1-based, matching the recording's `hand-NNNN` partition. */
   readonly handOrdinal: number;
   /** ISO 8601 — the picker's start-time clock reads this (§6). */
@@ -65,13 +71,25 @@ export interface HandSummary {
 /** Raised when a recording is not a complete, valid hand — never for a well-formed one. */
 export class IncompleteHandError extends Error {}
 
+/**
+ * The five shapes partition every hand, and the spec fixes the union without
+ * fixing the predicates. Two boundary calls are made here deliberately:
+ *
+ * 1. **Two or more raises reads as a war wherever it happened**, so a preflop
+ *    3-bet that ends preflop is `raise-war`, not `preflop-raise`. The count is
+ *    the more informative fact, and `preflop-raise` — "preflop raise took it"
+ *    — describes *one* raise winning uncontested.
+ * 2. **`checked-down` is the residual**, so it also covers an unraised hand
+ *    that saw a flop and then folded out. `walk` is reserved for the hand that
+ *    died preflop, which is the distinction the picker needs (a walk is a
+ *    visibly short row). The felt's copy for `checked-down` should therefore
+ *    not promise a showdown — that is a `table-client` wording decision.
+ */
 function bettingShapeOf(
   raises: number,
   streetReached: Street,
   outcome: HandOutcome,
 ): BettingShape {
-  // A raise count of two or more is the more informative reading even when
-  // the war was settled preflop, so it wins over the preflop shorthand.
   if (raises >= 2) return { kind: "raise-war", raises };
   const diedPreflop =
     outcome.kind === "folded-out" && streetReached === "preflop";
@@ -96,7 +114,7 @@ function bettingShapeOf(
  */
 export function summarise(
   events: readonly HandEvent[],
-  context: HandContext,
+  context: HandSummaryContext,
 ): HandSummary {
   const started = events.find((event) => event.type === "HandStarted");
   if (started === undefined) {

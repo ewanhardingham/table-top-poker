@@ -1,8 +1,8 @@
 import type { Card, HandEvent, SeatId } from "@table-top-poker/engine";
 import { describe, expect, it } from "vitest";
-import { summarise, type HandContext } from "./summary.js";
+import { summarise, type HandSummaryContext } from "./summary.js";
 
-const context: HandContext = {
+const context: HandSummaryContext = {
   handOrdinal: 3,
   startedAt: "2026-08-13T19:04:00.000Z",
 };
