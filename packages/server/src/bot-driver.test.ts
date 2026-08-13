@@ -2,10 +2,8 @@ import type { ServerMessage } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
-import {
-  createMemoryFileSystem,
-  DirectoryRecordings,
-} from "@table-top-poker/recording";
+import { DirectoryRecordings } from "@table-top-poker/recording";
+import { createMemoryFileSystem } from "@table-top-poker/recording/testing";
 import { buildApp } from "./app.js";
 import { RoomStore } from "./rooms.js";
 

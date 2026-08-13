@@ -70,16 +70,6 @@ export class RoomRecording {
     this.#retries = options.retries ?? 2;
   }
 
-  /** The Hand this recording is currently writing into; 0 before the first. */
-  get handOrdinal(): number {
-    return this.#handOrdinal;
-  }
-
-  /** Whether a failed operation has latched this recording shut. */
-  get isPaused(): boolean {
-    return this.#failed;
-  }
-
   /**
    * Appends one complete engine operation. Resolves once every line of it is
    * confirmed on disk; rejects — leaving the files exactly as they were —

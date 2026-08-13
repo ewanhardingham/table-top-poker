@@ -21,6 +21,23 @@ async function main(): Promise<void> {
   const app = await buildApp({ recordings, testMode });
   const port = Number(process.env.PORT ?? 3000);
   const host = process.env.HOST ?? "127.0.0.1";
+
+  // A deploy is `systemctl restart poker`, so SIGTERM is the normal way this
+  // process ends. Closing the app drains every open recording first; without
+  // this the append in flight at that moment is simply lost.
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.once(signal, () => {
+      app.log.info(`${signal} received, draining recordings`);
+      void app.close().then(
+        () => process.exit(0),
+        (error: unknown) => {
+          console.error(error);
+          process.exit(1);
+        },
+      );
+    });
+  }
+
   await app.listen({ port, host });
   app.log.info(`table-top-poker server listening on port ${String(port)}`);
 }
