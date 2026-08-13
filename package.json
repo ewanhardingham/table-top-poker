@@ -8,7 +8,7 @@
   },
   "workspaces": [
     "packages/engine",
-    "packages/persistence",
+    "packages/recording",
     "packages/harness",
     "packages/protocol",
     "packages/server",

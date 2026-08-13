@@ -59,7 +59,7 @@ source checkout or the development machine's workspace layout.
    ```
 
 5. Copy `deploy/poker.env.example` to `/etc/poker/poker.env`, set `HOST`/`PORT` and
-   `HAND_LOG_DIR`, then run
+   `RECORDINGS_DIR`, then run
    `sudo chown poker:poker /etc/poker/poker.env && sudo chmod 600 /etc/poker/poker.env`.
 
 ## Getting code onto the Pi
@@ -77,10 +77,32 @@ The release contains the server's compiled output, both client bundles, `package
 a dereferenced runtime `node_modules`. No workspace package symlinks point back to the
 development checkout.
 
-When `poker.service` is installed, completed and in-progress hands are logged under
-`/var/lib/poker/hands/<room-code>/` as `game.jsonl`, `hand-NNNN.commands.jsonl`, and
-`hand-NNNN.events.jsonl`. The command file is the replay input; the event file is the
-version-tagged audit stream.
+When `poker.service` is installed, every Room is recorded under
+`/var/lib/poker/recordings/<room-id>/` — an immutable `room.json` written the moment
+the Room is created, then per hand a `hand-NNNN.context.json` sidecar,
+`hand-NNNN.commands.jsonl`, and `hand-NNNN.events.jsonl`. The directory is keyed by the
+Room's durable UUID, **not** its four-character join code. The command file is the
+replay input; the event file is the version-tagged audit stream.
+
+Recording is a Room invariant, not an opt-in: the server creates and write-checks
+`RECORDINGS_DIR` before it listens and **refuses to start** if the root is not
+writable, and a Room whose `room.json` cannot be written never becomes joinable.
+
+### Release step: `RECORDINGS_DIR` replaces `HAND_LOG_DIR`
+
+Deploying any release from this change onward requires editing
+`/etc/poker/poker.env` **in the same release**, before restarting the service:
+
+```bash
+ssh raspberrypi "sudo install -d -o poker -g poker -m 0750 /var/lib/poker/recordings"
+ssh raspberrypi "sudo sed -i 's|^HAND_LOG_DIR=.*|RECORDINGS_DIR=/var/lib/poker/recordings|' /etc/poker/poker.env"
+```
+
+Skip it and the server starts against the default `./recordings` inside the release
+directory — a path that is wiped by the next release and that nobody looks in. The
+existing `/var/lib/poker/hands/` tree is written in the pre-Phase-2 layout (join-code
+keyed, `game.jsonl`, no hand context); leave it in place, and note that it is
+recognised as pre-Phase-2 by having **no `room.json`**.
 
 ## systemd
 

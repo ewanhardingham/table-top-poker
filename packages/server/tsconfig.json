@@ -5,5 +5,5 @@
     "rootDir": "src"
   },
   "include": ["src"],
-  "references": [{ "path": "../persistence" }, { "path": "../protocol" }]
+  "references": [{ "path": "../recording" }, { "path": "../protocol" }]
 }

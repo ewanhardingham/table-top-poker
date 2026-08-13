@@ -17,3 +17,6 @@ coverage/
 
 # Runtime state and logs for the local dev-server supervisor.
 .dev/
+
+# Room recordings written by a local server run (RECORDINGS_DIR's default).
+recordings/

@@ -2,8 +2,18 @@ import type { ServerMessage } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
+import {
+  createMemoryFileSystem,
+  DirectoryRecordings,
+} from "@table-top-poker/recording";
 import { buildApp } from "./app.js";
 import { RoomStore } from "./rooms.js";
+
+const RECORDINGS_ROOT = "/recordings";
+
+function testRecordings(): DirectoryRecordings {
+  return new DirectoryRecordings(RECORDINGS_ROOT, createMemoryFileSystem());
+}
 
 interface RunningApp {
   readonly app: FastifyInstance;
@@ -92,6 +102,7 @@ describe("bot driver", () => {
     expect(added.seats).toHaveLength(3);
 
     app = await buildApp({
+      recordings: testRecordings(),
       rooms,
       testMode: true,
       botRng: () => 0.5,
@@ -130,6 +141,7 @@ describe("bot driver", () => {
 
   it("keeps a two-seat floor, reports cadence over WS, and deals a waiting bot next hand", async () => {
     app = await buildApp({
+      recordings: testRecordings(),
       testMode: true,
       botRng: () => 0,
       botActionDelayMs: 50,
@@ -255,6 +267,7 @@ describe("bot driver", () => {
     let rngCalls = 0;
 
     app = await buildApp({
+      recordings: testRecordings(),
       rooms,
       botRng: () => {
         rngCalls++;

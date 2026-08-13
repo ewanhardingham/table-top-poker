@@ -21,7 +21,7 @@ function readJsonLines(filePath: string): unknown[] {
   return lines.map((line) => JSON.parse(line) as unknown);
 }
 
-describe("HandLog crash durability", () => {
+describe("Room recording crash durability", () => {
   const dirs: string[] = [];
 
   beforeAll(() => {
@@ -40,8 +40,8 @@ describe("HandLog crash durability", () => {
   });
 
   it("SIGKILL mid-hand leaves a partial but line-by-line-parseable log, with no completed write lost", async () => {
-    const logDir = mkdtempSync(path.join(tmpdir(), "durability-"));
-    dirs.push(logDir);
+    const recordingsDir = mkdtempSync(path.join(tmpdir(), "durability-"));
+    dirs.push(recordingsDir);
 
     const child = spawn(
       process.execPath,
@@ -49,9 +49,9 @@ describe("HandLog crash durability", () => {
         cliPath,
         "--seats",
         "0,1,2",
-        "--log-dir",
-        logDir,
-        "--game-id",
+        "--recordings-dir",
+        recordingsDir,
+        "--room-id",
         "crash-test",
       ],
       { stdio: ["pipe", "pipe", "pipe"] },
@@ -84,31 +84,33 @@ describe("HandLog crash durability", () => {
     child.kill("SIGKILL");
     await exited;
 
-    const commandsPath = path.join(
-      logDir,
-      "crash-test",
-      "hand-0001.commands.jsonl",
-    );
-    const eventsPath = path.join(
-      logDir,
-      "crash-test",
-      "hand-0001.events.jsonl",
-    );
+    const roomDir = path.join(recordingsDir, "crash-test");
+    const commandsPath = path.join(roomDir, "hand-0001.commands.jsonl");
+    const eventsPath = path.join(roomDir, "hand-0001.events.jsonl");
 
-    const loggedCommands = readJsonLines(commandsPath) as {
+    // room.json is written before the run reads a single command, so even a
+    // Room killed mid-hand is identifiable on disk.
+    expect(
+      JSON.parse(readFileSync(path.join(roomDir, "room.json"), "utf8")) as {
+        roomId: string;
+        code: string | null;
+      },
+    ).toMatchObject({ roomId: "crash-test", code: null });
+
+    const recordedCommands = readJsonLines(commandsPath) as {
       v: number;
       type: string;
     }[];
-    const loggedEvents = readJsonLines(eventsPath) as {
+    const recordedEvents = readJsonLines(eventsPath) as {
       v: number;
       type: string;
     }[];
 
-    expect(loggedCommands.length).toBeGreaterThan(0);
-    expect(loggedEvents.length).toBeGreaterThan(0);
+    expect(recordedCommands.length).toBeGreaterThan(0);
+    expect(recordedEvents.length).toBeGreaterThan(0);
 
-    expect(loggedCommands.map((r) => r.type)).toEqual(
-      commands.slice(0, loggedCommands.length).map((c) => c.type),
+    expect(recordedCommands.map((r) => r.type)).toEqual(
+      commands.slice(0, recordedCommands.length).map((c) => c.type),
     );
   }, 20_000);
 });

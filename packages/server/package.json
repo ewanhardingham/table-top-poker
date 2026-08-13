@@ -13,7 +13,7 @@
   "dependencies": {
     "@fastify/static": "^10.1.2",
     "@fastify/websocket": "^11.3.0",
-    "@table-top-poker/persistence": "*",
+    "@table-top-poker/recording": "*",
     "@table-top-poker/protocol": "*",
     "fastify": "^5.10.0",
     "qrcode": "^1.5.4"
