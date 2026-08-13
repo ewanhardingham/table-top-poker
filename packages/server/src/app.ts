@@ -260,11 +260,23 @@ export async function buildApp(
    * already broadcast, so `summarise` can be handed the whole hand the
    * moment it completes. `startedAt` is stamped here rather than inside
    * `summarise`, which stays free of a clock.
+   *
+   * `handOrdinal` is stamped at `HandStarted` and counts hands *started*, not
+   * hands completed — that is what `HandLog` numbers its `hand-NNNN`
+   * partitions by, and a summary's ordinal is the address `get-hand` will
+   * resolve against a recording. Counting completions instead would silently
+   * desynchronise the two the first time a hand was abandoned mid-deal.
    */
   const handsInProgress = new Map<
     string,
-    { readonly startedAt: string; readonly events: HandEvent[] }
+    {
+      readonly handOrdinal: number;
+      readonly startedAt: string;
+      readonly events: HandEvent[];
+    }
   >();
+  /** Hands *started* per room, so an abandoned hand still consumes its ordinal. */
+  const handsStarted = new Map<string, number>();
   const pingIntervalMs = options.pingIntervalMs ?? 10_000;
   const missedPongLimit = options.missedPongLimit ?? 2;
   const graceWindowMs = options.graceWindowMs ?? 60_000;
@@ -424,6 +436,7 @@ export async function buildApp(
     actionClock.clear(code);
     handSummaries.delete(code);
     handsInProgress.delete(code);
+    handsStarted.delete(code);
     closeRecording(code);
     rooms.end(code);
   }
@@ -461,7 +474,10 @@ export async function buildApp(
   ): void {
     for (const step of steps) {
       if (step.event.type === "HandStarted") {
+        const handOrdinal = (handsStarted.get(code) ?? 0) + 1;
+        handsStarted.set(code, handOrdinal);
         handsInProgress.set(code, {
+          handOrdinal,
           startedAt: new Date().toISOString(),
           events: [],
         });
@@ -472,13 +488,22 @@ export async function buildApp(
       if (step.event.type !== "HandComplete") continue;
 
       handsInProgress.delete(code);
+      let summary: HandSummary;
+      try {
+        summary = summarise(inProgress.events, {
+          handOrdinal: inProgress.handOrdinal,
+          startedAt: inProgress.startedAt,
+        });
+      } catch {
+        // Only complete, valid hands enter the listing (§4). Unreachable by
+        // construction — this ran because the room broadcast `HandComplete`
+        // — but `publishDispatch` is also called from the action clock's
+        // timer, where a throw would surface as an unhandled rejection long
+        // after the events had gone out. Losing one picker row is the
+        // cheaper failure.
+        continue;
+      }
       const summaries = handSummaries.get(code) ?? [];
-      const summary = summarise(inProgress.events, {
-        // 1-based across the Room's life, matching the recording's
-        // `hand-NNNN` partition.
-        handOrdinal: summaries.length + 1,
-        startedAt: inProgress.startedAt,
-      });
       summaries.push(summary);
       handSummaries.set(code, summaries);
       sendToTables(code, { type: "hand-summary", summary });
@@ -1013,10 +1038,14 @@ export async function buildApp(
             }
             if (replay.data.type === "list-hands") {
               sendHandList(socket, code);
+            } else {
+              // `get-hand` is served by the Replay capability, which lands
+              // with the recording read path; the request shape is validated
+              // here so that ticket adds a response, not a boundary. Answer
+              // rather than drop it, so a client can tell an unbuilt feature
+              // from a dead socket.
+              sendRejection(socket, "replay-not-supported");
             }
-            // `get-hand` is served by the Replay capability, which lands with
-            // the recording read path; the request shape is validated here so
-            // that ticket adds a response, not a boundary.
             return;
           }
 

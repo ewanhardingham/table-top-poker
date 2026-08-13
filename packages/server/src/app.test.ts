@@ -2590,6 +2590,34 @@ describe("hand summaries over WebSocket", () => {
     });
   });
 
+  it("answers a well-formed get-hand rather than dropping it", async () => {
+    const { table } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "replay-not-supported",
+    });
+  });
+
+  it("summarises nothing for a hand still in progress", async () => {
+    const { code, table, seats } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    table.socket.send(JSON.stringify({ type: "nextHand" }));
+    await settle();
+
+    // The second hand is live, so the listing still holds only the first —
+    // an ordinal is spent at the deal, but a row is earned at completion.
+    expect(rooms.get(code)?.engine?.hand?.status).toBe("betting");
+    expect(
+      summariesIn(table.messages).map((m) => m.summary.handOrdinal),
+    ).toEqual([1]);
+  });
+
   it("keeps the hand listing out of RoomView", async () => {
     const { code, table, seats } = await seatedRoom();
     table.socket.send(JSON.stringify({ type: "startHand" }));

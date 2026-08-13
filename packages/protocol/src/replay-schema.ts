@@ -24,4 +24,3 @@ export const ReplayRequestSchema = z.discriminatedUnion("type", [
 ]);
 
 export type ReplayRequest = z.infer<typeof ReplayRequestSchema>;
-export type ReplayRequestType = ReplayRequest["type"];
