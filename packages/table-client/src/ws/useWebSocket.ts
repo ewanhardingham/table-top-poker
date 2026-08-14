@@ -1,14 +1,7 @@
-import type {
-  ClientCommand,
-  ServerMessage,
-  TableView,
-} from "@table-top-poker/protocol";
+import type { ClientCommand, ServerMessage } from "@table-top-poker/protocol";
 import {
   applyRoomSoundSettings,
-  createBeatQueue,
   onHandUpdate,
-  realClock,
-  tableBeatDuration,
 } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useRef } from "react";
 import { useTableStore } from "../store/store.js";
@@ -62,20 +55,6 @@ export function useWebSocket(
     let active = true;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    // The table reveals hand updates as serial beats — a player action, then
-    // the board deal it triggers — so the board's animation and taps wait out
-    // the closing action's sound instead of landing on top of it (#186). Each
-    // beat applies its view (the animation) and fires its sound together.
-    const beats = createBeatQueue<TableView>({
-      ...realClock,
-      apply: (beat) => {
-        if (!active) return;
-        setHandView(beat.view);
-        onHandUpdate({ surface: "table", event: beat.event, view: beat.view });
-      },
-      duration: tableBeatDuration,
-    });
-
     function connect(): void {
       if (!active) return;
       setConnectionStatus("connecting");
@@ -102,14 +81,17 @@ export function useWebSocket(
           applyRoomSoundSettings(message.view.soundSettings);
         } else if (message.type === "hand-update") {
           // The server only ever sends a table-role socket a `view(state, 'table')`.
-          // Queue it as a beat; the queue applies the view and fires the cue,
-          // paced so a board deal clears the action that closed the street.
-          beats.push({ event: message.event, view: message.view });
+          // Applied the moment it arrives — animation and cue together, never
+          // held back for another surface's sound.
+          setHandView(message.view);
+          onHandUpdate({
+            surface: "table",
+            event: message.event,
+            view: message.view,
+          });
         } else if (message.type === "view-snapshot") {
-          // A snapshot (fresh join/reconnect) is not a beat: drop any pending
-          // ones so a reconnect can't replay a delayed burst (#175), and show
-          // the authoritative state at once, silently.
-          beats.clear();
+          // A snapshot (fresh join/reconnect) shows the authoritative state
+          // silently — no cue, so a rejoin can't replay a burst (#175).
           setHandView(message.view);
         } else if (message.type === "room-ended") {
           optionsRef.current.onRoomEnded?.();
@@ -121,7 +103,6 @@ export function useWebSocket(
 
     return () => {
       active = false;
-      beats.clear();
       if (retryTimer !== undefined) clearTimeout(retryTimer);
       socketRef.current?.close();
       socketRef.current = null;
