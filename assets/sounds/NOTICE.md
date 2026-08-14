@@ -36,7 +36,11 @@ here — the alternatives explored during prototyping live only on the
   Kenney's "Casino Audio" pack.
 - **Check knock (own recording)** — an original fist-on-wood performance
   recorded for this project. No third-party content; the project owns the
-  rights outright.
+  rights outright. Trimmed from 1.323s to 0.530s: the take carried ~0.48s of
+  room hiss ahead of the first knock and a comparable stretch after the second
+  had decayed into the noise floor, so the cue read as late against the action
+  that triggered it. Both knocks and their decay are intact, with a 5ms fade in
+  and 30ms fade out over the cuts.
 - **Your-turn (Pixabay Content License)** — royalty-free, commercial use
   permitted, no attribution required. Its one restriction is that the **raw
   file may not be redistributed or sold standalone**. That does not bite here:

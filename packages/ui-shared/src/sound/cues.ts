@@ -26,40 +26,6 @@ export type CueName = keyof typeof CUE_FILES;
 export const CUE_NAMES = Object.keys(CUE_FILES) as CueName[];
 
 /**
- * The measured length of each cue's AAC asset, in ms (rounded up from the
- * container duration). The beat queue uses these as an action's execution time
- * so the next beat — the board deal especially — opens only once the sound it
- * would collide with has finished. Keep in step with the assets in
- * `public/sounds/`; the check knock is the long one that drove this (#186).
- */
-export const CUE_DURATIONS_MS: Record<CueName, number> = {
-  deal: 601,
-  board: 690,
-  fold: 766,
-  check: 1323,
-  flip: 460,
-  yourTurn: 2143,
-};
-
-/**
- * The fraction past a cue's measured length to hold the next beat: a tail so
- * the following beat opens after the sound has clearly finished rather than
- * clipping its decay. 1.3 = the clip plus 30%.
- */
-export const CUE_SETTLE_BUFFER = 1.3;
-
-/**
- * How long a sounded cue should hold the next presentation beat — its measured
- * length plus the settle buffer, rounded up to whole ms. The one source of
- * truth for both the table's beat queue (`tableBeatDuration`) and the phone's
- * your-turn hold (`checkKnockSettleMs`), so retuning an asset's length moves
- * both in step instead of leaving a hand-copied constant to drift.
- */
-export function cueSettleMs(cue: CueName): number {
-  return Math.ceil(CUE_DURATIONS_MS[cue] * CUE_SETTLE_BUFFER);
-}
-
-/**
  * Which room-level category (#182) each cue belongs to. `cards` is the tactile
  * card foley (deal, board, flip); `actions` is player actions (fold, check);
  * `notifications` is the your-turn prompt. A cue plays only when the room's

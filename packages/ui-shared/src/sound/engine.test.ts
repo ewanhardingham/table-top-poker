@@ -383,7 +383,7 @@ describe("your-turn prompt", () => {
     expect(r.played).toContain("yourTurn");
   });
 
-  it("holds the prompt past a check knock from the player who passed the turn", () => {
+  it("does not hold the prompt behind a check knock from the player who passed the turn", () => {
     const r = rig();
     r.engine.onHandUpdate({
       surface: "player",
@@ -391,6 +391,8 @@ describe("your-turn prompt", () => {
       event: { type: "HandStarted", seed: "s", button: 0 },
       view: noHandView,
     });
+    // Mid-hand: the deal sweep is well in the past, so nothing else is holding.
+    r.setNow(TIMINGS.turnAfterDealMs);
     // Seat 1 checks mid-hand and the turn passes to me in the same update.
     r.engine.onHandUpdate({
       surface: "player",
@@ -399,7 +401,7 @@ describe("your-turn prompt", () => {
       view: bettingView(true),
     });
     const turnPrompt = r.scheduled.at(-1);
-    expect(turnPrompt?.delayMs).toBe(TIMINGS.checkKnockSettleMs);
+    expect(turnPrompt?.delayMs).toBe(0);
     r.flush();
     expect(r.played).toContain("yourTurn");
   });

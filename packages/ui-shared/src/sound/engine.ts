@@ -31,7 +31,7 @@ import {
   type SoundSettings,
   type TableView,
 } from "@table-top-poker/protocol";
-import { type CueName, cueAllowed, cueSettleMs } from "./cues.js";
+import { type CueName, cueAllowed } from "./cues.js";
 
 export type Surface = "table" | "player";
 
@@ -82,23 +82,12 @@ export const TIMINGS = {
   /** The deliberate beat between the last hole card and the your-turn prompt. */
   turnAfterDealMs: 700,
   /**
-   * A small offset from the board beat opening to its first tap, so the tap
+   * A small offset from the board update arriving to its first tap, so the tap
    * lands as the card-drop animation settles rather than the instant it starts.
-   * The big gap that keeps the board clear of the closing action's sound is the
-   * beat queue's job now (`tableBeatDuration`), not this lead-in — so this stays
-   * short and the tap never detaches from the card.
+   * Deliberately short: nothing here waits out another surface's cue, so the
+   * tap never detaches from the card landing.
    */
   boardLeadInMs: 150,
-  /**
-   * The check knock is the longest cue at ~1.32s, so the next player's your-turn
-   * prompt would otherwise start on top of it (on another device, but heard in
-   * the same room). Every surface sees the broadcast `ActionTaken` check event,
-   * so each independently holds the prompt for the knock's settle time — its
-   * length plus the shared buffer (`cueSettleMs`), the same figure the table's
-   * beat queue uses — so the knock is heard out first. This is the phone's
-   * equivalent of the table's beat queue, which the phone has no part in.
-   */
-  checkKnockSettleMs: cueSettleMs("check"),
 } as const;
 
 /**
@@ -129,14 +118,6 @@ export function createSoundEngine(
    * well in the past, so a mid-hand turn prompts without the pause.
    */
   let lastHoleCardAt = 0;
-  /**
-   * When the most recent check knock will have finished sounding (ms epoch), so
-   * the next player's your-turn prompt can be held until the knock clears. Set
-   * from any seat's check on every surface — the event is broadcast, so all
-   * devices agree on when the knock ends — reset each hand, and naturally stale
-   * once a knock's worth of time passes.
-   */
-  let checkKnockUntil = 0;
 
   function playCue(cue: CueName): void {
     if (cueAllowed(settings, cue)) effects.play(cue);
@@ -166,7 +147,6 @@ export function createSoundEngine(
       case "HandStarted":
         lastMyTurn = false;
         lastHoleCardAt = 0;
-        checkKnockUntil = 0;
         break;
 
       case "HoleCardsDealt": {
@@ -187,9 +167,8 @@ export function createSoundEngine(
         // One tap per board card, staggered — three distinct taps on the flop,
         // one each on the turn and river. Table only (the community voice —
         // the board is the one deal the table still speaks for, revised #180).
-        // The lead-in keeps the taps in step with the card-drop animation and
-        // clear of a short closing action; it deliberately does NOT wait out a
-        // long check knock, so the tap never detaches from the card landing.
+        // The short lead-in only keeps the taps in step with the card-drop
+        // animation; it never waits out another surface's cue.
         if (surface === "table") {
           staggeredCue(
             "board",
@@ -201,13 +180,8 @@ export function createSoundEngine(
         break;
 
       case "ActionTaken":
-        // A check is heard on every surface's clock (the event is broadcast),
-        // so each engine notes when the knock will clear even though only the
-        // acting player's own phone actually voices it. call/raise are
-        // unallocated (no chip asset yet); the table stays silent (#180).
-        if (event.action === "check") {
-          checkKnockUntil = effects.now() + TIMINGS.checkKnockSettleMs;
-        }
+        // Only the acting player's own phone voices their action. call/raise
+        // are unallocated (no chip asset yet); the table stays silent (#180).
         if (surface === "player" && event.seatId === seatId) {
           if (event.action === "fold") playCue("fold");
           else if (event.action === "check") playCue("check");
@@ -235,12 +209,11 @@ export function createSoundEngine(
       if (myTurn !== lastMyTurn) turnToken++;
       if (myTurn && !lastMyTurn) {
         const token = turnToken;
-        // Hold the prompt past the deal-sweep beat and past any check knock
-        // still sounding from the previous player's move that passed the turn.
+        // Hold the prompt past the deal-sweep beat only — nothing else waits
+        // on another surface's cue.
         const wait = Math.max(
           0,
           lastHoleCardAt + TIMINGS.turnAfterDealMs - effects.now(),
-          checkKnockUntil - effects.now(),
         );
         effects.schedule(() => {
           // Still this same turn when the deferral elapses? A newer turn-state
