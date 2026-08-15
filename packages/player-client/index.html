@@ -6,6 +6,19 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <!--
+      Same home-screen story as table-client: a phone added to the home screen
+      launches standalone, and `black-translucent` lets the shell run under the
+      status bar with its safe-area padding keeping the content clear.
+    -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Poker" />
+    <meta name="theme-color" content="#050403" />
     <title>Table Top Poker — Player</title>
   </head>
   <body>
