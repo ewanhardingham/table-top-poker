@@ -22,6 +22,7 @@
     "clean": "tsc --build tsconfig.json --clean",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
+    "proto:position-marker": "npm run dev -w @table-top-poker/player-client -- --open /prototype-position-marker.html",
     "format": "prettier --write ."
   },
   "devDependencies": {
