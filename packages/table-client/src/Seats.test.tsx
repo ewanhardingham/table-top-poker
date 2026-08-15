@@ -414,12 +414,26 @@ describe("Seats", () => {
     );
   });
 
-  it("leaves a bottom-row seat unflipped, with no placard", () => {
-    const html = renderToStaticMarkup(<Seats seats={seats} view={null} />);
+  it("gives a bottom-row seat the same placard, unflipped", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats.map((seat) =>
+          seat.id === 0 ? { ...seat, displayName: "Avery" } : seat,
+        )}
+        view={null}
+      />,
+    );
 
-    expect(html).not.toContain('data-testid="seat-pod-0-placard"');
-    expect(html).not.toContain('data-testid="seat-pod-1-placard"');
-    expect(styleOf(html, "seat-pod-0-surface")).not.toContain("rotate");
+    // Same row, same order — only the rotation separates the two rows, so
+    // both players see an identically-shaped seat from where they sit.
+    expect(html).toMatch(
+      /data-testid="seat-pod-0-placard"[^>]*data-flipped="false"/,
+    );
+    expect(styleOf(html, "seat-pod-0-placard")).toContain("flex-direction:row");
+    expect(styleOf(html, "seat-pod-0-placard")).not.toContain("rotate");
+    expect(html).toMatch(
+      /data-testid="seat-pod-0-placard"[\s\S]*data-testid="seat-pod-0-avatar"[\s\S]*data-testid="seat-pod-0-name"/,
+    );
   });
 
   it("keeps the top-row action callout separate from the placard and upright", () => {
