@@ -54,7 +54,22 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 10px 18px 24px;
+  padding: 10px 12px 24px;
+  /* The hole cards size themselves off this box, not off the viewport — the
+   * phone column is capped at 480px, so viewport units would overshoot it on a
+   * desktop tab. */
+  container-type: inline-size;
+  /*
+   * One length drives the whole pair: each card is 3.5 × 5 of it and the gap
+   * between them 0.5, so the pair spans 7.5 units laid out and about 8.02
+   * once the resting tilt is counted. Sizing it off the column rather than
+   * pinning it to a nominal 16px root is what lets the cards grow into the
+   * phone they actually land on: 12.4cqw keeps that 8.02 just inside the
+   * content box at any width, and the dvh term stops a short screen
+   * (landscape, or a raised keyboard) from pushing the pair over the captions
+   * below it.
+   */
+  --hole-card-unit: clamp(2.2rem, min(12.4cqw, 7.6dvh), 4.2rem);
 }
 
 /*

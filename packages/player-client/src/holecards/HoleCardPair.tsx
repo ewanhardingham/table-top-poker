@@ -42,6 +42,15 @@ const suitWords: Record<Suit, string> = {
   spades: "spades",
 };
 
+/**
+ * The font-size the whole pair is drawn at — every card dimension is an `em`
+ * of it. `--hole-card-unit` is set by `.hand`, which sizes it from the phone
+ * column's own width and the viewport height; the fallback is the fixed size
+ * this used to be, for any surface that renders a pair outside that shell
+ * (tests included).
+ */
+const HOLE_CARD_UNIT = "var(--hole-card-unit, 2.6em)";
+
 function cardWords(card: CardType): string {
   return `${rankWords[card.rank]} of ${suitWords[card.suit]}`;
 }
@@ -82,7 +91,7 @@ function Absent() {
   return (
     <div
       data-testid="no-hole-cards"
-      style={{ display: "flex", gap: "0.9em", fontSize: "2.6em" }}
+      style={{ display: "flex", gap: "0.9em", fontSize: HOLE_CARD_UNIT }}
     >
       {[-5, 5].map((tilt) => (
         <span
@@ -195,12 +204,31 @@ export function HoleCardPair(props: HoleCardPairProps) {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        gap: "0.55em",
+        // The pair claims the whole card region rather than only the height its
+        // cards need, so the spare height on a tall phone is *inside* this
+        // column where it can be placed, instead of padding the region around
+        // a group that stays tight however much screen it is given.
+        flex: 1,
+        minHeight: 0,
+        // The floor under the hint on a screen with nothing spare to give.
+        gap: "1.1em",
       }}
     >
       {/* The positioning parent for the Check stamp, which is painted over the
        * pair rather than laid out beside it. */}
-      <div style={{ position: "relative", display: "flex" }}>
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          // Auto margins take the column's free space above and below the
+          // cards, which leaves the hint sitting at the bottom of the pair —
+          // next to `Hand`'s caption and just over the action buttons, where
+          // the two lines of copy read as one block. The cards float centred in
+          // whatever is left. On a short screen there is no free space to take
+          // and this collapses to the stack the phone already had.
+          margin: "auto 0",
+        }}
+      >
         <button
           type="button"
           data-testid="hole-cards"
@@ -250,7 +278,7 @@ export function HoleCardPair(props: HoleCardPairProps) {
               duration: DEAL_IN_MS / 1000,
               ease: [0.2, 0.8, 0.2, 1],
             }}
-            style={{ display: "flex", fontSize: "2.6em" }}
+            style={{ display: "flex", fontSize: HOLE_CARD_UNIT }}
           >
             {/* A layer of its own, so the fold drag and the muck flight can drive
              * `y` and `opacity` from `MotionValue`s while the deal-in above keeps

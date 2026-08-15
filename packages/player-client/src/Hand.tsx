@@ -298,24 +298,16 @@ function TurnBanner({ banner }: { readonly banner: Banner }) {
 }
 
 /**
- * A caption under a pair is a label — small, spaced, uppercase; a caption
- * under empty slots is a sentence explaining why they're empty, and reads as
- * prose.
+ * Empty slots get a sentence saying why they are empty, so it reads as prose.
+ * A visible pair gets nothing: it was captioned "Your hole cards · flop" once,
+ * which named what the player is plainly looking at and repeated the street
+ * the banner above already gives.
  */
-const captionStyle: Record<"label" | "prose", CSSProperties> = {
-  label: {
-    fontFamily: font.mono,
-    fontSize: fontSize.xs,
-    letterSpacing: "0.2em",
-    textTransform: "uppercase",
-    color: color.textDim,
-  },
-  prose: {
-    fontSize: fontSize.md,
-    lineHeight: 1.5,
-    color: color.textDim,
-    maxWidth: "16em",
-  },
+const absentCaptionStyle: CSSProperties = {
+  fontSize: fontSize.md,
+  lineHeight: 1.5,
+  color: color.textDim,
+  maxWidth: "16em",
 };
 
 /**
@@ -323,6 +315,8 @@ const captionStyle: Record<"label" | "prose", CSSProperties> = {
  * every caption on this screen; the pair owns card presentation and nothing
  * else, which is why the `Absent` copy is decided here (folded reads
  * differently from not-dealt-in) while the empty slots are drawn there.
+ *
+ * Only empty slots are captioned — a pair the player can see explains itself.
  */
 function HoleCardsRegion({
   cards,
@@ -333,7 +327,8 @@ function HoleCardsRegion({
   readonly cards: readonly [CardType, CardType] | null;
   readonly locked?: boolean;
   readonly actions: CardActions;
-  readonly caption: string;
+  /** Why the slots are empty. Absent alongside cards, which need no caption. */
+  readonly caption?: string;
 }) {
   const absent = cards === null;
   return (
@@ -344,13 +339,16 @@ function HoleCardsRegion({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: absent ? "1.1em" : "0.9em",
+        // Only ever between the empty slots and the sentence under them: a
+        // visible pair carries its own hint down to its bottom edge and is the
+        // sole child here.
+        gap: "1.1em",
         minHeight: 0,
         textAlign: "center",
       }}
     >
       <HoleCardPair cards={cards} locked={locked} actions={actions} />
-      <span style={captionStyle[absent ? "prose" : "label"]}>{caption}</span>
+      {absent && <span style={absentCaptionStyle}>{caption}</span>}
     </div>
   );
 }
@@ -446,7 +444,6 @@ export function Hand({
             cards={myResult.holeCards}
             locked
             actions={actions}
-            caption="Your hole cards · showdown"
           />
         ) : (
           <HoleCardsRegion
@@ -474,11 +471,7 @@ export function Hand({
     >
       <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
       {view.yourHoleCards ? (
-        <HoleCardsRegion
-          cards={view.yourHoleCards}
-          actions={actions}
-          caption={`Your hole cards · ${view.street}`}
-        />
+        <HoleCardsRegion cards={view.yourHoleCards} actions={actions} />
       ) : (
         <HoleCardsRegion
           cards={null}
