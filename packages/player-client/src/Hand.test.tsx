@@ -342,4 +342,135 @@ describe("Hand", () => {
       expect(html).not.toContain("data-presentation");
     });
   });
+
+  describe("position marker (issue #207)", () => {
+    const bettingView: PlayerView = {
+      phase: "betting",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 6,
+      street: "flop",
+      board: [],
+      toAct: [3],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 1, folded: false },
+        { seatId: 2, folded: false },
+        { seatId: 3, folded: false },
+      ],
+      yourSeatId: 0,
+      yourHoleCards: null,
+      legalActions: [],
+    };
+
+    it.each([
+      [0, "button"],
+      [1, "small-blind"],
+      [2, "big-blind"],
+    ])(
+      "gives seat %i's banner the %s disc in place of the tone dot",
+      (seatId, marker) => {
+        const html = renderToStaticMarkup(
+          <Hand
+            view={{ ...bettingView, yourSeatId: seatId }}
+            seatId={seatId}
+          />,
+        );
+
+        expect(html).toContain(`data-marker="${marker}"`);
+        expect(html).not.toContain('data-testid="turn-banner-dot"');
+      },
+    );
+
+    it("leaves the tone dot alone for a seat holding no position", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={{ ...bettingView, yourSeatId: 3 }} seatId={3} />,
+      );
+
+      expect(html).toContain('data-testid="turn-banner-dot"');
+      expect(html).not.toContain('data-testid="position-badge"');
+    });
+
+    // Between hands the button is a forecast of the next deal — the most
+    // useful moment to see it — and the completed phases still say where you
+    // sat, exactly as the table pod beside you does.
+    const otherPhases: readonly (readonly [string, PlayerView])[] = [
+      ["no-hand", { phase: "no-hand", button: 0 }],
+      [
+        "showdown",
+        {
+          phase: "showdown",
+          button: 0,
+          smallBlind: 1,
+          bigBlind: 2,
+          dealtSeatCount: 3,
+          board: [],
+          results: [],
+          winners: [1],
+        },
+      ],
+      [
+        "folded-out",
+        {
+          phase: "folded-out",
+          button: 0,
+          smallBlind: 1,
+          bigBlind: 2,
+          dealtSeatCount: 3,
+          winner: 1,
+        },
+      ],
+    ];
+
+    it.each(otherPhases)(
+      "carries the marker through the %s phase too",
+      (_phase, view) => {
+        const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
+        expect(html).toContain('data-marker="button"');
+      },
+    );
+
+    it("shows the heads-up button its disc and the other seat nothing", () => {
+      // The table's suppression, applied to the phone on purpose (decision 2):
+      // the engine reports smallBlind === button, and neither device marks the
+      // heads-up big blind.
+      const headsUp: PlayerView = {
+        ...bettingView,
+        button: 0,
+        smallBlind: 0,
+        bigBlind: 1,
+        dealtSeatCount: 2,
+      };
+
+      expect(
+        renderToStaticMarkup(
+          <Hand view={{ ...headsUp, yourSeatId: 0 }} seatId={0} />,
+        ),
+      ).toContain('data-marker="button"');
+      expect(
+        renderToStaticMarkup(
+          <Hand view={{ ...headsUp, yourSeatId: 1 }} seatId={1} />,
+        ),
+      ).not.toContain('data-testid="position-badge"');
+    });
+
+    it("dims the disc while the banner is reporting a dropped connection", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={bettingView} seatId={0} connectionStatus="disconnected" />,
+      );
+
+      expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="offline"/);
+      expect(html).toContain('data-marker="button"');
+      expect(html).toContain("opacity:0.55");
+    });
+
+    it("keeps the disc at full strength while connected", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={bettingView} seatId={0} connectionStatus="connected" />,
+      );
+
+      expect(html).toContain("opacity:1");
+    });
+  });
 });
