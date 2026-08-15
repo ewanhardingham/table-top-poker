@@ -307,25 +307,21 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
           </div>
         );
 
-        // Boundary rule: the avatar is the fixed anchor `posFor` placed — the
-        // name and status only ever grow inward, toward the felt's centre,
-        // never past the seat toward the rail. A bottom-row seat reads status
-        // → name → avatar top to bottom, so its copy ends up on the
-        // table-facing side, closest to the centre everyone's looking at.
+        // Every seat is a *placard* (issue #204): the avatar, marker, name and
+        // status in one row, avatar first. Both rows are built identically and
+        // only the top row is turned half a revolution, so each player reads
+        // an identically-shaped seat — avatar on their left, copy to its right
+        // — from wherever they are sitting.
         //
-        // A top-row seat instead becomes a *placard* (issue #204): the avatar,
-        // marker, name and status sit in one row that is turned half a
-        // revolution, so the player at that edge of the physical table reads
-        // their own seat upright. Rotating a row rather than the old column is
-        // what buys the readable seat — it also trades depth for width, so a
-        // top-row seat now grows sideways from its anchor instead of inward.
-        // That is deliberate: the row is only ever about one avatar tall, so
-        // it stays well clear of the rail behind it and of the board in front,
-        // and rotation changes no layout box, so the `posFor` anchor and the
-        // seat's footprint are exactly what they'd be unrotated.
-        const podContent = isTopRow ? (
+        // The row replaced a vertical stack, which trades depth for width: a
+        // seat now grows sideways from the anchor `posFor` placed rather than
+        // inward toward the felt's centre. That is deliberate. A row is only
+        // ever about one avatar tall however long the name, so it stays well
+        // clear of the rail behind it and the board in front, and rotation
+        // changes no layout box — the anchor and the seat's footprint are
+        // exactly what they'd be unrotated.
+        const podContent = (
           <div
-            key="placard"
             data-testid={`seat-pod-${String(seat.id)}-placard`}
             data-flipped={isTopRow}
             style={{
@@ -352,8 +348,6 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
               </div>
             )}
           </div>
-        ) : (
-          [sittingOutBlock, nameBlock, avatarBlock]
         );
 
         return (
