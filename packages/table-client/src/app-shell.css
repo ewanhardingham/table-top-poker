@@ -4,9 +4,17 @@
 
 html,
 body {
+  height: 100%;
   margin: 0;
   padding: 0;
   touch-action: manipulation;
+  overscroll-behavior: none;
+  /*
+   * The shell insets itself by the safe areas, so on a home-screen install
+   * the status-bar strip shows the page background rather than the shell.
+   * Without this it is the browser default white.
+   */
+  background: #0b0a09;
 }
 
 #root {

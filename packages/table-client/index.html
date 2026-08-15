@@ -6,6 +6,20 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+    <!--
+      The table is meant to be installed to the iPad home screen: iPad Safari
+      always keeps its tab and address bar, a home-screen launch does not.
+      `black-translucent` lets the felt run under the status bar; the shell's
+      safe-area padding keeps the header clear of it.
+    -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Poker Table" />
+    <meta name="theme-color" content="#0b0a09" />
     <title>Table Top Poker — Table</title>
   </head>
   <body>
