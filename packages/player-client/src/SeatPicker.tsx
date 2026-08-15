@@ -287,7 +287,7 @@ export function SeatPicker({
               required
               aria-required="true"
               maxLength={MAX_DISPLAY_NAME_LENGTH}
-              placeholder="e.g. Avery"
+              placeholder="e.g. Hasbulla"
               onChange={(event) => {
                 setDisplayName(event.target.value);
               }}
