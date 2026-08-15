@@ -14,6 +14,12 @@ export type {
 } from "./PillButton.js";
 export { Panel } from "./Panel.js";
 export type { PanelProps } from "./Panel.js";
+export {
+  positionMarkerColor,
+  positionMarkerFor,
+  positionMarkerLabel,
+} from "./positionMarker.js";
+export type { PositionMarker } from "./positionMarker.js";
 export { color, font, fontSize, radius, shadow } from "./theme.js";
 export {
   applyRoomSoundSettings,

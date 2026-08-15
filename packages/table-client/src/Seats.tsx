@@ -1,5 +1,13 @@
 import type { SeatView, TableView } from "@table-top-poker/protocol";
-import { color, font, shadow } from "@table-top-poker/ui-shared";
+import {
+  color,
+  font,
+  positionMarkerColor,
+  positionMarkerFor,
+  positionMarkerLabel,
+  shadow,
+  type PositionMarker,
+} from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
 import { posFor } from "./table/posFor.js";
 
@@ -13,9 +21,6 @@ export interface SeatsProps {
 type SeatStatus =
   "open" | "sitting-out" | "disconnected" | "folded" | "in-hand";
 
-/** Which positional marker a seat carries, if any. Never more than one. */
-type SeatMarker = "button" | "small-blind" | "big-blind";
-
 /**
  * One diameter and one font size for all three markers, resolved against the
  * pod rather than against the marker's own text. The two are set on separate
@@ -26,56 +31,13 @@ type SeatMarker = "button" | "small-blind" | "big-blind";
 const MARKER_DIAMETER = "1.6em";
 const MARKER_FONT_SIZE = "0.62em";
 
-const markerLabel: Record<SeatMarker, string> = {
-  button: "D",
-  "small-blind": "SB",
-  "big-blind": "BB",
-};
-
-const markerBackground: Record<SeatMarker, string> = {
-  button: color.buttonMarker,
-  "small-blind": color.blindSmallMarker,
-  "big-blind": color.blindBigMarker,
-};
-
 interface SeatVisual {
   readonly status: SeatStatus;
-  readonly marker: SeatMarker | null;
+  readonly marker: PositionMarker | null;
   readonly isActor: boolean;
   readonly isWinner: boolean;
   readonly avatarBackground: string;
   readonly avatarColor: string;
-}
-
-/**
- * Which marker this seat carries. All three come off the same view, so the
- * trio always moves on one tick and no seat ever carries two.
- *
- * Two suppressions, both deliberate:
- *
- * - Between hands (`no-hand`) only the button shows. The engine reports no
- *   blinds without a hand, and the button it does report is already a
- *   forecast of the next deal.
- * - **Heads-up (`dealtSeatCount === 2`) only the button shows — no `SB` on
- *   the button seat, and no `BB` on the other seat either.** The engine
- *   honestly reports `smallBlind === button` heads-up (the button does post
- *   the small blind), which would put two markers on one seat. Rather than
- *   stack or combine them, a heads-up hand reverts to exactly the display
- *   that existed before blind markers were added. This is a decision
- *   (issue #160, decision 4), not an oversight.
- */
-function markerFor(seatId: number, view: TableView | null): SeatMarker | null {
-  if (view === null) return null;
-  // Heads-up is a property of the deal, not of who is still live: folds never
-  // change it, so this reads the same in every phase of the hand.
-  const headsUp = view.phase !== "no-hand" && view.dealtSeatCount === 2;
-  if (view.phase === "no-hand" || headsUp) {
-    return seatId === view.button ? "button" : null;
-  }
-  if (seatId === view.button) return "button";
-  if (seatId === view.smallBlind) return "small-blind";
-  if (seatId === view.bigBlind) return "big-blind";
-  return null;
 }
 
 /**
@@ -146,7 +108,7 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
 
   return {
     status,
-    marker: markerFor(seat.id, view),
+    marker: positionMarkerFor(seat.id, view),
     isActor: view?.phase === "betting" && view.toAct[0] === seat.id,
     isWinner,
     avatarBackground,
@@ -234,7 +196,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  background: markerBackground[visual.marker],
+                  background: positionMarkerColor[visual.marker],
                   color: color.pillInk,
                   boxShadow: shadow.card,
                 }}
@@ -247,7 +209,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                     lineHeight: 1,
                   }}
                 >
-                  {markerLabel[visual.marker]}
+                  {positionMarkerLabel[visual.marker]}
                 </span>
               </span>
             )}

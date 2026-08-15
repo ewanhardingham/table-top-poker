@@ -7,13 +7,16 @@ import {
   color,
   font,
   fontSize,
+  positionMarkerFor,
   radius,
   shadow,
+  type PositionMarker,
 } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
 import type { CSSProperties } from "react";
 import type { ActionIntent } from "./actions/useActionIntent.js";
 import { HoleCardPair, type CardActions } from "./holecards/index.js";
+import { PositionBadge } from "./PositionBadge.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
 export interface HandProps {
@@ -231,7 +234,20 @@ function bannerFor(
   };
 }
 
-function TurnBanner({ banner }: { readonly banner: Banner }) {
+/**
+ * The banner's leading slot carries one of two things. It is the marker
+ * whenever this player holds a position, and the tone dot otherwise — the
+ * marker is the rarer and more specific of the two, and on the hands it
+ * appears the banner's own background and kicker still carry the tone
+ * (issue #207, decision 1).
+ */
+function TurnBanner({
+  banner,
+  marker,
+}: {
+  readonly banner: Banner;
+  readonly marker: PositionMarker | null;
+}) {
   const tone = bannerToneStyle[banner.tone];
   return (
     <motion.div
@@ -257,15 +273,20 @@ function TurnBanner({ banner }: { readonly banner: Banner }) {
         border: `1px solid ${tone.border}`,
       }}
     >
-      <span
-        style={{
-          width: "0.7em",
-          height: "0.7em",
-          borderRadius: "50%",
-          flex: "none",
-          background: tone.dot,
-        }}
-      />
+      {marker ? (
+        <PositionBadge marker={marker} dimmed={banner.tone === "offline"} />
+      ) : (
+        <span
+          data-testid="turn-banner-dot"
+          style={{
+            width: "0.7em",
+            height: "0.7em",
+            borderRadius: "50%",
+            flex: "none",
+            background: tone.dot,
+          }}
+        />
+      )}
       <div
         style={{
           display: "flex",
@@ -386,7 +407,10 @@ export function Hand({
           gap: "1em",
         }}
       >
-        <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
+        <TurnBanner
+          banner={bannerFor(view, connectionStatus, seatId, seats)}
+          marker={positionMarkerFor(seatId, view)}
+        />
         <HoleCardsRegion
           cards={null}
           actions={actions}
@@ -410,7 +434,10 @@ export function Hand({
           gap: "1em",
         }}
       >
-        <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
+        <TurnBanner
+          banner={bannerFor(view, connectionStatus, seatId, seats)}
+          marker={positionMarkerFor(seatId, view)}
+        />
         <HoleCardsRegion
           cards={null}
           actions={actions}
@@ -438,7 +465,10 @@ export function Hand({
           gap: "1em",
         }}
       >
-        <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
+        <TurnBanner
+          banner={bannerFor(view, connectionStatus, seatId, seats)}
+          marker={positionMarkerFor(seatId, view)}
+        />
         {myResult ? (
           <HoleCardsRegion
             cards={myResult.holeCards}
@@ -469,7 +499,10 @@ export function Hand({
         gap: "1em",
       }}
     >
-      <TurnBanner banner={bannerFor(view, connectionStatus, seatId, seats)} />
+      <TurnBanner
+        banner={bannerFor(view, connectionStatus, seatId, seats)}
+        marker={positionMarkerFor(seatId, view)}
+      />
       {view.yourHoleCards ? (
         <HoleCardsRegion cards={view.yourHoleCards} actions={actions} />
       ) : (
