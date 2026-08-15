@@ -166,10 +166,21 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
       {seats.map((seat) => {
         const visual = deriveSeat(seat, view);
         const pos = posFor(seat.id, seats.length);
-        // Bottom-row seats sit at posFor's ~90% and top-row at ~10% — the
-        // midline split below is only ever used to pick a stacking
-        // direction, not to reposition anything posFor already placed.
+        // Bottom-row seats sit at posFor's ~90% and top-row at ~10%. The
+        // midline split below decides how a seat's contents are arranged and
+        // which way round its writing reads — it never repositions anything
+        // posFor already placed.
         const isTopRow = pos.top < 50;
+        // One rule, one place: everything a top-row seat writes turns half a
+        // revolution so the player at that edge reads it upright. Anything
+        // added to a pod later has to carry this too. The callout takes the
+        // number rather than the style because motion composes `rotate` into
+        // the same transform as its `y` and `scale`, and a CSS `transform`
+        // there would simply be overwritten.
+        const flipDegrees = isTopRow ? 180 : 0;
+        const flipStyle = isTopRow
+          ? { transform: `rotate(${String(flipDegrees)}deg)` }
+          : undefined;
 
         const avatarBlock = (
           <div key="avatar" style={{ position: "relative" }}>
@@ -298,13 +309,52 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
 
         // Boundary rule: the avatar is the fixed anchor `posFor` placed — the
         // name and status only ever grow inward, toward the felt's centre,
-        // never past the seat toward the rail. Top row reads avatar → name →
-        // status top to bottom; bottom row is the mirror, so the name and
-        // status always end up on the table-facing side, closest to the centre
-        // everyone's looking at.
-        const stack = isTopRow
-          ? [avatarBlock, nameBlock, sittingOutBlock]
-          : [sittingOutBlock, nameBlock, avatarBlock];
+        // never past the seat toward the rail. A bottom-row seat reads status
+        // → name → avatar top to bottom, so its copy ends up on the
+        // table-facing side, closest to the centre everyone's looking at.
+        //
+        // A top-row seat instead becomes a *placard* (issue #204): the avatar,
+        // marker, name and status sit in one row that is turned half a
+        // revolution, so the player at that edge of the physical table reads
+        // their own seat upright. Rotating a row rather than the old column is
+        // what buys the readable seat — it also trades depth for width, so a
+        // top-row seat now grows sideways from its anchor instead of inward.
+        // That is deliberate: the row is only ever about one avatar tall, so
+        // it stays well clear of the rail behind it and of the board in front,
+        // and rotation changes no layout box, so the `posFor` anchor and the
+        // seat's footprint are exactly what they'd be unrotated.
+        const podContent = isTopRow ? (
+          <div
+            key="placard"
+            data-testid={`seat-pod-${String(seat.id)}-placard`}
+            data-flipped={isTopRow}
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: "0.5em",
+              ...flipStyle,
+            }}
+          >
+            {avatarBlock}
+            {(Boolean(nameBlock) || Boolean(sittingOutBlock)) && (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  gap: "0.25em",
+                  minWidth: 0,
+                }}
+              >
+                {nameBlock}
+                {sittingOutBlock}
+              </div>
+            )}
+          </div>
+        ) : (
+          [sittingOutBlock, nameBlock, avatarBlock]
+        );
 
         return (
           <div
@@ -380,15 +430,26 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                       : 1,
               }}
             >
-              {stack}
+              {podContent}
             </motion.div>
             <AnimatePresence>
               {visual.isActor && (
                 <motion.div
                   data-testid={`seat-pod-${String(seat.id)}-to-act`}
-                  initial={{ opacity: 0, y: 6, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.9 }}
+                  data-flipped={isTopRow}
+                  // The callout stays a sibling of the placard, keeping its
+                  // own inward footprint below the seat; only its own text is
+                  // turned for a top-row player. `rotate` rides in the
+                  // animated transform so it composes with `y` and `scale`
+                  // rather than being overwritten by them.
+                  initial={{
+                    opacity: 0,
+                    y: 6,
+                    scale: 0.9,
+                    rotate: flipDegrees,
+                  }}
+                  animate={{ opacity: 1, y: 0, scale: 1, rotate: flipDegrees }}
+                  exit={{ opacity: 0, y: 6, scale: 0.9, rotate: flipDegrees }}
                   transition={{ duration: 0.2 }}
                   style={{
                     padding: "0.35em 0.9em",
@@ -408,7 +469,13 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
               )}
             </AnimatePresence>
             {seat.disconnected && (
-              <span data-testid={`seat-pod-${String(seat.id)}-disconnected`}>
+              <span
+                data-testid={`seat-pod-${String(seat.id)}-disconnected`}
+                // Same copy either way; a top-row badge just turns with the
+                // rest of that seat's writing so one player never reads half
+                // their seat upside down.
+                style={flipStyle}
+              >
                 Disconnected
               </span>
             )}

@@ -387,6 +387,169 @@ describe("Seats", () => {
     expect(html).not.toContain("hole-cards");
   });
 
+  it("flips a top-row seat's identity placard so that side of the table reads it upright", () => {
+    // Four seats: 0 and 1 sit along the bottom edge, 2 and 3 along the top.
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats.map((seat) =>
+          seat.id === 3
+            ? { ...seat, claimed: true, displayName: "Nkechi-Amara" }
+            : seat,
+        )}
+        view={null}
+      />,
+    );
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-3-placard"[^>]*data-flipped="true"/,
+    );
+    expect(styleOf(html, "seat-pod-3-placard")).toContain(
+      "transform:rotate(180deg)",
+    );
+    // The identity is one row rather than the bottom row's column, so a
+    // top-row seat is only ever about an avatar deep however long the name.
+    expect(styleOf(html, "seat-pod-3-placard")).toContain("flex-direction:row");
+    expect(html).toMatch(
+      /data-testid="seat-pod-3-placard"[\s\S]*data-testid="seat-pod-3-avatar"[\s\S]*data-testid="seat-pod-3-name"/,
+    );
+  });
+
+  it("leaves a bottom-row seat unflipped, with no placard", () => {
+    const html = renderToStaticMarkup(<Seats seats={seats} view={null} />);
+
+    expect(html).not.toContain('data-testid="seat-pod-0-placard"');
+    expect(html).not.toContain('data-testid="seat-pod-1-placard"');
+    expect(styleOf(html, "seat-pod-0-surface")).not.toContain("rotate");
+  });
+
+  it("keeps the top-row action callout separate from the placard and upright", () => {
+    const view: TableView = {
+      phase: "betting",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 3,
+      dealtSeatCount: 3,
+      street: "flop",
+      board: [],
+      toAct: [3],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 1, folded: false },
+        { seatId: 3, folded: false },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats.map((seat) =>
+          seat.id === 3 ? { ...seat, claimed: true } : seat,
+        )}
+        view={view}
+      />,
+    );
+
+    // The callout is a sibling of the placard, not a child of it, so it keeps
+    // its own inward footprint while still reading upright from the top side.
+    expect(subtreeOf(html, "seat-pod-3-placard")).not.toContain("To act");
+    expect(html).toMatch(
+      /data-testid="seat-pod-3-placard"[\s\S]*data-testid="seat-pod-3-to-act"/,
+    );
+    expect(styleOf(html, "seat-pod-3-to-act")).toContain("rotate(180deg)");
+  });
+
+  it("keeps a bottom-row action callout unrotated", () => {
+    const view: TableView = {
+      phase: "betting",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      street: "flop",
+      board: [],
+      toAct: [1],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 1, folded: false },
+      ],
+    };
+    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+    expect(styleOf(html, "seat-pod-1-to-act")).not.toContain("rotate(180deg)");
+  });
+
+  it("flips a top-row disconnected badge with the rest of that seat's copy", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats.map((seat) =>
+          seat.id === 2 ? { ...seat, disconnected: true } : seat,
+        )}
+        view={null}
+      />,
+    );
+
+    expect(html).toContain("Disconnected");
+    expect(styleOf(html, "seat-pod-2-disconnected")).toContain(
+      "transform:rotate(180deg)",
+    );
+  });
+
+  it("keeps every seat state's copy inside the flipped top-row placard", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats.map((seat) =>
+          seat.id === 2
+            ? { ...seat, sittingOutReason: "waiting-for-next-hand" as const }
+            : seat.id === 3
+              ? {
+                  ...seat,
+                  claimed: true,
+                  displayName: "Nkechi-Amara Oyelaran-Whitfield",
+                }
+              : seat,
+        )}
+        view={null}
+      />,
+    );
+
+    // Seats 2 and 3 are the top row: one waiting for the next hand, one with
+    // a name long enough to need the caption's existing 8em bound.
+    const waiting = subtreeOf(html, "seat-pod-2-placard");
+    expect(waiting).toContain("Waiting for next hand");
+    expect(waiting).toContain("Claimed after the deal");
+    expect(waiting).toContain('data-testid="seat-pod-2-sitting-out-marker"');
+
+    const longName = subtreeOf(html, "seat-pod-3-placard");
+    expect(longName).toContain("Nkechi-Amara Oyelaran-Whitfield");
+    expect(styleOf(longName, "seat-pod-3-name")).toContain("max-width:8em");
+    expect(styleOf(longName, "seat-pod-3-name")).toContain(
+      "text-overflow:ellipsis",
+    );
+  });
+
+  it("keeps a folded top-row seat dimmed behind its flipped placard", () => {
+    const view: TableView = {
+      phase: "betting",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      street: "flop",
+      board: [],
+      toAct: [0],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 2, folded: true },
+      ],
+    };
+    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+
+    expect(html).toMatch(/data-testid="seat-pod-2"[^>]*data-status="folded"/);
+    // The fade still lives on the surface, outside the rotation, so a flipped
+    // seat folds exactly as visibly as a bottom-row one.
+    expect(styleOf(html, "seat-pod-2-surface")).toContain("opacity:0.34");
+    expect(styleOf(html, "seat-pod-2-placard")).toContain(
+      "transform:rotate(180deg)",
+    );
+  });
+
   it("marks only claimed seats as clickable when onSeatClick is provided (ADR-0003)", () => {
     const html = renderToStaticMarkup(
       <Seats seats={seats} view={null} onSeatClick={() => undefined} />,
@@ -399,6 +562,25 @@ describe("Seats", () => {
     );
   });
 });
+
+/**
+ * The rendered markup of the `div` carrying `testid`, including its own tags —
+ * enough to ask what is inside an element rather than merely near it, without
+ * pinning a test to how deeply anything is nested.
+ */
+function subtreeOf(html: string, testid: string): string {
+  const start = html.indexOf(`<div data-testid="${testid}"`);
+  expect(start).toBeGreaterThanOrEqual(0);
+
+  let depth = 0;
+  for (const tag of html.slice(start).matchAll(/<(\/?)div\b[^>]*>/g)) {
+    depth += tag[1] === "/" ? -1 : 1;
+    if (depth === 0) {
+      return html.slice(start, start + tag.index + tag[0].length);
+    }
+  }
+  throw new Error(`unclosed element for ${testid}`);
+}
 
 /** The inline `style` attribute of the span carrying `testid`, if drawn. */
 function styleOf(html: string, testid: string): string | null {
