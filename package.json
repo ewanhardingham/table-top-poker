@@ -20,6 +20,7 @@
     "build": "tsc --build tsconfig.json",
     "build:release": "bash scripts/build-release.sh",
     "clean": "tsc --build tsconfig.json --clean",
+    "prototype:seat-orientation": "bash scripts/run-seat-orientation-prototype.sh",
     "test": "vitest run",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write ."

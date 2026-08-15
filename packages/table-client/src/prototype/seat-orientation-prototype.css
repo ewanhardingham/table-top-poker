@@ -1,0 +1,459 @@
+/* PROTOTYPE ONLY — throwaway styles for /prototype/seat-orientation. */
+
+.seat-orientation-proto-shell {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #0b0a09;
+  color: #f3ece1;
+  font-family: "IBM Plex Sans", system-ui, sans-serif;
+}
+
+.seat-orientation-proto-header {
+  display: flex;
+  align-items: center;
+  gap: 1.4rem;
+  flex: none;
+  min-width: 0;
+  padding: 0.8rem 1.2rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.seat-orientation-proto-header > div {
+  min-width: 0;
+}
+
+.seat-orientation-proto-kicker,
+.seat-orientation-proto-hint,
+.seat-orientation-readout-key,
+.seat-orientation-board-kicker {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.seat-orientation-proto-kicker {
+  color: #f2c14e;
+}
+
+.seat-orientation-proto-header h1 {
+  margin: 0.15rem 0 0;
+  font-family: "Archivo", system-ui, sans-serif;
+  font-size: clamp(1rem, 1.6vw, 1.45rem);
+  font-weight: 700;
+  line-height: 1;
+  color: #f6dcd8;
+}
+
+.seat-orientation-proto-header p {
+  max-width: 44rem;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #cdbfa6;
+}
+
+.seat-orientation-proto-hint {
+  margin-left: auto;
+  flex: none;
+  color: #7d6a68;
+  white-space: nowrap;
+}
+
+.seat-orientation-proto-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0.8rem 1rem 1.2rem;
+  overflow: hidden;
+  border-radius: 0.7rem;
+  background: linear-gradient(180deg, #6a1a1f 0%, #4b1317 42%, #2c0c0f 100%);
+  box-shadow:
+    inset 0 0 12em 4em rgba(0, 0, 0, 0.62),
+    inset 0 2px 0 rgba(255, 255, 255, 0.08);
+  font-size: clamp(11px, 1.35vw, 20px);
+}
+
+.seat-orientation-rail-outline {
+  position: absolute;
+  inset: 0.55em;
+  pointer-events: none;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border-radius: 0.5em;
+}
+
+.seat-orientation-edge-label {
+  position: absolute;
+  z-index: 2;
+  padding: 0.25em 0.7em;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  background: rgba(10, 6, 7, 0.35);
+  color: rgba(246, 220, 216, 0.6);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.57em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.seat-orientation-edge-label--top {
+  top: 0.9em;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.seat-orientation-edge-label--bottom {
+  bottom: 0.9em;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.seat-orientation-board {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55em;
+  transform: translate(-50%, -50%);
+}
+
+.seat-orientation-board-kicker {
+  color: #cdbfa6;
+}
+
+.seat-orientation-board-cards {
+  display: flex;
+  gap: 0.35em;
+  font-size: clamp(0.9rem, 1.25vw, 1.35rem);
+}
+
+.seat-orientation-pot {
+  color: rgba(246, 220, 216, 0.58);
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.68em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.seat-orientation-spot {
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+.seat-orientation-seat-group {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+}
+
+.seat-orientation-seat-group--stack {
+  flex-direction: column;
+}
+
+.seat-orientation-seat-group--whole-flip,
+.seat-orientation-flip {
+  transform: rotate(180deg);
+}
+
+.seat-orientation-surface {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.32em;
+  min-width: 6em;
+  padding: 0.45em 0.55em;
+  border: 1px solid transparent;
+  border-radius: 0.8em;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+.seat-orientation-spot--top .seat-orientation-surface {
+  /* Keep the fixed avatar anchor at the rail and let identity grow inward,
+   * matching the production Seats boundary rule. */
+  flex-direction: column;
+}
+
+.seat-orientation-avatar {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3em;
+  height: 3em;
+  flex: none;
+  border-radius: 50%;
+  background: #f3ece1;
+  color: #1b0708;
+  font-family: "Archivo", system-ui, sans-serif;
+  font-size: 1.06em;
+  font-weight: 800;
+}
+
+.seat-orientation-avatar.state-waiting {
+  border: 1px dashed rgba(125, 106, 104, 0.8);
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(250, 240, 238, 0.45);
+}
+
+.seat-orientation-avatar.state-folded {
+  opacity: 0.42;
+}
+
+.seat-orientation-marker {
+  position: absolute;
+  top: -0.42em;
+  right: -0.42em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55em;
+  height: 1.55em;
+  border-radius: 50%;
+  color: #1b0708;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.58em;
+  font-weight: 700;
+  box-shadow: 0 22px 44px -16px rgba(0, 0, 0, 0.85);
+}
+
+.marker-D {
+  background: #faf6f0;
+}
+
+.marker-SB {
+  background: #5aa9f0;
+}
+
+.marker-BB {
+  background: #f2c14e;
+}
+
+.seat-orientation-name {
+  max-width: 9em;
+  overflow: hidden;
+  color: #f6dcd8;
+  font-size: 0.7em;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat-orientation-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.12em;
+  color: #cdbfa6;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.55em;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.seat-orientation-state small {
+  color: #7d6a68;
+  font-size: 0.84em;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.seat-orientation-to-act {
+  padding: 0.34em 0.85em;
+  border-radius: 999px;
+  background: #e5443c;
+  color: #fff;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.64em;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  box-shadow:
+    0 0 0 2px rgba(229, 68, 60, 0.95),
+    0 0 26px 5px rgba(229, 68, 60, 0.28);
+}
+
+.seat-orientation-seat-group--placard {
+  gap: 0.55em;
+}
+
+.seat-orientation-placard {
+  display: flex;
+  align-items: center;
+  gap: 0.55em;
+  min-width: 10em;
+  padding: 0.45em 0.6em 0.45em 0.45em;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1em;
+  background: rgba(20, 7, 8, 0.72);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.seat-orientation-placard-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.22em;
+}
+
+.seat-orientation-placard-copy .seat-orientation-state {
+  align-items: flex-start;
+}
+
+.seat-orientation-rail {
+  position: absolute;
+  top: 50%;
+  right: 2.4%;
+  z-index: 4;
+  display: flex;
+  width: clamp(5.5rem, 8.5vw, 8rem);
+  flex-direction: column;
+  gap: 0.45rem;
+  transform: translateY(-50%);
+}
+
+.seat-orientation-rail button {
+  padding: 0.8em 0.55em;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fbf6f3, #e0cdc7);
+  color: #1b0708;
+  font:
+    700 0.7em/1.1 "IBM Plex Sans",
+    system-ui,
+    sans-serif;
+  cursor: default;
+  box-shadow:
+    0 16px 40px -14px rgba(229, 68, 60, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.seat-orientation-rail button.secondary {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.28);
+  color: #cdbfa6;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.seat-orientation-readout {
+  position: fixed;
+  right: 1.2rem;
+  bottom: 1.1rem;
+  z-index: 10;
+  display: flex;
+  max-width: min(29rem, calc(100vw - 2rem));
+  flex-direction: column;
+  gap: 0.22rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  background: rgba(6, 9, 8, 0.82);
+  box-shadow: 0 22px 44px -16px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+
+.seat-orientation-readout-key {
+  color: #f2c14e;
+}
+
+.seat-orientation-readout strong {
+  color: #f3ece1;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.seat-orientation-readout > span:last-child {
+  color: #a2957f;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.61rem;
+  line-height: 1.2;
+}
+
+.prototype-switcher {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(100vw - 2rem);
+  padding: 0.35rem 0.5rem;
+  border-radius: 999px;
+  background: #f6f1e6;
+  color: #1b0708;
+  box-shadow: 0 18px 40px -14px rgba(0, 0, 0, 0.8);
+  font:
+    600 13px/1.1 "IBM Plex Mono",
+    monospace;
+  transform: translateX(-50%);
+}
+
+.prototype-switcher button {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  background: #1b0708;
+  color: #f6f1e6;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.prototype-switcher button:focus-visible {
+  outline: 3px solid #5aa9f0;
+  outline-offset: 2px;
+}
+
+.prototype-switcher span {
+  min-width: min(25rem, 58vw);
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 800px) {
+  .seat-orientation-proto-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.3rem;
+  }
+
+  .seat-orientation-proto-hint {
+    margin-left: 0;
+  }
+
+  .seat-orientation-proto-stage {
+    margin-top: 0.5rem;
+  }
+
+  .seat-orientation-readout {
+    right: 0.7rem;
+    bottom: 4.3rem;
+  }
+
+  .seat-orientation-rail {
+    right: 1.8%;
+    width: 5rem;
+  }
+}
