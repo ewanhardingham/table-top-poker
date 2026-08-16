@@ -43,10 +43,8 @@ describe("hand-1 fixture", () => {
 
 describe("hand-1 fixture: replay through the engine", () => {
   it("folds the recorded event log into a state carrying the hand's blinds", async () => {
-    // The fixture was recorded before `smallBlind`/`bigBlind` existed on the
-    // completed hand. `HandEvent` shapes are unchanged (ENGINE_LOG_VERSION is
-    // still 3), so the untouched log still replays — and the blinds resolve
-    // from the ring the replay rebuilds, not from anything in the log.
+    // The fixture events do not carry `smallBlind`/`bigBlind`; those values
+    // resolve from the ring the replay rebuilds, not from anything in the log.
     const recorded = await readFile(`${fixturesDir}hand-1.expected.jsonl`, {
       encoding: "utf8",
     });
@@ -58,7 +56,7 @@ describe("hand-1 fixture: replay through the engine", () => {
     let state = createInitialState([0, 1, 2]);
     for (const event of events) state = apply(state, event);
 
-    expect(ENGINE_LOG_VERSION).toBe(3);
+    expect(ENGINE_LOG_VERSION).toBe(4);
     if (state.hand?.status !== "complete") throw new Error("expected complete");
     // Button on seat 0, so ring order is [1, 2, 0]: seat 1 posts the small
     // blind and seat 2 the big blind, three-handed.
