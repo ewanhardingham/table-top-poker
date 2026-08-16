@@ -528,12 +528,11 @@ export async function buildApp(
 
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      const result = rooms.addBots(room.code, body.data.count);
-      if ("error" in result) {
-        return reply.code(404).send({ error: result.error });
-      }
+      const result = rooms.addBots(room, body.data.count);
 
-      broadcastRoomView(room.code);
+      if (result.seats.length > 0) {
+        broadcastRoomView(room.code);
+      }
       return { joined: result.seats.length };
     });
   }
