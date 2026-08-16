@@ -34,32 +34,35 @@ export function liveSeats(hand: BettingHandState): SeatId[] {
 }
 
 /**
- * The action order and whether the big blind's one-time preflop "option" is
- * still pending, for the start of a street.
+ * The action order for the start of a street: the live seats, in the order
+ * they owe a decision.
  *
- * Ordinary streets (and heads-up preflop, where the two-seat order already
- * ends at the big blind) close as soon as every live seat has acted once
- * with no raise: closure falls straight out of `toAct` draining to empty.
- * Preflop with 3+ live players is the one case that doesn't reduce to a
- * single lap — the big blind sits mid-order (`ring[1]`), not last, so it
- * needs an explicit flag: once the first lap (SB, BB, ..., button) drains
- * with no raise, the big blind gets one final visit before the street can
- * close (`bbOptionPending`, consumed in `apply`'s `ActionTaken` handling).
+ * Postflop runs the ring as-is, small blind through button. Preflop with
+ * 3+ seats starts "with the first player to the left of the blinds"
+ * (Robert's Rules of Poker, "Button and Blind Use") — the ring rotated two
+ * seats, `UTG, ..., BTN, SB, BB`. Heads-up the small blind is on the
+ * button and acts first, so the order is `BTN/SB, BB`.
+ *
+ * The big blind is last in every case, so their one-time "option" needs no
+ * special machinery: every street closes the same way, when `toAct` drains.
+ * Heads-up is decided off `ring.length`, matching `smallBlindSeat` and
+ * `bigBlindSeat` — a short-handed lap must never read as heads-up and
+ * disagree with the blind positions it was dealt with.
  */
 export function initialToAct(
   ring: readonly SeatId[],
   live: readonly SeatId[],
   button: SeatId,
   street: Street,
-): { toAct: SeatId[]; bbOptionPending: boolean } {
-  const isHeadsUp = live.length === 2;
+): SeatId[] {
+  if (street !== "preflop") return ring.filter((seat) => live.includes(seat));
 
-  const toAct =
-    street === "preflop" && isHeadsUp
-      ? [button, ...live.filter((seat) => seat !== button)]
-      : ring.filter((seat) => live.includes(seat));
+  const order =
+    ring.length === 2
+      ? [button, ...ring.filter((seat) => seat !== button)]
+      : [...ring.slice(2), ...ring.slice(0, 2)];
 
-  return { toAct, bbOptionPending: street === "preflop" && !isHeadsUp };
+  return order.filter((seat) => live.includes(seat));
 }
 
 /**

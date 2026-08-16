@@ -53,7 +53,8 @@ describe("view: blinds during betting", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "fixed" }]);
     const before = bettingView(state);
-    state = playAll(state, [{ type: "fold", seatId: 1 }]);
+    // Preflop opens on the button three-handed, so seat 0 is the folder.
+    state = playAll(state, [{ type: "fold", seatId: 0 }]);
     const after = bettingView(state);
 
     expect(after.smallBlind).toBe(before.smallBlind);
@@ -69,8 +70,8 @@ describe("view: blinds on a completed hand", () => {
     const betting = bettingView(state);
 
     state = playAll(state, [
+      { type: "fold", seatId: 0 },
       { type: "fold", seatId: 1 },
-      { type: "fold", seatId: 2 },
     ]);
 
     // `HandComplete` has rotated the engine button on to the next seat, but
@@ -90,10 +91,10 @@ describe("view: blinds on a completed hand", () => {
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "sd" }]);
     const betting = bettingView(state);
 
+    // Preflop runs button, SB, BB; every later street runs SB, BB, button.
     state = playAll(state, [
-      { type: "call", seatId: 1 },
-      { type: "check", seatId: 2 },
       { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
       { type: "check", seatId: 2 },
       { type: "check", seatId: 1 },
       { type: "check", seatId: 2 },

@@ -10,13 +10,14 @@ describe("a full hand, 3 seats, start to showdown", () => {
     let state = createInitialState([0, 1, 2]);
     expect(state.button).toBe(0);
 
-    // ring (button 0) = [1, 2, 0]; preflop order = [1, 2, 0], BB = seat 2.
+    // ring (button 0) = [1, 2, 0]; preflop order = [0, 1, 2], BB = seat 2.
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "seed-1" }]);
     expect(state.hand?.status).toBe("betting");
 
-    // Preflop: 1 calls the BB (not free to check — only the BB itself is),
-    // 2 (BB) raises, 0 calls, 1 calls (closes back to raiser).
+    // Preflop: 0 and 1 call the BB (not free to check — only the BB itself
+    // is), 2 (BB) raises, 0 calls, 1 calls (closes back to raiser).
     state = playAll(state, [
+      { type: "call", seatId: 0 },
       { type: "call", seatId: 1 },
       { type: "raise", seatId: 2 },
       { type: "call", seatId: 0 },

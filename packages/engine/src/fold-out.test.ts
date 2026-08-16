@@ -9,11 +9,12 @@ describe("fold-out early exit", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "foldout" }]);
 
-    // Preflop: 1 folds, 2 (BB) folds — only seat 0 remains live, mid-street.
-    state = playAll(state, [{ type: "fold", seatId: 1 }]);
+    // Preflop: 0 (button, first to act) folds, then 1 (SB) folds — only seat
+    // 2 remains live, mid-street with the BB never having acted.
+    state = playAll(state, [{ type: "fold", seatId: 0 }]);
     expect(state.hand?.status).toBe("betting");
 
-    const result = decide(state, { type: "fold", seatId: 2 });
+    const result = decide(state, { type: "fold", seatId: 1 });
     if (!Array.isArray(result)) throw new Error("expected events");
 
     expect(result.some((e) => e.type === "StreetClosed")).toBe(false);
@@ -21,7 +22,7 @@ describe("fold-out early exit", () => {
     const foldedOut = result.find((e) => e.type === "HandFoldedOut");
     expect(foldedOut).toBeDefined();
     if (foldedOut?.type === "HandFoldedOut") {
-      expect(foldedOut.winner).toBe(0);
+      expect(foldedOut.winner).toBe(2);
     }
     expect(result.at(-1)?.type).toBe("HandComplete");
 

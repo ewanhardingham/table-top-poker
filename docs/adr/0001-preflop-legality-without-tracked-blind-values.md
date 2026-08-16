@@ -27,9 +27,9 @@ Preflop, before any real `raise` command, every seat *except* the Big
 Blind faces a bet: `check` is illegal for them (must `fold`/`call`/`raise`),
 mirroring that they haven't yet matched the difference between their own
 post (nothing on this decision, or the Small Blind) and the Big Blind's.
-The Big Blind alone may `check` — on their ordinary first turn, and again
-on the later "option" revisit if the street was limped around — because
-their own post already matches the current bet. Once a real `raise` fires,
+The Big Blind alone may `check` on their turn — which preflop is the last
+one of the lap, so it doubles as their "option" — because their own post
+already matches the current bet. Once a real `raise` fires,
 the ordinary bet/raise/call machinery takes over for every seat, and this
 special case no longer applies for the rest of the street.
 
@@ -44,10 +44,11 @@ feature. Postflop is unaffected: nobody has a standing post there, so
 - `decide`'s legality check now needs to know the acting seat and the
   hand's `ring`/`button`, not just a single `raiseOccurred` boolean —
   `isLegal` and `facingBet` take the seat as a parameter.
-- The Big Blind seat identity (`bigBlindSeat`) is now needed both for
-  street closure (the existing "BB option" flag) and for legality, and had
-  to be generalized to heads-up, where the non-Button seat is the Big
-  Blind rather than `ring[1]`.
+- The Big Blind seat identity (`bigBlindSeat`) is needed for legality, and
+  had to be generalized to heads-up, where the non-Button seat is the Big
+  Blind rather than `ring[1]`. It was also needed for street closure while
+  preflop opened on the Small Blind; issue #210 corrected the order so the
+  lap ends on the Big Blind, and that closure machinery is gone.
 - `CONTEXT.md` and Phase 1 spec #130's "no values posted" wording is
   updated to distinguish "no chip *amount* tracked" from "preflop legality
   ignores that a bet exists" — the former stands, the latter doesn't.

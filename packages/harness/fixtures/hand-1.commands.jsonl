@@ -1,4 +1,5 @@
 {"type":"startHand","seatId":0,"seed":"harness-fixture-1"}
+{"type":"call","seatId":0}
 {"type":"call","seatId":1}
 {"type":"raise","seatId":2}
 {"type":"call","seatId":0}

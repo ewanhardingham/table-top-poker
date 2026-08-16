@@ -29,13 +29,12 @@ function headsUpToRiver(seed: string): EngineState {
 function onTheFlopThreeWay(): EngineState {
   let state = createInitialState([0, 1, 2]);
   state = playAll(state, [{ type: "startHand", seatId: 0, seed: "mid" }]);
-  // ring (button 0) = [1, 2, 0], BB = seat 2. Only the BB can check preflop
-  // absent a raise; everyone else calls. No raise, so the BB also gets its
-  // one-time option turn after the lap closes back around.
+  // ring (button 0) = [1, 2, 0], so preflop runs [0, 1, 2] with BB = seat 2.
+  // Only the BB can check preflop absent a raise; everyone else calls. The
+  // BB acts last, so its check closes the street — no extra option turn.
   state = playAll(state, [
-    { type: "call", seatId: 1 },
-    { type: "check", seatId: 2 },
     { type: "call", seatId: 0 },
+    { type: "call", seatId: 1 },
     { type: "check", seatId: 2 },
   ]);
   if (state.hand?.status !== "betting" || state.hand.street !== "flop") {
@@ -152,6 +151,7 @@ describe("view: post-showdown", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "seed-1" }]);
     state = playAll(state, [
+      { type: "call", seatId: 0 },
       { type: "call", seatId: 1 },
       { type: "raise", seatId: 2 },
       { type: "call", seatId: 0 },

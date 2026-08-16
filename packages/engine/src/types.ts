@@ -84,11 +84,6 @@ export interface BettingHandState {
   readonly players: ReadonlyMap<SeatId, SeatHandState>;
   /** Seats still owed a decision this street, in order; `toAct[0]` is the current actor. */
   readonly toAct: readonly SeatId[];
-  /**
-   * Preflop only, 3+ live players: true until the big blind has had its
-   * one-time "option" turn after a no-raise lap all the way to the button.
-   */
-  readonly bbOptionPending: boolean;
   readonly raiseOccurred: boolean;
 }
 
