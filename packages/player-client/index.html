@@ -2,9 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!--
+      `maximum-scale`/`user-scalable` are honoured by in-app WebViews and older
+      WebKit builds; iOS Safari has ignored them since iOS 10, so the real
+      pinch lock for iPhone lives in `lockViewport`. Suppressing zoom is
+      deliberate here: this is a fixed, single-screen game controller with no
+      scrollable content to reach, and the table view is the readable surface.
+    -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
     <!--
       Same home-screen story as table-client: a phone added to the home screen
