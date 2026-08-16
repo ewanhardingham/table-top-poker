@@ -58,6 +58,23 @@ describe("Seats", () => {
     expect(html).toContain("Avery");
   });
 
+  it("shows a visible bot marker only on bot seats", () => {
+    const first = seats[0];
+    const second = seats[1];
+    if (first === undefined || second === undefined) {
+      throw new Error("expected two seats");
+    }
+    const html = renderToStaticMarkup(
+      <Seats seats={[{ ...first, bot: true }, second]} view={null} />,
+    );
+
+    expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-bot="true"/);
+    expect(html).toContain('data-testid="seat-pod-0-bot-marker"');
+    expect(html).toContain("🤖");
+    expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-bot="false"/);
+    expect(html).not.toContain('data-testid="seat-pod-1-bot-marker"');
+  });
+
   it("shows every seat as open or sitting-out before any hand exists", () => {
     const html = renderToStaticMarkup(<Seats seats={seats} view={null} />);
     expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-status="in-hand"/);

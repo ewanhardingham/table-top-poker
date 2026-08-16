@@ -39,6 +39,8 @@ export interface Seat {
   claimed: boolean;
   /** Required for new claims; absent only for rooms created before names existed. */
   displayName?: string;
+  /** Present only for a test-mode bot claim. */
+  bot?: boolean;
   token: string | null;
   /**
    * Voluntary opt-out only (ADR-0002) — set solely by the `sitOut`/`sitIn`
@@ -165,6 +167,7 @@ function repackSeats(room: Room, seatCount: number): SeatRepack {
       ...(seat.displayName === undefined
         ? {}
         : { displayName: seat.displayName }),
+      ...(seat.bot === true ? { bot: true } : {}),
       token: seat.token,
       sittingOut: seat.sittingOut,
       disconnected: seat.disconnected,
@@ -264,6 +267,7 @@ function claimedSeatFloor(room: Room): number {
 function freeSeat(seat: Seat): void {
   seat.claimed = false;
   delete seat.displayName;
+  delete seat.bot;
   seat.token = null;
   seat.sittingOut = false;
   seat.disconnected = false;
@@ -409,10 +413,50 @@ export class RoomStore {
 
     seat.claimed = true;
     seat.displayName = trimmedName;
+    delete seat.bot;
     seat.token = this.#generateToken();
     seat.sittingOut = false;
     seat.disconnected = false;
     return { seat };
+  }
+
+  /**
+   * Claims currently-free seats as test-mode bots through the same claim path
+   * as a real player. The caller owns the test-mode gate; this store method
+   * only handles the aggregate mutation and returns the seats that joined.
+   */
+  addBots(
+    code: string,
+    count: number,
+  ): { seats: readonly Seat[] } | { error: "room-not-found" } {
+    const room = this.#rooms.get(code);
+    if (!room) return { error: "room-not-found" };
+    if (!Number.isFinite(count) || count <= 0) return { seats: [] };
+
+    const joined: Seat[] = [];
+    const freeSeats = room.seats.filter((seat) => !seat.claimed);
+    for (const seat of freeSeats.slice(0, count)) {
+      const claim = this.claimSeat(code, seat.id, this.#nextBotName(room));
+      if ("error" in claim) continue;
+      claim.seat.bot = true;
+      joined.push(claim.seat);
+    }
+    return { seats: joined };
+  }
+
+  #nextBotName(room: Room): string {
+    const claimedNames = new Set(
+      room.seats
+        .filter((seat) => seat.claimed)
+        .flatMap((seat) =>
+          seat.displayName === undefined
+            ? []
+            : [seat.displayName.toLowerCase()],
+        ),
+    );
+    let number = 1;
+    while (claimedNames.has(`bot ${String(number)}`)) number++;
+    return `Bot ${String(number)}`;
   }
 
   /**
@@ -700,6 +744,7 @@ export function toRoomView(room: Room): RoomView {
         ...(seat.displayName === undefined
           ? {}
           : { displayName: seat.displayName }),
+        ...(seat.bot === true ? { bot: true } : {}),
         sittingOut: reason !== null,
         sittingOutReason: reason,
         disconnected: seat.disconnected,

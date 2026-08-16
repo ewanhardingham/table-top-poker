@@ -14,6 +14,10 @@ export interface ServerConfig {
   readonly testMode: boolean;
 }
 
+export interface BotsAdded {
+  readonly joined: number;
+}
+
 /** Reads server-global capabilities once when the table client boots. */
 export async function fetchConfig(): Promise<ServerConfig> {
   const response = await fetch("/config", { method: "GET" });
@@ -57,6 +61,19 @@ export async function endSession(code: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`failed to end session: ${String(response.status)}`);
   }
+}
+
+/** The test-mode table action that fills currently-free seats with bots. */
+export async function addBots(code: string, count: number): Promise<BotsAdded> {
+  const response = await fetch(`/rooms/${code}/bots`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ count }),
+  });
+  if (!response.ok) {
+    throw new Error(`failed to add bots: ${String(response.status)}`);
+  }
+  return (await response.json()) as BotsAdded;
 }
 
 /** The table device's manual evict action (ADR-0003) — no automatic trigger. */

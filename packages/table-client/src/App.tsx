@@ -12,6 +12,7 @@ import {
   changeSeatCount,
   changeSoundSettings,
   createRoom,
+  addBots,
   endSession,
   evictSeat,
   fetchRoom,
@@ -41,6 +42,7 @@ export function App() {
   const seats = useTableStore((state) => state.seats);
   const pendingSeatCount = useTableStore((state) => state.pendingSeatCount);
   const soundSettings = useTableStore((state) => state.soundSettings);
+  const testMode = useTableStore((state) => state.testMode);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
@@ -135,6 +137,13 @@ export function App() {
         console.error(error);
       });
   }, [roomCode, clearRoom, clearHand]);
+
+  const handleAddBot = useCallback(() => {
+    if (roomCode === null || !testMode) return;
+    addBots(roomCode, 1).catch((error: unknown) => {
+      console.error(error);
+    });
+  }, [roomCode, testMode]);
 
   const handleChangeSeatCount = useCallback(
     (seatCount: number) => {
@@ -263,6 +272,8 @@ export function App() {
                       onStartHand={handleStartHand}
                       onNextHand={handleNextHand}
                       onEndSession={handleEndSession}
+                      testMode={testMode}
+                      onAddBot={handleAddBot}
                     />
                   )
                 }
@@ -297,6 +308,8 @@ export function App() {
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
                 onEndSession={handleEndSession}
+                testMode={testMode}
+                onAddBot={handleAddBot}
                 onViewShowdown={() => {
                   setShowdownCollapsed(false);
                 }}

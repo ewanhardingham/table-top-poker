@@ -637,6 +637,113 @@ describe("seat claim/evict routes", () => {
   });
 });
 
+describe("test-mode bot route", () => {
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms, testMode: true });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function createRoom(seatCount = 4): Promise<string> {
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount },
+    });
+    return created.json<RoomCreatedBody>().code;
+  }
+
+  it("claims free seats, clamps to capacity, and reports the actual count", async () => {
+    const code = await createRoom(4);
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/bots`,
+      payload: { count: 10 },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ joined: 4 });
+    const room = rooms.get(code);
+    if (!room) throw new Error("expected the room to remain live");
+    expect(room.seats).toHaveLength(4);
+    expect(toRoomView(room).seats).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: 0,
+          displayName: "Bot 1",
+          claimed: true,
+          bot: true,
+        }),
+      ]),
+    );
+    expect(toRoomView(room).seats.every((seat) => seat.claimed)).toBe(true);
+  });
+
+  it("is not registered when test mode is off", async () => {
+    await app.close();
+    app = await buildApp({ rooms });
+    const code = rooms.create(4).code;
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/bots`,
+      payload: { count: 1 },
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
+
+  it("broadcasts bot markers to an open room socket", async () => {
+    const code = await createRoom(4);
+    const socket = new WebSocket(
+      `ws://127.0.0.1:${String(port)}/ws?room=${code}&role=table`,
+    );
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/bots`,
+      payload: { count: 1 },
+    });
+    for (let attempt = 0; attempt < 100; attempt++) {
+      const latest = messages.findLast(
+        (message) => message.type === "room-view",
+      );
+      if (
+        latest?.type === "room-view" &&
+        latest.view.seats.some((seat) => seat.bot === true)
+      ) {
+        expect(latest.view.seats[0]).toMatchObject({ bot: true });
+        socket.close();
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    socket.close();
+    throw new Error("timed out waiting for bot room view");
+  });
+});
+
 describe("seat-count settings route", () => {
   let app: FastifyInstance;
   let rooms: RoomStore;

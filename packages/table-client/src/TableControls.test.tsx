@@ -144,4 +144,34 @@ describe("TableControls", () => {
     expect(html).toContain(`background:${color.controlFill}`);
     expect(html).toContain("Waiting for at least two players");
   });
+
+  it("shows Add bot only when test mode is enabled", () => {
+    const off = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete={false}
+        canDealNextHand={false}
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onAddBot={noop}
+      />,
+    );
+    const on = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete={false}
+        canDealNextHand={false}
+        testMode
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onAddBot={noop}
+      />,
+    );
+
+    expect(off).not.toContain('data-testid="add-bot-button"');
+    expect(on).toContain('data-testid="add-bot-button"');
+    expect(on).toContain("Add bot");
+  });
 });

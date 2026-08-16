@@ -126,6 +126,24 @@ describe("RoomStore", () => {
       });
     });
 
+    it("claims unique bot names on free seats and marks them in the room view", () => {
+      const store = new RoomStore();
+      const room = store.create(4);
+      store.claimSeat(room.code, 0, "Bot 1");
+
+      const result = store.addBots(room.code, 4);
+
+      if ("error" in result) throw new Error("expected bots to be added");
+      expect(result.seats).toHaveLength(3);
+      expect(result.seats.map((seat) => seat.displayName)).toEqual([
+        "Bot 2",
+        "Bot 3",
+        "Bot 4",
+      ]);
+      expect(result.seats.every((seat) => seat.bot === true)).toBe(true);
+      expect(toRoomView(room).seats.filter((seat) => seat.bot)).toHaveLength(3);
+    });
+
     it("rejects a blank or over-long display name without claiming the seat", () => {
       const store = new RoomStore();
       const room = store.create();
@@ -232,6 +250,18 @@ describe("RoomStore", () => {
         claimed: true,
         sittingOut: false,
       });
+    });
+
+    it("clears a bot flag when its seat is evicted", () => {
+      const store = new RoomStore();
+      const room = store.create();
+      const added = store.addBots(room.code, 1);
+      if ("error" in added) throw new Error("expected a bot claim");
+
+      store.evictSeat(room.code, added.seats[0]?.id ?? 0);
+
+      expect(room.seats[0]).not.toHaveProperty("bot");
+      expect(toRoomView(room).seats[0]).not.toHaveProperty("bot");
     });
 
     it("carries names through a repack and clears them on eviction", () => {

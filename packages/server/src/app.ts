@@ -1,6 +1,7 @@
 import fastifyStatic from "@fastify/static";
 import fastifyWebsocket from "@fastify/websocket";
 import {
+  AddBotsRequestSchema,
   ChangeSeatCountRequestSchema,
   ChangeSoundSettingsRequestSchema,
   ClaimSeatRequestSchema,
@@ -512,6 +513,30 @@ export async function buildApp(
     const qrCodeDataUrl = await roomQrCodeDataUrl(url);
     return { code: room.code, joinUrl: url, qrCodeDataUrl };
   });
+
+  /**
+   * Test-mode table action: fill existing free seats with virtual players.
+   * Keeping this route out of the Fastify registration entirely when the gate
+   * is off makes the production surface a plain 404.
+   */
+  if (testMode) {
+    app.post<RoomCodeRoute>("/rooms/:code/bots", (request, reply) => {
+      const body = AddBotsRequestSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: "invalid-request-body" });
+      }
+
+      const room = findRoomOrReject(rooms, request.params.code, reply);
+      if (!room) return;
+      const result = rooms.addBots(room.code, body.data.count);
+      if ("error" in result) {
+        return reply.code(404).send({ error: result.error });
+      }
+
+      broadcastRoomView(room.code);
+      return { joined: result.seats.length };
+    });
+  }
 
   app.post<RoomCodeRoute>("/rooms/:code/join", (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);

@@ -1,10 +1,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  addBots,
   changeSeatCount,
   createRoom,
   endSession,
   fetchConfig,
 } from "./rooms.js";
+
+describe("addBots", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts the requested bot count to the test-mode route", async () => {
+    const body = { joined: 2 };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 200 }),
+    );
+
+    await expect(addBots("ABCD", 3)).resolves.toEqual(body);
+    expect(fetch).toHaveBeenCalledWith("/rooms/ABCD/bots", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ count: 3 }),
+    });
+  });
+});
 
 describe("fetchConfig", () => {
   beforeEach(() => {
