@@ -7,7 +7,7 @@ describe("ENGINE_LOG_VERSION", () => {
     expect(ENGINE_LOG_VERSION).toBeGreaterThan(0);
   });
 
-  it("uses the next version for the seat-addressed command schema", () => {
-    expect(ENGINE_LOG_VERSION).toBe(3);
+  it("uses the next version for the corrected preflop action order", () => {
+    expect(ENGINE_LOG_VERSION).toBe(4);
   });
 });
