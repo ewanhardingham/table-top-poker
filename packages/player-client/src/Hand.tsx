@@ -13,7 +13,7 @@ import {
   type PositionMarker,
 } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
-import type { CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { ActionIntent } from "./actions/useActionIntent.js";
 import { HoleCardPair, type CardActions } from "./holecards/index.js";
 import { PositionBadge } from "./PositionBadge.js";
@@ -234,6 +234,178 @@ function bannerFor(
   };
 }
 
+// PROTOTYPE (proto/shot-clock-countdown): faked client-side shot clock.
+// No server turnEndsAt yet — the deadline is invented on mount, and this
+// component only mounts when it's the player's turn, so each turn gets a
+// fresh 90s. Real feature would take turnEndsAt from the betting view.
+const PROTO_SHOT_CLOCK_SECONDS = 90;
+
+// green -> amber -> red as the fraction remaining drops.
+function shotClockColor(frac: number): string {
+  const c = Math.max(0, Math.min(1, frac));
+  const hue = c > 0.4 ? 45 + ((c - 0.4) / 0.6) * (130 - 45) : (c / 0.4) * 45;
+  const sat = c > 0.4 ? 70 : 85;
+  const light = c > 0.15 ? 52 : 58;
+  return `hsl(${String(hue)} ${String(sat)}% ${String(light)}%)`;
+}
+
+export type ShotClockVariant = "ring" | "bar" | "number";
+
+// Chosen player variant: a ring sweeping around the seconds count in the turn
+// banner. The `?sc=` URL param still overrides it for the static harness.
+export function protoShotClockVariant(): ShotClockVariant {
+  const sc = new URLSearchParams(window.location.search).get("sc");
+  return sc === "bar" || sc === "number" ? sc : "ring";
+}
+
+// rAF-smoothed remaining fraction (1 -> 0), reset each mount.
+function useShotClockFrac(seconds: number): number {
+  const deadlineRef = useRef<number>(Date.now() + seconds * 1000);
+  const [remainingMs, setRemainingMs] = useState(seconds * 1000);
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      setRemainingMs(Math.max(0, deadlineRef.current - Date.now()));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+  return remainingMs / (seconds * 1000);
+}
+
+function ShotClockCountdown({
+  seconds,
+  variant,
+}: {
+  readonly seconds: number;
+  readonly variant: ShotClockVariant;
+}) {
+  const frac = useShotClockFrac(seconds);
+  const tint = shotClockColor(frac);
+  const secs = Math.ceil(frac * seconds);
+
+  const numberBadge = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: "2.4em",
+        padding: "0.15em 0.5em",
+        borderRadius: radius.panel,
+        border: `1px solid ${tint}`,
+        color: tint,
+        fontFamily: font.mono,
+        fontSize: fontSize.md,
+        fontWeight: 700,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {secs}
+    </div>
+  );
+
+  if (variant === "number") {
+    return (
+      <div data-testid="turn-banner-shot-clock" style={{ marginLeft: "auto" }}>
+        {numberBadge}
+      </div>
+    );
+  }
+
+  if (variant === "ring") {
+    const r = 46;
+    const circ = 2 * Math.PI * r;
+    return (
+      <div
+        data-testid="turn-banner-shot-clock"
+        style={{
+          marginLeft: "auto",
+          position: "relative",
+          width: "2.6em",
+          height: "2.6em",
+          flex: "none",
+        }}
+      >
+        <svg viewBox="0 0 100 100" style={{ width: "100%", height: "100%" }}>
+          <circle
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke={color.textFaint}
+            strokeWidth={7}
+          />
+          <circle
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke={tint}
+            strokeWidth={7}
+            strokeLinecap="round"
+            transform="rotate(-90 50 50)"
+            strokeDasharray={circ}
+            strokeDashoffset={circ * (1 - frac)}
+          />
+        </svg>
+        <span
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: tint,
+            fontFamily: font.mono,
+            fontSize: fontSize.sm,
+            fontWeight: 700,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {secs}
+        </span>
+      </div>
+    );
+  }
+
+  // variant === "bar": number badge + a thin progress bar under it.
+  return (
+    <div
+      data-testid="turn-banner-shot-clock"
+      style={{
+        marginLeft: "auto",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: "0.25em",
+        minWidth: "3.2em",
+      }}
+    >
+      {numberBadge}
+      <div
+        style={{
+          height: "0.35em",
+          borderRadius: "999px",
+          background: color.textFaint,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${String(frac * 100)}%`,
+            background: tint,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /**
  * The banner's leading slot carries one of two things. It is the marker
  * whenever this player holds a position, and the tone dot otherwise — the
@@ -314,6 +486,12 @@ function TurnBanner({
           {banner.text}
         </span>
       </div>
+      {banner.tone === "turn" ? (
+        <ShotClockCountdown
+          seconds={PROTO_SHOT_CLOCK_SECONDS}
+          variant={protoShotClockVariant()}
+        />
+      ) : null}
     </motion.div>
   );
 }

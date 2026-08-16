@@ -1,0 +1,244 @@
+<!doctype html>
+<!--
+  PROTOTYPE — throwaway. Not production code.
+  Question: what should the live-ticking shot-clock countdown look like?
+  Settles: ring vs bar, low-time color ramp, sub-second smoothness,
+  in two contexts (player's own-turn banner + table active-seat indicator).
+  Driven exactly like the real thing: an absolute deadline `turnEndsAt` (epoch ms);
+  render loop shows max(0, turnEndsAt - now). Server would be sole authority.
+  Double-click to run. In-memory only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shot-clock prototype</title>
+<style>
+  :root {
+    --bg: #0e1320;
+    --panel: #161d2e;
+    --panel-2: #1e2740;
+    --ink: #e8edf7;
+    --muted: #8a97b2;
+    --felt: #123a2a;
+    --felt-rim: #0c2a1e;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    min-height: 100vh; padding: 32px 20px 120px;
+  }
+  h1 { font-size: 18px; font-weight: 650; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 28px; font-size: 13px; }
+  .stage { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; max-width: 980px; margin: 0 auto; }
+  .card { background: var(--panel); border: 1px solid #26314e; border-radius: 16px; padding: 22px; }
+  .card h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 18px; }
+
+  /* ---- Player banner context ---- */
+  .banner {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--panel-2); border-radius: 14px; padding: 16px 18px;
+    border: 1px solid #2b375a; position: relative; overflow: hidden;
+  }
+  .banner .kicker { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .banner .text { font-weight: 650; font-size: 17px; }
+  .banner .grow { flex: 1; }
+  .banner .secs { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 26px; letter-spacing: .02em; }
+  /* linear bar variant lives at bottom edge of the banner */
+  .banner .barwrap { position: absolute; left: 0; right: 0; bottom: 0; height: 5px; background: #0d1322; }
+  .banner .bar { height: 100%; width: 100%; transform-origin: left; }
+
+  /* ---- Table seat context ---- */
+  .felt {
+    background: radial-gradient(120% 120% at 50% 30%, #1a5a3f 0%, var(--felt) 55%, var(--felt-rim) 100%);
+    border-radius: 120px; padding: 46px; display: flex; justify-content: center; align-items: center;
+    border: 6px solid #0a2419;
+  }
+  .seat {
+    width: 120px; height: 120px; border-radius: 50%; position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: #10192b; border: 2px solid #2b3a55;
+  }
+  .seat .name { font-size: 12px; color: var(--muted); }
+  .seat .chips { font-size: 13px; font-weight: 650; }
+  .seat .seatsecs { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 18px; margin-top: 2px; }
+  .ring { position: absolute; inset: -8px; width: calc(100% + 16px); height: calc(100% + 16px); }
+  .ring circle { fill: none; stroke-linecap: round; }
+  .ring .track { stroke: #223049; }
+
+  /* ---- controls ---- */
+  .bar-controls {
+    position: fixed; left: 0; right: 0; bottom: 0; background: #0b1120ee;
+    border-top: 1px solid #26314e; backdrop-filter: blur(8px);
+    display: flex; gap: 18px; align-items: center; flex-wrap: wrap; padding: 14px 20px;
+  }
+  .grp { display: flex; gap: 8px; align-items: center; }
+  .grp label { font-size: 12px; color: var(--muted); }
+  button {
+    background: var(--panel-2); color: var(--ink); border: 1px solid #33406a;
+    border-radius: 9px; padding: 8px 14px; font: inherit; cursor: pointer;
+  }
+  button.active { background: #2f6bff; border-color: #2f6bff; }
+  input[type=number] { width: 64px; background: #0d1322; color: var(--ink); border: 1px solid #33406a; border-radius: 8px; padding: 7px; font: inherit; }
+  .hint { color: var(--muted); font-size: 12px; max-width: 980px; margin: 22px auto 0; }
+  code { background: #0d1322; padding: 1px 5px; border-radius: 5px; }
+</style>
+</head>
+<body>
+  <h1>Shot-clock countdown — visual prototype</h1>
+  <p class="sub">Ring vs bar · color ramp · sub-second smoothness. Both driven by one <code>turnEndsAt</code> deadline, exactly like the real client will be.</p>
+
+  <div class="stage">
+    <div class="card">
+      <h2>Player · own-turn banner</h2>
+      <div class="banner" id="banner">
+        <div>
+          <div class="kicker">Your turn</div>
+          <div class="text">Check or bet</div>
+        </div>
+        <div class="grow"></div>
+        <div class="secs" id="bannerSecs">90</div>
+        <div class="barwrap" id="bannerBarWrap"><div class="bar" id="bannerBar"></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Table · active seat</h2>
+      <div class="felt">
+        <div class="seat" id="seat">
+          <svg class="ring" id="seatRing" viewBox="0 0 100 100">
+            <circle class="track" cx="50" cy="50" r="46" stroke-width="4" />
+            <circle class="prog" id="seatProg" cx="50" cy="50" r="46" stroke-width="4"
+                    transform="rotate(-90 50 50)" />
+          </svg>
+          <div class="name">Seat 3</div>
+          <div class="chips">1,240</div>
+          <div class="seatsecs" id="seatSecs">90</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">Both contexts share the same clock. The player banner shows the <b>bar</b> variant (thin progress edge) or a plain number; the seat shows a <b>ring</b>. Toggle the banner between bar and no-bar to compare. Watch the color ramp cross into the amber/red zones and whether the last few seconds feel smooth.</p>
+
+  <div class="bar-controls">
+    <div class="grp">
+      <label>Duration (s)</label>
+      <input type="number" id="dur" value="90" min="1" max="600" />
+    </div>
+    <div class="grp">
+      <button id="start">▶ Start</button>
+      <button id="reset">↺ Reset</button>
+      <button id="quick10">Quick 10s</button>
+    </div>
+    <div class="grp">
+      <label>Banner:</label>
+      <button data-banner="bar" class="active">Bar</button>
+      <button data-banner="plain">Number only</button>
+    </div>
+    <div class="grp">
+      <label>Smoothing:</label>
+      <button data-smooth="raf" class="active">rAF (smooth)</button>
+      <button data-smooth="sec">1s ticks</button>
+    </div>
+  </div>
+
+<script>
+  // ---- color ramp: green -> amber -> red as fraction remaining drops ----
+  function rampColor(frac) {
+    // frac 1..0. Hue 130 (green) -> 45 (amber) -> 0 (red).
+    const clamped = Math.max(0, Math.min(1, frac));
+    let hue;
+    if (clamped > 0.4) hue = 45 + (clamped - 0.4) / 0.6 * (130 - 45); // 130..45
+    else hue = clamped / 0.4 * 45;                                     // 45..0
+    const sat = clamped > 0.4 ? 70 : 85;
+    const light = clamped > 0.15 ? 52 : 58;
+    return `hsl(${hue} ${sat}% ${light}%)`;
+  }
+
+  const state = {
+    turnEndsAt: null,   // epoch ms — server-authoritative in real thing
+    duration: 90,
+    bannerMode: 'bar',
+    smooth: 'raf',
+  };
+
+  const el = {
+    bannerSecs: document.getElementById('bannerSecs'),
+    bannerBar: document.getElementById('bannerBar'),
+    bannerBarWrap: document.getElementById('bannerBarWrap'),
+    banner: document.getElementById('banner'),
+    seatSecs: document.getElementById('seatSecs'),
+    seatProg: document.getElementById('seatProg'),
+    seat: document.getElementById('seat'),
+    dur: document.getElementById('dur'),
+  };
+
+  const R = 46, CIRC = 2 * Math.PI * R;
+  el.seatProg.style.strokeDasharray = CIRC;
+
+  function start(seconds) {
+    state.duration = seconds;
+    state.turnEndsAt = Date.now() + seconds * 1000;
+  }
+
+  function render() {
+    let remainingMs;
+    if (state.turnEndsAt == null) remainingMs = state.duration * 1000;
+    else remainingMs = Math.max(0, state.turnEndsAt - Date.now());
+
+    let displayMs = remainingMs;
+    if (state.smooth === 'sec') displayMs = Math.ceil(remainingMs / 1000) * 1000;
+
+    const frac = state.duration > 0 ? displayMs / (state.duration * 1000) : 0;
+    const color = rampColor(frac);
+    const secsText = Math.ceil(remainingMs / 1000);
+    const smoothSecs = state.smooth === 'raf' ? (remainingMs / 1000).toFixed(1) : String(secsText);
+
+    // player banner
+    el.bannerSecs.textContent = state.smooth === 'raf' ? smoothSecs : secsText;
+    el.bannerSecs.style.color = color;
+    if (state.bannerMode === 'bar') {
+      el.bannerBarWrap.style.display = 'block';
+      el.bannerBar.style.transform = `scaleX(${frac})`;
+      el.bannerBar.style.background = color;
+    } else {
+      el.bannerBarWrap.style.display = 'none';
+    }
+    // urgency pulse under ~5s
+    el.banner.style.boxShadow = remainingMs > 0 && remainingMs < 5000
+      ? `0 0 0 2px ${color} inset` : 'none';
+
+    // table seat ring
+    el.seatSecs.textContent = secsText;
+    el.seatSecs.style.color = color;
+    el.seatProg.style.stroke = color;
+    el.seatProg.style.strokeDashoffset = CIRC * (1 - frac);
+    el.seat.style.borderColor = remainingMs > 0 ? color : '#2b3a55';
+
+    requestAnimationFrame(render);
+  }
+  requestAnimationFrame(render);
+
+  // ---- controls ----
+  document.getElementById('start').onclick = () => start(clampDur());
+  document.getElementById('reset').onclick = () => { state.turnEndsAt = null; state.duration = clampDur(); };
+  document.getElementById('quick10').onclick = () => { el.dur.value = 10; start(10); };
+  function clampDur() { return Math.max(1, Math.min(600, Number(el.dur.value) || 90)); }
+  el.dur.oninput = () => { if (state.turnEndsAt == null) state.duration = clampDur(); };
+
+  function wireToggle(attr, key) {
+    document.querySelectorAll(`[data-${attr}]`).forEach(b => {
+      b.onclick = () => {
+        state[key] = b.dataset[attr];
+        document.querySelectorAll(`[data-${attr}]`).forEach(x => x.classList.remove('active'));
+        b.classList.add('active');
+      };
+    });
+  }
+  wireToggle('banner', 'bannerMode');
+  wireToggle('smooth', 'smooth');
+</script>
+</body>
+</html>

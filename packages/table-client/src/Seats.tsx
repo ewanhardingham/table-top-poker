@@ -9,7 +9,151 @@ import {
   type PositionMarker,
 } from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { posFor } from "./table/posFor.js";
+
+// PROTOTYPE (proto/shot-clock-countdown): faked client-side shot clock ring.
+// No server turnEndsAt yet — the deadline is invented on mount, and this
+// component only mounts while the seat is the actor, so each turn gets a
+// fresh 90s. Real feature would take turnEndsAt from the table view.
+const PROTO_SHOT_CLOCK_SECONDS = 90;
+
+function shotClockColor(frac: number): string {
+  const c = Math.max(0, Math.min(1, frac));
+  const hue = c > 0.4 ? 45 + ((c - 0.4) / 0.6) * (130 - 45) : (c / 0.4) * 45;
+  const sat = c > 0.4 ? 70 : 85;
+  const light = c > 0.15 ? 52 : 58;
+  return `hsl(${String(hue)} ${String(sat)}% ${String(light)}%)`;
+}
+
+type ShotClockVariant = "ring" | "bar" | "number";
+
+// Chosen table variant: a small color-ramped number badge on the actor's
+// avatar. The `?sc=` URL param still overrides it for the static harness.
+function protoShotClockVariant(): ShotClockVariant {
+  const sc = new URLSearchParams(window.location.search).get("sc");
+  return sc === "bar" || sc === "ring" ? sc : "number";
+}
+
+// Faked shot clock over the actor's avatar. `ring` sweeps around it, `bar` sits
+// under it, `number` is a small badge; all rAF-smoothed and color-ramped.
+function ShotClock({
+  seconds,
+  variant,
+}: {
+  readonly seconds: number;
+  readonly variant: ShotClockVariant;
+}) {
+  const deadlineRef = useRef<number>(Date.now() + seconds * 1000);
+  const [remainingMs, setRemainingMs] = useState(seconds * 1000);
+
+  useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      setRemainingMs(Math.max(0, deadlineRef.current - Date.now()));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => {
+      cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  const frac = remainingMs / (seconds * 1000);
+  const tint = shotClockColor(frac);
+  const secs = Math.ceil(frac * seconds);
+
+  if (variant === "number") {
+    return (
+      <span
+        data-testid="seat-shot-clock"
+        style={{
+          position: "absolute",
+          top: "-0.5em",
+          right: "-0.5em",
+          minWidth: "1.6em",
+          padding: "0 0.3em",
+          textAlign: "center",
+          borderRadius: "999px",
+          background: color.pillInk,
+          color: tint,
+          border: `1px solid ${tint}`,
+          fontFamily: font.display,
+          fontWeight: 800,
+          fontSize: "0.7em",
+          fontVariantNumeric: "tabular-nums",
+          pointerEvents: "none",
+        }}
+      >
+        {secs}
+      </span>
+    );
+  }
+
+  if (variant === "bar") {
+    return (
+      <div
+        data-testid="seat-shot-clock"
+        style={{
+          position: "absolute",
+          left: "5%",
+          right: "5%",
+          bottom: "-0.55em",
+          height: "0.3em",
+          borderRadius: "999px",
+          background: color.textFaint,
+          overflow: "hidden",
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${String(frac * 100)}%`,
+            background: tint,
+          }}
+        />
+      </div>
+    );
+  }
+
+  const r = 46;
+  const circ = 2 * Math.PI * r;
+  return (
+    <svg
+      data-testid="seat-shot-clock"
+      viewBox="0 0 100 100"
+      style={{
+        position: "absolute",
+        inset: "-0.4em",
+        width: "calc(100% + 0.8em)",
+        height: "calc(100% + 0.8em)",
+        pointerEvents: "none",
+      }}
+    >
+      <circle
+        cx="50"
+        cy="50"
+        r={r}
+        fill="none"
+        stroke={color.textFaint}
+        strokeWidth={5}
+      />
+      <circle
+        cx="50"
+        cy="50"
+        r={r}
+        fill="none"
+        stroke={tint}
+        strokeWidth={5}
+        strokeLinecap="round"
+        transform="rotate(-90 50 50)"
+        strokeDasharray={circ}
+        strokeDashoffset={circ * (1 - frac)}
+      />
+    </svg>
+  );
+}
 
 export interface SeatsProps {
   readonly seats: readonly SeatView[];
@@ -146,6 +290,12 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
 
         const avatarBlock = (
           <div key="avatar" style={{ position: "relative" }}>
+            {visual.isActor ? (
+              <ShotClock
+                seconds={PROTO_SHOT_CLOCK_SECONDS}
+                variant={protoShotClockVariant()}
+              />
+            ) : null}
             <div
               data-testid={`seat-pod-${String(seat.id)}-avatar`}
               style={{
