@@ -508,17 +508,50 @@ export async function buildApp(
     if (!room) return false;
 
     let changed = false;
-    for (const seat of room.seats) {
-      if (!seat.claimed || seat.bot !== true) continue;
-      if (seat.sittingOut) {
-        if (shouldSitIn(botRng)) {
-          rooms.setSittingOut(code, seat.id, false);
-          changed = true;
-        }
-      } else if (shouldSitOut(botRng)) {
-        rooms.setSittingOut(code, seat.id, true);
+    const bots = room.seats.filter((seat) => seat.claimed && seat.bot === true);
+    // Remember which bots were already sitting out. A bot that returns for
+    // this boundary should remain in for the next deal rather than being
+    // immediately asked to sit out again in the same roll.
+    const sittingOutBots = bots.filter((seat) => seat.sittingOut);
+    const activeBots = bots.filter((seat) => !seat.sittingOut);
+
+    // Returning bots are considered first so a table can recover from a
+    // previous roll that left only one eligible seat.
+    for (const seat of sittingOutBots) {
+      if (shouldSitIn(botRng)) {
+        rooms.setSittingOut(code, seat.id, false);
         changed = true;
       }
+    }
+
+    const dealInEligible = () =>
+      room.seats.filter(
+        (seat) => seat.claimed && !seat.disconnected && !seat.sittingOut,
+      ).length;
+    let eligibleCount = dealInEligible();
+
+    // A failed sit-in roll must not permanently strand a room that still has
+    // two connected claimed seats available. This is a recovery override, not
+    // a normal cadence decision, and is only used until two seats can deal in.
+    if (eligibleCount < 2) {
+      for (const seat of sittingOutBots) {
+        if (eligibleCount >= 2) break;
+        if (seat.sittingOut && !seat.disconnected) {
+          rooms.setSittingOut(code, seat.id, false);
+          eligibleCount++;
+          changed = true;
+        }
+      }
+    }
+
+    // Active bots may opt out only while the table would still have two
+    // connected, claimed, non-sitting-out seats for the next deal-in.
+    for (const seat of activeBots) {
+      if (!shouldSitOut(botRng)) continue;
+      if (seat.disconnected || seat.sittingOut || eligibleCount <= 2) continue;
+      rooms.setSittingOut(code, seat.id, true);
+      eligibleCount--;
+      changed = true;
     }
     return changed;
   }

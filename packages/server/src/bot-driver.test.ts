@@ -57,12 +57,14 @@ async function waitFor(
 async function waitForMessage(
   running: RunningApp,
   predicate: (message: ServerMessage) => boolean,
+  startAt = 0,
 ): Promise<void> {
-  if (running.messages.some(predicate)) return;
+  if (running.messages.slice(startAt).some(predicate)) return;
   await new Promise<void>((resolve) => {
     const onMessage = (data: Buffer) => {
       const message = JSON.parse(data.toString()) as ServerMessage;
-      if (!predicate(message)) return;
+      const messageIndex = running.messages.length - 1;
+      if (messageIndex < startAt || !predicate(message)) return;
       running.socket.off("message", onMessage);
       resolve();
     };
@@ -126,50 +128,126 @@ describe("bot driver", () => {
     );
   });
 
-  it("rolls bot sit-out/in state at the completed-hand boundary", async () => {
-    const rooms = new RoomStore();
-    const room = rooms.create(3);
-    rooms.addBots(room, 3);
-    let rngCalls = 0;
-    const botRng = () => {
-      const value =
-        rngCalls < 12
-          ? 0.5
-          : rngCalls < 15
-            ? ([0, 0.5, 0.5][rngCalls - 12] ?? 0.5)
-            : rngCalls < 23
-              ? 0.5
-              : ([0, 0.5, 0.5][rngCalls - 23] ?? 0.5);
-      rngCalls++;
-      return value;
-    };
-
+  it("keeps a two-seat floor, reports cadence over WS, and deals a waiting bot next hand", async () => {
     app = await buildApp({
-      rooms,
       testMode: true,
-      botRng,
-      botActionDelayMs: 1,
+      botRng: () => 0,
+      botActionDelayMs: 50,
       pingIntervalMs: 100_000,
     });
-    const running = await openTable(app, room.code);
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: 4 },
+    });
+    const code = created.json<{ readonly code: string }>().code;
+    const added = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/bots`,
+      payload: { count: 3 },
+    });
+    expect(added.json()).toEqual({ joined: 3 });
+
+    const running = await openTable(app, code);
     socket = running.socket;
-
     socket.send(JSON.stringify({ type: "startHand" }));
-    await waitFor(() => room.engine?.hand?.status === "complete");
-    expect(room.seats[0]).toMatchObject({
-      claimed: true,
-      bot: true,
-      sittingOut: true,
-    });
 
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "hand-update" && message.event.type === "HandComplete",
+    );
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "room-view" &&
+        message.view.seats.some(
+          (seat) => seat.sittingOutReason === "voluntary",
+        ),
+    );
+    const firstCadenceView = [...running.messages]
+      .reverse()
+      .find((message) => message.type === "room-view");
+    if (firstCadenceView?.type !== "room-view") {
+      throw new Error("expected a cadence room view");
+    }
+    expect(
+      firstCadenceView.view.seats.filter(
+        (seat) => seat.claimed && !seat.sittingOut,
+      ),
+    ).toHaveLength(2);
+    expect(
+      firstCadenceView.view.seats.some(
+        (seat) => seat.sittingOutReason === "voluntary",
+      ),
+    ).toBe(true);
+
+    const firstNextHandMessage = running.messages.length;
     socket.send(JSON.stringify({ type: "nextHand" }));
-    await waitFor(() => rngCalls >= 26 && room.seats[0]?.sittingOut === false);
-    expect(room.engine?.seats).toEqual([1, 2]);
-    expect(room.seats[0]).toMatchObject({
-      claimed: true,
-      bot: true,
-      sittingOut: false,
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "hand-update" && message.event.type === "HandStarted",
+      firstNextHandMessage,
+    );
+
+    // This claim happens after deal-in, so its room view must explain that it
+    // is waiting for the next hand rather than calling it voluntary sit-out.
+    const claimedMidHand = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/bots`,
+      payload: { count: 1 },
     });
+    expect(claimedMidHand.json()).toEqual({ joined: 1 });
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "room-view" &&
+        message.view.seats.some(
+          (seat) => seat.sittingOutReason === "waiting-for-next-hand",
+        ),
+    );
+
+    const secondCadenceMessage = running.messages.length;
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "hand-update" && message.event.type === "HandComplete",
+      firstNextHandMessage,
+    );
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "room-view" &&
+        message.view.seats.some(
+          (seat) => seat.sittingOutReason === "waiting-for-next-hand",
+        ),
+      secondCadenceMessage,
+    );
+    const secondNextHandMessage = running.messages.length;
+    socket.send(JSON.stringify({ type: "nextHand" }));
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "hand-update" && message.event.type === "HandStarted",
+      secondNextHandMessage,
+    );
+    await waitForMessage(
+      running,
+      (message) => message.type === "room-view",
+      secondNextHandMessage,
+    );
+    const nextDealView = [...running.messages]
+      .slice(secondNextHandMessage)
+      .find((message) => message.type === "room-view");
+    if (nextDealView?.type !== "room-view") {
+      throw new Error("expected room view after next hand");
+    }
+    expect(
+      nextDealView.view.seats.some(
+        (seat) => seat.sittingOutReason === "waiting-for-next-hand",
+      ),
+    ).toBe(false);
   });
 
   it("is inert when test mode is disabled", async () => {
