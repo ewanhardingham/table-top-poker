@@ -29,7 +29,7 @@ export const DEFAULT_SIT_IN_PROBABILITY = 0.35;
 /** The greatest representable JavaScript number below 1. */
 const MAX_UNIT_RANDOM = 1 - Number.EPSILON / 2;
 
-function unitRandom(rng: BotRng): number {
+export function unitRandom(rng: BotRng): number {
   const value = rng();
 
   // Math.random() is in [0, 1). Clamp invalid injected values to the nearest
