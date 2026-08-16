@@ -45,9 +45,9 @@ export function liveSeats(hand: BettingHandState): SeatId[] {
  *
  * The big blind is last in every case, so their one-time "option" needs no
  * special machinery: every street closes the same way, when `toAct` drains.
- * Heads-up is decided off `ring.length`, matching `smallBlindSeat` and
- * `bigBlindSeat` — a short-handed lap must never read as heads-up and
- * disagree with the blind positions it was dealt with.
+ * Heads-up is decided off the ring, via the same `isHeadsUp` the blind
+ * seats use — a short-handed lap must never read as heads-up and disagree
+ * with the blind positions it was dealt with.
  */
 export function initialToAct(
   ring: readonly SeatId[],
@@ -57,12 +57,28 @@ export function initialToAct(
 ): SeatId[] {
   if (street !== "preflop") return ring.filter((seat) => live.includes(seat));
 
-  const order =
-    ring.length === 2
-      ? [button, ...ring.filter((seat) => seat !== button)]
-      : [...ring.slice(2), ...ring.slice(0, 2)];
+  const order = isHeadsUp(ring)
+    ? [button, ...ring.filter((seat) => seat !== button)]
+    : [...ring.slice(BLIND_COUNT), ...ring.slice(0, BLIND_COUNT)];
 
   return order.filter((seat) => live.includes(seat));
+}
+
+/**
+ * The two blind seats at the head of the ring, `[SB, BB]` — the rotation
+ * preflop action skips past, and the reason `initialToAct` opens at
+ * `ring[2]`.
+ */
+const BLIND_COUNT = 2;
+
+/**
+ * Whether this hand is heads-up, off the seats it was dealt to rather than
+ * the seats still live. Every position rule that reads differently heads-up
+ * — both blind seats and the preflop order — asks this one question, so
+ * they cannot disagree with each other partway through a hand.
+ */
+function isHeadsUp(ring: readonly SeatId[]): boolean {
+  return ring.length === BLIND_COUNT;
 }
 
 /**
@@ -74,7 +90,7 @@ export function smallBlindSeat(
   ring: readonly SeatId[],
   button: SeatId,
 ): SeatId {
-  if (ring.length === 2) return button;
+  if (isHeadsUp(ring)) return button;
   return must(ring[0], "the small blind needs at least 2 seated players");
 }
 
@@ -84,7 +100,7 @@ export function smallBlindSeat(
  * non-button seat is the big blind instead.
  */
 export function bigBlindSeat(ring: readonly SeatId[], button: SeatId): SeatId {
-  if (ring.length === 2) {
+  if (isHeadsUp(ring)) {
     return must(
       ring.find((seat) => seat !== button),
       "heads-up needs a non-button seat",
@@ -101,7 +117,8 @@ export function bigBlindSeat(ring: readonly SeatId[], button: SeatId): SeatId {
  * seat faces a bet once someone has actually raised; preflop, before that,
  * every seat except the big blind also faces a bet — the big blind's own
  * post already matches it, which is exactly why the big blind alone may
- * check on an unraised preflop (their normal turn, or their later option).
+ * check on an unraised preflop. Preflop that turn is the last of the lap,
+ * so it is also the big blind's "option".
  */
 export function facingBet(
   hand: Pick<BettingHandState, "street" | "ring" | "button" | "raiseOccurred">,
