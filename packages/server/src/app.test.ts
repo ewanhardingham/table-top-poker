@@ -3,7 +3,9 @@ import {
   DEFAULT_SHOT_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   MAX_SEAT_COUNT,
+  MAX_SHOT_CLOCK_SECONDS,
   MIN_SEAT_COUNT,
+  MIN_SHOT_CLOCK_SECONDS,
   type RoomView,
   type ServerMessage,
 } from "@table-top-poker/protocol";
@@ -163,6 +165,7 @@ describe("rooms HTTP routes", () => {
     expect(joined.json<RoomView>()).toEqual({
       code,
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: unclaimedSeats(),
@@ -883,6 +886,74 @@ describe("seat-count settings route", () => {
   });
 });
 
+describe("shot-clock settings route", () => {
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({ rooms });
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it("rejects invalid shot-clock bodies at the HTTP boundary", async () => {
+    const room = rooms.create();
+    const invalidBodies = [
+      undefined,
+      {},
+      { enabled: true, seconds: MIN_SHOT_CLOCK_SECONDS - 1 },
+      { enabled: true, seconds: MAX_SHOT_CLOCK_SECONDS + 1 },
+      { enabled: true, seconds: 5.5 },
+      { enabled: "true", seconds: 90 },
+      { enabled: true, seconds: "90" },
+      { enabled: true, seconds: 90, extra: true },
+    ];
+
+    for (const payload of invalidBodies) {
+      const response = await app.inject({
+        method: "POST",
+        url: `/rooms/${room.code}/shot-clock`,
+        ...(payload === undefined ? {} : { payload }),
+      });
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toEqual({ error: "invalid-request-body" });
+    }
+  });
+
+  it("queues a setting during a live hand until the next hand", async () => {
+    const room = rooms.create();
+    rooms.claimSeat(room.code, 0, "P0");
+    rooms.claimSeat(room.code, 1, "P1");
+    const started = rooms.dispatch(room.code, "table", "startHand");
+    if (!("steps" in started)) throw new Error("expected start-hand steps");
+
+    const settings = { enabled: true, seconds: 30 };
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${room.code}/shot-clock`,
+      payload: settings,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(settings);
+    expect(room.shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
+    expect(room.pendingShotClock).toEqual(settings);
+
+    const actor = rooms.currentActor(room.code);
+    if (actor === undefined) throw new Error("expected a current actor");
+    const folded = rooms.dispatch(room.code, actor, "fold");
+    if (!("steps" in folded)) throw new Error("expected fold steps");
+    const next = rooms.dispatch(room.code, "table", "nextHand");
+    if (!("steps" in next)) throw new Error("expected next-hand steps");
+
+    expect(room.shotClockSettings).toEqual(settings);
+    expect(room.pendingShotClock).toBeNull();
+  });
+});
+
 describe("seat-count movement over WebSocket", () => {
   let app: FastifyInstance;
   let rooms: RoomStore;
@@ -1158,6 +1229,7 @@ describe("WebSocket upgrade", () => {
       view: {
         code: room.code,
         pendingSeatCount: null,
+        pendingShotClock: null,
         soundSettings: DEFAULT_SOUND_SETTINGS,
         shotClockSettings: DEFAULT_SHOT_CLOCK,
         seats: unclaimedSeats(),
@@ -2180,6 +2252,103 @@ describe("action clock", () => {
 });
 
 describe("action clock duration selection", () => {
+  it("defers a REST edit until the next hand without touching the live timer", async () => {
+    const rooms = new RoomStore();
+    const scheduled: {
+      readonly timeoutMs: number;
+      readonly callback: () => void;
+      readonly handle: ReturnType<typeof setTimeout>;
+    }[] = [];
+    const cleared: ReturnType<typeof setTimeout>[] = [];
+    const actionClock = new ActionClock(
+      90_000,
+      (callback, timeoutMs) => {
+        const handle = setTimeout(() => undefined, 60_000);
+        handle.unref();
+        scheduled.push({ timeoutMs, callback, handle });
+        return handle;
+      },
+      (handle) => {
+        cleared.push(handle);
+        clearTimeout(handle);
+      },
+    );
+    const app = await buildApp({ rooms, actionClock });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+
+    const room = rooms.create(2);
+    const oldSettings = { enabled: true, seconds: 7 };
+    const newSettings = { enabled: true, seconds: 13 };
+    const initialSettings = rooms.changeShotClockSettings(
+      room.code,
+      oldSettings,
+    );
+    if ("error" in initialSettings) {
+      throw new Error("expected valid initial shot-clock settings");
+    }
+    rooms.claimSeat(room.code, 0, "P0");
+    rooms.claimSeat(room.code, 1, "P1");
+
+    const table = new WebSocket(
+      `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&role=table`,
+    );
+    try {
+      await new Promise<void>((resolve, reject) => {
+        table.once("open", resolve);
+        table.once("error", reject);
+      });
+      table.send(JSON.stringify({ type: "startHand" }));
+
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (scheduled.some((timer) => timer.timeoutMs === 7_000)) break;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      const initialTimer = scheduled.find((timer) => timer.timeoutMs === 7_000);
+      if (initialTimer === undefined) {
+        throw new Error("timed out waiting for the initial action timer");
+      }
+      const scheduledBeforeEdit = scheduled.length;
+      const clearedBeforeEdit = cleared.length;
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/rooms/${room.code}/shot-clock`,
+        payload: newSettings,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(scheduled).toHaveLength(scheduledBeforeEdit);
+      expect(cleared).toHaveLength(clearedBeforeEdit);
+      expect(room.shotClockSettings).toEqual(oldSettings);
+      expect(room.pendingShotClock).toEqual(newSettings);
+
+      // Firing the timer that was armed before the edit still applies the
+      // old in-flight behavior to the current actor.
+      initialTimer.callback();
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      expect(room.engine?.hand?.status).toBe("complete");
+      expect(room.shotClockSettings).toEqual(oldSettings);
+
+      table.send(JSON.stringify({ type: "nextHand" }));
+      for (let attempt = 0; attempt < 100; attempt++) {
+        if (scheduled.some((timer) => timer.timeoutMs === 13_000)) break;
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+
+      expect(scheduled.at(-1)?.timeoutMs).toBe(13_000);
+      expect(room.shotClockSettings).toEqual(newSettings);
+      expect(room.pendingShotClock).toBeNull();
+    } finally {
+      table.close();
+      actionClock.clear(room.code);
+      await app.close();
+    }
+  });
+
   it("schedules each room from its configured seconds", async () => {
     const rooms = new RoomStore();
     const durations: number[] = [];

@@ -14,6 +14,7 @@ export interface RoomSlice {
   readonly qrCodeDataUrl: string | null;
   readonly seats: readonly SeatView[];
   readonly pendingSeatCount: number | null;
+  readonly pendingShotClock: ShotClockSettings | null;
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
   readonly setRoomCreated: (room: {
@@ -31,16 +32,24 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
   qrCodeDataUrl: null,
   seats: [],
   pendingSeatCount: null,
+  pendingShotClock: null,
   soundSettings: DEFAULT_SOUND_SETTINGS,
   shotClockSettings: DEFAULT_SHOT_CLOCK,
   setRoomCreated: ({ code, joinUrl, qrCodeDataUrl }) => {
-    set({ roomCode: code, joinUrl, qrCodeDataUrl, pendingSeatCount: null });
+    set({
+      roomCode: code,
+      joinUrl,
+      qrCodeDataUrl,
+      pendingSeatCount: null,
+      pendingShotClock: null,
+    });
   },
   setRoomView: (view) => {
     set({
       roomCode: view.code,
       seats: view.seats,
       pendingSeatCount: view.pendingSeatCount,
+      pendingShotClock: view.pendingShotClock,
       soundSettings: view.soundSettings,
       shotClockSettings: view.shotClockSettings,
     });
@@ -52,6 +61,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
       qrCodeDataUrl: null,
       seats: [],
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
     });

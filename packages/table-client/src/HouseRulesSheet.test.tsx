@@ -1,11 +1,22 @@
 import {
+  DEFAULT_SHOT_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   type SeatView,
 } from "@table-top-poker/protocol";
+/* eslint-disable @typescript-eslint/no-deprecated -- React 19's DOM-free component test renderer is deprecated but remains the available interaction harness here. */
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { HouseRulesSheet } from "./HouseRulesSheet.js";
+import { act, create } from "react-test-renderer";
+import { describe, expect, it, vi } from "vitest";
+import {
+  HouseRulesSheet,
+  type ShotClockSecondsDraft,
+  updateShotClockSecondsDraft,
+} from "./HouseRulesSheet.js";
+
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
 
 const seats: SeatView[] = [
   {
@@ -73,12 +84,77 @@ const noop = () => {
   /* unused */
 };
 
+const shotClockProps = {
+  pendingShotClock: null,
+  shotClockSettings: DEFAULT_SHOT_CLOCK,
+  onApplyShotClock: noop,
+};
+
+function renderSheet(
+  overrides: Partial<React.ComponentProps<typeof HouseRulesSheet>> = {},
+): React.ReactElement {
+  return (
+    <HouseRulesSheet
+      seatCount={4}
+      pendingSeatCount={null}
+      {...shotClockProps}
+      seats={seats.slice(0, 4)}
+      handInProgress
+      soundSettings={DEFAULT_SOUND_SETTINGS}
+      onApply={noop}
+      onChangeSoundSettings={noop}
+      onClose={noop}
+      {...overrides}
+    />
+  );
+}
+
+function deferred(): {
+  readonly promise: Promise<void>;
+  readonly resolve: () => void;
+} {
+  let resolvePromise!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    resolvePromise = resolve;
+  });
+  return { promise, resolve: resolvePromise };
+}
+
+interface InteractiveTestNode {
+  readonly props: {
+    readonly disabled?: boolean;
+    readonly value?: string;
+    readonly onClick?: () => void;
+    readonly onChange?: (event: {
+      readonly currentTarget: { readonly value: string };
+    }) => void;
+  };
+}
+
+interface TestRenderer {
+  readonly root: {
+    findByProps(props: Record<string, unknown>): InteractiveTestNode;
+  };
+  readonly unmount: () => void;
+}
+
+function findNode(renderer: TestRenderer, testId: string): InteractiveTestNode {
+  return renderer.root.findByProps({ "data-testid": testId });
+}
+
+async function settleReactUpdates(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe("HouseRulesSheet", () => {
   it("shows the chosen house-rules surface and a repack preview", () => {
     const html = renderToStaticMarkup(
       <HouseRulesSheet
         seatCount={8}
         pendingSeatCount={4}
+        {...shotClockProps}
         seats={seats}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
@@ -100,6 +176,7 @@ describe("HouseRulesSheet", () => {
       <HouseRulesSheet
         seatCount={8}
         pendingSeatCount={3}
+        {...shotClockProps}
         seats={seats}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
@@ -121,6 +198,7 @@ describe("HouseRulesSheet", () => {
       <HouseRulesSheet
         seatCount={4}
         pendingSeatCount={null}
+        {...shotClockProps}
         seats={seats.slice(0, 4)}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
@@ -138,6 +216,7 @@ describe("HouseRulesSheet", () => {
       <HouseRulesSheet
         seatCount={4}
         pendingSeatCount={null}
+        {...shotClockProps}
         seats={seats.slice(0, 4)}
         handInProgress
         soundSettings={{
@@ -173,6 +252,7 @@ describe("HouseRulesSheet", () => {
       <HouseRulesSheet
         seatCount={4}
         pendingSeatCount={null}
+        {...shotClockProps}
         seats={seats.slice(0, 4)}
         handInProgress
         soundSettings={{
@@ -192,5 +272,134 @@ describe("HouseRulesSheet", () => {
     expect(html).toContain(
       'data-testid="sound-notifications-toggle" disabled=""',
     );
+  });
+
+  it("renders the deferred shot-clock controls", () => {
+    const html = renderToStaticMarkup(
+      <HouseRulesSheet
+        seatCount={4}
+        pendingSeatCount={null}
+        pendingShotClock={{ enabled: true, seconds: 30 }}
+        shotClockSettings={DEFAULT_SHOT_CLOCK}
+        seats={seats.slice(0, 4)}
+        handInProgress
+        soundSettings={DEFAULT_SOUND_SETTINGS}
+        onApply={noop}
+        onApplyShotClock={noop}
+        onChangeSoundSettings={noop}
+        onClose={noop}
+      />,
+    );
+
+    expect(html).toContain('data-testid="shot-clock-settings"');
+    expect(html).toContain('data-testid="shot-clock-toggle"');
+    expect(html).toContain('data-testid="shot-clock-seconds"');
+    expect(html).toContain("Applies from the next hand");
+  });
+
+  it("accepts a valid seconds value typed one digit at a time", () => {
+    let draft: ShotClockSecondsDraft = {
+      input: "90",
+      seconds: 90,
+      valid: true,
+    };
+
+    // Replacing the current value with 45 emits these two input events. The
+    // first value is transient, but must remain visible so the second digit
+    // can complete the valid setting.
+    draft = updateShotClockSecondsDraft(draft, "4");
+    expect(draft).toEqual({ input: "4", seconds: 90, valid: false });
+    draft = updateShotClockSecondsDraft(draft, "45");
+
+    expect(draft).toEqual({ input: "45", seconds: 45, valid: true });
+  });
+
+  it("waits for both settings writes before closing", async () => {
+    const seatWrite = deferred();
+    const shotClockWrite = deferred();
+    const onApply = vi.fn(() => seatWrite.promise);
+    const onApplyShotClock = vi.fn(() => shotClockWrite.promise);
+    const onClose = vi.fn();
+    let renderer!: TestRenderer;
+
+    act(() => {
+      renderer = create(renderSheet({ onApply, onApplyShotClock, onClose }));
+    });
+
+    act(() => {
+      findNode(renderer, "shot-clock-toggle").props.onClick?.();
+    });
+
+    const done = () => findNode(renderer, "settings-done");
+    await act(async () => {
+      done().props.onClick?.();
+      await settleReactUpdates();
+    });
+
+    expect(onApply).toHaveBeenCalledTimes(1);
+    expect(onApplyShotClock).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(done().props.disabled).toBe(true);
+
+    await act(async () => {
+      seatWrite.resolve();
+      await settleReactUpdates();
+    });
+    expect(onClose).not.toHaveBeenCalled();
+
+    await act(async () => {
+      shotClockWrite.resolve();
+      await settleReactUpdates();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it("blocks submission while seconds is visibly invalid", async () => {
+    const onApply = vi.fn(() => Promise.resolve());
+    const onApplyShotClock = vi.fn(() => Promise.resolve());
+    const onClose = vi.fn();
+    let renderer!: TestRenderer;
+
+    act(() => {
+      renderer = create(renderSheet({ onApply, onApplyShotClock, onClose }));
+    });
+
+    const input = () => findNode(renderer, "shot-clock-seconds");
+    act(() => {
+      input().props.onChange?.({ currentTarget: { value: "4" } });
+    });
+
+    expect(input().props.value).toBe("4");
+    expect(findNode(renderer, "shot-clock-validation")).toBeDefined();
+    expect(findNode(renderer, "settings-done").props.disabled).toBe(true);
+
+    await act(async () => {
+      findNode(renderer, "settings-done").props.onClick?.();
+      await settleReactUpdates();
+    });
+    expect(onApply).not.toHaveBeenCalled();
+    expect(onApplyShotClock).not.toHaveBeenCalled();
+
+    act(() => {
+      input().props.onChange?.({ currentTarget: { value: "45" } });
+    });
+    expect(input().props.value).toBe("45");
+    expect(findNode(renderer, "settings-done").props.disabled).toBe(false);
+
+    await act(async () => {
+      findNode(renderer, "settings-done").props.onClick?.();
+      await settleReactUpdates();
+    });
+    expect(onApplyShotClock).toHaveBeenCalledWith({
+      enabled: false,
+      seconds: 45,
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    act(() => {
+      renderer.unmount();
+    });
   });
 });
