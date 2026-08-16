@@ -14,6 +14,18 @@ body {
 }
 
 /*
+ * `overflow: hidden` alone does not stop iOS Safari dragging the document
+ * around — it still rubber-bands and pans the visual viewport, which is the
+ * "accidental scrolling" iPhone players see and Android players do not. Taking
+ * the body out of flow and pinning it to the viewport leaves nothing to pan.
+ */
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
+/*
  * player-client is a phone experience even when opened in a wide desktop
  * tab (no phone in hand for testing/demoing) — #root centres a
  * phone-width column instead of letting the shell stretch full-bleed.
