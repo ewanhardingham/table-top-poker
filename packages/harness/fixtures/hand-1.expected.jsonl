@@ -1,6 +1,7 @@
 {"type":"HandStarted","seed":"harness-fixture-1","button":0}
 {"type":"HoleCardsDealt","deals":[{"seatId":1,"cards":[{"rank":"7","suit":"clubs"},{"rank":"5","suit":"spades"}]},{"seatId":2,"cards":[{"rank":"9","suit":"spades"},{"rank":"2","suit":"clubs"}]},{"seatId":0,"cards":[{"rank":"J","suit":"clubs"},{"rank":"7","suit":"hearts"}]}]}
-{"type":"StreetStarted","street":"preflop","actor":1}
+{"type":"StreetStarted","street":"preflop","actor":0}
+{"type":"ActionTaken","seatId":0,"action":"call"}
 {"type":"ActionTaken","seatId":1,"action":"call"}
 {"type":"ActionTaken","seatId":2,"action":"raise"}
 {"type":"ActionTaken","seatId":0,"action":"call"}

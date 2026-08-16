@@ -1368,10 +1368,12 @@ describe("hand command dispatch over WebSocket", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // button = seat 0, ring = [1, 2, 0], BB = seat 2 (see rooms.ts/room.ts).
-    // Preflop: SB calls, BB raises — forcing seat 0 and seat 1 to act again
-    // (street closure waits for every live player since the raise, not just
-    // one lap), both call, street closes.
+    // button = seat 0, ring = [1, 2, 0], BB = seat 2 (see rooms.ts/room.ts),
+    // so preflop runs [0, 1, 2]. Button and SB call, BB raises — forcing
+    // seat 0 and seat 1 to act again (street closure waits for every live
+    // player since the raise, not just one lap), both call, street closes.
+    seat0.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
     seat1.socket.send(JSON.stringify({ type: "call" }));
     await settle();
     seat2.socket.send(JSON.stringify({ type: "raise" }));
@@ -1597,15 +1599,15 @@ describe("hand command dispatch over WebSocket", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Preflop's first actor is seat 1 (SB), not seat 0.
-    seat0.socket.send(JSON.stringify({ type: "check" }));
+    // Preflop's first actor is seat 0 (the button, three-handed), not seat 1.
+    seat1.socket.send(JSON.stringify({ type: "check" }));
     await settle();
 
-    expect(seat0.messages).toContainEqual({
+    expect(seat1.messages).toContainEqual({
       type: "command-rejected",
       reason: "not-your-turn",
     });
-    expect(seat1.messages).not.toContainEqual(
+    expect(seat0.messages).not.toContainEqual(
       expect.objectContaining({ type: "command-rejected" }),
     );
     expect(table.messages).not.toContainEqual(
@@ -1625,15 +1627,15 @@ describe("hand command dispatch over WebSocket", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Seat 1 (SB) faces the BB's post and can't check.
-    seat1.socket.send(JSON.stringify({ type: "check" }));
+    // Seat 0 (the button, first to act) faces the BB's post and can't check.
+    seat0.socket.send(JSON.stringify({ type: "check" }));
     await settle();
 
-    expect(seat1.messages).toContainEqual({
+    expect(seat0.messages).toContainEqual({
       type: "command-rejected",
       reason: "action-not-legal",
     });
-    expect(seat0.messages).not.toContainEqual(
+    expect(seat1.messages).not.toContainEqual(
       expect.objectContaining({ type: "command-rejected" }),
     );
     expect(seat2.messages).not.toContainEqual(
@@ -1869,7 +1871,7 @@ describe("action clock", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Preflop's first actor is seat 1 (SB) — takes no action at all.
+    // Preflop's first actor is seat 0 (the button) — takes no action at all.
     await settle(ACTION_CLOCK_MS + 60);
 
     const folds = actionsSeen(table.messages).filter(
@@ -1878,7 +1880,7 @@ describe("action clock", () => {
     expect(folds).toEqual([
       expect.objectContaining({
         type: "ActionTaken",
-        seatId: 1,
+        seatId: 0,
         action: "fold",
       }),
     ]);
@@ -1922,7 +1924,7 @@ describe("action clock", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    seat1.socket.send(JSON.stringify({ type: "call" }));
+    seat0.socket.send(JSON.stringify({ type: "call" }));
     await settle(ACTION_CLOCK_MS - 50);
 
     const folds = actionsSeen(table.messages).filter(
@@ -1940,17 +1942,17 @@ describe("action clock", () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
-    await claimAndConnect(room.code, 0);
-    const seat1 = await claimAndConnect(room.code, 1);
+    const seat0 = await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
     await claimAndConnect(room.code, 2);
     await settle();
 
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Seat 1 (SB) acts immediately; seat 2 (BB) then sits idle and should
-    // be the one auto-folded, not seat 1.
-    seat1.socket.send(JSON.stringify({ type: "call" }));
+    // Seat 0 (the button, first to act) acts immediately; seat 1 (SB) then
+    // sits idle and should be the one auto-folded, not seat 0.
+    seat0.socket.send(JSON.stringify({ type: "call" }));
     await settle(ACTION_CLOCK_MS + 60);
 
     const folds = actionsSeen(table.messages).filter(
@@ -1959,7 +1961,7 @@ describe("action clock", () => {
     expect(folds).toEqual([
       expect.objectContaining({
         type: "ActionTaken",
-        seatId: 2,
+        seatId: 1,
         action: "fold",
       }),
     ]);
@@ -1977,17 +1979,13 @@ describe("action clock", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Preflop, no raise: every seat (button included) still owes a decision.
-    seat1.socket.send(JSON.stringify({ type: "call" }));
-    await settle();
-    seat2.socket.send(JSON.stringify({ type: "check" }));
-    await settle();
-    // The button never posted a blind, so it must call the BB's amount
-    // rather than check.
+    // Preflop, no raise: one lap of [0, 1, 2]. The button and SB never
+    // matched the BB's post, so they must call rather than check.
     seat0.socket.send(JSON.stringify({ type: "call" }));
     await settle();
-    // No raise occurred, so the BB gets its one-time option before the
-    // street actually closes.
+    seat1.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
+    // The BB acts last, so its check is the option and closes the street.
     seat2.socket.send(JSON.stringify({ type: "check" }));
     await settle();
     // Preflop closes; the flop's first actor (seat 1, SB) now idles out.

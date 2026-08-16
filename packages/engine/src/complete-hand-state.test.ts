@@ -6,15 +6,16 @@ describe("CompleteHandState carries how the hand ended", () => {
   it("tags a fold-out completion with reason 'folded-out' and the winner", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "foldout" }]);
+    // Preflop runs button, SB, BB — the BB is left holding the pot.
     state = playAll(state, [
+      { type: "fold", seatId: 0 },
       { type: "fold", seatId: 1 },
-      { type: "fold", seatId: 2 },
     ]);
 
     if (state.hand?.status !== "complete") throw new Error("expected complete");
     expect(state.hand.reason).toBe("folded-out");
     if (state.hand.reason === "folded-out") {
-      expect(state.hand.winner).toBe(0);
+      expect(state.hand.winner).toBe(2);
     }
   });
 

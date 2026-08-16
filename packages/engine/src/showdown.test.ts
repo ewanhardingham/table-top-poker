@@ -79,6 +79,7 @@ describe("ShowdownReached omits folded seats", () => {
     const state = createInitialState([0, 1, 2]);
     const events = playAndCollect(state, [
       { type: "startHand", seatId: 0, seed: "seed-1" },
+      { type: "call", seatId: 0 },
       { type: "call", seatId: 1 },
       { type: "raise", seatId: 2 },
       { type: "call", seatId: 0 },

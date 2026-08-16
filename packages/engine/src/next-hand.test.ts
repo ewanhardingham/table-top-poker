@@ -8,10 +8,10 @@ describe("nextHand", () => {
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "hand-1" }]);
     expect(state.button).toBe(0);
 
-    // Fold everyone but seat 0 out to reach HAND_COMPLETE quickly.
+    // Fold everyone but seat 2 out to reach HAND_COMPLETE quickly.
     state = playAll(state, [
+      { type: "fold", seatId: 0 },
       { type: "fold", seatId: 1 },
-      { type: "fold", seatId: 2 },
     ]);
     expect(state.hand?.status).toBe("complete");
     expect(state.button).toBe(1);

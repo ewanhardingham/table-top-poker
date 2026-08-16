@@ -79,7 +79,7 @@ function beginHand(state: EngineState, seed: string): HandEvent[] {
   events.push(holeCardsDealt);
   scratch = apply(scratch, holeCardsDealt);
 
-  const { toAct } = initialToAct(ring, ring, button, "preflop");
+  const toAct = initialToAct(ring, ring, button, "preflop");
   const streetStarted: HandEvent = {
     type: "StreetStarted",
     street: "preflop",
@@ -223,7 +223,7 @@ function decideActionEvents(
   events.push(boardDealt);
   scratch = apply(scratch, boardDealt);
 
-  const { toAct: nextToAct } = initialToAct(
+  const nextToAct = initialToAct(
     handAfterAction.ring,
     live,
     hand.button,
