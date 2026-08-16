@@ -14,6 +14,7 @@ describe("Board", () => {
   it("renders the community cards for a live betting street", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,

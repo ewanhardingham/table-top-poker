@@ -30,6 +30,7 @@ export function App() {
   const seatId = usePlayerStore((state) => state.seatId);
   const displayName = usePlayerStore((state) => state.displayName);
   const connectionStatus = usePlayerStore((state) => state.connectionStatus);
+  const shotClockSettings = usePlayerStore((state) => state.shotClockSettings);
   const handView = usePlayerStore((state) => state.handView);
   const setRoomView = usePlayerStore((state) => state.setRoomView);
   const setJoinError = usePlayerStore((state) => state.setJoinError);
@@ -252,6 +253,7 @@ export function App() {
             seatId={seatId}
             seats={seats}
             connectionStatus={connectionStatus}
+            shotClockSeconds={shotClockSettings.seconds}
             intent={intent}
           />
         )}

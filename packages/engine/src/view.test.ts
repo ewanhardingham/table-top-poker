@@ -82,6 +82,28 @@ describe("view: legalActions", () => {
   });
 });
 
+describe("view: action-clock deadline", () => {
+  it("carries the server deadline through player and table betting views", () => {
+    const state = onTheFlopThreeWay();
+    const turnEndsAt = 1_750_000_000_000;
+
+    const player = view(state, 0, turnEndsAt);
+    const table = view(state, "table", turnEndsAt);
+    if (player.phase !== "betting" || table.phase !== "betting") {
+      throw new Error("expected betting views");
+    }
+    expect(player.turnEndsAt).toBe(turnEndsAt);
+    expect(table.turnEndsAt).toBe(turnEndsAt);
+  });
+
+  it("defaults the deadline to null when the clock is disabled", () => {
+    const state = onTheFlopThreeWay();
+    const table = view(state, "table");
+    if (table.phase !== "betting") throw new Error("expected betting view");
+    expect(table.turnEndsAt).toBeNull();
+  });
+});
+
 describe("view: other seats' hole cards mid-hand", () => {
   it("a seat does not see another live seat's hole cards", () => {
     const state = onTheFlopThreeWay();

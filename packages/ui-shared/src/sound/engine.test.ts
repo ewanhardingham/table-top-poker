@@ -79,6 +79,7 @@ const actionTaken = (
 /** A player betting view whose turn state is `myTurn`. */
 const bettingView = (myTurn: boolean): PlayerView => ({
   phase: "betting",
+  turnEndsAt: null,
   street: "preflop",
   board: [],
   toAct: myTurn ? [0] : [1],
@@ -105,6 +106,7 @@ const tableHoleCardsDealt = (): HandEvent => ({
 /** A table betting view for a hand dealt to `dealtSeatCount` seats. */
 const tableBettingView = (dealtSeatCount: number): TableView => ({
   phase: "betting",
+  turnEndsAt: null,
   street: "preflop",
   board: [],
   toAct: [0],

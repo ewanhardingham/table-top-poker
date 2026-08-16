@@ -2092,6 +2092,71 @@ describe("action clock", () => {
 
     expect(actionsSeen(table.messages)).toHaveLength(0);
     expect(rooms.currentActor(room.code)).toBeDefined();
+    const liveViews = table.messages
+      .filter(
+        (message): message is Extract<ServerMessage, { type: "hand-update" }> =>
+          message.type === "hand-update" && message.view.phase === "betting",
+      )
+      .map((message) => message.view);
+    expect(liveViews.length).toBeGreaterThan(0);
+    expect(
+      liveViews.every(
+        (view) => view.phase === "betting" && view.turnEndsAt === null,
+      ),
+    ).toBe(true);
+  });
+
+  it("publishes one absolute deadline and resumes it in a reconnect snapshot", async () => {
+    const room = rooms.create(2);
+    enableShotClock(room);
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    const deadline = room.turnEndsAt;
+    expect(deadline).toEqual(expect.any(Number));
+    if (deadline === null) throw new Error("expected a shot-clock deadline");
+    expect(deadline).toBeGreaterThan(Date.now());
+
+    const liveViews = table.messages
+      .filter(
+        (message): message is Extract<ServerMessage, { type: "hand-update" }> =>
+          message.type === "hand-update" && message.view.phase === "betting",
+      )
+      .map((message) => message.view);
+    expect(liveViews.length).toBeGreaterThan(0);
+    expect(
+      liveViews.every(
+        (view) => view.phase === "betting" && view.turnEndsAt === deadline,
+      ),
+    ).toBe(true);
+
+    const claim = rooms.get(room.code)?.seats[0];
+    if (!claim?.token) throw new Error("expected seat token");
+    seat0.socket.close();
+    await settle();
+    const reconnected = connect(
+      `room=${room.code}&seat=0&token=${claim.token}`,
+    );
+    await opened(reconnected.socket);
+    await settle();
+
+    const snapshot = reconnected.messages.find(
+      (message) => message.type === "view-snapshot",
+    );
+    if (snapshot?.type !== "view-snapshot") {
+      throw new Error("expected a view-snapshot");
+    }
+    if (snapshot.view.phase !== "betting") {
+      throw new Error("expected a betting view snapshot");
+    }
+    expect(snapshot.view.turnEndsAt).toBe(deadline);
+    expect(snapshot.view.turnEndsAt).toBeGreaterThan(Date.now());
   });
 
   it("checks on expiry when checking is free", async () => {
