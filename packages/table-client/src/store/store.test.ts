@@ -1,4 +1,7 @@
-import { DEFAULT_SOUND_SETTINGS } from "@table-top-poker/protocol";
+import {
+  DEFAULT_SHOT_CLOCK,
+  DEFAULT_SOUND_SETTINGS,
+} from "@table-top-poker/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useTableStore } from "./store.js";
 
@@ -42,6 +45,7 @@ describe("useTableStore", () => {
       code: "ABCD",
       pendingSeatCount: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
         {
           id: 0,
@@ -69,6 +73,7 @@ describe("useTableStore", () => {
       code: "ABCD",
       pendingSeatCount: 4,
       soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
         {
           id: 0,
@@ -96,6 +101,7 @@ describe("useTableStore", () => {
       code: "ABCD",
       pendingSeatCount: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
         {
           id: 0,

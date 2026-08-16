@@ -3,11 +3,13 @@ import {
   apply,
   createInitialState,
   DEFAULT_SEAT_COUNT,
+  DEFAULT_SHOT_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   decide,
   MAX_SEAT_COUNT,
   MAX_DISPLAY_NAME_LENGTH,
   MIN_SEAT_COUNT,
+  ShotClockSettingsSchema,
   SeatCountSchema,
   type ClientCommandType,
   type Command,
@@ -22,6 +24,7 @@ import {
   type SeatCountChange,
   type SeatCountChangeError,
   type SeatMove,
+  type ShotClockSettings,
   type SittingOutReason,
   type SoundSettings,
 } from "@table-top-poker/protocol";
@@ -67,6 +70,8 @@ export interface Room {
   pendingSeatCount: number | null;
   /** Room-wide tactile-sound settings (#182), set by the table. */
   soundSettings: SoundSettings;
+  /** Room-wide action-clock settings, set by the table. */
+  shotClockSettings: ShotClockSettings;
 }
 
 export type ClaimSeatError =
@@ -372,6 +377,7 @@ export class RoomStore {
       engine: null,
       pendingSeatCount: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
     };
     this.#rooms.set(code, room);
     return room;
@@ -607,6 +613,24 @@ export class RoomStore {
     return room.soundSettings;
   }
 
+  /**
+   * Replaces the room's action-clock settings atomically. Applying the shared
+   * schema here keeps direct callers from constructing invalid room state.
+   */
+  changeShotClockSettings(
+    code: string,
+    settings: ShotClockSettings,
+  ): ShotClockSettings | { error: "room-not-found" | "invalid-shot-clock" } {
+    const room = this.#rooms.get(code);
+    if (!room) return { error: "room-not-found" };
+    const parsed = ShotClockSettingsSchema.safeParse(settings);
+    if (!parsed.success) {
+      return { error: "invalid-shot-clock" };
+    }
+    room.shotClockSettings = parsed.data;
+    return room.shotClockSettings;
+  }
+
   /** Whether `seatId` reads as "sitting out" in the room's public view — see `isSittingOut`. */
   isSittingOut(code: string, seatId: SeatId): boolean {
     const room = this.#rooms.get(code);
@@ -757,6 +781,7 @@ export function toRoomView(room: Room): RoomView {
     code: room.code,
     pendingSeatCount: room.pendingSeatCount,
     soundSettings: room.soundSettings,
+    shotClockSettings: room.shotClockSettings,
     seats: room.seats.map((seat) => {
       const reason = sittingOutReason(room, seat.id);
       return {

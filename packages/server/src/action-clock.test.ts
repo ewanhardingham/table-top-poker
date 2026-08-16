@@ -13,6 +13,16 @@ describe("ActionClock", () => {
     expect(setTimeoutFn).toHaveBeenCalledWith(expect.any(Function), 90_000);
   });
 
+  it("accepts a room-specific duration when scheduling", () => {
+    const setTimeoutFn = vi.fn(setTimeout);
+    const clearTimeoutFn = vi.fn(clearTimeout);
+    const clock = new ActionClock(90_000, setTimeoutFn, clearTimeoutFn);
+
+    clock.schedule("ROOM", 5_000, vi.fn());
+
+    expect(setTimeoutFn).toHaveBeenCalledWith(expect.any(Function), 5_000);
+  });
+
   it("clears a room's prior timer when scheduling a new one", () => {
     const handles: unknown[] = [];
     const setTimeoutFn = vi.fn((fn: () => void, ms: number) => {

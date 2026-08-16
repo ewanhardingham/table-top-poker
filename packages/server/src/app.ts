@@ -81,8 +81,10 @@ export interface BuildAppOptions {
    * form `[minimum, maximum)`.
    */
   readonly botActionDelayMs?: number | readonly [number, number];
-  /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
+  /** Overridable for tests only; production uses each room's configured seconds. */
   readonly actionClockMs?: number;
+  /** Injectable action clock for deterministic server tests. */
+  readonly actionClock?: ActionClock;
   /** How often the server pings every open socket (Phase 1 spec #130 §7). */
   readonly pingIntervalMs?: number;
   /** Missed pongs before a seat's badge flips to "disconnected". */
@@ -267,7 +269,8 @@ export async function buildApp(
   const graceWindowMs = options.graceWindowMs ?? 60_000;
   const roomSockets = new Map<string, Set<WebSocket>>();
   const socketIdentity = new Map<WebSocket, SocketIdentity>();
-  const actionClock = new ActionClock(options.actionClockMs);
+  const actionClock =
+    options.actionClock ?? new ActionClock(options.actionClockMs);
   const socketRoomCode = new Map<WebSocket, string>();
   const pingMissed = new Map<WebSocket, number>();
   const evictedSockets = new WeakSet<WebSocket>();
@@ -620,18 +623,51 @@ export async function buildApp(
    * Phase 1 spec #130 §7.
    */
   function rescheduleActionClock(code: string): void {
+    const room = rooms.get(code);
     const actor = rooms.currentActor(code);
-    if (actor === undefined) {
+    if (room === undefined || actor === undefined) {
       actionClock.clear(code);
       return;
     }
-    actionClock.schedule(code, () => {
-      const result = rooms.dispatch(code, actor, "fold");
+
+    const { enabled, seconds } = room.shotClockSettings;
+    if (!enabled) {
+      actionClock.clear(code);
+      return;
+    }
+
+    // `actionClockMs` is only a convenience override for the default clock
+    // used by the existing timer tests. An injected clock is authoritative so
+    // tests can observe each room's configured duration directly.
+    const timeoutMs =
+      options.actionClock === undefined && options.actionClockMs !== undefined
+        ? options.actionClockMs
+        : seconds * 1000;
+    actionClock.schedule(code, timeoutMs, () => {
+      const currentRoom = rooms.get(code);
+      if (!currentRoom || rooms.currentActor(code) !== actor) {
+        rescheduleActionClock(code);
+        return;
+      }
+
+      // A timeout should preserve a free check. Read legal actions at fire
+      // time because the scheduled callback may outlive another room-store
+      // mutation even after its timer has been replaced.
+      const actorView =
+        currentRoom.engine === null
+          ? undefined
+          : view(currentRoom.engine, actor);
+      const action =
+        actorView?.phase === "betting" &&
+        actorView.legalActions.includes("check")
+          ? "check"
+          : "fold";
+      const result = rooms.dispatch(code, actor, action);
       // `actor` was read as the live current actor at schedule time, and
       // any real action in between would have rescheduled (and thus
-      // replaced) this very timer — so `dispatch` rejecting the
-      // synthesized fold isn't expected to happen. If it somehow does, the
-      // clock still re-arms below.
+      // replaced) this very timer — so `dispatch` rejecting the synthesized
+      // action isn't expected to happen. If it somehow does, the clock still
+      // re-arms below.
       if ("steps" in result) {
         publishDispatch(code, result);
         return;
