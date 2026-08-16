@@ -72,6 +72,7 @@ export function useWebSocket(
   const setConnectionStatus = usePlayerStore(
     (state) => state.setConnectionStatus,
   );
+  const resetConnection = usePlayerStore((state) => state.resetConnection);
   const setRoomView = usePlayerStore((state) => state.setRoomView);
   const setSeat = usePlayerStore((state) => state.setSeat);
   const moveSeat = usePlayerStore((state) => state.moveSeat);
@@ -106,7 +107,10 @@ export function useWebSocket(
   useEffect(() => {
     const connection = connectionRef.current;
     if (connection === null) {
-      setConnectionStatus("disconnected");
+      // No params means no seat — leaving, or not yet joined. Clear the
+      // has-connected latch with the connection so a later session starts
+      // silent again rather than inheriting this one's history (ADR-0006).
+      resetConnection();
       return;
     }
     const activeConnection = connection;
@@ -214,6 +218,7 @@ export function useWebSocket(
     roomCode,
     token,
     setConnectionStatus,
+    resetConnection,
     setRoomView,
     setSeat,
     moveSeat,

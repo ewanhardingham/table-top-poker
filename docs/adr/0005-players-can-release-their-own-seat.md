@@ -6,6 +6,10 @@ Accepted. Complements [ADR-0003](0003-eviction-is-a-manual-table-action.md):
 the table's manual evict frees *someone else's* seat; this adds a player
 freeing *their own*. Neither revives the automatic eviction ADR-0003 removed.
 
+Putting the seat actions behind the burger makes that button the only route
+to them; [ADR-0006](0006-the-player-menu-is-always-reachable.md) is what
+keeps it reachable.
+
 ## Context
 
 A player could sit out (skip hands while keeping their seat) but had no way

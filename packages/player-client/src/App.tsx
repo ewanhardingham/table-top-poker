@@ -30,6 +30,7 @@ export function App() {
   const seatId = usePlayerStore((state) => state.seatId);
   const displayName = usePlayerStore((state) => state.displayName);
   const connectionStatus = usePlayerStore((state) => state.connectionStatus);
+  const hasEverConnected = usePlayerStore((state) => state.hasEverConnected);
   const shotClockSettings = usePlayerStore((state) => state.shotClockSettings);
   const handView = usePlayerStore((state) => state.handView);
   const setRoomView = usePlayerStore((state) => state.setRoomView);
@@ -277,6 +278,7 @@ export function App() {
       <StatusBar
         showBadge={wsParams !== null}
         connectionStatus={connectionStatus}
+        hasEverConnected={hasEverConnected}
         inLiveHand={inLiveHand}
         onToggleSittingOut={handleToggleSittingOut}
         onLeave={handleLeave}
