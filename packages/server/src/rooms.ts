@@ -447,18 +447,13 @@ export class RoomStore {
    * as a real player. The caller owns the test-mode gate; this store method
    * only handles the aggregate mutation and returns the seats that joined.
    */
-  addBots(
-    code: string,
-    count: number,
-  ): { seats: readonly Seat[] } | { error: "room-not-found" } {
-    const room = this.#rooms.get(code);
-    if (!room) return { error: "room-not-found" };
+  addBots(room: Room, count: number): { seats: readonly Seat[] } {
     if (!Number.isFinite(count) || count <= 0) return { seats: [] };
 
     const joined: Seat[] = [];
     const freeSeats = room.seats.filter((seat) => !seat.claimed);
     for (const seat of freeSeats.slice(0, count)) {
-      const claim = this.claimSeat(code, seat.id, this.#nextBotName(room));
+      const claim = this.claimSeat(room.code, seat.id, this.#nextBotName(room));
       if ("error" in claim) continue;
       claim.seat.bot = true;
       joined.push(claim.seat);

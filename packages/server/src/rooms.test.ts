@@ -131,9 +131,8 @@ describe("RoomStore", () => {
       const room = store.create(4);
       store.claimSeat(room.code, 0, "Bot 1");
 
-      const result = store.addBots(room.code, 4);
+      const result = store.addBots(room, 4);
 
-      if ("error" in result) throw new Error("expected bots to be added");
       expect(result.seats).toHaveLength(3);
       expect(result.seats.map((seat) => seat.displayName)).toEqual([
         "Bot 2",
@@ -255,8 +254,7 @@ describe("RoomStore", () => {
     it("clears a bot flag when its seat is evicted", () => {
       const store = new RoomStore();
       const room = store.create();
-      const added = store.addBots(room.code, 1);
-      if ("error" in added) throw new Error("expected a bot claim");
+      const added = store.addBots(room, 1);
 
       store.evictSeat(room.code, added.seats[0]?.id ?? 0);
 
@@ -829,8 +827,7 @@ describe("RoomStore", () => {
         if (actor === undefined) throw new Error("expected a current actor");
 
         store.evictSeat(room.code, actor);
-        const added = store.addBots(room.code, 1);
-        if ("error" in added) throw new Error("expected a bot claim");
+        const added = store.addBots(room, 1);
         const bot = added.seats[0];
         if (bot === undefined) throw new Error("expected a bot seat");
 
