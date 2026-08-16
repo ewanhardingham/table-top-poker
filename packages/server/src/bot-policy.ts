@@ -13,12 +13,12 @@ export type BotRng = () => number;
  * remains reachable.
  */
 export const DEFAULT_BOT_ACTION_WEIGHTS: Readonly<Record<ActionType, number>> =
-  {
+  Object.freeze({
     fold: 1,
     check: 12,
     call: 12,
     raise: 2,
-  };
+  });
 
 /** Default chance for a bot to skip the next hand between hands. */
 export const DEFAULT_SIT_OUT_PROBABILITY = 0.1;
@@ -26,13 +26,17 @@ export const DEFAULT_SIT_OUT_PROBABILITY = 0.1;
 /** Default chance for a sitting-out bot to return for the next hand. */
 export const DEFAULT_SIT_IN_PROBABILITY = 0.35;
 
+/** The greatest representable JavaScript number below 1. */
+const MAX_UNIT_RANDOM = 1 - Number.EPSILON / 2;
+
 function unitRandom(rng: BotRng): number {
   const value = rng();
 
-  // Math.random() is in [0, 1), but clamping makes injected test sources at
-  // the boundaries harmless and keeps the selector's final fallback useful.
+  // Math.random() is in [0, 1). Clamp invalid injected values to the nearest
+  // boundary, but do not round a valid value in that range: MAX_UNIT_RANDOM
+  // is itself a valid value and must remain unchanged.
   if (Number.isNaN(value)) return 0;
-  return Math.min(Math.max(value, 0), 1 - Number.EPSILON);
+  return Math.min(Math.max(value, 0), MAX_UNIT_RANDOM);
 }
 
 function assertProbability(probability: number): void {

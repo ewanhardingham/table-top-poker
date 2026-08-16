@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   chooseBotAction,
+  DEFAULT_BOT_ACTION_WEIGHTS,
   DEFAULT_SIT_IN_PROBABILITY,
   DEFAULT_SIT_OUT_PROBABILITY,
   shouldSitIn,
@@ -10,6 +11,7 @@ import {
 import type { ActionType } from "@table-top-poker/protocol";
 
 const actionTypes: ActionType[] = ["fold", "check", "call", "raise"];
+const greatestRollBelowOne = 0.9999999999999999;
 
 const legalActionsArb = fc.subarray(actionTypes, { minLength: 1 });
 
@@ -29,6 +31,29 @@ describe("chooseBotAction", () => {
     expect(chooseBotAction(legalActions, () => 0.2)).toBe(
       chooseBotAction(legalActions, () => 0.2),
     );
+  });
+
+  it("keeps a facing bet alive while reaching call, fold, and raise", () => {
+    const legalActions = ["fold", "call", "raise"] as const;
+    const reached = new Set<ActionType>();
+    let folds = 0;
+    let calls = 0;
+    for (let i = 0; i < 10_000; i++) {
+      const action = chooseBotAction(legalActions, () => (i + 0.5) / 10_000);
+      reached.add(action);
+      if (action === "fold") folds++;
+      if (action === "call") calls++;
+    }
+
+    expect(reached).toEqual(new Set(legalActions));
+    expect(calls).toBeGreaterThan(folds * 5);
+  });
+
+  it("keeps every action weight positive and immutable at runtime", () => {
+    for (const action of actionTypes) {
+      expect(DEFAULT_BOT_ACTION_WEIGHTS[action]).toBeGreaterThan(0);
+    }
+    expect(Object.isFrozen(DEFAULT_BOT_ACTION_WEIGHTS)).toBe(true);
   });
 
   it("keeps a free check overwhelmingly more likely than folding", () => {
@@ -95,7 +120,7 @@ describe("sit-out/in rolls", () => {
   it("satisfies the configured probability decision for every roll", () => {
     fc.assert(
       fc.property(
-        fc.double({ min: 0, max: 1 - Number.EPSILON, noNaN: true }),
+        fc.double({ min: 0, max: greatestRollBelowOne, noNaN: true }),
         fc.float({ min: 0, max: 1, noNaN: true }),
         (randomValue, probability) => {
           expect(shouldSitOut(() => randomValue, probability)).toBe(
@@ -107,6 +132,17 @@ describe("sit-out/in rolls", () => {
         },
       ),
     );
+  });
+
+  it("preserves the greatest valid roll and uses strict less-than semantics", () => {
+    expect(shouldSitOut(() => greatestRollBelowOne, greatestRollBelowOne)).toBe(
+      false,
+    );
+    expect(shouldSitIn(() => greatestRollBelowOne, greatestRollBelowOne)).toBe(
+      false,
+    );
+    expect(shouldSitOut(() => greatestRollBelowOne, 1)).toBe(true);
+    expect(shouldSitIn(() => greatestRollBelowOne, 1)).toBe(true);
   });
 
   it("rejects probabilities outside the unit interval", () => {
