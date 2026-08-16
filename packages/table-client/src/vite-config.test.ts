@@ -9,8 +9,11 @@ describe("table-client Vite dev proxy", () => {
       fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
     );
 
-    expect(loaded?.config.server?.proxy).toMatchObject({
-      "/config": "http://localhost:3000",
-    });
+    const proxy = loaded?.config.server?.proxy;
+    expect(proxy).toBeDefined();
+    if (proxy === undefined) return;
+
+    expect(proxy["/rooms"]).toBeDefined();
+    expect(proxy["/config"]).toBe(proxy["/rooms"]);
   });
 });
