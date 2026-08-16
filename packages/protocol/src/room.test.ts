@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  ChangeShotClockRequestSchema,
   ChangeSeatCountRequestSchema,
   ClaimSeatRequestSchema,
   CreateRoomRequestSchema,
@@ -116,6 +117,27 @@ describe("ShotClockSettingsSchema", () => {
         enabled: true,
         seconds: 90,
         timeout: 0,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("ChangeShotClockRequestSchema", () => {
+  it("uses the same integer duration bounds and strict body shape", () => {
+    expect(
+      ChangeShotClockRequestSchema.parse({ enabled: false, seconds: 90 }),
+    ).toEqual({ enabled: false, seconds: 90 });
+    expect(
+      ChangeShotClockRequestSchema.safeParse({
+        enabled: true,
+        seconds: MIN_SHOT_CLOCK_SECONDS - 1,
+      }).success,
+    ).toBe(false);
+    expect(
+      ChangeShotClockRequestSchema.safeParse({
+        enabled: true,
+        seconds: 90,
+        extra: true,
       }).success,
     ).toBe(false);
   });

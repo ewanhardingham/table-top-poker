@@ -1063,6 +1063,7 @@ describe("toRoomView", () => {
     expect(view).toEqual({
       code: room.code,
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
@@ -1120,14 +1121,30 @@ describe("changeSoundSettings", () => {
 });
 
 describe("changeShotClockSettings", () => {
-  it("replaces the room settings atomically", () => {
+  it("queues an edit during a hand and applies it at the next deal-in", () => {
     const store = new RoomStore();
     const room = store.create();
+    store.claimSeat(room.code, 0, "P0");
+    store.claimSeat(room.code, 1, "P1");
+    const started = store.dispatch(room.code, "table", "startHand");
+    if (!("steps" in started)) throw new Error("expected start-hand steps");
     const settings = { enabled: true, seconds: 30 };
 
     expect(store.changeShotClockSettings(room.code, settings)).toEqual(
       settings,
     );
+    expect(room.shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
+    expect(toRoomView(room).pendingShotClock).toEqual(settings);
+
+    const actor = store.currentActor(room.code);
+    if (actor === undefined) throw new Error("expected a current actor");
+    const folded = store.dispatch(room.code, actor, "fold");
+    if (!("steps" in folded)) throw new Error("expected fold steps");
+    const next = store.dispatch(room.code, "table", "nextHand");
+    if (!("steps" in next)) throw new Error("expected next-hand steps");
+
+    expect(room.shotClockSettings).toEqual(settings);
+    expect(room.pendingShotClock).toBeNull();
     expect(toRoomView(room).shotClockSettings).toEqual(settings);
   });
 
@@ -1142,6 +1159,7 @@ describe("changeShotClockSettings", () => {
       }),
     ).toEqual({ error: "invalid-shot-clock" });
     expect(room.shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
+    expect(room.pendingShotClock).toBeNull();
   });
 
   it("reports an unknown room", () => {

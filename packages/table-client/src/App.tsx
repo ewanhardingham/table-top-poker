@@ -4,12 +4,14 @@ import {
   isHandComplete,
   isHandLive,
   MIN_SEAT_COUNT,
+  type ShotClockSettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import { color, unlockAudio } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useState } from "react";
 import {
   changeSeatCount,
+  changeShotClockSettings,
   changeSoundSettings,
   createRoom,
   addBots,
@@ -41,7 +43,9 @@ export function App() {
   const qrCodeDataUrl = useTableStore((state) => state.qrCodeDataUrl);
   const seats = useTableStore((state) => state.seats);
   const pendingSeatCount = useTableStore((state) => state.pendingSeatCount);
+  const pendingShotClock = useTableStore((state) => state.pendingShotClock);
   const soundSettings = useTableStore((state) => state.soundSettings);
+  const shotClockSettings = useTableStore((state) => state.shotClockSettings);
   const testMode = useTableStore((state) => state.testMode);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
@@ -146,15 +150,9 @@ export function App() {
   }, [roomCode, testMode]);
 
   const handleChangeSeatCount = useCallback(
-    (seatCount: number) => {
+    async (seatCount: number): Promise<void> => {
       if (roomCode === null) return;
-      changeSeatCount(roomCode, seatCount)
-        .then(() => {
-          setSettingsOpen(false);
-        })
-        .catch((error: unknown) => {
-          console.error(error);
-        });
+      await changeSeatCount(roomCode, seatCount);
     },
     [roomCode],
   );
@@ -167,6 +165,14 @@ export function App() {
       changeSoundSettings(roomCode, next).catch((error: unknown) => {
         console.error(error);
       });
+    },
+    [roomCode],
+  );
+
+  const handleChangeShotClockSettings = useCallback(
+    async (next: ShotClockSettings): Promise<void> => {
+      if (roomCode === null) return;
+      await changeShotClockSettings(roomCode, next);
     },
     [roomCode],
   );
@@ -289,10 +295,13 @@ export function App() {
               <HouseRulesSheet
                 seatCount={seats.length}
                 pendingSeatCount={pendingSeatCount}
+                pendingShotClock={pendingShotClock}
                 seats={seats}
                 handInProgress={isHandLive(handView)}
                 soundSettings={soundSettings}
+                shotClockSettings={shotClockSettings}
                 onApply={handleChangeSeatCount}
+                onApplyShotClock={handleChangeShotClockSettings}
                 onChangeSoundSettings={handleChangeSoundSettings}
                 onClose={() => {
                   setSettingsOpen(false);

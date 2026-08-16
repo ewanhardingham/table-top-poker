@@ -3,6 +3,7 @@ import fastifyWebsocket from "@fastify/websocket";
 import {
   AddBotsRequestSchema,
   ChangeSeatCountRequestSchema,
+  ChangeShotClockRequestSchema,
   ChangeSoundSettingsRequestSchema,
   ClaimSeatRequestSchema,
   LeaveSeatRequestSchema,
@@ -838,6 +839,28 @@ export async function buildApp(
     const result = rooms.changeSoundSettings(room.code, body.data);
     if ("error" in result) {
       return reply.code(404).send({ error: result.error });
+    }
+    broadcastRoomView(room.code);
+    return result;
+  });
+
+  /**
+   * Table-device shot-clock settings: every edit is queued for the next hand,
+   * so this route never re-arms or clears a live hand's action timer. The
+   * resulting pending value is pushed through the room-view broadcast.
+   */
+  app.post<RoomCodeRoute>("/rooms/:code/shot-clock", (request, reply) => {
+    const body = ChangeShotClockRequestSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.code(400).send({ error: "invalid-request-body" });
+    }
+    const room = findRoomOrReject(rooms, request.params.code, reply);
+    if (!room) return;
+    const result = rooms.changeShotClockSettings(room.code, body.data);
+    if ("error" in result) {
+      return reply
+        .code(result.error === "room-not-found" ? 404 : 400)
+        .send({ error: result.error });
     }
     broadcastRoomView(room.code);
     return result;

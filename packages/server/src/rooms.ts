@@ -68,6 +68,8 @@ export interface Room {
   engine: EngineState | null;
   /** A live-hand shrink waits here until the next deal-in recompute. */
   pendingSeatCount: number | null;
+  /** A shot-clock change waits here until the next deal-in. */
+  pendingShotClock: ShotClockSettings | null;
   /** Room-wide tactile-sound settings (#182), set by the table. */
   soundSettings: SoundSettings;
   /** Room-wide action-clock settings, set by the table. */
@@ -245,6 +247,13 @@ function applyPendingShrink(room: Room): SeatRepack {
   return repack;
 }
 
+/** Applies the latest shot-clock edit only when a new hand is dealt. */
+function applyPendingShotClock(room: Room): void {
+  if (room.pendingShotClock === null) return;
+  room.shotClockSettings = room.pendingShotClock;
+  room.pendingShotClock = null;
+}
+
 function appliedSeatCountChange(
   room: Room,
   moves: readonly SeatMove[] = [],
@@ -376,6 +385,7 @@ export class RoomStore {
       seats: makeSeats(seatCount),
       engine: null,
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
     };
@@ -614,7 +624,7 @@ export class RoomStore {
   }
 
   /**
-   * Replaces the room's action-clock settings atomically. Applying the shared
+   * Queues a room action-clock edit for the next deal-in. Applying the shared
    * schema here keeps direct callers from constructing invalid room state.
    */
   changeShotClockSettings(
@@ -627,8 +637,11 @@ export class RoomStore {
     if (!parsed.success) {
       return { error: "invalid-shot-clock" };
     }
-    room.shotClockSettings = parsed.data;
-    return room.shotClockSettings;
+    // Keep the active hand's timer untouched. The pending value is drained
+    // after the next successful `startHand`/`nextHand` dispatch, before the
+    // application re-arms the clock for that new hand.
+    room.pendingShotClock = parsed.data;
+    return parsed.data;
   }
 
   /** Whether `seatId` reads as "sitting out" in the room's public view — see `isSittingOut`. */
@@ -727,6 +740,7 @@ export class RoomStore {
 
     if (type === "startHand" || type === "nextHand") {
       updateWaitingForNextHand(room, candidateEngine.seats);
+      applyPendingShotClock(room);
     }
 
     return seatMoves.length > 0 ? { ...result, seatMoves } : result;
@@ -780,6 +794,7 @@ export function toRoomView(room: Room): RoomView {
   return {
     code: room.code,
     pendingSeatCount: room.pendingSeatCount,
+    pendingShotClock: room.pendingShotClock,
     soundSettings: room.soundSettings,
     shotClockSettings: room.shotClockSettings,
     seats: room.seats.map((seat) => {

@@ -50,6 +50,7 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
@@ -74,6 +75,7 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
@@ -108,6 +110,7 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
@@ -141,6 +144,7 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
@@ -178,6 +182,7 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [

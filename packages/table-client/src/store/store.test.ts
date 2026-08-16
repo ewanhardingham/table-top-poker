@@ -44,6 +44,7 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
@@ -72,6 +73,7 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: 4,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
@@ -100,6 +102,7 @@ describe("useTableStore", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
       pendingSeatCount: null,
+      pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [

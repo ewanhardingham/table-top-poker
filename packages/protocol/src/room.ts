@@ -141,6 +141,13 @@ export const ShotClockSettingsSchema = z.strictObject({
   seconds: z.int().min(MIN_SHOT_CLOCK_SECONDS).max(MAX_SHOT_CLOCK_SECONDS),
 });
 
+/** Body of the table-only deferred shot-clock settings request. */
+export const ChangeShotClockRequestSchema = ShotClockSettingsSchema;
+
+export type ChangeShotClockRequest = z.infer<
+  typeof ChangeShotClockRequestSchema
+>;
+
 /** The sources from which a client or server can answer whether a hand is live. */
 export type HandStateSource = EngineState | PlayerView | TableView | null;
 
@@ -211,6 +218,8 @@ export interface RoomView {
   readonly seats: readonly SeatView[];
   /** A shrink queued until the next deal-in, or null when none is queued. */
   readonly pendingSeatCount: number | null;
+  /** A shot-clock change queued until the next deal-in, or null when none is queued. */
+  readonly pendingShotClock: ShotClockSettings | null;
   /** Room-wide tactile-sound settings (#182), replayed on join/reconnect. */
   readonly soundSettings: SoundSettings;
   /** Room-wide action-clock settings, replayed on join/reconnect. */

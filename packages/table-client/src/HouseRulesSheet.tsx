@@ -1,8 +1,11 @@
 import {
   MAX_SEAT_COUNT,
+  MAX_SHOT_CLOCK_SECONDS,
   MIN_SEAT_COUNT,
+  MIN_SHOT_CLOCK_SECONDS,
   type SeatView,
   type SeatMove,
+  type ShotClockSettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
@@ -20,10 +23,15 @@ import { seatLabel } from "./seatLabel.js";
 export interface HouseRulesSheetProps {
   readonly seatCount: number;
   readonly pendingSeatCount: number | null;
+  readonly pendingShotClock: ShotClockSettings | null;
   readonly seats: readonly SeatView[];
   readonly handInProgress: boolean;
   readonly soundSettings: SoundSettings;
-  readonly onApply: (seatCount: number) => void;
+  readonly shotClockSettings: ShotClockSettings;
+  readonly onApply: (seatCount: number) => void | Promise<void>;
+  readonly onApplyShotClock: (
+    settings: ShotClockSettings,
+  ) => void | Promise<void>;
   readonly onChangeSoundSettings: (next: SoundSettings) => void;
   readonly onClose: () => void;
 }
@@ -64,6 +72,33 @@ const stepperButtonStyle: CSSProperties = {
   color: color.textBright,
   cursor: "pointer",
 };
+
+export interface ShotClockSecondsDraft {
+  readonly input: string;
+  readonly seconds: number;
+  readonly valid: boolean;
+}
+
+/**
+ * Keeps transient keystrokes visible while committing only valid settings.
+ * For example, replacing 90 with 45 naturally produces "4" before "45";
+ * "4" is retained in the input but does not overwrite the last valid value.
+ */
+export function updateShotClockSecondsDraft(
+  draft: ShotClockSecondsDraft,
+  input: string,
+): ShotClockSecondsDraft {
+  const seconds = Number(input);
+  if (
+    /^\d+$/.test(input) &&
+    Number.isInteger(seconds) &&
+    seconds >= MIN_SHOT_CLOCK_SECONDS &&
+    seconds <= MAX_SHOT_CLOCK_SECONDS
+  ) {
+    return { input, seconds, valid: true };
+  }
+  return { ...draft, input, valid: false };
+}
 
 /**
  * A single on/off switch. `nested` renders the smaller, indented variant used
@@ -152,10 +187,13 @@ function Toggle({
 export function HouseRulesSheet({
   seatCount,
   pendingSeatCount,
+  pendingShotClock,
   seats,
   handInProgress,
   soundSettings,
+  shotClockSettings,
   onApply,
+  onApplyShotClock,
   onChangeSoundSettings,
   onClose,
 }: HouseRulesSheetProps) {
@@ -165,6 +203,51 @@ export function HouseRulesSheet({
   const atFloor = draft <= floor;
   const moves = previewMoves(seats, draft);
   const shrinkIsQueued = handInProgress && draft < seatCount;
+  const [shotClockDraft, setShotClockDraft] = useState(
+    pendingShotClock ?? shotClockSettings,
+  );
+  const [shotClockSecondsDraft, setShotClockSecondsDraft] = useState(() =>
+    updateShotClockSecondsDraft(
+      {
+        input: "",
+        seconds: (pendingShotClock ?? shotClockSettings).seconds,
+        valid: true,
+      },
+      String((pendingShotClock ?? shotClockSettings).seconds),
+    ),
+  );
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const shotClockChanged =
+    shotClockDraft.enabled !==
+      (pendingShotClock ?? shotClockSettings).enabled ||
+    shotClockDraft.seconds !== (pendingShotClock ?? shotClockSettings).seconds;
+  const shotClockIsQueued = pendingShotClock !== null || shotClockChanged;
+
+  async function applyHouseRules(): Promise<void> {
+    if (saving || !shotClockSecondsDraft.valid) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const writes: Promise<void>[] = [
+        Promise.resolve().then(() => onApply(draft)),
+      ];
+      if (shotClockChanged) {
+        writes.push(
+          Promise.resolve().then(() => onApplyShotClock(shotClockDraft)),
+        );
+      }
+      const results = await Promise.allSettled(writes);
+      if (results.some((result) => result.status === "rejected")) {
+        throw new Error("house-rules-save-failed");
+      }
+      onClose();
+    } catch {
+      setSaveError("Could not save house rules. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div
@@ -221,6 +304,7 @@ export function HouseRulesSheet({
             type="button"
             aria-label="Close table settings"
             data-testid="close-settings-button"
+            disabled={saving}
             onClick={onClose}
             style={{
               width: 42,
@@ -284,14 +368,14 @@ export function HouseRulesSheet({
                 type="button"
                 data-testid="seat-count-decrement"
                 aria-label="Decrease seat count"
-                disabled={atFloor}
+                disabled={atFloor || saving}
                 onClick={() => {
                   setDraft((count) => Math.max(floor, count - 1));
                 }}
                 style={{
                   ...stepperButtonStyle,
-                  opacity: atFloor ? 0.32 : 1,
-                  cursor: atFloor ? "not-allowed" : "pointer",
+                  opacity: atFloor || saving ? 0.32 : 1,
+                  cursor: atFloor || saving ? "not-allowed" : "pointer",
                 }}
               >
                 −
@@ -313,7 +397,7 @@ export function HouseRulesSheet({
                 type="button"
                 data-testid="seat-count-increment"
                 aria-label="Increase seat count"
-                disabled={draft >= MAX_SEAT_COUNT}
+                disabled={draft >= MAX_SEAT_COUNT || saving}
                 onClick={() => {
                   setDraft((count) => Math.min(MAX_SEAT_COUNT, count + 1));
                 }}
@@ -372,6 +456,7 @@ export function HouseRulesSheet({
             <Toggle
               label="Sound"
               checked={soundSettings.sounds}
+              disabled={saving}
               testId="sound-master-toggle"
               onChange={(sounds) => {
                 onChangeSoundSettings({ ...soundSettings, sounds });
@@ -381,7 +466,7 @@ export function HouseRulesSheet({
               label="Cards"
               nested
               checked={soundSettings.cards}
-              disabled={!soundSettings.sounds}
+              disabled={saving || !soundSettings.sounds}
               testId="sound-cards-toggle"
               onChange={(cards) => {
                 onChangeSoundSettings({ ...soundSettings, cards });
@@ -391,7 +476,7 @@ export function HouseRulesSheet({
               label="Actions"
               nested
               checked={soundSettings.actions}
-              disabled={!soundSettings.sounds}
+              disabled={saving || !soundSettings.sounds}
               testId="sound-actions-toggle"
               onChange={(actions) => {
                 onChangeSoundSettings({ ...soundSettings, actions });
@@ -401,12 +486,105 @@ export function HouseRulesSheet({
               label="Notifications"
               nested
               checked={soundSettings.notifications}
-              disabled={!soundSettings.sounds}
+              disabled={saving || !soundSettings.sounds}
               testId="sound-notifications-toggle"
               onChange={(notifications) => {
                 onChangeSoundSettings({ ...soundSettings, notifications });
               }}
             />
+          </div>
+
+          <div
+            data-testid="shot-clock-settings"
+            style={{
+              paddingTop: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              borderTop: `1px solid ${color.mutedSurface}`,
+              marginTop: 20,
+            }}
+          >
+            <Toggle
+              label="Shot clock"
+              checked={shotClockDraft.enabled}
+              disabled={saving}
+              testId="shot-clock-toggle"
+              onChange={(enabled) => {
+                setShotClockDraft((current) => ({ ...current, enabled }));
+              }}
+            />
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 20,
+                paddingLeft: 22,
+                color: color.textDim,
+                fontSize: fontSize.md,
+              }}
+            >
+              <span>Seconds per turn</span>
+              <input
+                type="number"
+                min={MIN_SHOT_CLOCK_SECONDS}
+                max={MAX_SHOT_CLOCK_SECONDS}
+                step={1}
+                value={shotClockSecondsDraft.input}
+                data-testid="shot-clock-seconds"
+                aria-label="Shot clock seconds"
+                disabled={saving}
+                onChange={(event) => {
+                  const next = updateShotClockSecondsDraft(
+                    shotClockSecondsDraft,
+                    event.currentTarget.value,
+                  );
+                  setShotClockSecondsDraft(next);
+                  setShotClockDraft((current) => ({
+                    ...current,
+                    seconds: next.seconds,
+                  }));
+                }}
+                style={{
+                  width: 92,
+                  padding: "9px 10px",
+                  borderRadius: 10,
+                  border: `1px solid ${color.border}`,
+                  background: color.controlFill,
+                  color: color.textBright,
+                  fontFamily: font.mono,
+                  fontSize: fontSize.md,
+                  textAlign: "right",
+                }}
+              />
+            </label>
+            {!shotClockSecondsDraft.valid ? (
+              <span
+                data-testid="shot-clock-validation"
+                role="alert"
+                style={{
+                  color: color.accentBright,
+                  fontSize: fontSize.caption,
+                  paddingLeft: 22,
+                }}
+              >
+                Enter a whole number from {String(MIN_SHOT_CLOCK_SECONDS)} to{" "}
+                {String(MAX_SHOT_CLOCK_SECONDS)} seconds.
+              </span>
+            ) : null}
+            {shotClockIsQueued ? (
+              <span
+                style={{
+                  ...kickerStyle,
+                  fontSize: "10.5px",
+                  color: color.textFaint,
+                  paddingLeft: 22,
+                }}
+              >
+                Applies from the next hand
+              </span>
+            ) : null}
           </div>
 
           <div
@@ -418,6 +596,17 @@ export function HouseRulesSheet({
               gap: 16,
             }}
           >
+            {saveError !== null ? (
+              <span
+                role="alert"
+                style={{
+                  color: color.accentBright,
+                  fontSize: fontSize.caption,
+                }}
+              >
+                {saveError}
+              </span>
+            ) : null}
             <span
               style={{
                 ...kickerStyle,
@@ -427,15 +616,17 @@ export function HouseRulesSheet({
             >
               {shrinkIsQueued
                 ? "Applies from the next hand"
-                : "Applies immediately"}
+                : "Seat count: Applies immediately"}
             </span>
             <PillButton
               data-testid="settings-done"
+              aria-busy={saving}
+              disabled={saving || !shotClockSecondsDraft.valid}
               onClick={() => {
-                onApply(draft);
+                void applyHouseRules();
               }}
             >
-              Done
+              {saving ? "Saving…" : "Done"}
             </PillButton>
           </div>
         </div>

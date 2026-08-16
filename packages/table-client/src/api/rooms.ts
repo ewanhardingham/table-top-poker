@@ -1,6 +1,7 @@
 import type {
   RoomView,
   SeatCountChange,
+  ShotClockSettings,
   SoundSettings,
 } from "@table-top-poker/protocol";
 
@@ -118,4 +119,22 @@ export async function changeSoundSettings(
     );
   }
   return (await response.json()) as SoundSettings;
+}
+
+/** The table device's deferred room-wide action-clock settings. */
+export async function changeShotClockSettings(
+  code: string,
+  settings: ShotClockSettings,
+): Promise<ShotClockSettings> {
+  const response = await fetch(`/rooms/${code}/shot-clock`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `failed to change shot-clock settings: ${String(response.status)}`,
+    );
+  }
+  return (await response.json()) as ShotClockSettings;
 }

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   addBots,
   changeSeatCount,
+  changeShotClockSettings,
   createRoom,
   endSession,
   fetchConfig,
@@ -152,5 +153,37 @@ describe("changeSeatCount", () => {
     await expect(changeSeatCount("ABCD", 1)).rejects.toThrow(
       "failed to change seat count: 400",
     );
+  });
+});
+
+describe("changeShotClockSettings", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts the requested settings to the deferred table route", async () => {
+    const body = { enabled: true, seconds: 30 };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 200 }),
+    );
+
+    await expect(changeShotClockSettings("ABCD", body)).resolves.toEqual(body);
+    expect(fetch).toHaveBeenCalledWith("/rooms/ABCD/shot-clock", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  });
+
+  it("throws when the server rejects a setting", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 400 }));
+
+    await expect(
+      changeShotClockSettings("ABCD", { enabled: true, seconds: 4 }),
+    ).rejects.toThrow("failed to change shot-clock settings: 400");
   });
 });
