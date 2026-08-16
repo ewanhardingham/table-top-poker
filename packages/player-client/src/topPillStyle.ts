@@ -13,11 +13,18 @@ export const playerTopPillStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   height: 30,
-  padding: "0 12px",
+  padding: "0 10px",
   borderRadius: radius.pill,
   fontFamily: font.mono,
   fontSize: fontSize.xs,
   fontWeight: 600,
-  letterSpacing: "0.16em",
+  /*
+   * Tighter than the 0.16em used elsewhere: at this size the extra tracking is
+   * decoration, and it costs roughly a character of width per pill on a row
+   * that has none to spare. Trimmed here rather than on one pill so the row
+   * still reads as a set (ADR-0006).
+   */
+  letterSpacing: "0.1em",
   textTransform: "uppercase",
+  whiteSpace: "nowrap",
 };

@@ -17,6 +17,30 @@ describe("usePlayerStore", () => {
     expect(state.seatId).toBeNull();
   });
 
+  it("latches has-ever-connected on the first successful connect", () => {
+    expect(usePlayerStore.getState().hasEverConnected).toBe(false);
+
+    usePlayerStore.getState().setConnectionStatus("connecting");
+    expect(usePlayerStore.getState().hasEverConnected).toBe(false);
+
+    usePlayerStore.getState().setConnectionStatus("connected");
+    expect(usePlayerStore.getState().hasEverConnected).toBe(true);
+
+    // A later drop is a real one — the latch is what distinguishes it from
+    // the pre-socket default (ADR-0006).
+    usePlayerStore.getState().setConnectionStatus("disconnected");
+    expect(usePlayerStore.getState().hasEverConnected).toBe(true);
+  });
+
+  it("clears the latch when the connection is reset", () => {
+    usePlayerStore.getState().setConnectionStatus("connected");
+    usePlayerStore.getState().resetConnection();
+
+    const state = usePlayerStore.getState();
+    expect(state.connectionStatus).toBe("disconnected");
+    expect(state.hasEverConnected).toBe(false);
+  });
+
   it("updates the connection slice independently of the seat slice", () => {
     usePlayerStore.getState().setConnectionStatus("connected");
     usePlayerStore.getState().setSeat({ seatId: 3, sittingOut: false });
