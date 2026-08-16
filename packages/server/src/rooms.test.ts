@@ -821,6 +821,53 @@ describe("RoomStore", () => {
         expect(room.engine.hand.players.get(actor)?.folded).toBe(true);
       });
 
+      it("keeps a bot reclaimed into an evicted live seat out until the next hand", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 3);
+        store.dispatch(room.code, "table", "startHand");
+        const actor = store.currentActor(room.code);
+        if (actor === undefined) throw new Error("expected a current actor");
+
+        store.evictSeat(room.code, actor);
+        const added = store.addBots(room.code, 1);
+        if ("error" in added) throw new Error("expected a bot claim");
+        const bot = added.seats[0];
+        if (bot === undefined) throw new Error("expected a bot seat");
+
+        expect(bot.id).toBe(actor);
+        expect(bot.waitingForNextHand).toBe(true);
+        expect(toRoomView(room).seats[actor]).toMatchObject({
+          claimed: true,
+          bot: true,
+          sittingOut: true,
+          sittingOutReason: "waiting-for-next-hand",
+        });
+        if (room.engine?.hand?.status !== "betting") {
+          throw new Error("expected the hand to continue");
+        }
+        expect(room.engine.hand.players.get(actor)?.folded).toBe(true);
+
+        completeHand(store, room);
+        const next = store.dispatch(room.code, "table", "nextHand");
+        if (!("steps" in next)) throw new Error("expected next-hand steps");
+        const holeCardsDealt = next.steps.find(
+          (step) => step.event.type === "HoleCardsDealt",
+        )?.event;
+        if (holeCardsDealt?.type !== "HoleCardsDealt") {
+          throw new Error("expected HoleCardsDealt");
+        }
+
+        expect(holeCardsDealt.deals.map((deal) => deal.seatId)).toContain(
+          actor,
+        );
+        expect(bot).not.toHaveProperty("waitingForNextHand");
+        expect(toRoomView(room).seats[actor]).toMatchObject({
+          sittingOut: false,
+          sittingOutReason: null,
+          bot: true,
+        });
+      });
+
       it("auto-folds a later in-hand seat without moving the current actor", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);

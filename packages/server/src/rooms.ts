@@ -41,6 +41,8 @@ export interface Seat {
   displayName?: string;
   /** Present only for a test-mode bot claim. */
   bot?: boolean;
+  /** Explicit claim/deal lifecycle state; avoids treating a reused seat id as identity. */
+  waitingForNextHand?: boolean;
   token: string | null;
   /**
    * Voluntary opt-out only (ADR-0002) — set solely by the `sitOut`/`sitIn`
@@ -168,6 +170,7 @@ function repackSeats(room: Room, seatCount: number): SeatRepack {
         ? {}
         : { displayName: seat.displayName }),
       ...(seat.bot === true ? { bot: true } : {}),
+      ...(seat.waitingForNextHand === true ? { waitingForNextHand: true } : {}),
       token: seat.token,
       sittingOut: seat.sittingOut,
       disconnected: seat.disconnected,
@@ -256,6 +259,23 @@ function eligibleSeats(room: Room): SeatId[] {
     .map((seat) => seat.id);
 }
 
+/**
+ * Records which claimed seats belong to the newly dealt hand. This explicit
+ * marker is deliberately separate from numeric seat membership: an evicted
+ * seat can be reclaimed before the old hand is complete, and the new claim
+ * must still wait even though its id remains in the old engine ring.
+ */
+function updateWaitingForNextHand(room: Room, dealIn: readonly SeatId[]): void {
+  const dealt = new Set(dealIn);
+  for (const seat of room.seats) {
+    if (!seat.claimed || dealt.has(seat.id)) {
+      delete seat.waitingForNextHand;
+    } else {
+      seat.waitingForNextHand = true;
+    }
+  }
+}
+
 function claimedSeatFloor(room: Room): number {
   return Math.max(
     MIN_SEAT_COUNT,
@@ -268,6 +288,7 @@ function freeSeat(seat: Seat): void {
   seat.claimed = false;
   delete seat.displayName;
   delete seat.bot;
+  delete seat.waitingForNextHand;
   seat.token = null;
   seat.sittingOut = false;
   seat.disconnected = false;
@@ -275,21 +296,17 @@ function freeSeat(seat: Seat): void {
 
 /**
  * Derives the public lifecycle reason for a seat omitted from the current
- * deal-in: a voluntary opt-out, or a claim made after the live hand's ring
- * was fixed (issue #13). Shared by `toRoomView` and single-seat lookups.
+ * deal-in: a voluntary opt-out, or a claim that missed the current deal-in
+ * (issue #13). The waiting marker is explicit because a reclaimed seat may
+ * reuse an id still present in the old engine ring. Shared by `toRoomView`
+ * and single-seat lookups.
  */
 function sittingOutReason(room: Room, seatId: SeatId): SittingOutReason | null {
   const seat = room.seats[seatId];
   if (!seat) return null;
   if (seat.sittingOut) return "voluntary";
 
-  const ring = room.engine?.seats;
-  if (
-    seat.claimed &&
-    !seat.disconnected &&
-    ring !== undefined &&
-    !ring.includes(seatId)
-  ) {
+  if (seat.claimed && !seat.disconnected && seat.waitingForNextHand === true) {
     return "waiting-for-next-hand";
   }
   return null;
@@ -414,6 +431,11 @@ export class RoomStore {
     seat.claimed = true;
     seat.displayName = trimmedName;
     delete seat.bot;
+    if (room.engine === null) {
+      delete seat.waitingForNextHand;
+    } else {
+      seat.waitingForNextHand = true;
+    }
     seat.token = this.#generateToken();
     seat.sittingOut = false;
     seat.disconnected = false;
@@ -683,6 +705,10 @@ export class RoomStore {
     const command = this.#buildCommand(identity, type);
     const result = this.#runEngineCommand(room, candidateEngine, command);
     if (!("steps" in result)) return result;
+
+    if (type === "startHand" || type === "nextHand") {
+      updateWaitingForNextHand(room, candidateEngine.seats);
+    }
 
     return seatMoves.length > 0 ? { ...result, seatMoves } : result;
   }
