@@ -3,10 +3,14 @@ import {
   ChangeSeatCountRequestSchema,
   ClaimSeatRequestSchema,
   CreateRoomRequestSchema,
+  DEFAULT_SHOT_CLOCK,
   DEFAULT_SEAT_COUNT,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
+  MAX_SHOT_CLOCK_SECONDS,
+  MIN_SHOT_CLOCK_SECONDS,
   MIN_SEAT_COUNT,
+  ShotClockSettingsSchema,
 } from "./room.js";
 
 describe("ClaimSeatRequestSchema", () => {
@@ -70,6 +74,50 @@ describe("CreateRoomRequestSchema", () => {
         false,
       );
     }
+  });
+});
+
+describe("ShotClockSettingsSchema", () => {
+  it("defaults a room to a disabled 90-second clock", () => {
+    expect(DEFAULT_SHOT_CLOCK).toEqual({ enabled: false, seconds: 90 });
+  });
+
+  it("accepts an enabled clock at the inclusive duration bounds", () => {
+    expect(
+      ShotClockSettingsSchema.parse({
+        enabled: true,
+        seconds: MIN_SHOT_CLOCK_SECONDS,
+      }),
+    ).toEqual({ enabled: true, seconds: MIN_SHOT_CLOCK_SECONDS });
+    expect(
+      ShotClockSettingsSchema.parse({
+        enabled: false,
+        seconds: MAX_SHOT_CLOCK_SECONDS,
+      }),
+    ).toEqual({ enabled: false, seconds: MAX_SHOT_CLOCK_SECONDS });
+  });
+
+  it("requires a distinct boolean enabled flag and integer seconds", () => {
+    for (const enabled of [0, 1, "true", null]) {
+      expect(
+        ShotClockSettingsSchema.safeParse({ enabled, seconds: 90 }).success,
+      ).toBe(false);
+    }
+    for (const seconds of [0, 4, 601, 5.5, "90", null]) {
+      expect(
+        ShotClockSettingsSchema.safeParse({ enabled: true, seconds }).success,
+      ).toBe(false);
+    }
+  });
+
+  it("rejects extra fields", () => {
+    expect(
+      ShotClockSettingsSchema.safeParse({
+        enabled: true,
+        seconds: 90,
+        timeout: 0,
+      }).success,
+    ).toBe(false);
   });
 });
 

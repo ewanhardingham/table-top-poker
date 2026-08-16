@@ -1,5 +1,6 @@
 import {
   DEFAULT_SEAT_COUNT,
+  DEFAULT_SHOT_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
@@ -19,6 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
+import { ActionClock } from "./action-clock.js";
 import { buildApp } from "./app.js";
 import { RoomStore, toRoomView } from "./rooms.js";
 
@@ -162,6 +164,7 @@ describe("rooms HTTP routes", () => {
       code,
       pendingSeatCount: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: unclaimedSeats(),
     });
   });
@@ -1156,6 +1159,7 @@ describe("WebSocket upgrade", () => {
         code: room.code,
         pendingSeatCount: null,
         soundSettings: DEFAULT_SOUND_SETTINGS,
+        shotClockSettings: DEFAULT_SHOT_CLOCK,
         seats: unclaimedSeats(),
       },
     });
@@ -1946,6 +1950,14 @@ describe("action clock", () => {
     await new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  function enableShotClock(room: ReturnType<RoomStore["create"]>): void {
+    const result = rooms.changeShotClockSettings(room.code, {
+      enabled: true,
+      seconds: 5,
+    });
+    if ("error" in result) throw new Error("expected shot-clock settings");
+  }
+
   async function claimAndConnect(
     code: string,
     seatId: number,
@@ -1968,6 +1980,7 @@ describe("action clock", () => {
 
   it("auto-folds the current actor via a synthesized fold once the clock elapses", async () => {
     const room = rooms.create();
+    enableShotClock(room);
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     await claimAndConnect(room.code, 0);
@@ -1993,8 +2006,53 @@ describe("action clock", () => {
     ]);
   });
 
+  it("does not arm a timer for a fresh room with the clock disabled", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    await claimAndConnect(room.code, 0);
+    await claimAndConnect(room.code, 1);
+    await claimAndConnect(room.code, 2);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle(ACTION_CLOCK_MS + 60);
+
+    expect(actionsSeen(table.messages)).toHaveLength(0);
+    expect(rooms.currentActor(room.code)).toBeDefined();
+  });
+
+  it("checks on expiry when checking is free", async () => {
+    const room = rooms.create(2);
+    enableShotClock(room);
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seat0 = await claimAndConnect(room.code, 0);
+    const seat1 = await claimAndConnect(room.code, 1);
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    seat0.socket.send(JSON.stringify({ type: "call" }));
+    await settle();
+    seat1.socket.send(JSON.stringify({ type: "check" }));
+    await settle();
+    const seatOneChecksBeforeExpiry = actionsSeen(table.messages).filter(
+      (event) => event.action === "check" && event.seatId === 1,
+    ).length;
+
+    // The flop's first actor has a free check; expiry should preserve it.
+    await settle(ACTION_CLOCK_MS + 60);
+
+    const seatOneChecksAfterExpiry = actionsSeen(table.messages).filter(
+      (event) => event.action === "check" && event.seatId === 1,
+    ).length;
+    expect(seatOneChecksAfterExpiry).toBe(seatOneChecksBeforeExpiry + 1);
+  });
+
   it("does not reset the current actor's clock for a different seat's eviction", async () => {
     const room = rooms.create();
+    enableShotClock(room);
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     for (const seatId of [0, 1, 2])
@@ -2021,6 +2079,7 @@ describe("action clock", () => {
 
   it("does not auto-fold a seat that acts before the clock elapses", async () => {
     const room = rooms.create();
+    enableShotClock(room);
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     const seat0 = await claimAndConnect(room.code, 0);
@@ -2047,6 +2106,7 @@ describe("action clock", () => {
 
   it("resets the clock onto the new actor after a real action, rather than firing against the old one", async () => {
     const room = rooms.create();
+    enableShotClock(room);
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     const seat0 = await claimAndConnect(room.code, 0);
@@ -2076,6 +2136,7 @@ describe("action clock", () => {
 
   it("resets the clock onto the new street's first actor after a street transition", async () => {
     const room = rooms.create();
+    enableShotClock(room);
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     const seat0 = await claimAndConnect(room.code, 0);
@@ -2095,7 +2156,8 @@ describe("action clock", () => {
     // The BB acts last, so its check is the option and closes the street.
     seat2.socket.send(JSON.stringify({ type: "check" }));
     await settle();
-    // Preflop closes; the flop's first actor (seat 1, SB) now idles out.
+    // Preflop closes; the flop's first actor (seat 1, SB) now idles out. A
+    // free check is preserved when the shot clock expires.
     await settle(ACTION_CLOCK_MS + 60);
 
     const streetsStarted = table.messages
@@ -2104,16 +2166,91 @@ describe("action clock", () => {
       .filter((e) => e.type === "StreetStarted");
     expect(streetsStarted.some((e) => e.street === "flop")).toBe(true);
 
-    const folds = actionsSeen(table.messages).filter(
-      (e) => e.action === "fold",
+    const checks = actionsSeen(table.messages).filter(
+      (e) => e.action === "check",
     );
-    expect(folds).toEqual([
+    expect(checks).toContainEqual(
       expect.objectContaining({
         type: "ActionTaken",
         seatId: 1,
-        action: "fold",
+        action: "check",
       }),
-    ]);
+    );
+  });
+});
+
+describe("action clock duration selection", () => {
+  it("schedules each room from its configured seconds", async () => {
+    const rooms = new RoomStore();
+    const durations: number[] = [];
+    const actionClock = new ActionClock(
+      90_000,
+      (callback, milliseconds) => {
+        durations.push(milliseconds);
+        const timer = setTimeout(callback, 60_000);
+        timer.unref();
+        return timer;
+      },
+      clearTimeout,
+    );
+    const app = await buildApp({
+      rooms,
+      actionClock,
+      // This must not mask the per-room duration when an injected clock is
+      // used; it remains here to guard that test-only override explicitly.
+      actionClockMs: 1,
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+
+    const first = rooms.create();
+    const second = rooms.create();
+    const firstSettings = rooms.changeShotClockSettings(first.code, {
+      enabled: true,
+      seconds: 7,
+    });
+    const secondSettings = rooms.changeShotClockSettings(second.code, {
+      enabled: true,
+      seconds: 13,
+    });
+    if ("error" in firstSettings || "error" in secondSettings) {
+      throw new Error("expected valid shot-clock settings");
+    }
+    for (const room of [first, second]) {
+      rooms.claimSeat(room.code, 0, "P0");
+      rooms.claimSeat(room.code, 1, "P1");
+    }
+
+    const sockets = [first, second].map(
+      (room) =>
+        new WebSocket(
+          `ws://127.0.0.1:${String(address.port)}/ws?room=${room.code}&role=table`,
+        ),
+    );
+    try {
+      await Promise.all(
+        sockets.map(
+          (socket) =>
+            new Promise<void>((resolve, reject) => {
+              socket.once("open", resolve);
+              socket.once("error", reject);
+            }),
+        ),
+      );
+      for (const socket of sockets) {
+        socket.send(JSON.stringify({ type: "startHand" }));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      expect(durations).toEqual(expect.arrayContaining([7_000, 13_000]));
+      expect(durations).not.toContain(1);
+    } finally {
+      for (const socket of sockets) socket.close();
+      await app.close();
+    }
   });
 });
 
@@ -2169,6 +2306,14 @@ describe("presence and reconnection", () => {
 
   async function settle(ms = 20): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function enableShotClock(room: ReturnType<RoomStore["create"]>): void {
+    const result = rooms.changeShotClockSettings(room.code, {
+      enabled: true,
+      seconds: 5,
+    });
+    if ("error" in result) throw new Error("expected shot-clock settings");
   }
 
   function seatDisconnected(
@@ -2267,6 +2412,7 @@ describe("presence and reconnection", () => {
 
   it("lands a reconnecting seat in a folded seat after it folded while away", async () => {
     const room = rooms.create();
+    enableShotClock(room);
     const table = connect(`room=${room.code}&role=table`);
     await opened(table.socket);
     const claim0 = rooms.claimSeat(room.code, 0, "P0");

@@ -119,6 +119,28 @@ export type ChangeSoundSettingsRequest = z.infer<
 export type SoundSettingsChangeError =
   "room-not-found" | "invalid-request-body";
 
+/** Inclusive bounds for a room's player action timer. */
+export const MIN_SHOT_CLOCK_SECONDS = 5;
+export const MAX_SHOT_CLOCK_SECONDS = 600;
+
+/** A room-owned player action timer configuration. */
+export interface ShotClockSettings {
+  readonly enabled: boolean;
+  readonly seconds: number;
+}
+
+/** A fresh room has an unbounded action clock, with 90 seconds ready to enable. */
+export const DEFAULT_SHOT_CLOCK: ShotClockSettings = {
+  enabled: false,
+  seconds: 90,
+};
+
+/** The single trust-boundary definition for shot-clock settings. */
+export const ShotClockSettingsSchema = z.strictObject({
+  enabled: z.boolean(),
+  seconds: z.int().min(MIN_SHOT_CLOCK_SECONDS).max(MAX_SHOT_CLOCK_SECONDS),
+});
+
 /** The sources from which a client or server can answer whether a hand is live. */
 export type HandStateSource = EngineState | PlayerView | TableView | null;
 
@@ -191,6 +213,8 @@ export interface RoomView {
   readonly pendingSeatCount: number | null;
   /** Room-wide tactile-sound settings (#182), replayed on join/reconnect. */
   readonly soundSettings: SoundSettings;
+  /** Room-wide action-clock settings, replayed on join/reconnect. */
+  readonly shotClockSettings: ShotClockSettings;
 }
 
 /** Pushed over the room's WebSocket whenever seat state changes. */

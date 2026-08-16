@@ -1,5 +1,6 @@
 import {
   DEFAULT_SEAT_COUNT,
+  DEFAULT_SHOT_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
@@ -25,6 +26,14 @@ describe("RoomStore", () => {
       expect(seat.token).toBeNull();
       expect(seat.sittingOut).toBe(false);
     }
+  });
+
+  it("creates a room with the shot clock disabled by default", () => {
+    const store = new RoomStore();
+    const room = store.create();
+
+    expect(room.shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
+    expect(toRoomView(room).shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
   });
 
   it("creates a room with the seat count the creator chose", () => {
@@ -1055,6 +1064,7 @@ describe("toRoomView", () => {
       code: room.code,
       pendingSeatCount: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
       seats: [
         {
           id: 0,
@@ -1106,5 +1116,42 @@ describe("changeSoundSettings", () => {
     expect(store.changeSoundSettings("ZZZZ", DEFAULT_SOUND_SETTINGS)).toEqual({
       error: "room-not-found",
     });
+  });
+});
+
+describe("changeShotClockSettings", () => {
+  it("replaces the room settings atomically", () => {
+    const store = new RoomStore();
+    const room = store.create();
+    const settings = { enabled: true, seconds: 30 };
+
+    expect(store.changeShotClockSettings(room.code, settings)).toEqual(
+      settings,
+    );
+    expect(toRoomView(room).shotClockSettings).toEqual(settings);
+  });
+
+  it("rejects an invalid duration without changing the room", () => {
+    const store = new RoomStore();
+    const room = store.create();
+
+    expect(
+      store.changeShotClockSettings(room.code, {
+        enabled: true,
+        seconds: 4,
+      }),
+    ).toEqual({ error: "invalid-shot-clock" });
+    expect(room.shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
+  });
+
+  it("reports an unknown room", () => {
+    const store = new RoomStore();
+
+    expect(
+      store.changeShotClockSettings("ZZZZ", {
+        enabled: true,
+        seconds: 30,
+      }),
+    ).toEqual({ error: "room-not-found" });
   });
 });

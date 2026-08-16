@@ -25,9 +25,27 @@ export class ActionClock {
   }
 
   /** Replaces any timer already running for `key` with a fresh one. */
-  schedule(key: string, onTimeout: () => void): void {
+  schedule(key: string, onTimeout: () => void): void;
+  /** Replaces any timer with a fresh timer at a room-specific duration. */
+  schedule(key: string, timeoutMs: number, onTimeout: () => void): void;
+  schedule(
+    key: string,
+    timeoutMsOrCallback: number | (() => void),
+    maybeCallback?: () => void,
+  ): void {
     this.clear(key);
-    this.#timers.set(key, this.#setTimeoutFn(onTimeout, this.#timeoutMs));
+    const timeoutMs =
+      typeof timeoutMsOrCallback === "number"
+        ? timeoutMsOrCallback
+        : this.#timeoutMs;
+    const onTimeout =
+      typeof timeoutMsOrCallback === "function"
+        ? timeoutMsOrCallback
+        : maybeCallback;
+    if (onTimeout === undefined) {
+      throw new TypeError("action clock timeout callback is required");
+    }
+    this.#timers.set(key, this.#setTimeoutFn(onTimeout, timeoutMs));
   }
 
   clear(key: string): void {
