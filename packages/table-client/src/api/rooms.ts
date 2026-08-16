@@ -10,6 +10,19 @@ export interface CreatedRoom {
   readonly qrCodeDataUrl: string;
 }
 
+export interface ServerConfig {
+  readonly testMode: boolean;
+}
+
+/** Reads server-global capabilities once when the table client boots. */
+export async function fetchConfig(): Promise<ServerConfig> {
+  const response = await fetch("/config", { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`failed to fetch config: ${String(response.status)}`);
+  }
+  return (await response.json()) as ServerConfig;
+}
+
 /**
  * Confirms a room is still live before the table re-attaches on refresh
  * (#175). The WebSocket handshake 404s for a dead room, but a browser socket

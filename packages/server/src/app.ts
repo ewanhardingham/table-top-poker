@@ -63,6 +63,8 @@ export interface BuildAppOptions {
   readonly rooms?: RoomStore;
   /** Root directory for append-as-you-go per-game hand logs. */
   readonly handLogDir?: string;
+  /** Enables test-only server features such as bot players. */
+  readonly testMode?: boolean;
   /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
   readonly actionClockMs?: number;
   /** How often the server pings every open socket (Phase 1 spec #130 §7). */
@@ -206,6 +208,7 @@ export async function buildApp(
 ): Promise<FastifyInstance> {
   const rooms = options.rooms ?? new RoomStore();
   const handLogs = new Map<string, HandLog>();
+  const testMode = options.testMode ?? false;
   const pingIntervalMs = options.pingIntervalMs ?? 10_000;
   const missedPongLimit = options.missedPongLimit ?? 2;
   const graceWindowMs = options.graceWindowMs ?? 60_000;
@@ -491,6 +494,8 @@ export async function buildApp(
       .header("cache-control", "no-store")
       .send(readIndexOr(publicTableIndexPath));
   });
+
+  app.get("/config", () => ({ testMode }));
 
   app.post("/rooms", async (request, reply) => {
     // The table client picks a seat count (issue #74); this is the trust

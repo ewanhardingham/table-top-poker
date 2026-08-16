@@ -11,6 +11,13 @@ describe("useTableStore", () => {
     const state = useTableStore.getState();
     expect(state.connectionStatus).toBe("disconnected");
     expect(state.roomCode).toBeNull();
+    expect(state.testMode).toBe(false);
+  });
+
+  it("updates the test-mode config independently of the room state", () => {
+    useTableStore.getState().setTestMode(true);
+    expect(useTableStore.getState().testMode).toBe(true);
+    expect(useTableStore.getState().roomCode).toBeNull();
   });
 
   it("updates the connection slice independently of the room slice", () => {

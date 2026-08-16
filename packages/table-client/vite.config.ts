@@ -37,6 +37,7 @@ export default defineConfig(({ command, mode }) => {
           target: backendWebSocketOrigin,
           ws: true,
         },
+        "/config": backendOrigin,
         "/rooms": backendOrigin,
       },
     },
