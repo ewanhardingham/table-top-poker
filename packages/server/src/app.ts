@@ -27,6 +27,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { WebSocket } from "ws";
 import { ActionClock } from "./action-clock.js";
+import {
+  chooseBotAction,
+  shouldSitIn,
+  shouldSitOut,
+  type BotRng,
+} from "./bot-policy.js";
 import { joinUrl, roomQrCodeDataUrl } from "./qr.js";
 import {
   type ClaimSeatError,
@@ -66,6 +72,14 @@ export interface BuildAppOptions {
   readonly handLogDir?: string;
   /** Enables test-only server features such as bot players. */
   readonly testMode?: boolean;
+  /** Randomness for bot actions, delays, and between-hand sit rolls. */
+  readonly botRng?: BotRng;
+  /**
+   * Bot action delay in milliseconds. A scalar is useful for deterministic
+   * tests; a two-item range is sampled for each scheduled action in the
+   * form `[minimum, maximum)`.
+   */
+  readonly botActionDelayMs?: number | readonly [number, number];
   /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
   readonly actionClockMs?: number;
   /** How often the server pings every open socket (Phase 1 spec #130 §7). */
@@ -110,6 +124,45 @@ interface WsRoute {
 
 type SocketIdentity = SeatId | "table" | "lobby";
 type ActionClockPolicy = "reschedule" | "preserve";
+type BotActionDelay = number | readonly [number, number];
+
+const DEFAULT_BOT_ACTION_DELAY_MS: readonly [number, number] = [250, 750];
+
+function assertBotActionDelay(delay: BotActionDelay): void {
+  if (typeof delay === "number") {
+    if (!Number.isFinite(delay) || delay < 0) {
+      throw new RangeError(
+        `bot action delay must be a finite non-negative number, got ${String(delay)}`,
+      );
+    }
+    return;
+  }
+
+  const [minimum, maximum] = delay;
+  if (
+    !Number.isFinite(minimum) ||
+    !Number.isFinite(maximum) ||
+    minimum < 0 ||
+    maximum < minimum
+  ) {
+    throw new RangeError(
+      `bot action delay range must contain finite non-negative values in ascending order, got [${String(minimum)}, ${String(maximum)}]`,
+    );
+  }
+}
+
+function unitRandom(rng: BotRng): number {
+  const value = rng();
+  if (Number.isNaN(value)) return 0;
+  return Math.min(Math.max(value, 0), 1 - Number.EPSILON / 2);
+}
+
+function sampleBotActionDelay(delay: BotActionDelay, rng: BotRng): number {
+  if (typeof delay === "number") return delay;
+  const [minimum, maximum] = delay;
+  if (minimum === maximum) return minimum;
+  return minimum + unitRandom(rng) * (maximum - minimum);
+}
 
 /**
  * Narrows a socket's identity to a seat. Only a seat may be handed
@@ -210,6 +263,10 @@ export async function buildApp(
   const rooms = options.rooms ?? new RoomStore();
   const handLogs = new Map<string, HandLog>();
   const testMode = options.testMode ?? false;
+  const botRng = options.botRng ?? Math.random;
+  const botActionDelay: BotActionDelay =
+    options.botActionDelayMs ?? DEFAULT_BOT_ACTION_DELAY_MS;
+  assertBotActionDelay(botActionDelay);
   const pingIntervalMs = options.pingIntervalMs ?? 10_000;
   const missedPongLimit = options.missedPongLimit ?? 2;
   const graceWindowMs = options.graceWindowMs ?? 60_000;
@@ -221,6 +278,8 @@ export async function buildApp(
   const evictedSockets = new WeakSet<WebSocket>();
   /** One timer per room, armed the moment its table-role socket closes. */
   const tableGraceTimers = new Map<string, NodeJS.Timeout>();
+  /** At most one pending bot action per room; replaced when the actor moves. */
+  const botActionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const app = Fastify();
 
   function send(socket: WebSocket, message: ServerMessage): void {
@@ -346,6 +405,7 @@ export async function buildApp(
       tableGraceTimers.delete(code);
     }
     actionClock.clear(code);
+    clearBotActionTimer(code);
     handLogs.delete(code);
     rooms.end(code);
   }
@@ -396,6 +456,7 @@ export async function buildApp(
   app.addHook("onClose", (_instance, done) => {
     clearInterval(pingTimer);
     for (const timer of tableGraceTimers.values()) clearTimeout(timer);
+    for (const code of botActionTimers.keys()) clearBotActionTimer(code);
     done();
   });
 
@@ -426,6 +487,86 @@ export async function buildApp(
         });
       }
     }
+  }
+
+  function clearBotActionTimer(code: string): void {
+    const timer = botActionTimers.get(code);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    botActionTimers.delete(code);
+  }
+
+  /**
+   * Rolls the between-hand cadence for every bot. This runs when the prior
+   * hand reaches HandComplete, before the table can issue nextHand, so the
+   * next deal-in sees the resulting voluntary seat states. A bot never
+   * releases its claim; only the sitting-out bit changes.
+   */
+  function rollBotSitStates(code: string): boolean {
+    if (!testMode) return false;
+    const room = rooms.get(code);
+    if (!room) return false;
+
+    let changed = false;
+    for (const seat of room.seats) {
+      if (!seat.claimed || seat.bot !== true) continue;
+      if (seat.sittingOut) {
+        if (shouldSitIn(botRng)) {
+          rooms.setSittingOut(code, seat.id, false);
+          changed = true;
+        }
+      } else if (shouldSitOut(botRng)) {
+        rooms.setSittingOut(code, seat.id, true);
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  /**
+   * Arms the one pending bot action for a room, replacing any stale timer
+   * left behind by a real action, eviction, or another room-store mutation.
+   */
+  function scheduleBotAction(code: string): void {
+    clearBotActionTimer(code);
+    if (!testMode) return;
+
+    const room = rooms.get(code);
+    const actor = rooms.currentActor(code);
+    if (room === undefined || actor === undefined) return;
+    const seat = room.seats[actor];
+    if (!seat?.claimed || seat.bot !== true) return;
+
+    const timer = setTimeout(
+      () => {
+        botActionTimers.delete(code);
+
+        // Everything below is deliberately read again at fire time. A timer
+        // may outlive an intervening human action, eviction, hand completion,
+        // or room teardown.
+        const currentRoom = rooms.get(code);
+        if (!currentRoom || rooms.currentActor(code) !== actor) return;
+        const currentSeat = currentRoom.seats[actor];
+        if (!currentSeat?.claimed || currentSeat.bot !== true) return;
+        const engine = currentRoom.engine;
+        if (engine?.hand?.status !== "betting") return;
+
+        const actorView = view(engine, actor);
+        if (
+          actorView.phase !== "betting" ||
+          actorView.legalActions.length === 0
+        ) {
+          return;
+        }
+
+        const action = chooseBotAction(actorView.legalActions, botRng);
+        const result = rooms.dispatch(code, actor, action);
+        if (!("steps" in result)) return;
+        publishDispatch(code, result);
+      },
+      sampleBotActionDelay(botActionDelay, botRng),
+    );
+    botActionTimers.set(code, timer);
   }
 
   /**
@@ -471,11 +612,18 @@ export async function buildApp(
     for (const step of result.steps) {
       fanOutHandUpdate(code, step);
     }
+    if (
+      testMode &&
+      result.steps.some((step) => step.event.type === "HandComplete")
+    ) {
+      if (rollBotSitStates(code)) broadcastRoomView(code);
+    }
     if (options.actionClock === "preserve") {
       if (rooms.currentActor(code) === undefined) actionClock.clear(code);
     } else {
       rescheduleActionClock(code);
     }
+    scheduleBotAction(code);
   }
 
   // `index: false` — the explicit "/" route below owns index resolution
