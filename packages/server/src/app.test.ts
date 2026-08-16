@@ -216,6 +216,32 @@ describe("rooms HTTP routes", () => {
   });
 });
 
+describe("GET /config", () => {
+  let app: FastifyInstance;
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  it("reports test mode off by default", async () => {
+    app = await buildApp();
+
+    const response = await app.inject({ method: "GET", url: "/config" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ testMode: false });
+  });
+
+  it("reports test mode when enabled in the app options", async () => {
+    app = await buildApp({ testMode: true });
+
+    const response = await app.inject({ method: "GET", url: "/config" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ testMode: true });
+  });
+});
+
 describe("POST /rooms/:code/sound", () => {
   let app: FastifyInstance;
 
