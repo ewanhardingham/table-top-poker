@@ -26,11 +26,20 @@ function eventTarget(): {
 
 class FakeAudioContext {
   static created: FakeAudioContext[] = [];
-  /** iOS-wide gate: false models a page with no audio permission right now. */
+  /** iOS-wide gate: false models the audio session being held by another app. */
   static audioAllowed = true;
+  /**
+   * True only inside the synchronous run of a tap handler. iOS grants audio to
+   * the task a gesture started, so a `resume()` issued after an `await` has no
+   * credit — modelling that is the point, since losing it is silence from the
+   * first hand rather than only after an interruption.
+   */
+  static inGesture = false;
   state: StateName = "suspended";
-  /** Set false to model Safari holding the interruption against `resume()`. */
-  resumable = true;
+  /** A context that has never run needs a gesture for its first resume. */
+  needsGesture = true;
+  /** Set true for the interruption Safari never lifts on this context. */
+  dead = false;
   /** Buffers handed to `start()` — the proof a cue actually made sound. */
   started: unknown[] = [];
   destination = {};
@@ -46,15 +55,18 @@ class FakeAudioContext {
     this.events.dispatch("statechange");
   }
 
-  /** Model the interruption: parked, and deaf to `resume()` until released. */
+  /** Model the interruption: parked, and deaf to `resume()` while held. */
   interrupt(): void {
-    this.resumable = false;
+    FakeAudioContext.audioAllowed = false;
     this.setState("interrupted");
   }
 
   resume(): Promise<void> {
-    if (!this.resumable || !FakeAudioContext.audioAllowed)
+    if (this.dead || !FakeAudioContext.audioAllowed)
       return Promise.reject(new Error("interrupted"));
+    if (this.needsGesture && !FakeAudioContext.inGesture)
+      return Promise.reject(new Error("gesture required"));
+    this.needsGesture = false;
     this.setState("running");
     return Promise.resolve();
   }
@@ -90,10 +102,13 @@ class FakeAudioElement {
   src = "";
   /** Set false to model iOS refusing `play()` outside a user gesture. */
   playable = true;
+  /** Records whether each `play()` landed inside a gesture. */
+  playedInGesture: boolean[] = [];
   setAttribute(): void {
     // `playsinline` has no bearing on the fake.
   }
   play(): Promise<void> {
+    this.playedInGesture.push(FakeAudioContext.inGesture);
     if (!this.playable) return Promise.reject(new Error("gesture required"));
     this.paused = false;
     return Promise.resolve();
@@ -112,6 +127,7 @@ let keepAlive: FakeAudioElement;
 async function loadModule(): Promise<typeof import("./webAudio.js")> {
   FakeAudioContext.created = [];
   FakeAudioContext.audioAllowed = true;
+  FakeAudioContext.inGesture = false;
   keepAlive = new FakeAudioElement();
   documentEvents = eventTarget();
   windowEvents = eventTarget();
@@ -132,6 +148,26 @@ async function loadModule(): Promise<typeof import("./webAudio.js")> {
 
   vi.resetModules();
   return import("./webAudio.js");
+}
+
+function restoreGlobals(): void {
+  const g = globalThis as Record<string, unknown>;
+  for (const key of ["AudioContext", "document", "window", "fetch"]) {
+    Reflect.deleteProperty(g, key);
+  }
+}
+
+/**
+ * Run `fn` the way a tap handler runs: the gesture's credit covers only what
+ * `fn` does synchronously, exactly as iOS scopes it to the task.
+ */
+function inGesture<T>(fn: () => T): T {
+  FakeAudioContext.inGesture = true;
+  try {
+    return fn();
+  } finally {
+    FakeAudioContext.inGesture = false;
+  }
 }
 
 function currentContext(): FakeAudioContext {
@@ -158,26 +194,25 @@ async function settle(): Promise<void> {
 
 const SLOW = 20_000;
 
-describe("webAudio interruption recovery", () => {
+describe("webAudio unlock", () => {
   let sound: typeof import("./webAudio.js");
 
   beforeEach(async () => {
     sound = await loadModule();
-    await sound.unlockAudio();
   });
 
-  afterEach(() => {
-    const g = globalThis as Record<string, unknown>;
-    delete g.AudioContext;
-    delete g.document;
-    delete g.window;
-    delete g.fetch;
-  });
+  afterEach(restoreGlobals);
 
   it(
-    "plays cues once unlocked",
+    "unlocks from the tap that asked for it",
     async () => {
+      await inGesture(() => sound.unlockAudio());
+
       expect(currentContext().state).toBe("running");
+      // The keep-alive's `play()` has to land inside the gesture too, or the
+      // media channel that carries Web Audio past the silent switch is lost.
+      expect(keepAlive.playedInGesture[0]).toBe(true);
+
       sound.playRevealFlip();
       await settle();
       expect(currentContext().started).toHaveLength(1);
@@ -186,10 +221,48 @@ describe("webAudio interruption recovery", () => {
   );
 
   it(
+    "cannot unlock without a gesture",
+    async () => {
+      await sound.unlockAudio();
+      expect(currentContext().state).not.toBe("running");
+    },
+    SLOW,
+  );
+
+  it(
+    "ignores wake signals until the app has asked to unlock",
+    async () => {
+      // `focus` and `pageshow` both fire at load. Acting on them would build a
+      // context outside any gesture and hold the recovery guard across the
+      // real unlock tap, so the tap would find recovery busy and skip its
+      // resume — silence from the first hand.
+      windowEvents.dispatch("focus");
+      windowEvents.dispatch("pageshow");
+      documentEvents.dispatch("visibilitychange");
+      await settle();
+      expect(FakeAudioContext.created).toHaveLength(0);
+
+      await inGesture(() => sound.unlockAudio());
+      expect(currentContext().state).toBe("running");
+    },
+    SLOW,
+  );
+});
+
+describe("webAudio interruption recovery", () => {
+  let sound: typeof import("./webAudio.js");
+
+  beforeEach(async () => {
+    sound = await loadModule();
+    await inGesture(() => sound.unlockAudio());
+  });
+
+  afterEach(restoreGlobals);
+
+  it(
     "never plays through an interrupted context",
     async () => {
       const ctx = currentContext();
-      FakeAudioContext.audioAllowed = false;
       ctx.interrupt();
 
       sound.playRevealFlip();
@@ -204,7 +277,6 @@ describe("webAudio interruption recovery", () => {
     "resumes on return to the tab once the interruption lifts",
     async () => {
       const ctx = currentContext();
-      FakeAudioContext.audioAllowed = false;
       ctx.interrupt();
       keepAlive.paused = true;
 
@@ -215,7 +287,6 @@ describe("webAudio interruption recovery", () => {
       expect(FakeAudioContext.created).toHaveLength(1);
 
       FakeAudioContext.audioAllowed = true;
-      ctx.resumable = true;
       documentEvents.dispatch("visibilitychange");
       await settle();
 
@@ -231,22 +302,31 @@ describe("webAudio interruption recovery", () => {
   );
 
   it(
-    "rebuilds the context when resume stays refused",
+    "rebuilds the context on a tap when resume stays refused",
     async () => {
       const dead = currentContext();
-      FakeAudioContext.audioAllowed = false;
+      dead.dead = true; // the interruption Safari will never lift
       dead.interrupt();
-      await settle();
+      keepAlive.paused = true;
+      await settle(); // time away, with the other app holding the session
 
-      // Back on the page, with a context iOS will never resume again.
+      // Coming back: the automatic run finds resume refused, and marks it.
       FakeAudioContext.audioAllowed = true;
       documentEvents.dispatch("visibilitychange");
+      await settle();
+      expect(dead.state).not.toBe("running");
+
+      // The next tap rebuilds and resumes inside that one gesture.
+      inGesture(() => {
+        documentEvents.dispatch("pointerdown");
+      });
       await settle();
 
       expect(FakeAudioContext.created).toHaveLength(2);
       const fresh = currentContext();
       expect(fresh).not.toBe(dead);
       expect(fresh.state).toBe("running");
+      expect(keepAlive.paused).toBe(false);
 
       sound.playRevealFlip();
       await settle();
@@ -257,27 +337,54 @@ describe("webAudio interruption recovery", () => {
   );
 
   it(
-    "recovers on the next tap when every automatic path failed",
+    "recovers on the next tap when the automatic paths could not",
     async () => {
       const ctx = currentContext();
-      FakeAudioContext.audioAllowed = false;
       ctx.interrupt();
       keepAlive.paused = true;
-      keepAlive.playable = false; // no gesture credit left
+      keepAlive.playable = false; // no gesture credit for the element either
 
       documentEvents.dispatch("visibilitychange");
       await settle();
       expect(currentContext().state).not.toBe("running");
 
-      // The user taps: iOS hands audio back, and the capture-phase listener
-      // spends that gesture on the ladder.
+      // The user taps: iOS hands the session back, and the capture-phase
+      // listener spends that gesture on the ladder.
       FakeAudioContext.audioAllowed = true;
       keepAlive.playable = true;
-      documentEvents.dispatch("pointerdown");
+      inGesture(() => {
+        documentEvents.dispatch("pointerdown");
+      });
       await settle();
 
       expect(currentContext().state).toBe("running");
       expect(keepAlive.paused).toBe(false);
+    },
+    SLOW,
+  );
+
+  it(
+    "keeps cues flowing through a rebuilt context",
+    async () => {
+      const dead = currentContext();
+      dead.dead = true;
+      dead.interrupt();
+      await settle();
+      FakeAudioContext.audioAllowed = true;
+
+      // Two runs: the first marks the resume refused, the tap rebuilds.
+      documentEvents.dispatch("visibilitychange");
+      await settle();
+      inGesture(() => {
+        documentEvents.dispatch("pointerdown");
+      });
+      await settle();
+
+      // The rebuild dropped the buffer cache; recovery re-warms it, so the
+      // next cue still plays.
+      sound.playRevealFlip();
+      await settle();
+      expect(currentContext().started).toHaveLength(1);
     },
     SLOW,
   );
