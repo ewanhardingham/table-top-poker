@@ -57,7 +57,6 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
             ]),
           ),
           toAct: [],
-          bbOptionPending: false,
           raiseOccurred: false,
         },
       };
@@ -76,19 +75,13 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
     case "StreetStarted": {
       const hand = asBetting(state);
       const live = hand.ring.filter((seat) => !seatState(hand, seat).folded);
-      const { toAct, bbOptionPending } = initialToAct(
-        hand.ring,
-        live,
-        hand.button,
-        event.street,
-      );
+      const toAct = initialToAct(hand.ring, live, hand.button, event.street);
       return {
         ...state,
         hand: {
           ...hand,
           street: event.street,
           toAct,
-          bbOptionPending,
           raiseOccurred: false,
         },
       };
@@ -106,25 +99,14 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
       // Ordinary actions always belong to `toAct[0]`; an eviction may fold a
       // live seat later in the queue, so remove the event's seat by identity
       // and leave the current actor at the head of the queue.
-      let toAct = hand.toAct.filter((seat) => seat !== event.seatId);
-      let bbOptionPending = hand.bbOptionPending;
-
-      if (event.action === "raise") {
-        toAct = requeueAfterRaise(hand.ring, players, event.seatId);
-        bbOptionPending = false;
-      } else if (toAct.length === 0 && bbOptionPending) {
-        const bigBlind = bigBlindSeat(hand.ring, hand.button);
-        // The BB may have already folded earlier in this same lap (at their
-        // normal turn) — a folded seat never gets a turn, option or not.
-        if (!must(players.get(bigBlind)).folded) {
-          toAct = [bigBlind];
-        }
-        bbOptionPending = false;
-      }
+      const toAct =
+        event.action === "raise"
+          ? requeueAfterRaise(hand.ring, players, event.seatId)
+          : hand.toAct.filter((seat) => seat !== event.seatId);
 
       return {
         ...state,
-        hand: { ...hand, players, raiseOccurred, toAct, bbOptionPending },
+        hand: { ...hand, players, raiseOccurred, toAct },
       };
     }
 

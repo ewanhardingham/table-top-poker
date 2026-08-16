@@ -25,7 +25,7 @@ describe("runHarness", () => {
   it("folds each event into state and writes one JSON line per event", async () => {
     const commands = [
       { type: "startHand", seatId: 0, seed: "seed-1" },
-      { type: "call", seatId: 1 },
+      { type: "call", seatId: 0 },
     ];
     const input = Readable.from(
       commands.map((command) => JSON.stringify(command) + "\n"),
@@ -88,8 +88,8 @@ describe("runHarness", () => {
   it("is deterministic: replaying the same command stream twice produces byte-identical output", async () => {
     const commandLines = [
       JSON.stringify({ type: "startHand", seatId: 0, seed: "seed-1" }),
-      JSON.stringify({ type: "call", seatId: 1 }),
-      JSON.stringify({ type: "raise", seatId: 2 }),
+      JSON.stringify({ type: "call", seatId: 0 }),
+      JSON.stringify({ type: "raise", seatId: 1 }),
     ];
 
     async function run(): Promise<string> {
@@ -178,7 +178,7 @@ describe("runHarness", () => {
       const log = new HandLog(logDir, "game-1", [0, 1, 2]);
       const commandLines = [
         JSON.stringify({ type: "startHand", seatId: 0, seed: "seed-1" }),
-        JSON.stringify({ type: "call", seatId: 1 }),
+        JSON.stringify({ type: "call", seatId: 0 }),
       ];
       const input = Readable.from(commandLines.map((line) => line + "\n"));
       const { writable, lines } = collectingWritable();
@@ -218,7 +218,9 @@ describe("runHarness", () => {
       const input = Readable.from(
         [
           { type: "startHand", seatId: 0, seed: "seed-1" },
-          { type: "check", seatId: 1 },
+          // Seat 0 opens preflop three-handed and faces the BB's post, so
+          // checking is illegal rather than merely out of turn.
+          { type: "check", seatId: 0 },
         ].map((command) => JSON.stringify(command) + "\n"),
       );
       const { writable } = collectingWritable();

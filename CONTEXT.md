@@ -132,7 +132,10 @@ holds independent of their Seat.
 **Small Blind / Big Blind**:
 The Seats immediately clockwise of the Button (SB = Button+1, BB =
 Button+2), fixing action order and the BB's option to check/raise if
-everyone limps preflop. No chip *amount* is tracked or stored by the engine
+everyone limps preflop. Preflop opens on the first Seat left of the blinds
+(Button+3) and runs to the BB, so the BB's "option" is simply their turn,
+which is the last one — not a second visit. No chip *amount* is tracked or
+stored by the engine
 — players post real physical blinds at the table, outside the program — but
 preflop *legality* still mirrors that post: every Seat except the BB faces
 a bet (must call/fold/raise, may not check) until someone raises or the BB
@@ -212,8 +215,9 @@ occurs *at* a position without advancing it.
    DEALING_HOLE          — hole cards dealt to each seated Player
         │ deal complete
         ▼
-   PREFLOP (a Street)    — button+1 first to act (heads-up: button acts
-        │                  first); BB gets the option if everyone limps
+   PREFLOP (a Street)    — button+3 first to act, running round to the BB
+        │                  last (heads-up: button acts first); the BB's
+        │                  option is that last turn
         ▼
    FLOP (a Street)       — 3 board cards dealt, betting round
         │

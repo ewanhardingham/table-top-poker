@@ -18,9 +18,9 @@ describe("Command seat identity", () => {
     let state = initial;
     for (const event of started) state = apply(state, event);
 
-    const action = decide(state, { type: "fold", seatId: 1 });
+    const action = decide(state, { type: "fold", seatId: 0 });
     expect(action).toEqual([
-      { type: "ActionTaken", seatId: 1, action: "fold" },
+      { type: "ActionTaken", seatId: 0, action: "fold" },
     ]);
   });
 });

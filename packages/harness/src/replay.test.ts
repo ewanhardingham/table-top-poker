@@ -57,8 +57,8 @@ describe("replay guarantee", () => {
     const commands = [
       { type: "startHand", seatId: 0, seed: "replay-seed" },
       { type: "evict", seatId: 2 },
-      { type: "call", seatId: 1 },
       { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
     ];
     const original = collectingWritable();
     await runHarness({
