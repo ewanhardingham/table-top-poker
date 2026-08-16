@@ -1,5 +1,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { changeSeatCount, createRoom, endSession } from "./rooms.js";
+import {
+  changeSeatCount,
+  createRoom,
+  endSession,
+  fetchConfig,
+} from "./rooms.js";
+
+describe("fetchConfig", () => {
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("gets the server config and returns the test-mode flag", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ testMode: true }), { status: 200 }),
+    );
+
+    await expect(fetchConfig()).resolves.toEqual({ testMode: true });
+    expect(fetch).toHaveBeenCalledWith("/config", { method: "GET" });
+  });
+
+  it("throws when the server rejects the request", async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 503 }));
+
+    await expect(fetchConfig()).rejects.toThrow("failed to fetch config: 503");
+  });
+});
 
 describe("createRoom", () => {
   beforeEach(() => {
