@@ -60,29 +60,27 @@ export function chooseBotAction(
     throw new RangeError("chooseBotAction needs at least one legal action");
   }
 
-  const weights = legalActions.map(
-    (action) => DEFAULT_BOT_ACTION_WEIGHTS[action],
+  const total = legalActions.reduce(
+    (sum, action) => sum + DEFAULT_BOT_ACTION_WEIGHTS[action],
+    0,
   );
-  const total = weights.reduce((sum, weight) => sum + weight, 0);
   const target = unitRandom(rng) * total;
 
   let cumulative = 0;
-  for (let index = 0; index < legalActions.length; index++) {
-    cumulative += weights[index] ?? 0;
-    if (target < cumulative) {
-      const action = legalActions[index];
-      if (action !== undefined) return action;
-    }
+  for (const action of legalActions) {
+    cumulative += DEFAULT_BOT_ACTION_WEIGHTS[action];
+    if (target < cumulative) return action;
   }
 
-  // unitRandom() makes this unreachable for the normal action weights, but
-  // retaining the final supplied entry protects the member-of-input contract
-  // if the weighting table is changed later.
-  const fallback = legalActions[legalActions.length - 1];
-  if (fallback === undefined) {
-    throw new Error("chooseBotAction lost its supplied legal action");
-  }
-  return fallback;
+  // unitRandom() keeps target < total, so the loop always returns above; this
+  // throw exists only to satisfy the return type.
+  throw new Error("chooseBotAction lost its supplied legal action");
+}
+
+/** Rolls the RNG and reports whether it falls below the given probability. */
+function rollBelow(rng: BotRng, probability: number): boolean {
+  assertProbability(probability);
+  return unitRandom(rng) < probability;
 }
 
 /** Returns whether a bot should sit out the next hand. */
@@ -90,8 +88,7 @@ export function shouldSitOut(
   rng: BotRng = Math.random,
   probability: number = DEFAULT_SIT_OUT_PROBABILITY,
 ): boolean {
-  assertProbability(probability);
-  return unitRandom(rng) < probability;
+  return rollBelow(rng, probability);
 }
 
 /** Returns whether a sitting-out bot should sit back in for the next hand. */
@@ -99,6 +96,5 @@ export function shouldSitIn(
   rng: BotRng = Math.random,
   probability: number = DEFAULT_SIT_IN_PROBABILITY,
 ): boolean {
-  assertProbability(probability);
-  return unitRandom(rng) < probability;
+  return rollBelow(rng, probability);
 }
