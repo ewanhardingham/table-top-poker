@@ -24,6 +24,10 @@ const soundGlobal = globalThis as unknown as {
   __ttpAudioBuffers?: Map<CueName, AudioBuffer>;
   __ttpSoundEngine?: SoundEngine;
   __ttpSilentKeepAlive?: HTMLAudioElement | null;
+  __ttpAudioRecovering?: boolean;
+  __ttpAudioListenersArmed?: boolean;
+  __ttpAudioEverRunning?: boolean;
+  __ttpAudioRecreatedAt?: number;
 };
 
 const buffers = (soundGlobal.__ttpAudioBuffers ??= new Map<
@@ -32,7 +36,12 @@ const buffers = (soundGlobal.__ttpAudioBuffers ??= new Map<
 >());
 
 function context(): AudioContext {
-  return (soundGlobal.__ttpAudioCtx ??= new AudioContext());
+  const existing = soundGlobal.__ttpAudioCtx;
+  if (existing) return existing;
+  const created = new AudioContext();
+  soundGlobal.__ttpAudioCtx = created;
+  watchContextState(created);
+  return created;
 }
 
 /** Whether Web Audio exists — false under jsdom/SSR, where the layer is inert. */
@@ -73,14 +82,21 @@ async function loadBuffer(cue: CueName): Promise<AudioBuffer | undefined> {
  */
 function playCueSound(cue: CueName): void {
   if (!audioAvailable()) return;
-  void loadBuffer(cue).then((buffer) => {
-    if (!buffer) return;
-    const c = context();
-    const source = c.createBufferSource();
-    source.buffer = buffer;
-    source.connect(c.destination);
-    source.start();
-  });
+  // A cue can be the first thing to notice the context died under us — iOS
+  // interrupts it when another app takes the audio session, and nothing else
+  // may have fired since. Recover first, then play through whatever context
+  // recovery left us on (it may be a fresh one, so read it after the await).
+  void ensureRunning()
+    .then(() => loadBuffer(cue))
+    .then((buffer) => {
+      if (!buffer) return;
+      const c = context();
+      if (c.state !== "running") return;
+      const source = c.createBufferSource();
+      source.buffer = buffer;
+      source.connect(c.destination);
+      source.start();
+    });
 }
 
 const engine = (soundGlobal.__ttpSoundEngine ??= createSoundEngine({
@@ -115,8 +131,12 @@ export function playRevealFlip(): void {
 export async function unlockAudio(): Promise<void> {
   if (!audioAvailable()) return;
   armSilentKeepAlive();
-  await context().resume();
-  // Warm every cue so the first real one plays without a decode gap.
+  await ensureRunning();
+  await warmCues();
+}
+
+/** Warm every cue so the first real one plays without a decode gap. */
+async function warmCues(): Promise<void> {
   await Promise.all(
     CUE_NAMES.map((cue) => loadBuffer(cue).catch(() => undefined)),
   );
@@ -161,9 +181,22 @@ function silentWavDataUrl(): string {
   return `data:audio/wav;base64,${btoa(binary)}`;
 }
 
-/** Nudge the keep-alive element back to playing; a no-op if it isn't armed. */
-function nudgeKeepAlive(): void {
-  void soundGlobal.__ttpSilentKeepAlive?.play().catch(() => undefined);
+/**
+ * Nudge the keep-alive element back to playing; a no-op if it isn't armed.
+ * Resolves false when the browser refused (iOS rejects `play()` outside a
+ * gesture once an interruption has paused the element), which is the signal
+ * that only the next real tap can put the media channel back.
+ */
+async function nudgeKeepAlive(): Promise<boolean> {
+  const el = soundGlobal.__ttpSilentKeepAlive;
+  if (!el) return false;
+  if (!el.paused) return true;
+  try {
+    await el.play();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function armSilentKeepAlive(): void {
@@ -175,15 +208,172 @@ function armSilentKeepAlive(): void {
     el.src = silentWavDataUrl();
     soundGlobal.__ttpSilentKeepAlive = el;
   }
-  nudgeKeepAlive();
+  void nudgeKeepAlive();
 }
 
-// Returning to a backgrounded tab (a phone waking) can leave the context
-// suspended; re-resume on visibility and nudge the keep-alive back to playing.
-if (typeof document !== "undefined") {
+// --- interruption recovery (iOS Safari, #228) -------------------------------
+//
+// Playing other media — an Instagram video, a call, another tab — takes the
+// audio session away from this page. iOS then parks the `AudioContext` in
+// Safari's non-standard `"interrupted"` state (older versions: `"suspended"`)
+// and pauses the silent keep-alive element. Coming back to the tab does not
+// undo either on its own: a single `resume()` right after foregrounding is
+// routinely ignored, and a context that stays interrupted plays every buffer
+// source into silence — which is exactly the "sounds never come back" symptom.
+//
+// So recovery is a ladder, tried in order and re-entered from every signal we
+// get (visibility, pageshow, focus, context state changes, and the next cue):
+//   1. restart the keep-alive element and `resume()` the context, retrying a
+//      few times because the first attempt after foregrounding tends to no-op;
+//   2. if it is still not running, throw the context away and build a fresh
+//      one — an interruption Safari refuses to lift only clears with a new
+//      context — re-decoding the cues against it;
+//   3. if even that fails (no gesture credit left), leave it: the capture-phase
+//      gesture listeners below re-run the ladder on the user's very next tap,
+//      which is the one moment iOS reliably grants audio again.
+
+const RESUME_ATTEMPTS = 3;
+const RESUME_BACKOFF_MS = 150;
+const RECREATE_COOLDOWN_MS = 5000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    realClock.schedule(() => {
+      resolve();
+    }, ms);
+  });
+}
+
+/** Whether the context exists and is actually able to make sound right now. */
+function contextRunning(): boolean {
+  const running = soundGlobal.__ttpAudioCtx?.state === "running";
+  if (running) soundGlobal.__ttpAudioEverRunning = true;
+  return running;
+}
+
+/** `resume()` the live context, retrying — the first call after a wake no-ops. */
+async function resumeContext(): Promise<boolean> {
+  const c = soundGlobal.__ttpAudioCtx;
+  if (!c) return false;
+  for (let attempt = 0; attempt < RESUME_ATTEMPTS; attempt++) {
+    if (contextRunning()) return true;
+    try {
+      await c.resume();
+    } catch {
+      // Safari rejects `resume()` while the interruption is still held; the
+      // retry below (or the next gesture) is the real fix.
+    }
+    if (contextRunning()) return true;
+    await delay(RESUME_BACKOFF_MS * (attempt + 1));
+  }
+  return contextRunning();
+}
+
+/**
+ * Replace a context that will not come back. The decoded buffers go with it:
+ * an `AudioBuffer` is portable between contexts on paper, but Safari has been
+ * unreliable about it, and re-decoding is cheap against the HTTP cache.
+ */
+async function recreateContext(): Promise<void> {
+  const dead = soundGlobal.__ttpAudioCtx;
+  soundGlobal.__ttpAudioCtx = null;
+  buffers.clear();
+  if (dead && dead.state !== "closed") {
+    try {
+      await dead.close();
+    } catch {
+      // A context iOS has already torn down can refuse to close; dropping the
+      // reference is what matters.
+    }
+  }
+  const fresh = context();
+  await resumeContext();
+  if (fresh.state === "running") await warmCues();
+}
+
+/**
+ * Bring audio back if it has stalled. Cheap and safe to call from anywhere —
+ * it returns immediately when the context is already running, and collapses
+ * overlapping calls (visibility + focus + a cue all fire at once on a wake).
+ */
+async function ensureRunning(options?: {
+  allowRecreate?: boolean;
+}): Promise<void> {
+  if (!audioAvailable()) return;
+  if (contextRunning() && !soundGlobal.__ttpSilentKeepAlive?.paused) return;
+  if (soundGlobal.__ttpAudioRecovering) return;
+  soundGlobal.__ttpAudioRecovering = true;
+  try {
+    await nudgeKeepAlive();
+    context();
+    if (await resumeContext()) return;
+    if (options?.allowRecreate === false) return;
+    // Only rebuild a context that was working before: a context still waiting
+    // for its first unlock gesture is *meant* to be suspended, and replacing it
+    // would just churn.
+    if (!soundGlobal.__ttpAudioEverRunning) return;
+    // Rebuilding is only worth a try while the user is looking at the page —
+    // hidden, the interruption is probably still being held by whatever they
+    // switched to, and a rebuild would burn the cooldown before the return.
+    if (pageHidden()) return;
+    const since = realClock.now() - (soundGlobal.__ttpAudioRecreatedAt ?? 0);
+    if (since < RECREATE_COOLDOWN_MS) return;
+    soundGlobal.__ttpAudioRecreatedAt = realClock.now();
+    await recreateContext();
+  } finally {
+    soundGlobal.__ttpAudioRecovering = false;
+  }
+}
+
+function pageHidden(): boolean {
+  return (
+    typeof document !== "undefined" && document.visibilityState === "hidden"
+  );
+}
+
+/**
+ * Safari reports interruptions through `statechange`. Recovering straight away
+ * is usually refused while the other app still holds the session, but it costs
+ * one attempt and wins the case where the interruption has already ended.
+ */
+function watchContextState(ctx: AudioContext): void {
+  if (typeof ctx.addEventListener !== "function") return;
+  ctx.addEventListener("statechange", () => {
+    if (ctx !== soundGlobal.__ttpAudioCtx) return;
+    if (ctx.state === "running") return;
+    // Resume only: the interruption is usually still held by whatever took the
+    // session, so this is a cheap "has it already ended?" check. Rebuilding is
+    // left to the signals that mean the user is actually back.
+    void ensureRunning({ allowRecreate: false });
+  });
+}
+
+// Every signal that the page is back in front of the user, plus a capture-phase
+// gesture listener as the last resort: `passive`/`capture` keeps it out of the
+// way of the app's own handlers, and it does nothing at all while audio is
+// healthy, so the common path is one state read per tap.
+if (typeof document !== "undefined" && !soundGlobal.__ttpAudioListenersArmed) {
+  soundGlobal.__ttpAudioListenersArmed = true;
+
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState !== "visible") return;
-    if (soundGlobal.__ttpAudioCtx) void soundGlobal.__ttpAudioCtx.resume();
-    nudgeKeepAlive();
+    void ensureRunning();
   });
+  window.addEventListener("pageshow", () => void ensureRunning());
+  window.addEventListener("focus", () => void ensureRunning());
+
+  const onGesture = (): void => {
+    if (!audioAvailable()) return;
+    // Only spend work when something is actually wrong — and only once the
+    // context exists, so a tap before the unlock gesture stays a no-op.
+    if (!soundGlobal.__ttpAudioCtx) return;
+    if (contextRunning() && !soundGlobal.__ttpSilentKeepAlive?.paused) return;
+    void ensureRunning();
+  };
+  for (const type of ["pointerdown", "touchend", "click"] as const) {
+    document.addEventListener(type, onGesture, {
+      capture: true,
+      passive: true,
+    });
+  }
 }
