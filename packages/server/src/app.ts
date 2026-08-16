@@ -31,6 +31,7 @@ import {
   chooseBotAction,
   shouldSitIn,
   shouldSitOut,
+  unitRandom,
   type BotRng,
 } from "./bot-policy.js";
 import { joinUrl, roomQrCodeDataUrl } from "./qr.js";
@@ -149,12 +150,6 @@ function assertBotActionDelay(delay: BotActionDelay): void {
       `bot action delay range must contain finite non-negative values in ascending order, got [${String(minimum)}, ${String(maximum)}]`,
     );
   }
-}
-
-function unitRandom(rng: BotRng): number {
-  const value = rng();
-  if (Number.isNaN(value)) return 0;
-  return Math.min(Math.max(value, 0), 1 - Number.EPSILON / 2);
 }
 
 function sampleBotActionDelay(delay: BotActionDelay, rng: BotRng): number {
@@ -518,6 +513,9 @@ export async function buildApp(
     // Returning bots are considered first so a table can recover from a
     // previous roll that left only one eligible seat.
     for (const seat of sittingOutBots) {
+      // Guard before the roll so a disconnected bot never consumes an RNG
+      // draw it cannot act on, matching the recovery and sit-out loops below.
+      if (seat.disconnected) continue;
       if (shouldSitIn(botRng)) {
         rooms.setSittingOut(code, seat.id, false);
         changed = true;
@@ -547,8 +545,11 @@ export async function buildApp(
     // Active bots may opt out only while the table would still have two
     // connected, claimed, non-sitting-out seats for the next deal-in.
     for (const seat of activeBots) {
-      if (!shouldSitOut(botRng)) continue;
+      // Guard before the roll so the draw is only consumed when the seat can
+      // actually sit out; drawing first would let the two-seat floor shift
+      // every later action-selection draw for a deterministic RNG.
       if (seat.disconnected || seat.sittingOut || eligibleCount <= 2) continue;
+      if (!shouldSitOut(botRng)) continue;
       rooms.setSittingOut(code, seat.id, true);
       eligibleCount--;
       changed = true;
@@ -594,7 +595,16 @@ export async function buildApp(
 
         const action = chooseBotAction(actorView.legalActions, botRng);
         const result = rooms.dispatch(code, actor, action);
-        if (!("steps" in result)) return;
+        if (!("steps" in result)) {
+          // `action` came straight from the engine's `legalActions`, so a
+          // rejection is not expected. If it somehow happens, re-arm the
+          // clock and the bot so the seat still faces a deadline and the bot
+          // retries rather than stalling — an eviction path may have left the
+          // clock preserved (unarmed) while this actor remains on it.
+          rescheduleActionClock(code);
+          scheduleBotAction(code);
+          return;
+        }
         publishDispatch(code, result);
       },
       sampleBotActionDelay(botActionDelay, botRng),
