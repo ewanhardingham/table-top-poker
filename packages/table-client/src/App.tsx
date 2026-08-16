@@ -232,6 +232,7 @@ export function App() {
             <Seats
               seats={seats}
               view={handView}
+              shotClockSeconds={shotClockSettings.seconds}
               onSeatClick={handleSeatClick}
             />
             {menuSeatId !== null && (

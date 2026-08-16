@@ -21,6 +21,8 @@ export {
 } from "./positionMarker.js";
 export type { PositionMarker } from "./positionMarker.js";
 export { color, font, fontSize, radius, shadow } from "./theme.js";
+export { ShotClock, shotClockColor } from "./ShotClock.js";
+export type { ShotClockProps, ShotClockVariant } from "./ShotClock.js";
 export {
   applyRoomSoundSettings,
   onHandUpdate,

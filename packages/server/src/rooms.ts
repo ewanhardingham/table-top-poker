@@ -68,6 +68,8 @@ export interface Room {
   engine: EngineState | null;
   /** A live-hand shrink waits here until the next deal-in recompute. */
   pendingSeatCount: number | null;
+  /** Absolute deadline for the current actor, or null when no clock is armed. */
+  turnEndsAt: number | null;
   /** A shot-clock change waits here until the next deal-in. */
   pendingShotClock: ShotClockSettings | null;
   /** Room-wide tactile-sound settings (#182), set by the table. */
@@ -385,6 +387,7 @@ export class RoomStore {
       seats: makeSeats(seatCount),
       engine: null,
       pendingSeatCount: null,
+      turnEndsAt: null,
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,

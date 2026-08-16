@@ -128,6 +128,7 @@ describe("Seats", () => {
   it("shows a claimed seat absent from a live hand as sitting out", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -164,6 +165,7 @@ describe("Seats", () => {
   it("does not describe a disconnected seat as sitting out", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -212,6 +214,7 @@ describe("Seats", () => {
   it("marks status, button and the current actor during betting", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -240,9 +243,25 @@ describe("Seats", () => {
     expect(html).toMatch(/data-testid="seat-pod-3"[^>]*data-status="open"/);
   });
 
+  it("renders the active seat's number countdown below its position marker", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats}
+        view={{ ...threeHanded, turnEndsAt: Date.now() + 30_000 }}
+      />,
+    );
+
+    expect(html).toContain('data-testid="seat-shot-clock"');
+    expect(html).toContain(">30</span>");
+    expect((html.match(/data-testid="seat-shot-clock"/g) ?? []).length).toBe(1);
+    expect(styleOf(html, "seat-shot-clock")).toContain("bottom:-0.5em");
+    expect(styleOf(html, "seat-pod-0-small-blind")).toContain("top:-0.4em");
+  });
+
   it("marks a folded seat", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -456,6 +475,7 @@ describe("Seats", () => {
   it("keeps the top-row action callout separate from the placard and upright", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 3,
@@ -490,6 +510,7 @@ describe("Seats", () => {
   it("keeps a bottom-row action callout unrotated", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -558,6 +579,7 @@ describe("Seats", () => {
   it("keeps a folded top-row seat dimmed behind its flipped placard", () => {
     const view: TableView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -621,10 +643,11 @@ function styleOf(html: string, testid: string): string | null {
   return match?.[1] ?? null;
 }
 
-const threeHanded: TableView = {
+const threeHanded: Extract<TableView, { phase: "betting" }> = {
   // Seats 3, 0 and 1 are in the hand with the button on 3, so ring order
   // (3 -> 0 -> 1) runs the opposite way to seat-number order.
   phase: "betting",
+  turnEndsAt: null,
   button: 3,
   smallBlind: 0,
   bigBlind: 1,
@@ -640,6 +663,7 @@ const threeHanded: TableView = {
 };
 
 const headsUpPositions = {
+  turnEndsAt: null,
   button: 0,
   smallBlind: 0,
   bigBlind: 1,

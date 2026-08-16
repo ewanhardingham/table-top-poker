@@ -39,6 +39,8 @@ interface ShowdownView extends HandPositions {
 
 export interface PlayerViewBetting extends HandPositions {
   readonly phase: "betting";
+  /** Absolute server deadline for the current actor, or null when disabled. */
+  readonly turnEndsAt: number | null;
   readonly street: Street;
   readonly board: readonly Card[];
   readonly toAct: readonly SeatId[];
@@ -51,6 +53,8 @@ export interface PlayerViewBetting extends HandPositions {
 
 export interface TableViewBetting extends HandPositions {
   readonly phase: "betting";
+  /** Absolute server deadline for the current actor, or null when disabled. */
+  readonly turnEndsAt: number | null;
   readonly street: Street;
   readonly board: readonly Card[];
   readonly toAct: readonly SeatId[];
@@ -68,11 +72,20 @@ export type TableView =
  * `"table"` sentinel. Both are derived from the same authoritative state so
  * the table is never privileged over a player — see Phase 1 spec #130 §4.
  */
-export function view(state: EngineState, seatId: SeatId): PlayerView;
-export function view(state: EngineState, seatId: "table"): TableView;
+export function view(
+  state: EngineState,
+  seatId: SeatId,
+  turnEndsAt?: number | null,
+): PlayerView;
+export function view(
+  state: EngineState,
+  seatId: "table",
+  turnEndsAt?: number | null,
+): TableView;
 export function view(
   state: EngineState,
   seatId: SeatId | "table",
+  turnEndsAt: number | null = null,
 ): PlayerView | TableView {
   if (seatId !== "table" && !state.seats.includes(seatId)) {
     throw new Error(`unknown seat ${String(seatId)}`);
@@ -115,6 +128,7 @@ export function view(
 
   const tableView: TableViewBetting = {
     phase: "betting",
+    turnEndsAt,
     button: hand.button,
     smallBlind: smallBlindSeat(hand.ring, hand.button),
     bigBlind: bigBlindSeat(hand.ring, hand.button),

@@ -15,6 +15,7 @@ describe("legalActionsFromView", () => {
   it("mirrors the view's legalActions during betting", () => {
     const view: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,

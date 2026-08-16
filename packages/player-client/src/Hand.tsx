@@ -10,6 +10,7 @@ import {
   positionMarkerFor,
   radius,
   shadow,
+  ShotClock,
   type PositionMarker,
 } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
@@ -24,6 +25,8 @@ export interface HandProps {
   readonly seatId: number;
   readonly seats?: readonly SeatView[];
   readonly connectionStatus?: ConnectionStatus;
+  /** Current room setting, used only to scale the countdown colour ramp. */
+  readonly shotClockSeconds?: number;
   /**
    * The action intent `App` already owns. `Hand` narrows it to the card
    * module's own port — the module never sees `ActionIntent`, so growing the
@@ -244,9 +247,13 @@ function bannerFor(
 function TurnBanner({
   banner,
   marker,
+  turnEndsAt,
+  shotClockSeconds,
 }: {
   readonly banner: Banner;
   readonly marker: PositionMarker | null;
+  readonly turnEndsAt: number | null;
+  readonly shotClockSeconds: number;
 }) {
   const tone = bannerToneStyle[banner.tone];
   return (
@@ -314,6 +321,14 @@ function TurnBanner({
           {banner.text}
         </span>
       </div>
+      {banner.tone === "turn" && turnEndsAt !== null ? (
+        <ShotClock
+          turnEndsAt={turnEndsAt}
+          durationSeconds={shotClockSeconds}
+          variant="ring"
+          testId="turn-banner-shot-clock"
+        />
+      ) : null}
     </motion.div>
   );
 }
@@ -390,6 +405,7 @@ export function Hand({
   seatId,
   seats = [],
   connectionStatus = "connected",
+  shotClockSeconds = 90,
   intent,
 }: HandProps) {
   const actions = cardActionsFrom(intent);
@@ -410,6 +426,8 @@ export function Hand({
         <TurnBanner
           banner={bannerFor(view, connectionStatus, seatId, seats)}
           marker={positionMarkerFor(seatId, view)}
+          turnEndsAt={null}
+          shotClockSeconds={shotClockSeconds}
         />
         <HoleCardsRegion
           cards={null}
@@ -437,6 +455,8 @@ export function Hand({
         <TurnBanner
           banner={bannerFor(view, connectionStatus, seatId, seats)}
           marker={positionMarkerFor(seatId, view)}
+          turnEndsAt={null}
+          shotClockSeconds={shotClockSeconds}
         />
         <HoleCardsRegion
           cards={null}
@@ -468,6 +488,8 @@ export function Hand({
         <TurnBanner
           banner={bannerFor(view, connectionStatus, seatId, seats)}
           marker={positionMarkerFor(seatId, view)}
+          turnEndsAt={null}
+          shotClockSeconds={shotClockSeconds}
         />
         {myResult ? (
           <HoleCardsRegion
@@ -502,6 +524,8 @@ export function Hand({
       <TurnBanner
         banner={bannerFor(view, connectionStatus, seatId, seats)}
         marker={positionMarkerFor(seatId, view)}
+        turnEndsAt={view.legalActions.length > 0 ? view.turnEndsAt : null}
+        shotClockSeconds={shotClockSeconds}
       />
       {view.yourHoleCards ? (
         <HoleCardsRegion cards={view.yourHoleCards} actions={actions} />

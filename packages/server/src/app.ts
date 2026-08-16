@@ -86,6 +86,8 @@ export interface BuildAppOptions {
   readonly actionClockMs?: number;
   /** Injectable action clock for deterministic server tests. */
   readonly actionClock?: ActionClock;
+  /** Injectable wall clock for deterministic deadline assertions. */
+  readonly now?: () => number;
   /** How often the server pings every open socket (Phase 1 spec #130 §7). */
   readonly pingIntervalMs?: number;
   /** Missed pongs before a seat's badge flips to "disconnected". */
@@ -316,12 +318,12 @@ export async function buildApp(
       if (identity === "table") {
         send(socket, {
           type: "view-snapshot",
-          view: view(room.engine, "table"),
+          view: view(room.engine, "table", room.turnEndsAt),
         });
       } else if (isSeat(identity) && room.engine.seats.includes(identity)) {
         send(socket, {
           type: "view-snapshot",
-          view: view(room.engine, identity),
+          view: view(room.engine, identity, room.turnEndsAt),
         });
       }
     }
@@ -476,13 +478,13 @@ export async function buildApp(
         send(socket, {
           type: "hand-update",
           event: redactEventFor(step.event, "table"),
-          view: view(step.state, "table"),
+          view: view(step.state, "table", rooms.get(code)?.turnEndsAt),
         });
       } else if (isSeat(identity) && step.state.seats.includes(identity)) {
         send(socket, {
           type: "hand-update",
           event: redactEventFor(step.event, identity),
-          view: view(step.state, identity),
+          view: view(step.state, identity, rooms.get(code)?.turnEndsAt),
         });
       }
     }
@@ -628,12 +630,14 @@ export async function buildApp(
     const actor = rooms.currentActor(code);
     if (room === undefined || actor === undefined) {
       actionClock.clear(code);
+      if (room !== undefined) room.turnEndsAt = null;
       return;
     }
 
     const { enabled, seconds } = room.shotClockSettings;
     if (!enabled) {
       actionClock.clear(code);
+      room.turnEndsAt = null;
       return;
     }
 
@@ -644,6 +648,7 @@ export async function buildApp(
       options.actionClock === undefined && options.actionClockMs !== undefined
         ? options.actionClockMs
         : seconds * 1000;
+    room.turnEndsAt = (options.now ?? Date.now)() + timeoutMs;
     actionClock.schedule(code, timeoutMs, () => {
       const currentRoom = rooms.get(code);
       if (!currentRoom || rooms.currentActor(code) !== actor) {
@@ -689,6 +694,18 @@ export async function buildApp(
       applySeatMoves(code, result.seatMoves);
     }
     logDispatch(code, result);
+    if (options.actionClock === "preserve") {
+      if (rooms.currentActor(code) === undefined) {
+        actionClock.clear(code);
+        const room = rooms.get(code);
+        if (room !== undefined) room.turnEndsAt = null;
+      }
+    } else {
+      // Arm before the first hand-update is sent: every live view, including
+      // the HandStarted view, carries the deadline that governs the resulting
+      // actor. A reconnect snapshot reads the same room field.
+      rescheduleActionClock(code);
+    }
     for (const step of result.steps) {
       fanOutHandUpdate(code, step);
     }
@@ -697,11 +714,6 @@ export async function buildApp(
       result.steps.some((step) => step.event.type === "HandComplete")
     ) {
       if (rollBotSitStates(code)) broadcastRoomView(code);
-    }
-    if (options.actionClock === "preserve") {
-      if (rooms.currentActor(code) === undefined) actionClock.clear(code);
-    } else {
-      rescheduleActionClock(code);
     }
     scheduleBotAction(code);
   }
@@ -1065,7 +1077,7 @@ export async function buildApp(
             if (identity === "table") {
               send(socket, {
                 type: "view-snapshot",
-                view: view(room.engine, "table"),
+                view: view(room.engine, "table", room.turnEndsAt),
               });
             } else if (
               isSeat(identity) &&
@@ -1073,7 +1085,7 @@ export async function buildApp(
             ) {
               send(socket, {
                 type: "view-snapshot",
-                view: view(room.engine, identity),
+                view: view(room.engine, identity, room.turnEndsAt),
               });
             }
           }

@@ -14,6 +14,7 @@ describe("Hand", () => {
   it("uses the named seat in waiting copy", () => {
     const view: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -60,6 +61,7 @@ describe("Hand", () => {
   it("deals own hole cards in face-down, and never shows the shared board mid-hand", () => {
     const view: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -94,6 +96,7 @@ describe("Hand", () => {
   it("hides hole cards once folded, without a placeholder leak", () => {
     const view: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -119,6 +122,7 @@ describe("Hand", () => {
   it("shows the empty state, not the folded copy, when sitting out of the current hand", () => {
     const view: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -142,6 +146,7 @@ describe("Hand", () => {
   it("shows the turn banner announcing it's your turn when you have a legal action", () => {
     const view: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -163,9 +168,57 @@ describe("Hand", () => {
     expect(html).toContain("Your turn");
   });
 
+  it("renders the actor's ring from the server deadline", () => {
+    const turnEndsAt = Date.now() + 30_000;
+    const view: PlayerView = {
+      phase: "betting",
+      turnEndsAt,
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      street: "turn",
+      board: [],
+      toAct: [0],
+      seats: [{ seatId: 0, folded: false }],
+      yourSeatId: 0,
+      yourHoleCards: null,
+      legalActions: ["fold", "check"],
+    };
+    const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
+
+    expect(html).toContain('data-testid="turn-banner-shot-clock"');
+    expect(html).toContain("30");
+  });
+
+  it("does not mirror the table countdown on another player's phone", () => {
+    const view: PlayerView = {
+      phase: "betting",
+      turnEndsAt: Date.now() + 30_000,
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      street: "turn",
+      board: [],
+      toAct: [1],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 1, folded: false },
+      ],
+      yourSeatId: 0,
+      yourHoleCards: null,
+      legalActions: [],
+    };
+    const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
+
+    expect(html).not.toContain('data-testid="turn-banner-shot-clock"');
+  });
+
   it("shows a connection-aware banner instead of the turn state while reconnecting", () => {
     const view: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -346,6 +399,7 @@ describe("Hand", () => {
   describe("position marker (issue #207)", () => {
     const bettingView: PlayerView = {
       phase: "betting",
+      turnEndsAt: null,
       button: 0,
       smallBlind: 1,
       bigBlind: 2,

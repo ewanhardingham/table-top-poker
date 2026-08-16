@@ -5,6 +5,7 @@ import {
   positionMarkerColor,
   positionMarkerFor,
   positionMarkerLabel,
+  ShotClock,
   shadow,
   type PositionMarker,
 } from "@table-top-poker/ui-shared";
@@ -14,6 +15,8 @@ import { posFor } from "./table/posFor.js";
 export interface SeatsProps {
   readonly seats: readonly SeatView[];
   readonly view: TableView | null;
+  /** Current room setting, used only to scale the countdown colour ramp. */
+  readonly shotClockSeconds?: number;
   /** Called with a claimed seat's id when its pod is clicked — table-only, see ADR-0003. */
   readonly onSeatClick?: (seatId: number) => void;
 }
@@ -122,7 +125,12 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
  * is the only place `seats` and the in-progress `view` are merged into a
  * single per-seat picture — `Board` only ever renders the centre content.
  */
-export function Seats({ seats, view, onSeatClick }: SeatsProps) {
+export function Seats({
+  seats,
+  view,
+  shotClockSeconds = 90,
+  onSeatClick,
+}: SeatsProps) {
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
       {seats.map((seat) => {
@@ -146,6 +154,15 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
 
         const avatarBlock = (
           <div key="avatar" style={{ position: "relative" }}>
+            {visual.isActor && view?.phase === "betting" ? (
+              <ShotClock
+                turnEndsAt={view.turnEndsAt}
+                durationSeconds={shotClockSeconds}
+                variant="number"
+                testId="seat-shot-clock"
+                numberPosition="bottom-right"
+              />
+            ) : null}
             <div
               data-testid={`seat-pod-${String(seat.id)}-avatar`}
               style={{
