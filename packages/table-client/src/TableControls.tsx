@@ -55,6 +55,9 @@ export interface TableControlsProps {
   readonly onStartHand: () => void;
   readonly onNextHand: () => void;
   readonly onEndSession: () => void;
+  /** Test-mode-only control for filling free seats with virtual players. */
+  readonly testMode?: boolean;
+  readonly onAddBot?: () => void;
   /**
    * At showdown the reveal overlay owns "Next hand", so the rail offers "View
    * showdown" in that slot instead — reopening the overlay the operator
@@ -97,6 +100,8 @@ export function TableControls({
   onStartHand,
   onNextHand,
   onEndSession,
+  testMode = false,
+  onAddBot,
   atShowdown = false,
   onViewShowdown,
   placement = "rail",
@@ -152,6 +157,16 @@ export function TableControls({
           style={actionButtonStyle}
         >
           Review hands
+        </PillButton>
+      )}
+      {testMode && onAddBot && (
+        <PillButton
+          tone="outline"
+          data-testid="add-bot-button"
+          onClick={onAddBot}
+          style={actionButtonStyle}
+        >
+          Add bot
         </PillButton>
       )}
       <PillButton

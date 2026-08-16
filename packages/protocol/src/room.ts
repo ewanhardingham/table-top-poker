@@ -45,6 +45,13 @@ export const ClaimSeatRequestSchema = z.strictObject({
 
 export type ClaimSeatRequest = z.infer<typeof ClaimSeatRequestSchema>;
 
+/** Body of the test-mode table action that fills free seats with bots. */
+export const AddBotsRequestSchema = z.strictObject({
+  count: z.int().nonnegative(),
+});
+
+export type AddBotsRequest = z.infer<typeof AddBotsRequestSchema>;
+
 /** Body of a player releasing their own seat (ADR-0005) — the seat's token. */
 export const LeaveSeatRequestSchema = z.strictObject({
   token: z.string().min(1),
@@ -150,6 +157,8 @@ export interface SeatView {
   readonly claimed: boolean;
   /** The required display name for newer claims; absent on pre-name seats. */
   readonly displayName?: string | null;
+  /** Present only for test-mode bot seats. */
+  readonly bot?: boolean;
   readonly sittingOut: boolean;
   /** Why a claimed seat is absent from the current/next deal-in. */
   readonly sittingOutReason: SittingOutReason | null;

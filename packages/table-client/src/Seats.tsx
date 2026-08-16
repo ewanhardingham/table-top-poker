@@ -213,6 +213,31 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
                 </span>
               </span>
             )}
+            {seat.bot === true && (
+              <span
+                aria-label="Bot"
+                data-testid={`seat-pod-${String(seat.id)}-bot-marker`}
+                title="Bot"
+                style={{
+                  position: "absolute",
+                  bottom: "-0.4em",
+                  left: "-0.4em",
+                  width: MARKER_DIAMETER,
+                  height: MARKER_DIAMETER,
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: color.controlFill,
+                  color: color.textBright,
+                  boxShadow: shadow.card,
+                  fontSize: "0.8em",
+                  lineHeight: 1,
+                }}
+              >
+                🤖
+              </span>
+            )}
           </div>
         );
 
@@ -323,6 +348,7 @@ export function Seats({ seats, view, onSeatClick }: SeatsProps) {
             data-turn={visual.isActor}
             data-winner={visual.isWinner}
             data-disconnected={seat.disconnected}
+            data-bot={seat.bot === true}
             onClick={
               seat.claimed && onSeatClick
                 ? () => {

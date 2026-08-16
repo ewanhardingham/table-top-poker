@@ -99,7 +99,11 @@ const showdownHand: TableView = {
 };
 
 /** Puts the table in a room, with the seats claimed and hand state given. */
-function enterRoom(claimedSeats: number, handView: TableView | null) {
+function enterRoom(
+  claimedSeats: number,
+  handView: TableView | null,
+  testMode = false,
+) {
   store.overrides = {
     roomCode: "ABCD",
     joinUrl: "http://localhost:3000/join/ABCD",
@@ -107,6 +111,7 @@ function enterRoom(claimedSeats: number, handView: TableView | null) {
     seats: [0, 1].map((id) => seat(id, id < claimedSeats)),
     connectionStatus: "connected",
     handView,
+    testMode,
   };
 }
 
@@ -248,5 +253,17 @@ describe("App", () => {
     expect(html).not.toContain('data-testid="join-panel"');
     expect(html).toContain('data-testid="join-code-toggle"');
     expect(html).toContain('data-testid="connection-status"');
+  });
+
+  it("shows the test-mode Add bot control only when configured", () => {
+    enterRoom(2, null);
+    expect(renderToStaticMarkup(<App />)).not.toContain(
+      'data-testid="add-bot-button"',
+    );
+
+    enterRoom(2, null, true);
+    expect(renderToStaticMarkup(<App />)).toContain(
+      'data-testid="add-bot-button"',
+    );
   });
 });
