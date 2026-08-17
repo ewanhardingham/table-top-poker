@@ -1,4 +1,4 @@
-import type { TableView } from "@table-top-poker/protocol";
+import type { Card, TableView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -133,5 +133,49 @@ describe("Board", () => {
     expect(html).not.toContain("Pair of Aces");
     expect(html).toMatch(/data-testid="community-cards"/);
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(5);
+  });
+
+  it("renders the same shape for betting and showdown on an unchanged board", () => {
+    const board: readonly Card[] = [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "hearts" },
+      { rank: "2", suit: "clubs" },
+      { rank: "7", suit: "diamonds" },
+      { rank: "9", suit: "clubs" },
+    ];
+    const betting: TableView = {
+      phase: "betting",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      street: "river",
+      turnEndsAt: null,
+      board,
+      toAct: [1],
+      seats: [
+        { seatId: 0, folded: false },
+        { seatId: 1, folded: false },
+      ],
+    };
+    const showdown: TableView = {
+      phase: "showdown",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      board,
+      winners: [0],
+      results: [],
+    };
+
+    const stripPhase = (html: string) =>
+      html
+        .replace(/ data-phase="[^"]*"/, "")
+        .replace(/ data-street="[^"]*"/, "");
+
+    expect(stripPhase(renderToStaticMarkup(<Board view={showdown} />))).toBe(
+      stripPhase(renderToStaticMarkup(<Board view={betting} />)),
+    );
   });
 });
