@@ -1,5 +1,5 @@
 import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
 
@@ -8,6 +8,8 @@ export interface StatusBarProps {
   readonly connectionStatus: ConnectionStatus;
   readonly showRoomCode: boolean;
   readonly onOpenJoin: () => void;
+  /** What the device is showing, when that isn't simply the live table. */
+  readonly leading?: ReactNode;
 }
 
 const badgeTone: Record<
@@ -36,6 +38,7 @@ export function StatusBar({
   connectionStatus,
   showRoomCode,
   onOpenJoin,
+  leading,
 }: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
   return (
@@ -50,6 +53,7 @@ export function StatusBar({
         padding: "16px 22px",
       }}
     >
+      {leading}
       {roomCode !== null && showRoomCode && (
         <JoinCodeToggle roomCode={roomCode} onOpen={onOpenJoin} />
       )}

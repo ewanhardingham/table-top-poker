@@ -45,6 +45,22 @@ describe("StatusBar", () => {
     );
   });
 
+  it("renders leading content at the left end, ahead of the room code", () => {
+    const html = renderToStaticMarkup(
+      <StatusBar
+        roomCode="ABCD"
+        connectionStatus="connected"
+        showRoomCode={true}
+        onOpenJoin={noop}
+        leading={<span data-testid="leading">Hand 3</span>}
+      />,
+    );
+    expect(html).toContain("Hand 3");
+    expect(html.indexOf('data-testid="leading"')).toBeLessThan(
+      html.indexOf('data-testid="join-code-toggle"'),
+    );
+  });
+
   it("keeps the connection badge while hiding the room code before the hand starts", () => {
     const html = renderToStaticMarkup(
       <StatusBar
