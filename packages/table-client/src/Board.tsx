@@ -5,6 +5,8 @@ import type {
 } from "@table-top-poker/protocol";
 import { Card, color, font } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
+import { useEffect, useRef } from "react";
+import { boardKeys, dealBoard } from "./boardDeal.js";
 import { seatLabel } from "./seatLabel.js";
 
 export interface BoardProps {
@@ -12,18 +14,29 @@ export interface BoardProps {
   readonly seats?: readonly SeatView[];
 }
 
+/**
+ * The community cards, with a Motion deal-in for the cards that have just
+ * arrived — see `docs/design/board-card-entry.md`.
+ */
 function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
+  const dealtBefore = useRef<ReadonlySet<string>>(new Set());
+  const dealt = dealBoard(board, dealtBefore.current);
+
+  useEffect(() => {
+    dealtBefore.current = boardKeys(board);
+  });
+
   return (
     <div
       data-testid="community-cards"
       style={{ display: "flex", gap: "0.4em", fontSize: "2.4em" }}
     >
-      {board.map((card, i) => (
+      {dealt.map(({ card, key, initial, duration, delay }) => (
         <motion.div
-          key={i}
-          initial={{ opacity: 0, y: -18, rotate: -6, scale: 0.9 }}
+          key={key}
+          initial={initial}
           animate={{ opacity: 1, y: 0, rotate: 0, scale: 1 }}
-          transition={{ duration: 0.4, delay: i * 0.08 }}
+          transition={{ duration, delay }}
         >
           <Card rank={card.rank} suit={card.suit} />
         </motion.div>
@@ -83,36 +96,25 @@ export function Board({ view, seats = [] }: BoardProps) {
     );
   }
 
-  if (view.phase === "folded-out") {
-    return (
-      <div data-testid="board" data-phase="folded-out">
+  return (
+    <div
+      data-testid="board"
+      data-phase={view.phase}
+      data-street={view.phase === "betting" ? view.street : undefined}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "0.6em",
+      }}
+    >
+      {view.phase === "folded-out" ? (
         <HandCompleteBanner
           text={`${seatLabel(view.winner, seats)} wins — everyone folded`}
         />
-      </div>
-    );
-  }
-
-  if (view.phase === "showdown") {
-    return (
-      <div
-        data-testid="board"
-        data-phase="showdown"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "0.6em",
-        }}
-      >
+      ) : (
         <CommunityCards board={view.board} />
-      </div>
-    );
-  }
-
-  return (
-    <div data-testid="board" data-phase="betting" data-street={view.street}>
-      <CommunityCards board={view.board} />
+      )}
     </div>
   );
 }
