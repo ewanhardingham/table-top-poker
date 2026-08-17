@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import { handStartContextFor } from "@table-top-poker/recording";
+import type { RoomOperation } from "@table-top-poker/recording";
 import {
   apply,
   createInitialState,
@@ -51,6 +53,13 @@ export interface Room {
   readonly code: string;
   readonly seats: Seat[];
   engine: EngineState | null;
+  /**
+   * Counts committed engine operations. A caller that captured it earlier can
+   * ask the only question that makes a queued auto-fold safe — "has anything
+   * happened since?" — which the Actor's identity alone cannot answer (Phase 2
+   * spec #129 §3).
+   */
+  revision: number;
   pendingSeatCount: number | null;
   turnEndsAt: number | null;
   pendingShotClock: ShotClockSettings | null;
@@ -83,7 +92,8 @@ export type ClaimSeatError =
 export type ClaimSeatResult = { seat: Seat } | { error: ClaimSeatError };
 
 export interface EvictSeatResult {
-  readonly dispatch?: DispatchSuccess;
+  /** Present when freeing the seat needs an engine operation recorded first. */
+  readonly transaction?: DispatchTransaction;
 }
 
 export type ChangeSeatCountError = Exclude<
@@ -108,14 +118,32 @@ export interface DispatchSuccess {
   readonly seatMoves?: readonly SeatMove[];
 }
 
+/**
+ * An accepted dispatch that has changed nothing yet: the Room still holds the
+ * engine state, the seats and the pending seat count it had before. The caller
+ * records {@link operation}, then calls {@link commit} — or {@link discard} if
+ * the append failed — so nothing is ever broadcast that was not recorded first
+ * (Phase 2 spec #129 §3). The obligation rides on the handle rather than on a
+ * convention a later edit can quietly drop, so settling twice throws.
+ */
+export interface DispatchTransaction extends DispatchSuccess {
+  readonly operation: RoomOperation;
+  /** Applies the staged changes to the Room and bumps its revision. */
+  commit(): void;
+  /** Abandons them, leaving the Room exactly as the dispatch found it. */
+  discard(): void;
+}
+
 export interface DispatchRejection {
   readonly reason: DispatchRejectionReason;
   readonly command?: Command;
   readonly rejection?: Rejection;
+  /** Absent for a refusal the engine never saw, which is not recordable. */
+  readonly operation?: RoomOperation;
 }
 
 export type DispatchResult =
-  | DispatchSuccess
+  | DispatchTransaction
   | { readonly error: "room-not-found" | "not-permitted" }
   | DispatchRejection;
 
@@ -137,11 +165,13 @@ function makeSeats(seatCount: number): Seat[] {
 }
 
 interface SeatRepack {
+  /** The seat row the Room takes on, ready to replace `room.seats`. */
+  readonly seats: readonly Seat[];
   readonly moves: readonly SeatMove[];
   readonly mapping: ReadonlyMap<SeatId, SeatId>;
 }
 
-function repackSeats(room: Room, seatCount: number): SeatRepack {
+function planRepack(room: Room, seatCount: number): SeatRepack {
   const claimed = room.seats.filter((seat) => seat.claimed);
   const replacement = makeSeats(seatCount);
   const mapping = new Map<SeatId, SeatId>();
@@ -170,8 +200,12 @@ function repackSeats(room: Room, seatCount: number): SeatRepack {
     };
   });
 
-  room.seats.splice(0, room.seats.length, ...replacement);
-  return { moves, mapping };
+  return { seats: replacement, moves, mapping };
+}
+
+function applyRepack(room: Room, repack: SeatRepack): void {
+  room.seats.splice(0, room.seats.length, ...repack.seats);
+  room.pendingSeatCount = null;
 }
 
 function remapSeatId(
@@ -218,18 +252,14 @@ function remapCompletedEngineState(
   };
 }
 
-function emptySeatRepack(): SeatRepack {
-  return { moves: [], mapping: new Map() };
-}
+const NO_SEAT_MAPPING: ReadonlyMap<SeatId, SeatId> = new Map();
 
-function applyPendingShrink(room: Room): SeatRepack {
-  if (room.pendingSeatCount === null) return emptySeatRepack();
-  const repack = repackSeats(
+function planPendingShrink(room: Room): SeatRepack | undefined {
+  if (room.pendingSeatCount === null) return undefined;
+  return planRepack(
     room,
     Math.max(room.pendingSeatCount, claimedSeatFloor(room)),
   );
-  room.pendingSeatCount = null;
-  return repack;
 }
 
 function applyPendingShotClock(room: Room): void {
@@ -250,8 +280,8 @@ function appliedSeatCountChange(
   };
 }
 
-function eligibleSeats(room: Room): SeatId[] {
-  return room.seats
+function eligibleSeats(seats: readonly Seat[]): SeatId[] {
+  return seats
     .filter((seat) => seat.claimed && !seat.disconnected && !seat.sittingOut)
     .map((seat) => seat.id);
 }
@@ -312,6 +342,41 @@ function resolveButtonFor(
   return ordered.find((id) => id > previousButton) ?? first;
 }
 
+/**
+ * Turns an accepted dispatch into the whole operation the recording takes.
+ * The state right after `HandStarted` is where a Hand's seats and button are
+ * fixed; nothing later in the same operation moves them.
+ */
+function toRoomOperation(
+  success: DispatchSuccess,
+  now: () => Date,
+): RoomOperation {
+  const events = success.steps.map((step) => step.event);
+  const opening = success.steps.find(
+    (step) => step.event.type === "HandStarted",
+  );
+  const context =
+    opening === undefined
+      ? undefined
+      : handStartContextFor(events, opening.state, now);
+  return {
+    ...(context === undefined ? {} : { context }),
+    command: success.command,
+    outcome: events,
+  };
+}
+
+/** Everything a committed dispatch changes about its Room, and nothing else. */
+interface StagedTransition {
+  readonly engine: EngineState;
+  /** A pending shrink this dispatch takes up, seat row and all. */
+  readonly repack?: SeatRepack;
+  /** The seats this dispatch deals in, when it opens a Hand. */
+  readonly dealIn?: readonly SeatId[];
+  /** A seat whose eviction waits on the engine operation that covers it. */
+  readonly freedSeat?: SeatId;
+}
+
 export class RoomStore {
   readonly #rooms = new Map<string, Room>();
   /** Codes reserved by staged-but-uncommitted rooms, so two never collide. */
@@ -320,17 +385,20 @@ export class RoomStore {
   readonly #generateToken: () => string;
   readonly #generateSeed: () => string;
   readonly #generateRoomId: () => string;
+  readonly #now: () => Date;
 
   constructor(
     random: () => number = Math.random,
     generateToken: () => string = randomUUID,
     generateSeed: () => string = randomUUID,
     generateRoomId: () => string = randomUUID,
+    now: () => Date = () => new Date(),
   ) {
     this.#random = random;
     this.#generateToken = generateToken;
     this.#generateSeed = generateSeed;
     this.#generateRoomId = generateRoomId;
+    this.#now = now;
   }
 
   /**
@@ -356,6 +424,7 @@ export class RoomStore {
       code,
       seats: makeSeats(seatCount),
       engine: null,
+      revision: 0,
       pendingSeatCount: null,
       turnEndsAt: null,
       pendingShotClock: null,
@@ -472,17 +541,21 @@ export class RoomStore {
     return `Bot ${String(number)}`;
   }
 
+  /**
+   * Frees a seat, folding the hand it is holding first. Where a fold is
+   * needed the seat is not freed here: it is freed by the returned
+   * transaction, so the seat and the engine operation that covers it land
+   * together or not at all.
+   */
   evictSeat(code: string, seatId: SeatId): EvictSeatResult {
     const room = this.#rooms.get(code);
     const seat = room?.seats[seatId];
     if (!seat) return {};
 
     if (this.currentActor(code) === seatId) {
-      const result = this.dispatch(code, seatId, "fold");
-      if (!("steps" in result)) return {};
-
-      freeSeat(seat);
-      return { dispatch: result };
+      const result = this.#dispatch(code, seatId, "fold", seatId);
+      if (!("commit" in result)) return {};
+      return { transaction: result };
     }
 
     const hand = room.engine?.hand;
@@ -494,11 +567,9 @@ export class RoomStore {
       player !== undefined &&
       !player.folded
     ) {
-      const result = this.#dispatchEviction(room, seatId);
-      if (result === undefined) return {};
-
-      freeSeat(seat);
-      return { dispatch: result };
+      const transaction = this.#stageEviction(room, seatId);
+      if (transaction === undefined) return {};
+      return { transaction };
     }
 
     freeSeat(seat);
@@ -551,11 +622,11 @@ export class RoomStore {
       };
     }
 
-    const repack = repackSeats(room, seatCount);
+    const repack = planRepack(room, seatCount);
+    applyRepack(room, repack);
     if (room.engine !== null && isHandComplete(room.engine)) {
       room.engine = remapCompletedEngineState(room.engine, repack.mapping);
     }
-    room.pendingSeatCount = null;
     return appliedSeatCountChange(room, repack.moves);
   }
 
@@ -611,10 +682,24 @@ export class RoomStore {
     seat.disconnected = disconnected;
   }
 
+  /**
+   * Decides one Command against the Room and stages what it would change,
+   * without changing anything. Every filesystem-free, synchronous decision
+   * lives here; the caller sequences the append and the commit.
+   */
   dispatch(
     code: string,
     identity: SeatId | "table",
     type: SeatCommandType,
+  ): DispatchResult {
+    return this.#dispatch(code, identity, type);
+  }
+
+  #dispatch(
+    code: string,
+    identity: SeatId | "table",
+    type: SeatCommandType,
+    freedSeat?: SeatId,
   ): DispatchResult {
     const room = this.#rooms.get(code);
     if (!room) return { error: "room-not-found" };
@@ -624,61 +709,84 @@ export class RoomStore {
       return { error: "not-permitted" };
     }
 
-    let seatMoves: readonly SeatMove[] = [];
+    let repack: SeatRepack | undefined;
     let candidateEngine = room.engine;
+    let opensHand = false;
     if (type === "startHand" && room.engine === null) {
-      const dealIn = eligibleSeats(room);
+      const dealIn = eligibleSeats(room.seats);
       if (dealIn.length < 2) return { reason: "not-enough-players" };
       candidateEngine = createInitialState(dealIn);
+      opensHand = true;
     } else if (type === "nextHand" && room.engine !== null) {
-      if (eligibleSeats(room).length < 2) {
+      if (eligibleSeats(room.seats).length < 2) {
         return { reason: "not-enough-players" };
       }
 
-      const repack = isHandComplete(room.engine)
-        ? applyPendingShrink(room)
-        : emptySeatRepack();
-      seatMoves = repack.moves;
-      const previousButton = remapSeatId(room.engine.button, repack.mapping);
-      const dealIn = eligibleSeats(room);
+      repack = isHandComplete(room.engine)
+        ? planPendingShrink(room)
+        : undefined;
+      const previousButton = remapSeatId(
+        room.engine.button,
+        repack?.mapping ?? NO_SEAT_MAPPING,
+      );
+      const dealIn = eligibleSeats(repack?.seats ?? room.seats);
       candidateEngine = {
         ...room.engine,
         seats: dealIn,
         button: resolveButtonFor(previousButton, dealIn),
       };
+      opensHand = true;
     }
 
     if (candidateEngine === null) return { reason: "hand-not-in-progress" };
 
     const command = this.#buildCommand(identity, type);
-    const result = this.#runEngineCommand(room, candidateEngine, command);
-    if (!("steps" in result)) return result;
+    const decided = this.#decide(candidateEngine, command);
+    if (!("steps" in decided)) return decided;
 
-    if (type === "startHand" || type === "nextHand") {
-      updateWaitingForNextHand(room, candidateEngine.seats);
-      applyPendingShotClock(room);
-    }
-
-    return seatMoves.length > 0 ? { ...result, seatMoves } : result;
+    const seatMoves = repack?.moves ?? [];
+    return this.#stage(
+      room,
+      {
+        engine: decided.engine,
+        ...(repack === undefined ? {} : { repack }),
+        ...(opensHand ? { dealIn: candidateEngine.seats } : {}),
+        ...(freedSeat === undefined ? {} : { freedSeat }),
+      },
+      {
+        command,
+        steps: decided.steps,
+        ...(seatMoves.length > 0 ? { seatMoves } : {}),
+      },
+    );
   }
 
-  #dispatchEviction(room: Room, seatId: SeatId): DispatchSuccess | undefined {
+  #stageEviction(room: Room, seatId: SeatId): DispatchTransaction | undefined {
     if (room.engine === null) return undefined;
-    const result = this.#runEngineCommand(room, room.engine, {
-      type: "evict",
-      seatId,
-    });
-    return "steps" in result ? result : undefined;
+    const command: Command = { type: "evict", seatId };
+    const decided = this.#decide(room.engine, command);
+    if (!("steps" in decided)) return undefined;
+    return this.#stage(
+      room,
+      { engine: decided.engine, freedSeat: seatId },
+      { command, steps: decided.steps },
+    );
   }
 
-  #runEngineCommand(
-    room: Room,
+  #decide(
     candidateEngine: EngineState,
     command: Command,
-  ): DispatchSuccess | DispatchRejection {
+  ):
+    | { readonly steps: readonly DispatchStep[]; readonly engine: EngineState }
+    | DispatchRejection {
     const result = decide(candidateEngine, command);
     if (!Array.isArray(result)) {
-      return { reason: result.reason, command, rejection: result };
+      return {
+        reason: result.reason,
+        command,
+        rejection: result,
+        operation: { command, outcome: result },
+      };
     }
 
     const steps: DispatchStep[] = [];
@@ -687,8 +795,41 @@ export class RoomStore {
       state = apply(state, event);
       steps.push({ event, state });
     }
-    room.engine = state;
-    return { command, steps };
+    return { steps, engine: state };
+  }
+
+  #stage(
+    room: Room,
+    transition: StagedTransition,
+    success: DispatchSuccess,
+  ): DispatchTransaction {
+    let settled = false;
+    const settle = () => {
+      if (settled) throw new Error("dispatch transaction already settled");
+      settled = true;
+    };
+
+    return {
+      ...success,
+      operation: toRoomOperation(success, this.#now),
+      commit: () => {
+        settle();
+        if (transition.repack !== undefined) {
+          applyRepack(room, transition.repack);
+        }
+        if (transition.dealIn !== undefined) {
+          updateWaitingForNextHand(room, transition.dealIn);
+          applyPendingShotClock(room);
+        }
+        if (transition.freedSeat !== undefined) {
+          const seat = room.seats[transition.freedSeat];
+          if (seat) freeSeat(seat);
+        }
+        room.engine = transition.engine;
+        room.revision += 1;
+      },
+      discard: settle,
+    };
   }
 
   #buildCommand(identity: SeatId | "table", type: SeatCommandType): Command {

@@ -29,16 +29,53 @@ those never reach `view(state, seatId)` or presence tracking.
 - The **action clock** (`action-clock.ts`, `rescheduleActionClock`) is fully
   decoupled from socket state (§7): folding is strictly clock-driven, and only
   `dispatch` outcomes move the clock. It re-arms against the live actor after
-  every accepted command (real or synthesized), and arms *before* the first
-  hand-update so every live view (including `HandStarted`) carries the deadline
-  and a reconnect snapshot reads the same `room.turnEndsAt`. On timeout it
-  preserves a free check (reads `legalActions` at fire time), else folds.
+  every committed command (real or synthesized) and *before* the first
+  hand-update, so every live view (including `HandStarted`) carries the deadline
+  and a reconnect snapshot reads the same `room.turnEndsAt`. Arming after the
+  commit is what keeps append latency out of a player's thinking time. On
+  timeout it preserves a free check (reads `legalActions` at fire time), else
+  folds.
+- `"preserve"` (a non-actor eviction) keeps the actor's existing deadline rather
+  than granting a fresh interval, but still re-arms the timer so it carries the
+  revision that eviction produced — see the commit seam below.
 - Timers everywhere here **re-read room state at fire time** (bot actions, clock
   timeouts): a scheduled callback may outlive an intervening human action,
   eviction, hand completion, or teardown, even after its own timer was replaced.
-  A synthesized action being rejected is not expected (the actor was live at
-  schedule time and any real action would have replaced the timer), but the
-  recovery path re-arms rather than stalls.
+  A synthesized action being rejected is not expected, but the recovery path
+  re-arms rather than stalls.
+
+## The commit seam and the Room operation queue
+
+Nothing is broadcast before it is recorded (Phase 2 spec #129 §3, issue #118).
+
+- `RoomStore.dispatch` is **pure and synchronous**: it decides the Command
+  against the Room and returns a `DispatchTransaction` — the staged steps plus
+  the `RoomOperation` the recording takes — having changed nothing. The engine
+  reassignment, the pending seat shrink, the `pendingSeatCount` clear, the
+  `waitingForNextHand` recompute, the pending shot-clock take-up and an evicted
+  seat's release all happen in `commit()`, not before the outcome is known.
+  That ordering is what retires the class of bug #95 was an instance of, where a
+  rejected `nextHand` had already rewritten the live hand's seats and button.
+  Settling a transaction twice throws: the obligation rides on the handle rather
+  than on a convention a later edit can drop.
+- `app.ts` sequences it — `append` → `commit()` (or `discard()` on failure) →
+  broadcast — in `publishDispatch`. A refused append is dropped and logged; the
+  table-facing recovery is issue #121's recording-paused state. A Room with no
+  open recording at all is a bug in this server rather than a disk failure, so
+  it is logged loudly and played on: refusing would strand the table.
+- `app.ts` owns **one operation queue per Room** (`enqueue`). Socket Commands,
+  clock-driven folds and Seat mutations run one at a time in arrival order;
+  other Rooms are unaffected. HTTP seat routes await their turn in it, so a
+  reply never races the broadcast it caused.
+- The Room holds a **monotonic `revision`**, bumped on every committed
+  transaction and by nothing else — a rejection or a Seat mutation changes no
+  engine state and must not invalidate a queued fold, or the hand would stall.
+  A queued clock-fold captures the revision when the clock is armed and is
+  discarded on dequeue if the Room has advanced at all. Actor-matching is not
+  enough: heads-up the non-button seat acts *last* preflop and *first* on the
+  flop (`initialToAct`), so a fold queued behind that seat's own check finds it
+  legitimately back on the clock a beat later. Every revision bump re-arms the
+  clock, so discarding a stale fold never leaves a Room without one.
 
 ## Seat lifecycle at the transport
 
@@ -95,10 +132,10 @@ seats. RNG draws are guarded so a seat that can't act never consumes a draw
 (keeping a deterministic RNG stable across the sequence). `unitRandom` clamps
 injected values into `[0, 1)` without rounding a valid `MAX_UNIT_RANDOM`.
 
-## Persistence (`packages/persistence`)
+## Recording (`packages/recording`)
 
-`HandLog` is an append-as-you-go JSONL logger: a seats manifest written once,
-then a command/event file pair per hand. Every write is a single synchronous
-`fs` call, so a killed process loses at most the one record it was mid-write on,
-never a batch. The game id is validated (it becomes a directory name). Records
-carry `ENGINE_LOG_VERSION` for replay/audit.
+One `RoomRecording` per live Room, opened by `POST /rooms` before the Room is
+joinable and closed when it ends or the app does. It takes whole operations, and
+owns ordering, retry, confirmed offsets and rollback itself; the server hands it
+`transaction.operation` and waits. Its filesystem is injected, so every failure
+path is testable and the shipped server has no way to make itself fail.

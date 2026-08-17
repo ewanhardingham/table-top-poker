@@ -21,7 +21,6 @@ import {
   type SeatMove,
   type ServerMessage,
 } from "@table-top-poker/protocol";
-import { handStartContextFor } from "@table-top-poker/recording";
 import type {
   Recordings,
   RoomOperation,
@@ -48,7 +47,8 @@ import {
   type ClaimSeatError,
   type DispatchRejection,
   type DispatchStep,
-  type DispatchSuccess,
+  type DispatchTransaction,
+  type EvictSeatResult,
   type Room,
   RoomStore,
   toRoomView,
@@ -220,30 +220,6 @@ function authenticateSeat(
   };
 }
 
-/**
- * Turns an accepted dispatch into the whole operation the recording takes.
- * The state right after `HandStarted` is where a Hand's seats and button are
- * fixed; nothing later in the same operation moves them.
- */
-function toHandOperation(
-  result: DispatchSuccess,
-  now: () => Date,
-): RoomOperation {
-  const events = result.steps.map((step) => step.event);
-  const opening = result.steps.find(
-    (step) => step.event.type === "HandStarted",
-  );
-  const context =
-    opening === undefined
-      ? undefined
-      : handStartContextFor(events, opening.state, now);
-  return {
-    ...(context === undefined ? {} : { context }),
-    command: result.command,
-    outcome: events,
-  };
-}
-
 function seatCountBodyError(
   issues: readonly { readonly path: readonly PropertyKey[] }[],
 ): Extract<
@@ -304,13 +280,57 @@ export async function buildApp(
   const actionClock =
     options.actionClock ?? new ActionClock(options.actionClockMs);
   const socketRoomCode = new Map<WebSocket, string>();
+  /**
+   * One operation queue per Room. Socket Commands, clock-driven folds and Seat
+   * mutations enter their Room's queue in arrival order and run one at a time,
+   * so an awaited append can never be overtaken by the next operation; other
+   * Rooms are untouched by it (Phase 2 spec #129 §3). The tail is dropped once
+   * it drains, leaving nothing behind for an idle Room.
+   */
+  const roomQueues = new Map<string, Promise<unknown>>();
   const pingMissed = new Map<WebSocket, number>();
   const evictedSockets = new WeakSet<WebSocket>();
   const tableGraceTimers = new Map<string, NodeJS.Timeout>();
   const botActionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const app = Fastify();
 
+  function enqueue<T>(
+    code: string,
+    operation: () => Promise<T> | T,
+  ): Promise<T> {
+    const queued = (roomQueues.get(code) ?? Promise.resolve()).then(
+      operation,
+      operation,
+    );
+    const tail = queued.then(
+      () => undefined,
+      () => undefined,
+    );
+    roomQueues.set(code, tail);
+    void tail.then(() => {
+      if (roomQueues.get(code) === tail) roomQueues.delete(code);
+    });
+    return queued;
+  }
+
+  /**
+   * Queues work nothing awaits — a socket Command, a fired timer. Their
+   * failures have nowhere to be returned to, so they land in the log rather
+   * than as an unhandled rejection.
+   */
+  function enqueueDetached(
+    code: string,
+    operation: () => Promise<void> | void,
+  ): void {
+    void enqueue(code, operation).catch((error: unknown) => {
+      app.log.error({ err: error, room: code }, "room operation failed");
+    });
+  }
+
   function send(socket: WebSocket, message: ServerMessage): void {
+    // A queued operation outlives the message that started it, so its socket
+    // may have gone in between; `ws` treats a send after close as an error.
+    if (socket.readyState !== socket.OPEN) return;
     socket.send(JSON.stringify(message));
   }
 
@@ -516,39 +536,46 @@ export async function buildApp(
   }
 
   /**
-   * Hands the room's recording one whole engine operation — the command, the
-   * events or rejection it produced, and the Hand context when it opens a
-   * Hand. The recording owns ordering, so this is not awaited here; issue
-   * #118 moves the await in front of the broadcast.
+   * Hands the room's recording one whole engine operation and waits for it to
+   * be confirmed on disk. Answers whether the operation may now be applied and
+   * broadcast: nothing is published before its append confirms (Phase 2 spec
+   * #129 §3).
    */
-  function recordDispatch(
+  async function appendOperation(
     code: string,
-    result: DispatchRejection | DispatchSuccess,
-  ): void {
-    if (result.command === undefined) return;
+    operation: RoomOperation,
+  ): Promise<boolean> {
     const recording = roomRecordings.get(code);
     if (recording === undefined) {
       // Every room created through `POST /rooms` has one. Reaching here means
       // play is happening unrecorded, which the Room invariant forbids — so
-      // it is a loud bug, never a quiet skip (Phase 2 spec #129 §3).
+      // it is a loud bug, never a quiet skip (Phase 2 spec #129 §3). The Room
+      // is still played out: refusing the operation would strand the table on
+      // a bug of ours, and losing the transcript is the smaller harm.
       app.log.error({ room: code }, "dispatch in a room with no recording");
-      return;
+      return true;
     }
 
-    const operation =
-      "steps" in result
-        ? toHandOperation(result, now)
-        : result.rejection === undefined
-          ? undefined
-          : { command: result.command, outcome: result.rejection };
-    if (operation === undefined) return;
-
-    void recording.append(operation).catch((error: unknown) => {
+    try {
+      await recording.append(operation);
+      return true;
+    } catch (error) {
       // Filesystem detail belongs in operational logs, never on the wire.
-      // Telling the table and blocking play is issue #121's recording-paused
-      // state; until then a failure is loud here and nowhere else.
+      // Telling the table and offering Retry / Continue without recording /
+      // End session is issue #121's recording-paused state; until then the
+      // operation is dropped, loudly here and nowhere else.
       app.log.error({ err: error, room: code }, "recording append failed");
-    });
+      return false;
+    }
+  }
+
+  /** Records a refusal the engine ruled on. It changes nothing, so it commits nothing. */
+  async function recordRejection(
+    code: string,
+    rejection: DispatchRejection,
+  ): Promise<void> {
+    if (rejection.operation === undefined) return;
+    await appendOperation(code, rejection.operation);
   }
 
   const pingTimer = setInterval(() => {
@@ -666,37 +693,41 @@ export async function buildApp(
     const timer = setTimeout(
       () => {
         botActionTimers.delete(code);
+        enqueueDetached(code, async () => {
+          const currentRoom = rooms.get(code);
+          if (!currentRoom || rooms.currentActor(code) !== actor) return;
+          const currentSeat = currentRoom.seats[actor];
+          if (!currentSeat?.claimed || currentSeat.bot !== true) return;
+          const engine = currentRoom.engine;
+          if (engine?.hand?.status !== "betting") return;
 
-        const currentRoom = rooms.get(code);
-        if (!currentRoom || rooms.currentActor(code) !== actor) return;
-        const currentSeat = currentRoom.seats[actor];
-        if (!currentSeat?.claimed || currentSeat.bot !== true) return;
-        const engine = currentRoom.engine;
-        if (engine?.hand?.status !== "betting") return;
+          const actorView = view(engine, actor);
+          if (
+            actorView.phase !== "betting" ||
+            actorView.legalActions.length === 0
+          ) {
+            return;
+          }
 
-        const actorView = view(engine, actor);
-        if (
-          actorView.phase !== "betting" ||
-          actorView.legalActions.length === 0
-        ) {
-          return;
-        }
-
-        const action = chooseBotAction(actorView.legalActions, botRng);
-        const result = rooms.dispatch(code, actor, action);
-        if (!("steps" in result)) {
-          rescheduleActionClock(code);
-          scheduleBotAction(code);
-          return;
-        }
-        publishDispatch(code, result);
+          const action = chooseBotAction(actorView.legalActions, botRng);
+          const result = rooms.dispatch(code, actor, action);
+          if (!("commit" in result)) {
+            rescheduleActionClock(code);
+            scheduleBotAction(code);
+            return;
+          }
+          await publishDispatch(code, result);
+        });
       },
       sampleBotActionDelay(botActionDelay, botRng),
     );
     botActionTimers.set(code, timer);
   }
 
-  function rescheduleActionClock(code: string): void {
+  function rescheduleActionClock(
+    code: string,
+    policy: ActionClockPolicy = "reschedule",
+  ): void {
     const room = rooms.get(code);
     const actor = rooms.currentActor(code);
     if (room === undefined || actor === undefined) {
@@ -712,65 +743,89 @@ export async function buildApp(
       return;
     }
 
-    const timeoutMs =
+    const fullInterval =
       options.actionClock === undefined && options.actionClockMs !== undefined
         ? options.actionClockMs
         : seconds * 1000;
-    room.turnEndsAt = now().getTime() + timeoutMs;
+    // "preserve" keeps the Actor's existing deadline — another Seat's eviction
+    // must not hand them a fresh interval — but still re-arms the timer, so it
+    // carries the revision that eviction produced. Left alone, the fold it
+    // fires would dequeue stale and never be replaced.
+    const preserved = policy === "preserve" ? room.turnEndsAt : null;
+    const timeoutMs =
+      preserved === null
+        ? fullInterval
+        : Math.max(preserved - now().getTime(), 0);
+    room.turnEndsAt = preserved ?? now().getTime() + fullInterval;
+    // The revision this clock was armed against. A fired timer is no longer a
+    // timer — it is an operation queued behind whatever else arrived first,
+    // and clearing the timer cannot recall it. "Nothing has happened since I
+    // was scheduled" is the precondition for an auto-fold, and the Actor's
+    // identity cannot state it: heads-up, the non-button Seat acts last
+    // preflop and first on the flop, so a stale fold can find its Seat back on
+    // the clock a beat later, having just checked (Phase 2 spec #129 §3).
+    const scheduledAt = room.revision;
     actionClock.schedule(code, timeoutMs, () => {
-      const currentRoom = rooms.get(code);
-      if (!currentRoom || rooms.currentActor(code) !== actor) {
-        rescheduleActionClock(code);
-        return;
-      }
+      enqueueDetached(code, async () => {
+        const currentRoom = rooms.get(code);
+        if (currentRoom?.revision !== scheduledAt) return;
+        if (rooms.currentActor(code) !== actor) {
+          rescheduleActionClock(code);
+          return;
+        }
 
-      const actorView =
-        currentRoom.engine === null
-          ? undefined
-          : view(currentRoom.engine, actor);
-      const action =
-        actorView?.phase === "betting" &&
-        actorView.legalActions.includes("check")
-          ? "check"
-          : "fold";
-      const result = rooms.dispatch(code, actor, action);
-      if ("steps" in result) {
-        publishDispatch(code, result);
-        return;
-      }
-      rescheduleActionClock(code);
+        const actorView =
+          currentRoom.engine === null
+            ? undefined
+            : view(currentRoom.engine, actor);
+        const action =
+          actorView?.phase === "betting" &&
+          actorView.legalActions.includes("check")
+            ? "check"
+            : "fold";
+        const result = rooms.dispatch(code, actor, action);
+        if ("commit" in result) {
+          await publishDispatch(code, result);
+          return;
+        }
+        rescheduleActionClock(code);
+      });
     });
   }
 
-  function publishDispatch(
+  /**
+   * Records an accepted dispatch, commits it, and only then tells the room.
+   * The order is the whole point of the seam: the append may fail, and an
+   * operation that failed to record is one the room must never have seen.
+   */
+  async function publishDispatch(
     code: string,
-    result: DispatchSuccess,
+    transaction: DispatchTransaction,
     options: {
       readonly actionClock?: ActionClockPolicy;
     } = {},
-  ): void {
-    if (result.seatMoves !== undefined) {
-      applySeatMoves(code, result.seatMoves);
+  ): Promise<void> {
+    if (!(await appendOperation(code, transaction.operation))) {
+      transaction.discard();
+      return;
     }
-    recordDispatch(code, result);
-    if (options.actionClock === "preserve") {
-      if (rooms.currentActor(code) === undefined) {
-        actionClock.clear(code);
-        const room = rooms.get(code);
-        if (room !== undefined) room.turnEndsAt = null;
-      }
-    } else {
-      rescheduleActionClock(code);
+    transaction.commit();
+
+    if (transaction.seatMoves !== undefined) {
+      applySeatMoves(code, transaction.seatMoves);
     }
-    for (const step of result.steps) {
+    // The clock arms only now, so a slow append is never deducted from the
+    // next player's thinking time.
+    rescheduleActionClock(code, options.actionClock ?? "reschedule");
+    for (const step of transaction.steps) {
       fanOutHandUpdate(code, step);
     }
     // After the fan-out: the summary describes a hand the room has already
     // seen, so no table learns of a completed hand before its last Event.
-    accumulateHandSummary(code, result.steps);
+    accumulateHandSummary(code, transaction.steps);
     if (
       testMode &&
-      result.steps.some((step) => step.event.type === "HandComplete")
+      transaction.steps.some((step) => step.event.type === "HandComplete")
     ) {
       if (rollBotSitStates(code)) broadcastRoomView(code);
     }
@@ -823,7 +878,7 @@ export async function buildApp(
   });
 
   if (testMode) {
-    app.post<RoomCodeRoute>("/rooms/:code/bots", (request, reply) => {
+    app.post<RoomCodeRoute>("/rooms/:code/bots", async (request, reply) => {
       const body = AddBotsRequestSchema.safeParse(request.body);
       if (!body.success) {
         return reply.code(400).send({ error: "invalid-request-body" });
@@ -831,12 +886,14 @@ export async function buildApp(
 
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      const result = rooms.addBots(room, body.data.count);
-
-      if (result.seats.length > 0) {
-        broadcastRoomView(room.code);
-      }
-      return { joined: result.seats.length };
+      const joined = await enqueue(room.code, () => {
+        const result = rooms.addBots(room, body.data.count);
+        if (result.seats.length > 0) {
+          broadcastRoomView(room.code);
+        }
+        return result.seats.length;
+      });
+      return { joined };
     });
   }
 
@@ -861,7 +918,7 @@ export async function buildApp(
     return reply.code(204).send();
   });
 
-  const changeSeatCount = (
+  const changeSeatCount = async (
     request: FastifyRequest<RoomCodeRoute>,
     reply: FastifyReply,
   ) => {
@@ -874,7 +931,15 @@ export async function buildApp(
 
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
-    const result = rooms.changeSeatCount(room.code, body.data.seatCount);
+    const result = await enqueue(room.code, () => {
+      const change = rooms.changeSeatCount(room.code, body.data.seatCount);
+      if ("error" in change) return change;
+
+      applySeatMoves(room.code, change.moves);
+      broadcastRoomView(room.code);
+      if (change.moves.length > 0) broadcastDisplayedHand(room.code);
+      return change;
+    });
     if ("error" in result) {
       if (result.error === "seat-count-below-floor") {
         return reply.code(400).send({
@@ -884,10 +949,6 @@ export async function buildApp(
       }
       return reply.code(400).send({ error: result.error });
     }
-
-    applySeatMoves(room.code, result.moves);
-    broadcastRoomView(room.code);
-    if (result.moves.length > 0) broadcastDisplayedHand(room.code);
     return result;
   };
 
@@ -940,7 +1001,7 @@ export async function buildApp(
 
   app.post<RoomSeatRoute>(
     "/rooms/:code/seats/:seatId/claim",
-    (request, reply) => {
+    async (request, reply) => {
       const seatId = parseSeatId(request.params.seatId);
       if (seatId === undefined) {
         return reply.code(400).send({ error: "invalid-seat-id" });
@@ -949,57 +1010,74 @@ export async function buildApp(
       if (!body.success) {
         return reply.code(400).send({ error: "invalid-display-name" });
       }
-      const result = rooms.claimSeat(
-        request.params.code,
-        seatId,
-        body.data.displayName,
-      );
+      const code = request.params.code;
+      const result = await enqueue(code, () => {
+        const claim = rooms.claimSeat(code, seatId, body.data.displayName);
+        if (!("error" in claim)) broadcastRoomView(code);
+        return claim;
+      });
       if ("error" in result) {
         return reply
           .code(CLAIM_ERROR_STATUS[result.error])
           .send({ error: result.error });
       }
-      broadcastRoomView(request.params.code);
       return {
         seatId: result.seat.id,
         token: result.seat.token,
         displayName: result.seat.displayName,
-        sittingOut: rooms.isSittingOut(request.params.code, result.seat.id),
-        sittingOutReason: rooms.sittingOutReason(
-          request.params.code,
-          result.seat.id,
-        ),
+        sittingOut: rooms.isSittingOut(code, result.seat.id),
+        sittingOutReason: rooms.sittingOutReason(code, result.seat.id),
       };
     },
   );
 
+  /**
+   * Publishes the fold a freed seat owed, then broadcasts the seat itself.
+   * The seat is freed by the transaction, so it is never given up on a
+   * broadcast the recording refused. Runs inside the Room's queue.
+   */
+  async function publishSeatRelease(
+    code: string,
+    seatId: SeatId,
+    released: EvictSeatResult,
+    notify: boolean,
+  ): Promise<void> {
+    if (released.transaction !== undefined) {
+      await publishDispatch(code, released.transaction, {
+        actionClock:
+          released.transaction.command.type === "evict"
+            ? "preserve"
+            : "reschedule",
+      });
+    }
+    broadcastRoomView(code);
+    closeSeatSockets(code, seatId, notify);
+  }
+
   app.post<RoomSeatRoute>(
     "/rooms/:code/seats/:seatId/evict",
-    (request, reply) => {
+    async (request, reply) => {
       const seatId = parseSeatId(request.params.seatId);
       if (seatId === undefined) {
         return reply.code(400).send({ error: "invalid-seat-id" });
       }
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      const eviction = rooms.evictSeat(request.params.code, seatId);
-      if (eviction.dispatch !== undefined) {
-        publishDispatch(request.params.code, eviction.dispatch, {
-          actionClock:
-            eviction.dispatch.command.type === "evict"
-              ? "preserve"
-              : "reschedule",
-        });
-      }
-      broadcastRoomView(request.params.code);
-      closeSeatSockets(request.params.code, seatId);
+      await enqueue(room.code, () =>
+        publishSeatRelease(
+          room.code,
+          seatId,
+          rooms.evictSeat(room.code, seatId),
+          true,
+        ),
+      );
       return reply.code(204).send();
     },
   );
 
   app.post<RoomSeatRoute>(
     "/rooms/:code/seats/:seatId/leave",
-    (request, reply) => {
+    async (request, reply) => {
       const seatId = parseSeatId(request.params.seatId);
       if (seatId === undefined) {
         return reply.code(400).send({ error: "invalid-seat-id" });
@@ -1008,26 +1086,18 @@ export async function buildApp(
       if (!body.success) {
         return reply.code(400).send({ error: "invalid-request-body" });
       }
-      const result = rooms.leaveSeat(
-        request.params.code,
-        seatId,
-        body.data.token,
-      );
-      if ("error" in result) {
+      const code = request.params.code;
+      const refusal = await enqueue(code, async () => {
+        const result = rooms.leaveSeat(code, seatId, body.data.token);
+        if ("error" in result) return result.error;
+        await publishSeatRelease(code, seatId, result, false);
+        return undefined;
+      });
+      if (refusal !== undefined) {
         return reply
-          .code(result.error === "room-not-found" ? 404 : 403)
-          .send({ error: result.error });
+          .code(refusal === "room-not-found" ? 404 : 403)
+          .send({ error: refusal });
       }
-      if (result.dispatch !== undefined) {
-        publishDispatch(request.params.code, result.dispatch, {
-          actionClock:
-            result.dispatch.command.type === "evict"
-              ? "preserve"
-              : "reschedule",
-        });
-      }
-      broadcastRoomView(request.params.code);
-      closeSeatSockets(request.params.code, seatId, false);
       return reply.code(204).send();
     },
   );
@@ -1176,12 +1246,11 @@ export async function buildApp(
               sendRejection(socket, "not-permitted");
               return;
             }
-            rooms.setSittingOut(
-              code,
-              currentIdentity,
-              parseResult.data.type === "sitOut",
-            );
-            broadcastRoomView(code);
+            const sittingOut = parseResult.data.type === "sitOut";
+            enqueueDetached(code, () => {
+              rooms.setSittingOut(code, currentIdentity, sittingOut);
+              broadcastRoomView(code);
+            });
             return;
           }
 
@@ -1194,28 +1263,28 @@ export async function buildApp(
             sendRejection(socket, "invalid-command");
             return;
           }
-          const dispatchResult = rooms.dispatch(
-            code,
-            currentIdentity,
-            parseResult.data.type,
-          );
-          if ("error" in dispatchResult) {
-            sendRejection(socket, dispatchResult.error);
-            return;
-          }
-          if ("reason" in dispatchResult) {
-            recordDispatch(code, dispatchResult);
-            sendRejection(socket, dispatchResult.reason);
-            return;
-          }
+          const commandType = parseResult.data.type;
+          enqueueDetached(code, async () => {
+            const dispatchResult = rooms.dispatch(
+              code,
+              currentIdentity,
+              commandType,
+            );
+            if ("error" in dispatchResult) {
+              sendRejection(socket, dispatchResult.error);
+              return;
+            }
+            if ("reason" in dispatchResult) {
+              await recordRejection(code, dispatchResult);
+              sendRejection(socket, dispatchResult.reason);
+              return;
+            }
 
-          publishDispatch(code, dispatchResult);
-          if (
-            parseResult.data.type === "startHand" ||
-            parseResult.data.type === "nextHand"
-          ) {
-            broadcastRoomView(code);
-          }
+            await publishDispatch(code, dispatchResult);
+            if (commandType === "startHand" || commandType === "nextHand") {
+              broadcastRoomView(code);
+            }
+          });
         });
 
         socket.on("close", () => {
