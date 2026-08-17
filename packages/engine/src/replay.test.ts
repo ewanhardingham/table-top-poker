@@ -69,8 +69,8 @@ function foldOutHand(): Recording {
   const start: EngineState = { seats: [0, 1, 2], button: 0, hand: null };
   return record(start, [
     { type: "startHand", seatId: 0, seed: "replay-seed" },
+    { type: "fold", seatId: 0 },
     { type: "fold", seatId: 1 },
-    { type: "fold", seatId: 2 },
   ]).recording;
 }
 
@@ -153,10 +153,10 @@ describe("replayHand: rejections", () => {
     const start: EngineState = { seats: [0, 1, 2], button: 0, hand: null };
     const { recording } = record(start, [
       { type: "startHand", seatId: 0, seed: "replay-seed" },
-      // Seat 2 is not the actor preflop (ring is [1, 2, 0]) — rejected.
+      // Seat 2 is not the actor preflop (ring is [0, 1, 2]) — rejected.
       { type: "fold", seatId: 2 },
+      { type: "fold", seatId: 0 },
       { type: "fold", seatId: 1 },
-      { type: "fold", seatId: 2 },
     ]);
     const rejected = recording.events.filter((e) => e.type === "Rejection");
     expect(rejected).toHaveLength(1);
@@ -181,7 +181,7 @@ describe("replayHand: rejections", () => {
     expect(outcome.positions[3]?.event?.type).toBe("StreetStarted");
     expect(outcome.positions[4]?.event).toEqual({
       type: "ActionTaken",
-      seatId: 1,
+      seatId: 0,
       action: "fold",
     });
   });
@@ -193,15 +193,15 @@ describe("replayHand: the starting state", () => {
     // command log begins with the `nextHand` that started it.
     const first = record({ seats: [0, 1, 2], button: 0, hand: null }, [
       { type: "startHand", seatId: 0, seed: "hand-1" },
+      { type: "fold", seatId: 0 },
       { type: "fold", seatId: 1 },
-      { type: "fold", seatId: 2 },
     ]);
     expect(first.state.button).toBe(1);
 
     const second = record(first.state, [
       { type: "nextHand", seatId: 0, seed: "hand-2" },
+      { type: "fold", seatId: 1 },
       { type: "fold", seatId: 2 },
-      { type: "fold", seatId: 0 },
     ]);
     expect(second.recording.context.button).toBe(1);
 
@@ -377,7 +377,7 @@ describe("replayHand: generated against persisted", () => {
     expect(outcome.failure.generated).toEqual({
       type: "StreetStarted",
       street: "preflop",
-      actor: 1,
+      actor: 0,
     });
     expect(outcome.failure.persisted).toEqual({
       type: "StreetStarted",
@@ -423,7 +423,7 @@ describe("replayHand: incomplete, not corrupt", () => {
     expect(outcome.positions).toHaveLength(events.length + 1);
     expect(outcome.positions.at(-1)?.event).toEqual({
       type: "ActionTaken",
-      seatId: 1,
+      seatId: 0,
       action: "fold",
     });
   });
@@ -442,7 +442,7 @@ describe("replayHand: incomplete, not corrupt", () => {
     expect(outcome.positions).toHaveLength(5);
     expect(outcome.positions.at(-1)?.event).toEqual({
       type: "ActionTaken",
-      seatId: 1,
+      seatId: 0,
       action: "fold",
     });
   });
@@ -455,7 +455,7 @@ describe("replayHand: incomplete, not corrupt", () => {
     const events = recording.events.slice(0, 5);
     events[4] = {
       type: "ActionTaken",
-      seatId: 0,
+      seatId: 2,
       action: "fold",
       v: ENGINE_LOG_VERSION,
     };
@@ -468,7 +468,7 @@ describe("replayHand: incomplete, not corrupt", () => {
     expect(outcome.failure.record).toBe(4);
     expect(outcome.failure.generated).toEqual({
       type: "ActionTaken",
-      seatId: 2,
+      seatId: 1,
       action: "fold",
     });
   });
