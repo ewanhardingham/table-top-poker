@@ -2,10 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { Listener } from "./lockViewport.js";
 import { lockViewport } from "./lockViewport.js";
 
-/**
- * Stands in for `document`: records what was bound and lets a test fire an
- * event at whatever is listening for it.
- */
 function fakeTarget() {
   const listeners = new Map<string, { handler: Listener; options?: unknown }>();
   return {

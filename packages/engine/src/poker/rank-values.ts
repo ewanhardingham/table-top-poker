@@ -1,6 +1,5 @@
 import type { Rank } from "../types.js";
 
-/** Numeric rank value, ace high (14). Straight detection separately treats ace as low for the wheel. */
 export const RANK_VALUE: Record<Rank, number> = {
   "2": 2,
   "3": 3,

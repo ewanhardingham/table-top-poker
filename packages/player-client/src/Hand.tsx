@@ -25,24 +25,12 @@ export interface HandProps {
   readonly seatId: number;
   readonly seats?: readonly SeatView[];
   readonly connectionStatus?: ConnectionStatus;
-  /** Current room setting, used only to scale the countdown colour ramp. */
   readonly shotClockSeconds?: number;
-  /**
-   * The action intent `App` already owns. `Hand` narrows it to the card
-   * module's own port — the module never sees `ActionIntent`, so growing the
-   * intent layer later does not ripple into card code.
-   */
   readonly intent?: ActionIntent;
 }
 
 const noAction = () => undefined;
 
-/**
- * `actions.fold`/`actions.check` **are** `intent.fold`/`intent.check`: a
- * gesture and a button reach the same Action by the same route, and `canAct`
- * stays the single legality gate. The legality flags are arming and rendering
- * input only.
- */
 function cardActionsFrom(intent: ActionIntent | undefined): CardActions {
   if (intent === undefined) {
     return {
@@ -120,11 +108,6 @@ const bannerToneStyle: Record<
 
 type PlayerViewBetting = Extract<PlayerView, { phase: "betting" }>;
 
-/**
- * Whether the viewer's seat appears in this street's `seats` — absent means
- * sitting out of the current hand, not dealt in (distinct from folded,
- * where the seat is present with `folded: true`).
- */
 function isDealtIn(view: PlayerViewBetting): boolean {
   return view.seats.some((s) => s.seatId === view.yourSeatId);
 }
@@ -136,13 +119,6 @@ function seatLabel(seatId: number, seats: readonly SeatView[]): string {
   );
 }
 
-/**
- * Whose-turn state as `{ kicker, text, tone }`. The same box carries the
- * result once the hand's decided (issue #63), rather than a separate card
- * competing with the hole cards for attention. Connection state wins over hand state: nothing can be
- * acted on off-line, so that's surfaced first regardless of whose turn (or
- * whose win) the hand thinks it is.
- */
 function bannerFor(
   view: PlayerView,
   connectionStatus: ConnectionStatus,
@@ -237,13 +213,6 @@ function bannerFor(
   };
 }
 
-/**
- * The banner's leading slot carries one of two things. It is the marker
- * whenever this player holds a position, and the tone dot otherwise — the
- * marker is the rarer and more specific of the two, and on the hands it
- * appears the banner's own background and kicker still carry the tone
- * (issue #207, decision 1).
- */
 function TurnBanner({
   banner,
   marker,
@@ -333,12 +302,6 @@ function TurnBanner({
   );
 }
 
-/**
- * Empty slots get a sentence saying why they are empty, so it reads as prose.
- * A visible pair gets nothing: it was captioned "Your hole cards · flop" once,
- * which named what the player is plainly looking at and repeated the street
- * the banner above already gives.
- */
 const absentCaptionStyle: CSSProperties = {
   fontSize: fontSize.md,
   lineHeight: 1.5,
@@ -346,14 +309,6 @@ const absentCaptionStyle: CSSProperties = {
   maxWidth: "16em",
 };
 
-/**
- * The card region: the pair itself, plus the copy around it. `Hand` keeps
- * every caption on this screen; the pair owns card presentation and nothing
- * else, which is why the `Absent` copy is decided here (folded reads
- * differently from not-dealt-in) while the empty slots are drawn there.
- *
- * Only empty slots are captioned — a pair the player can see explains itself.
- */
 function HoleCardsRegion({
   cards,
   locked = false,
@@ -363,7 +318,6 @@ function HoleCardsRegion({
   readonly cards: readonly [CardType, CardType] | null;
   readonly locked?: boolean;
   readonly actions: CardActions;
-  /** Why the slots are empty. Absent alongside cards, which need no caption. */
   readonly caption?: string;
 }) {
   const absent = cards === null;
@@ -375,9 +329,6 @@ function HoleCardsRegion({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        // Only ever between the empty slots and the sentence under them: a
-        // visible pair carries its own hint down to its bottom edge and is the
-        // sole child here.
         gap: "1.1em",
         minHeight: 0,
         textAlign: "center",
@@ -389,17 +340,6 @@ function HoleCardsRegion({
   );
 }
 
-/**
- * Own hole cards, mirrored straight from the seat's `view` — nothing
- * rebuilt from the raw event locally (Phase 1 spec #130 §9). Hidden
- * again once folded, a burn-pile per §4: `yourHoleCards` is already `null`
- * in that view, this never redacts. The shared board is deliberately never
- * shown here, showdown included — the player device stays hole-cards-only,
- * the board and every seat's revealed hand live on the table device
- * (issue #63); this seat's own result comes back through the turn banner
- * above, not a second card competing with the hole cards for attention.
- * Action buttons live in `ActionBar`, rendered alongside this by `App`.
- */
 export function Hand({
   view,
   seatId,

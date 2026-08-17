@@ -62,9 +62,6 @@ describe("HandLog crash durability", () => {
       stdout += chunk.toString("utf8");
     });
 
-    // Send commands one at a time, waiting for at least one new stdout line
-    // after each — proof the harness (and therefore the logger, which
-    // writes synchronously before `decide` runs) has processed it.
     for (const command of commands) {
       const before = stdout.length;
       child.stdin.write(JSON.stringify(command) + "\n");
@@ -98,8 +95,6 @@ describe("HandLog crash durability", () => {
       "hand-0001.events.jsonl",
     );
 
-    // Every line that made it to disk must be a complete, parseable record —
-    // no torn write from the kill landing mid-append.
     const loggedCommands = readJsonLines(commandsPath) as {
       v: number;
       type: string;
@@ -112,9 +107,6 @@ describe("HandLog crash durability", () => {
     expect(loggedCommands.length).toBeGreaterThan(0);
     expect(loggedEvents.length).toBeGreaterThan(0);
 
-    // The logged commands are a prefix of what was actually sent — nothing
-    // sent-and-acknowledged is missing, and nothing beyond what was sent
-    // could have leaked in.
     expect(loggedCommands.map((r) => r.type)).toEqual(
       commands.slice(0, loggedCommands.length).map((c) => c.type),
     );

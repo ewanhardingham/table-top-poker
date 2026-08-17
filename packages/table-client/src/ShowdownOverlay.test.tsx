@@ -19,7 +19,6 @@ function seat(id: number, displayName?: string): SeatView {
 
 const seats: SeatView[] = [seat(0, "Mara"), seat(1, "Devin"), seat(2, "Priya")];
 
-/** A two-way showdown: seat 0 wins, seat 1 reached showdown and lost. */
 const showdown: ShowdownView = {
   phase: "showdown",
   button: 0,
@@ -93,14 +92,12 @@ describe("ShowdownOverlay", () => {
 
     expect(html).toContain('data-testid="showdown-overlay"');
     expect(html).toContain('data-testid="showdown-board"');
-    // Every seat that reached showdown appears, by name and hand description.
     expect(html).toContain('data-testid="showdown-player-0"');
     expect(html).toContain('data-testid="showdown-player-1"');
     expect(html).toContain("Mara");
     expect(html).toContain("Pair of Aces");
     expect(html).toContain("Devin");
     expect(html).toContain("Ace high");
-    // 5 board cards + 2 + 2 hole cards, all face up.
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(9);
   });
 

@@ -9,8 +9,6 @@ describe("fold-out early exit", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "foldout" }]);
 
-    // Preflop: 0 (button, first to act) folds, then 1 (SB) folds — only seat
-    // 2 remains live, mid-street with the BB never having acted.
     state = playAll(state, [{ type: "fold", seatId: 0 }]);
     expect(state.hand?.status).toBe("betting");
 
@@ -31,7 +29,6 @@ describe("fold-out early exit", () => {
       next = apply(next, event);
     }
     expect(next.hand?.status).toBe("complete");
-    // Button rotates on HAND_COMPLETE.
     expect(next.button).toBe(1);
   });
 });

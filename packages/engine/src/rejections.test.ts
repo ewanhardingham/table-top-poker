@@ -21,7 +21,6 @@ describe("rejections", () => {
   it("not-your-turn: acting out of turn", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "s" }]);
-    // Preflop first actor is seat 0 (the button, three-handed), not seat 1.
     const outcome = play(state, { type: "check", seatId: 1 });
     if (!("rejection" in outcome)) throw new Error("expected a rejection");
     expect(outcome.rejection.reason).toBe("not-your-turn");
@@ -40,8 +39,6 @@ describe("rejections", () => {
   });
 
   it("action-not-legal: checking preflop when you're not the big blind", () => {
-    // Seat 0 (the button, first to act) faces the BB's post and must
-    // call/fold/raise, not check.
     const state = createInitialState([0, 1, 2]);
     const started = playAll(state, [
       { type: "startHand", seatId: 0, seed: "s" },
@@ -52,7 +49,6 @@ describe("rejections", () => {
   });
 
   it("action-not-legal: calling when there's nothing to call", () => {
-    // The BB has nothing to call on an unraised preflop — only check/raise.
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "s" }]);
     state = playAll(state, [

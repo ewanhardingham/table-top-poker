@@ -87,7 +87,6 @@ describe("ActionBar", () => {
     expect(html).toContain('data-rejected-action="check"');
     expect(html).toContain("isn&#x27;t available right now");
 
-    // Inline on the triggering control: inside check's group, not fold's or call's.
     const checkGroupStart = html.indexOf('data-testid="action-group-check"');
     const callGroupStart = html.indexOf('data-testid="action-group-call"');
     const rejectionStart = html.indexOf('data-testid="action-rejection"');

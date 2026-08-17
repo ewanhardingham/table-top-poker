@@ -3,7 +3,6 @@ export interface WsLocation {
   readonly host: string;
 }
 
-/** Derives the WebSocket scheme from `location.protocol` — never hard-coded. */
 export function getWebSocketUrl(
   location: WsLocation,
   params: Record<string, string> = {},

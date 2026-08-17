@@ -6,12 +6,6 @@ export type ClaimErrorCode =
   | "duplicate-display-name"
   | "claim-failed";
 
-/**
- * Keep server claim errors specific when a claim races a room update. Anything
- * the server did not name — a network failure, a 500 — falls back to
- * `claim-failed` rather than to an occupied seat: telling a player someone
- * took the seat sends them hunting for another one when the seat was fine.
- */
 export function claimErrorCode(error: unknown): ClaimErrorCode {
   const code = error instanceof Error ? error.message : "";
   if (

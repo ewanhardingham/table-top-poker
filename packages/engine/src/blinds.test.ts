@@ -13,7 +13,6 @@ function bettingView(state: EngineState) {
 
 describe("smallBlindSeat", () => {
   it("is the seat immediately after the button in ring order, not by seat number", () => {
-    // Seat 5 has the button; ring order wraps to seat 1 before seat 3.
     expect(smallBlindSeat([1, 3, 5], 5)).toBe(1);
     expect(bigBlindSeat([1, 3, 5], 5)).toBe(3);
   });
@@ -26,7 +25,6 @@ describe("smallBlindSeat", () => {
 
 describe("view: blinds during betting", () => {
   it("reports the blinds by ring order for a three-handed hand", () => {
-    // Seats 2, 5, 7 with the button on 5: ring = [7, 2, 5].
     let state = createInitialState([2, 5, 7]);
     state = { ...state, button: 5 };
     state = playAll(state, [{ type: "startHand", seatId: 2, seed: "blinds" }]);
@@ -53,7 +51,6 @@ describe("view: blinds during betting", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "fixed" }]);
     const before = bettingView(state);
-    // Preflop opens on the button three-handed, so seat 0 is the folder.
     state = playAll(state, [{ type: "fold", seatId: 0 }]);
     const after = bettingView(state);
 
@@ -74,8 +71,6 @@ describe("view: blinds on a completed hand", () => {
       { type: "fold", seatId: 1 },
     ]);
 
-    // `HandComplete` has rotated the engine button on to the next seat, but
-    // the completed hand still describes the hand that was just played.
     expect(state.button).not.toBe(betting.button);
 
     const v = view(state, "table");
@@ -91,7 +86,6 @@ describe("view: blinds on a completed hand", () => {
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "sd" }]);
     const betting = bettingView(state);
 
-    // Preflop runs button, SB, BB; every later street runs SB, BB, button.
     state = playAll(state, [
       { type: "call", seatId: 0 },
       { type: "call", seatId: 1 },

@@ -80,9 +80,7 @@ const seats: SeatView[] = [
   },
 ];
 
-const noop = () => {
-  /* unused */
-};
+const noop = () => undefined;
 
 const shotClockProps = {
   pendingShotClock: null,
@@ -232,10 +230,6 @@ describe("HouseRulesSheet", () => {
     );
 
     expect(html).toContain('data-testid="sound-master-toggle"');
-    // Attribute order in the rendered tag is aria-checked, aria-label,
-    // data-testid, [disabled], style — so these contiguous substrings pin both
-    // the checked state and, via data-testid → style, that no disabled sits
-    // between them (master on ⇒ categories interactive).
     expect(html).toContain(
       'aria-checked="false" aria-label="Cards" data-testid="sound-cards-toggle" style=',
     );
@@ -304,9 +298,6 @@ describe("HouseRulesSheet", () => {
       valid: true,
     };
 
-    // Replacing the current value with 45 emits these two input events. The
-    // first value is transient, but must remain visible so the second digit
-    // can complete the valid setting.
     draft = updateShotClockSecondsDraft(draft, "4");
     expect(draft).toEqual({ input: "4", seconds: 90, valid: false });
     draft = updateShotClockSecondsDraft(draft, "45");

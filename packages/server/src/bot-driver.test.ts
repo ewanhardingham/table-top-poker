@@ -191,8 +191,6 @@ describe("bot driver", () => {
       firstNextHandMessage,
     );
 
-    // This claim happens after deal-in, so its room view must explain that it
-    // is waiting for the next hand rather than calling it voluntary sit-out.
     const claimedMidHand = await app.inject({
       method: "POST",
       url: `/rooms/${code}/bots`,

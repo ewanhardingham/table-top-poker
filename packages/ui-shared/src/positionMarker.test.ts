@@ -42,8 +42,6 @@ describe("positionMarkerFor", () => {
   });
 
   it("reads a player view and a table view the same way", () => {
-    // The whole reason this rule left table-client: both devices must answer
-    // identically for the same seat.
     for (const seatId of [0, 1, 2, 3]) {
       expect(positionMarkerFor(seatId, bettingPlayer)).toBe(
         positionMarkerFor(seatId, bettingTable),
@@ -62,8 +60,6 @@ describe("positionMarkerFor", () => {
   });
 
   describe("heads-up (issue #160, decision 4)", () => {
-    // The engine honestly reports smallBlind === button heads-up. Rather than
-    // put two markers on one seat, the whole trio reverts to button-only.
     const headsUp = {
       button: 0,
       smallBlind: 0,
@@ -88,10 +84,7 @@ describe("positionMarkerFor", () => {
 
     it.each(cases)("marks the button and nothing else (%s)", (_phase, view) => {
       expect(positionMarkerFor(0, view)).toBe("button");
-      // Not "small-blind", though the button genuinely posts it heads-up…
       expect(positionMarkerFor(1, view)).toBeNull();
-      // …and the other seat gets no BB either, on the phone as on the table
-      // (issue #207, decision 2).
     });
 
     it("still marks the blinds once a third seat is dealt in", () => {

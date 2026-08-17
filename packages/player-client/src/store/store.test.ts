@@ -26,8 +26,6 @@ describe("usePlayerStore", () => {
     usePlayerStore.getState().setConnectionStatus("connected");
     expect(usePlayerStore.getState().hasEverConnected).toBe(true);
 
-    // A later drop is a real one — the latch is what distinguishes it from
-    // the pre-socket default (ADR-0006).
     usePlayerStore.getState().setConnectionStatus("disconnected");
     expect(usePlayerStore.getState().hasEverConnected).toBe(true);
   });
@@ -160,10 +158,6 @@ describe("usePlayerStore", () => {
     expect(usePlayerStore.getState().handView).toBeNull();
   });
 
-  // Regression for #172: rejoining a new room used to render the previous
-  // room's hand result. The root cause lived in the seam below — clearing the
-  // room slice never touched the hand slice — so a teardown that only called
-  // clearRoom left the old result behind for the next room to display.
   it("does not clear a stale hand result when only the room is torn down (#172)", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
@@ -193,15 +187,10 @@ describe("usePlayerStore", () => {
 
     usePlayerStore.getState().clearRoom();
 
-    // The room is gone but the previous hand result survives — this is exactly
-    // why the teardown/join handlers must clear the hand as well.
     expect(usePlayerStore.getState().roomCode).toBeNull();
     expect(usePlayerStore.getState().handView).not.toBeNull();
   });
 
-  // Regression for #172: the full room-ended reset the handler performs must
-  // leave no residue from the previous room, so a rejoin into the same seat
-  // position renders no prior-room result until a fresh hand-update arrives.
   it("leaves a clean slate for the next room when the hand is cleared too (#172)", () => {
     usePlayerStore.getState().setRoomView({
       code: "ABCD",
@@ -229,8 +218,6 @@ describe("usePlayerStore", () => {
       winner: 0,
     });
 
-    // The room-ended teardown the handler runs: drop the seat and hand, then
-    // the room.
     usePlayerStore.getState().clearSeat();
     usePlayerStore.getState().clearHand();
     usePlayerStore.getState().clearRoom();

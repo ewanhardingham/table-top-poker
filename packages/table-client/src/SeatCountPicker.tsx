@@ -36,7 +36,6 @@ const kickerStyle: CSSProperties = {
   color: color.textMuted,
 };
 
-/** The chip is a felt token: round, weighty, and lit when it's the one chosen. */
 function chipStyle(selected: boolean): CSSProperties {
   return {
     width: 56,
@@ -64,19 +63,12 @@ function chipStyle(selected: boolean): CSSProperties {
   };
 }
 
-/** "Heads-up" reads better than "2 seats" for the smallest table we allow. */
 function describeTable(seatCount: number): string {
   return seatCount === MIN_SEAT_COUNT
     ? "Heads-up — two seats"
     : `${String(seatCount)} seats`;
 }
 
-/**
- * The room-creation step (issue #74): the creator sizes the table before
- * any room exists, so the code/QR in `JoinPanel` only ever appears for a
- * table that is already the right size. The 2-8 range comes from the
- * protocol, the same bounds the server enforces on `POST /rooms`.
- */
 export function SeatCountPicker({
   seatCount,
   onSeatCountChange,

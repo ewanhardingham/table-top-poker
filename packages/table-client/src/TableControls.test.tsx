@@ -4,9 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { TableControls } from "./TableControls.js";
 
-const noop = () => {
-  /* unused in these tests */
-};
+const noop = () => undefined;
 
 describe("TableControls", () => {
   it("shows Deal hand when a hand can start, and always shows End session", () => {

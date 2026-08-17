@@ -23,7 +23,6 @@ describe("PositionBadge", () => {
   it("says what the letter means rather than leaving a screen reader to spell it", () => {
     const html = renderToStaticMarkup(<PositionBadge marker="button" />);
     expect(html).toContain('aria-label="You are on the dealer button"');
-    // The visible label is decoration once the disc is labelled.
     expect(html).toContain('aria-hidden="true"');
   });
 
@@ -31,8 +30,6 @@ describe("PositionBadge", () => {
     const html = renderToStaticMarkup(<PositionBadge marker="big-blind" />);
     const outer = /width:2\.1em;height:2\.1em/.exec(html);
     expect(outer).not.toBeNull();
-    // A font-size on that same element would shrink the true diameter to
-    // 2.1 x 0.8em — the bug #160 hit on the table.
     expect(html).toMatch(/width:2\.1em;height:2\.1em(?![^>]*font-size)/);
   });
 

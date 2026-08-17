@@ -15,12 +15,6 @@ export interface SeatMenuProps {
   readonly onDismiss: () => void;
 }
 
-/**
- * The table device's manual seat action (ADR-0003) — click a claimed seat,
- * this pops up next to it with the one action currently available: Evict.
- * A full-screen backdrop dismisses it without acting, same as the join
- * panel's own dismiss pattern.
- */
 export function SeatMenu({
   seatId,
   seatCount,

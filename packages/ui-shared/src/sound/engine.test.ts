@@ -19,11 +19,6 @@ const ALL_ON: SoundSettings = {
 const CARD: Card = { rank: "A", suit: "spades" };
 const pair = (): [Card, Card] => [CARD, CARD];
 
-/**
- * A test rig over a sound engine with fully deterministic effects: a `play`
- * spy, a hand-cranked clock and a scheduler that records callbacks so a test
- * can inspect the fired delays and flush the timers when it chooses.
- */
 function rig(settings: SoundSettings = ALL_ON): {
   engine: SoundEngine;
   played: CueName[];
@@ -50,7 +45,6 @@ function rig(settings: SoundSettings = ALL_ON): {
       clock = t;
     },
     flush: () => {
-      // Run in scheduled order; drain so re-flush is a no-op.
       const pending = scheduled.splice(0);
       for (const { fn } of pending) fn();
     },
@@ -76,7 +70,6 @@ const actionTaken = (
   action: "fold" | "check" | "call" | "raise",
 ): HandEvent => ({ type: "ActionTaken", seatId, action });
 
-/** A player betting view whose turn state is `myTurn`. */
 const bettingView = (myTurn: boolean): PlayerView => ({
   phase: "betting",
   turnEndsAt: null,
@@ -93,17 +86,11 @@ const bettingView = (myTurn: boolean): PlayerView => ({
   dealtSeatCount: 2,
 });
 
-/**
- * The table's redacted `HoleCardsDealt`: the server strips every seat's cards
- * before the event reaches the table role (secrecy, #130 §4), so its `deals`
- * arrive empty. The sweep count must come from the view, not this payload.
- */
 const tableHoleCardsDealt = (): HandEvent => ({
   type: "HoleCardsDealt",
   deals: [],
 });
 
-/** A table betting view for a hand dealt to `dealtSeatCount` seats. */
 const tableBettingView = (dealtSeatCount: number): TableView => ({
   phase: "betting",
   turnEndsAt: null,
@@ -125,8 +112,6 @@ const noHandView: TableView = { phase: "no-hand", button: 0 };
 describe("event → cue mapping", () => {
   it("stays silent on the table through the hole-card deal (revised #180)", () => {
     const r = rig();
-    // Hole cards are a per-player cue now: the table voices only the board, so
-    // a HoleCardsDealt on the table surface schedules and plays nothing.
     r.engine.onHandUpdate({
       surface: "table",
       event: tableHoleCardsDealt(),
@@ -167,8 +152,6 @@ describe("event → cue mapping", () => {
 
   it("keeps the board lead-in synced to the card animation, not the check knock", () => {
     const r = rig();
-    // Even when a check closed the street, the board stays on its plain lead-in
-    // so the taps track the card-drop animation instead of waiting out the knock.
     r.engine.onHandUpdate({
       surface: "table",
       event: actionTaken(1, "check"),
@@ -280,7 +263,6 @@ describe("room-settings gate", () => {
     r.flush();
     expect(r.played).toEqual([]);
 
-    // A your-turn prompt (notifications) still passes.
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 0,
@@ -304,7 +286,6 @@ describe("room-settings gate", () => {
       actions: false,
       notifications: true,
     });
-    // A fold/check on the acting player's own phone is silenced.
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 1,
@@ -314,7 +295,6 @@ describe("room-settings gate", () => {
     r.flush();
     expect(r.played).toEqual([]);
 
-    // A card cue (reveal flip) still passes.
     r.engine.playRevealFlip();
     r.flush();
     expect(r.played).toEqual(["flip"]);
@@ -370,7 +350,6 @@ describe("your-turn prompt", () => {
       event: holeCardsDealt([0, 1]),
       view: noHandView,
     });
-    // Two hole cards → last lands at (2-1)*dealStagger.
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 0,
@@ -393,9 +372,7 @@ describe("your-turn prompt", () => {
       event: { type: "HandStarted", seed: "s", button: 0 },
       view: noHandView,
     });
-    // Mid-hand: the deal sweep is well in the past, so nothing else is holding.
     r.setNow(TIMINGS.turnAfterDealMs);
-    // Seat 1 checks mid-hand and the turn passes to me in the same update.
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 0,
@@ -416,14 +393,12 @@ describe("your-turn prompt", () => {
       event: { type: "HandStarted", seed: "s", button: 0 },
       view: noHandView,
     });
-    // Turn arrives — the prompt is scheduled.
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 0,
       event: { type: "StreetStarted", street: "preflop", actor: 0 },
       view: bettingView(true),
     });
-    // Turn passes (I acted) before the deferral elapses — bumps the token.
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 0,
@@ -448,8 +423,6 @@ describe("your-turn prompt", () => {
       event: { type: "StreetStarted", street: "preflop", actor: 0 },
       view: bettingView(true),
     });
-    // A second identical betting view (e.g. an opponent reconnecting) must not
-    // re-arm the prompt.
     r.engine.onHandUpdate({
       surface: "player",
       seatId: 0,

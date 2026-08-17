@@ -10,9 +10,6 @@ if (!rootEl) {
   throw new Error("#root element not found");
 }
 
-// Discover server-global capabilities once per page load. The store defaults
-// to the safe/off state if the endpoint is unavailable, so a transient fetch
-// failure never exposes test-only UI by accident.
 void fetchConfig()
   .then(({ testMode }) => {
     useTableStore.getState().setTestMode(testMode);

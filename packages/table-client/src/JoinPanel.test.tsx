@@ -12,9 +12,7 @@ describe("JoinPanel", () => {
         qrCodeDataUrl="data:image/png;base64,xyz"
         lobbyHint="Waiting for at least two players"
         dismissable={false}
-        onDismiss={() => {
-          /* unused in this test */
-        }}
+        onDismiss={() => undefined}
       />,
     );
 
@@ -33,9 +31,7 @@ describe("JoinPanel", () => {
         qrCodeDataUrl={null}
         lobbyHint="Waiting for at least two players"
         dismissable={false}
-        onDismiss={() => {
-          /* unused in this test */
-        }}
+        onDismiss={() => undefined}
       />,
     );
 
@@ -50,9 +46,7 @@ describe("JoinPanel", () => {
         qrCodeDataUrl="data:image/png;base64,xyz"
         lobbyHint="New players are dealt in from the next hand"
         dismissable={true}
-        onDismiss={() => {
-          /* unused in this test */
-        }}
+        onDismiss={() => undefined}
       />,
     );
     const pinnedHtml = renderToStaticMarkup(
@@ -62,9 +56,7 @@ describe("JoinPanel", () => {
         qrCodeDataUrl="data:image/png;base64,xyz"
         lobbyHint="Waiting for at least two players"
         dismissable={false}
-        onDismiss={() => {
-          /* unused in this test */
-        }}
+        onDismiss={() => undefined}
       />,
     );
 
@@ -80,9 +72,7 @@ describe("JoinPanel", () => {
         qrCodeDataUrl="data:image/png;base64,xyz"
         lobbyHint="Waiting for at least two players"
         dismissable={false}
-        onDismiss={() => {
-          /* unused in this test */
-        }}
+        onDismiss={() => undefined}
         controls={<div data-testid="join-panel-controls">Controls</div>}
       />,
     );

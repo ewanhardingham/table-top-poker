@@ -26,8 +26,6 @@ describe("classify", () => {
   });
 
   it("does not bend from the bend zone once the pair is already revealed", () => {
-    // Nothing to peel back on a face-up pair: the corner is ordinary card
-    // surface, so an upward drag from it is a fold like any other.
     expect(
       classify(
         input({ fromBendZone: true, alreadyRevealed: true, dx: 0, dy: -40 }),
@@ -36,8 +34,6 @@ describe("classify", () => {
   });
 
   it("keeps bending from the bend zone even on a decisive upward swipe", () => {
-    // The accepted cost of sticky classification: fold is unavailable from
-    // this one corner while face-down, and available from all the rest.
     expect(classify(input({ fromBendZone: true, dx: 0, dy: -300 }))).toBe(
       "Bending",
     );
@@ -49,7 +45,6 @@ describe("classify", () => {
   });
 
   it("requires upward travel past the 1.05 ratio, not merely more than sideways", () => {
-    // |dy| = |dx| * 1.05 exactly: not past it.
     expect(classify(input({ dx: -40, dy: -42 }))).toBe("Ignored");
     expect(classify(input({ dx: -40, dy: -42.5 }))).toBe("FoldDragging");
   });

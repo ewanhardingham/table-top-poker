@@ -54,7 +54,6 @@ describe("categorize", () => {
   });
 
   it("does not treat A-K-Q-J-10 wraparound (K-Q-J-10-A... low) as a straight", () => {
-    // Q,K,A,2,3 is not a straight in either direction.
     const result = categorize(cards("Qc Kh Ad 2c 3s"));
     expect(result.category).toBe("high-card");
   });
@@ -96,8 +95,6 @@ describe("categorize", () => {
   });
 
   it("prefers a flush over a straight when seven cards offer both", () => {
-    // Diamonds 4-5-6-9-10 make a flush (not a straight); 6-7-8-9-10 across
-    // suits makes a straight. Flush must win.
     const result = categorize(cards("4d 5d 6d 7h 8h 9d 10d"));
     expect(result.category).toBe("flush");
   });
@@ -110,7 +107,6 @@ describe("categorize", () => {
   });
 
   it("resolves a full house from seven cards using the best trips and best pair", () => {
-    // trips of 9s, trips of 2s -> full house should be 9s full of 2s (best trip + best remaining pair-or-trip)
     const result = categorize(cards("9c 9h 9d 2c 2h 2d Kc"));
     expect(result.category).toBe("full-house");
     expect(result.tiebreak).toEqual([9, 2]);

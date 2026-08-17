@@ -3,9 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 
-const noop = () => {
-  /* unused in these tests */
-};
+const noop = () => undefined;
 
 describe("JoinCodeToggle", () => {
   it("shows the room code and a Room label", () => {
@@ -26,12 +24,6 @@ describe("JoinCodeToggle", () => {
     expect(html).not.toContain("position:absolute");
   });
 
-  /*
-   * Shrinkable rather than fixed, so a narrow bar squeezes this pill instead
-   * of pushing the badge beside it off the edge (ADR-0006). The label gives
-   * way; the code is what a player has to read off the screen to join, so it
-   * is fixed.
-   */
   it("gives up its label before the room code", () => {
     const html = renderToStaticMarkup(
       <JoinCodeToggle roomCode="ABCD" onOpen={noop} />,

@@ -9,11 +9,6 @@ export interface HandEvaluation {
   readonly description: string;
 }
 
-/**
- * Evaluates 5-7 cards (a hold'em showdown always passes 7: two hole cards
- * plus a five-card board) and returns a comparable rank, the winning five
- * cards, and a human-readable description of the made hand.
- */
 export function evaluate(cards: readonly Card[]): HandEvaluation {
   const { category, tiebreak, bestHand } = categorize(cards);
   return {
@@ -23,10 +18,6 @@ export function evaluate(cards: readonly Card[]): HandEvaluation {
   };
 }
 
-/**
- * Every seat tied for the best rank — split-aware, since Phase 1 tracks no
- * chip value and "split" just means multiple winners reported.
- */
 export function winnersOf(
   results: readonly { seatId: SeatId; rank: HandRank }[],
 ): SeatId[] {

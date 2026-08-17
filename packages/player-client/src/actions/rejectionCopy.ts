@@ -3,14 +3,6 @@ import type {
   ServerRejectionReason,
 } from "@table-top-poker/protocol";
 
-/**
- * Display copy for an inline rejection, exhaustively switched
- * (eslint's switch-exhaustiveness-check) so a new reason code added to
- * either union is a build failure here, not a silent blank message.
- * `hand-already-in-progress` and `stale-next-hand` can't actually reach an
- * action button (they're `startHand`/`nextHand`-only reasons) but the type
- * doesn't know that, so they get terse copy rather than a `default`.
- */
 export function rejectionCopy(
   reason: RejectionReason | ServerRejectionReason,
 ): string {

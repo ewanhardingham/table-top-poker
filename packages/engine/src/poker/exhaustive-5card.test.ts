@@ -54,8 +54,6 @@ for (const suit of SUITS) {
   }
 }
 
-// Canonical 5-card category frequencies over all C(52,5) = 2,598,960 hands —
-// settled combinatorics, independent of any evaluator implementation.
 const CANONICAL_5CARD_FREQUENCIES: Record<string, number> = {
   "straight-flush": 40,
   "four-of-a-kind": 624,
@@ -131,8 +129,6 @@ describe("exhaustive 5-card enumeration vs phe", () => {
     expect(pheToOurScore.size).toBe(7462);
     expect(ourScoreToPhe.size).toBe(7462);
 
-    // Ordering must agree: as phe's strength value increases (weaker),
-    // our score must strictly decrease (also weaker).
     const orderedByPhe = [...pheToOurScore.entries()].sort(
       (x, y) => x[0] - y[0],
     );

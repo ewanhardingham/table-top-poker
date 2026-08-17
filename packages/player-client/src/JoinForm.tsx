@@ -17,11 +17,6 @@ export interface JoinFormProps {
 
 const CODE_LENGTH = 4;
 
-/**
- * Digits + uppercase letters, excluding characters easily confused on a
- * phone screen (0/O, 1/I/L, 2/Z, 5/S, 8/B) — mirrors the server's
- * `ROOM_CODE_ALPHABET` (packages/server/src/room-code.ts).
- */
 const KEYS = [
   "3",
   "4",

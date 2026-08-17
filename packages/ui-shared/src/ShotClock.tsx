@@ -4,17 +4,13 @@ import { color, font, fontSize, radius } from "./theme.js";
 export type ShotClockVariant = "ring" | "number";
 
 export interface ShotClockProps {
-  /** Absolute server deadline in epoch milliseconds. */
   readonly turnEndsAt: number | null;
-  /** Configured duration, used only to scale the colour ramp. */
   readonly durationSeconds: number;
   readonly variant: ShotClockVariant;
   readonly testId: string;
-  /** Position for the avatar number badge; ring layout ignores this. */
   readonly numberPosition?: "top-right" | "bottom-right";
 }
 
-/** Green while ample time remains, through amber, to red at the deadline. */
 export function shotClockColor(fraction: number): string {
   const remaining = Math.max(0, Math.min(1, fraction));
   const hue =
@@ -44,10 +40,6 @@ function useNow(): number {
   return now;
 }
 
-/**
- * A render-only countdown. The server owns expiry and remains the only side
- * that can synthesize an action; this component never sends commands.
- */
 export function ShotClock({
   turnEndsAt,
   durationSeconds,

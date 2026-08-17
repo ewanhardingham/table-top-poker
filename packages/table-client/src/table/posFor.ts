@@ -1,16 +1,8 @@
 export interface SeatPosition {
-  /** Percent from the felt's left edge. */
   readonly left: number;
-  /** Percent from the felt's top edge. */
   readonly top: number;
 }
 
-/**
- * Lays seats out along the two long edges of the felt — 1..k left to right
- * along the bottom, then back right to left along the top. The percentages are
- * tuned for the table device's actual viewport, and are the source of truth
- * for the layout.
- */
 export function posFor(seatId: number, seatCount: number): SeatPosition {
   const bottomCount = Math.ceil(seatCount / 2);
   if (seatId < bottomCount) {

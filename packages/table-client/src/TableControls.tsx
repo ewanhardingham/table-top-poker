@@ -20,8 +20,6 @@ const layoutStyles: Record<TableControlsPlacement, CSSProperties> = {
     width: "26em",
     maxWidth: "calc(100vw - 2em)",
     gap: "0.6em",
-    // The join overlay turns pointer events off so its invisible edges don't
-    // swallow clicks on the felt; the controls have to turn them back on.
     pointerEvents: "auto",
   },
 };
@@ -31,11 +29,6 @@ const actionButtonStyles: Record<TableControlsPlacement, CSSProperties> = {
   "join-panel": { flex: "1 1 0", minWidth: 0 },
 };
 
-/**
- * The reason under a disabled "Next hand". A greyed pill says the action is
- * off but not why, and the lobby hint that carries the same message is hidden
- * once a hand exists — so the rail has to say it itself.
- */
 const hintStyle: CSSProperties = {
   marginTop: "0.4em",
   textAlign: "center",
@@ -46,53 +39,18 @@ const hintStyle: CSSProperties = {
 export interface TableControlsProps {
   readonly canStartHand: boolean;
   readonly handComplete: boolean;
-  /**
-   * Whether enough players are dealt in for the server to accept `nextHand`.
-   * False leaves the button in place but disabled with a reason, rather than
-   * live-looking and inert — the server rejects it either way.
-   */
   readonly canDealNextHand: boolean;
   readonly onStartHand: () => void;
   readonly onNextHand: () => void;
   readonly onEndSession: () => void;
-  /** Test-mode-only control for filling free seats with virtual players. */
   readonly testMode?: boolean;
   readonly onAddBot?: () => void;
-  /**
-   * At showdown the reveal overlay owns "Next hand", so the rail offers "View
-   * showdown" in that slot instead — reopening the overlay the operator
-   * collapsed with "View table". True only at the showdown phase, never at the
-   * fold-out ending, which keeps its own "Next hand".
-   */
   readonly atShowdown?: boolean;
   readonly onViewShowdown?: () => void;
   readonly placement?: TableControlsPlacement;
-  /**
-   * PROTOTYPE (wayfinder #81) — opens the session hand picker. Optional so
-   * the live `App` is unaffected; Phase 2 makes it a peer of the other rail
-   * actions. Review is reachable exactly when this rail offers a Deal/Next
-   * hand button, i.e. between hands (map #79).
-   */
   readonly onReviewHands?: () => void;
 }
 
-/**
- * The table action group — a right-hand control rail during a hand, or a
- * group below the join panel while the room is waiting to start. Deal hand /
- * Next hand are mutually exclusive with the felt's hand state; Review hands
- * and End session are always available once a room exists (this component is
- * only mounted then).
- *
- * The rail is a fixed-width column and every button fills it, so the actions
- * share one left and right edge instead of ragging off the right margin at
- * whatever width each label happens to be. Sizing comes from `PillButton`'s
- * size token for all of them — an ad-hoc smaller `End session` made the rail
- * read as two unrelated controls rather than one group.
- *
- * The two secondary actions take the plain outline tone with no per-call
- * colour of their own, so the rail's only visual hierarchy is solid (deal the
- * next hand) against outline (everything else).
- */
 export function TableControls({
   canStartHand,
   handComplete,

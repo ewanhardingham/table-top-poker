@@ -83,9 +83,6 @@ describe("Hand", () => {
     };
     const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
 
-    // Cards arrive face-down and stay that way until the player asks for
-    // them (Phase 3 spec #138): nothing is exposed on deal, so the hand isn't
-    // in the document at all — not merely hidden by a style.
     expect(html).toMatch(/data-testid="hole-cards"/);
     expect(html).toContain('data-presentation="FaceDown"');
     expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(2);
@@ -309,8 +306,6 @@ describe("Hand", () => {
     });
 
     it("hands the pair to showdown locked, so it renders revealed and inert", () => {
-      // `HoleCardPair.test.tsx` owns what locked *looks* like; the fact worth
-      // asserting here is that showdown is where the lock comes from.
       const html = renderToStaticMarkup(
         <Hand view={showdownView} seatId={0} />,
       );
@@ -446,9 +441,6 @@ describe("Hand", () => {
       expect(html).not.toContain('data-testid="position-badge"');
     });
 
-    // Between hands the button is a forecast of the next deal — the most
-    // useful moment to see it — and the completed phases still say where you
-    // sat, exactly as the table pod beside you does.
     const otherPhases: readonly (readonly [string, PlayerView])[] = [
       ["no-hand", { phase: "no-hand", button: 0 }],
       [
@@ -486,9 +478,6 @@ describe("Hand", () => {
     );
 
     it("shows the heads-up button its disc and the other seat nothing", () => {
-      // The table's suppression, applied to the phone on purpose (decision 2):
-      // the engine reports smallBlind === button, and neither device marks the
-      // heads-up big blind.
       const headsUp: PlayerView = {
         ...bettingView,
         button: 0,

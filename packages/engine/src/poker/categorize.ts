@@ -19,15 +19,10 @@ export type HandCategory =
 
 export interface Categorized {
   readonly category: HandCategory;
-  /**
-   * Tiebreak ranks in significance order (highest first), enough to compare
-   * any two hands of the same category. Length varies by category.
-   */
   readonly tiebreak: readonly number[];
   readonly bestHand: readonly [Card, Card, Card, Card, Card];
 }
 
-/** Highest 5-in-a-row rank present, wheel-aware (A-2-3-4-5 plays as five-high); 0 if none. */
 function highestStraight(present: readonly boolean[]): number {
   const wheel =
     present[HIGHEST_RANK_VALUE] &&
@@ -49,7 +44,6 @@ function highestStraight(present: readonly boolean[]): number {
   return wheel ? 5 : 0;
 }
 
-/** Cards of the given ranks (highest rank first), each appearing once, from `pool`. */
 function pickByRank(pool: readonly Card[], ranks: readonly number[]): Card[] {
   const remaining = [...pool];
   const picked: Card[] = [];
@@ -77,16 +71,11 @@ function highCardsExcluding(
   return ranks;
 }
 
-/**
- * Scores every card of a straight of the given high rank, wheel-aware (ace
- * plays low in a five-high straight).
- */
 function straightRanks(high: number): number[] {
   if (high === 5) return [5, 4, 3, 2, HIGHEST_RANK_VALUE];
   return [high, high - 1, high - 2, high - 3, high - 4];
 }
 
-/** Best 5-card poker hand out of 5-7 cards: category, tiebreak ranks, and the winning cards. */
 export function categorize(cards: readonly Card[]): Categorized {
   const byRank = new Map<number, Card[]>();
   const bySuit = new Map<Card["suit"], Card[]>();

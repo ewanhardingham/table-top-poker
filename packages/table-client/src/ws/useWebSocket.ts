@@ -8,30 +8,15 @@ import { useTableStore } from "../store/store.js";
 import { getWebSocketUrl } from "./getWebSocketUrl.js";
 
 export interface UseWebSocketOptions {
-  /** The room ended — manual "End session" or the table's own grace window elapsing. */
   readonly onRoomEnded?: () => void;
 }
 
 export interface TableSocket {
-  /** No-ops silently while disconnected — buttons are gated on connection state upstream. */
   readonly send: (command: ClientCommand) => void;
 }
 
 const RETRY_DELAY_MS = 1500;
 
-/**
- * Opens a room-scoped WebSocket connection once a room exists and reflects
- * its lifecycle into the connection slice. Every `room-view` push replaces
- * the seat slice; every `hand-update`/`view-snapshot` replaces the hand
- * slice with the fresh `view(state, 'table')` the server just computed —
- * the view is source of truth (Phase 1 spec #130 §6), never rebuilt from
- * the raw event locally. `command-rejected` renders nothing on the table
- * device by design (§9 — only the rejecting player ever sees a rejection).
- *
- * A dropped socket retries after a fixed delay — the table device is
- * expected to keep trying for the whole 60s grace window (§7); the server,
- * not this hook, is what ends the room if it never reconnects in time.
- */
 export function useWebSocket(
   roomCode: string | null,
   options: UseWebSocketOptions = {},
@@ -76,13 +61,8 @@ export function useWebSocket(
         const message: ServerMessage = JSON.parse(event.data) as ServerMessage;
         if (message.type === "room-view") {
           setRoomView(message.view);
-          // Mirror the room's sound settings (#182) into the audio engine's
-          // gate so cue playback honours the table-controlled master/category.
           applyRoomSoundSettings(message.view.soundSettings);
         } else if (message.type === "hand-update") {
-          // The server only ever sends a table-role socket a `view(state, 'table')`.
-          // Applied the moment it arrives — animation and cue together, never
-          // held back for another surface's sound.
           setHandView(message.view);
           onHandUpdate({
             surface: "table",
@@ -90,8 +70,6 @@ export function useWebSocket(
             view: message.view,
           });
         } else if (message.type === "view-snapshot") {
-          // A snapshot (fresh join/reconnect) shows the authoritative state
-          // silently — no cue, so a rejoin can't replay a burst (#175).
           setHandView(message.view);
         } else if (message.type === "room-ended") {
           optionsRef.current.onRoomEnded?.();

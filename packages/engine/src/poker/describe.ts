@@ -45,7 +45,6 @@ function plural(rank: number): string {
   return must(PLURAL[rank], `no plural name for rank ${String(rank)}`);
 }
 
-/** A human-readable name for a category + tiebreak, e.g. "Full house, nines full of twos". */
 export function describe(
   category: HandCategory,
   tiebreak: readonly number[],

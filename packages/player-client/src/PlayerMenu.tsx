@@ -10,26 +10,18 @@ import { useEffect, useState, type CSSProperties } from "react";
 
 export interface PlayerMenuProps {
   readonly sittingOut: boolean;
-  /** Sit out/in needs a live socket to send; leave never does (ADR-0005). */
   readonly sitOutDisabled: boolean;
-  /** Drives the confirm copy — a live hand is forfeited on leave. */
   readonly inLiveHand: boolean;
   readonly onToggleSittingOut: () => void;
   readonly onLeave: () => void;
 }
 
-/** Context-aware confirm copy — a live hand is forfeited, otherwise a plain exit. */
 export function leaveConfirmMessage(inLiveHand: boolean): string {
   return inLiveHand
     ? "Leave now? You'll forfeit the current hand."
     : "Leave the game?";
 }
 
-/**
- * The player's burger and the side drawer it opens (ADR-0005). The drawer holds
- * the seat actions moved out of the crowded top bar — sit out/in, gated on the
- * socket, and leave, which is always available and asks to confirm first.
- */
 export function PlayerMenu({
   sittingOut,
   sitOutDisabled,
@@ -156,7 +148,6 @@ export interface MenuBodyProps {
   readonly onConfirmLeave: () => void;
 }
 
-/** The drawer's contents, split out from its animation shell so it renders flat in tests. */
 export function MenuBody({
   sittingOut,
   sitOutDisabled,

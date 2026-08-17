@@ -14,12 +14,6 @@ export interface SeatSnapshot {
   readonly folded: boolean;
 }
 
-/**
- * Between hands there are no blinds: the engine button has already rotated
- * on, so the `button` reported here is a forecast, and the blinds are far
- * likelier than the button to move again before the deal (seats can be
- * claimed, vacated or set to sit out). Deliberately no blind fields.
- */
 interface NoHandView {
   readonly phase: "no-hand";
   readonly button: SeatId;
@@ -39,7 +33,6 @@ interface ShowdownView extends HandPositions {
 
 export interface PlayerViewBetting extends HandPositions {
   readonly phase: "betting";
-  /** Absolute server deadline for the current actor, or null when disabled. */
   readonly turnEndsAt: number | null;
   readonly street: Street;
   readonly board: readonly Card[];
@@ -47,13 +40,11 @@ export interface PlayerViewBetting extends HandPositions {
   readonly seats: readonly SeatSnapshot[];
   readonly yourSeatId: SeatId;
   readonly yourHoleCards: readonly [Card, Card] | null;
-  /** Empty unless it's `yourSeatId`'s turn — see `legalActions` in table.ts. */
   readonly legalActions: readonly ActionType[];
 }
 
 export interface TableViewBetting extends HandPositions {
   readonly phase: "betting";
-  /** Absolute server deadline for the current actor, or null when disabled. */
   readonly turnEndsAt: number | null;
   readonly street: Street;
   readonly board: readonly Card[];
@@ -67,11 +58,6 @@ export type PlayerView =
 export type TableView =
   NoHandView | TableViewBetting | FoldedOutView | ShowdownView;
 
-/**
- * Builds the restricted view for one seat, or the table device via the
- * `"table"` sentinel. Both are derived from the same authoritative state so
- * the table is never privileged over a player — see Phase 1 spec #130 §4.
- */
 export function view(
   state: EngineState,
   seatId: SeatId,

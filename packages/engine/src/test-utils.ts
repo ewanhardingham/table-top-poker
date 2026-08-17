@@ -2,7 +2,6 @@ import { apply } from "./apply.js";
 import { decide } from "./decide.js";
 import type { Command, EngineState, HandEvent, Rejection } from "./types.js";
 
-/** Runs one command, folding any resulting events into state via `apply`. */
 export function play(
   state: EngineState,
   command: Command,
@@ -20,7 +19,6 @@ export function play(
   return { state: next, events: result };
 }
 
-/** Runs a sequence of commands, throwing on the first rejection. */
 export function playAll(state: EngineState, commands: Command[]): EngineState {
   let current = state;
   for (const command of commands) {

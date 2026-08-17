@@ -26,7 +26,6 @@ describe("evaluate: split and tie cases", () => {
   });
 
   it("does not split when kickers differ within the same category and rank", () => {
-    // Both have aces and kings two pair, but one has a queen kicker, the other a jack.
     const seatA = evaluate(cards("Ac Ah Kd Kh Qc 2s 3d"));
     const seatB = evaluate(cards("As Ad Ks Kc Jc 2s 3d"));
     expect(seatA.rank).toBeGreaterThan(seatB.rank);

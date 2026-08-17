@@ -27,24 +27,10 @@ const badgeStyle: CSSProperties = {
   borderRadius: radius.pill,
   background: color.control,
   border: `1px solid ${color.border}`,
-  /*
-   * Precedence as a shrink weight, as on the player's bar (ADR-0006): the
-   * connection is the first thing to give way, yielding its label ~100×
-   * faster than the room pill beside it. No `min-width: 0` here — the pill's
-   * automatic minimum is its own dot, so it stops there rather than
-   * collapsing and painting its text outside its border.
-   */
   flexShrink: 100,
   overflow: "hidden",
 };
 
-/**
- * No connection badge before a room exists — there's nothing to connect to yet.
- *
- * The badge is pushed right by its own auto margin rather than by the header's
- * justification, because the room-code pill on the left comes and goes: with
- * `space-between` alone, a lone badge would sit hard left.
- */
 export function StatusBar({
   roomCode,
   connectionStatus,
@@ -82,8 +68,6 @@ export function StatusBar({
               background: tone.dot,
             }}
           />
-          {/* First to go when the bar is tight — the dot beside it keeps
-           * reporting the state in colour. */}
           <span
             className="connection-status-label"
             style={{

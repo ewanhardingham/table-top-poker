@@ -70,7 +70,6 @@ describe("MenuBody", () => {
     );
 
     expect(html).toMatch(/data-testid="menu-sit-out"[^>]*disabled/);
-    // Leave stays available even when disconnected (ADR-0005).
     expect(html).toContain('data-testid="menu-leave"');
     expect(html).not.toMatch(/data-testid="menu-leave"[^>]*disabled/);
   });

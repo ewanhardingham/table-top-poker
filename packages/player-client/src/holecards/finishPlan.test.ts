@@ -5,13 +5,6 @@ import { endGesture, type GestureSession } from "./gesture.js";
 import { planFinish, type FinishEffect } from "./finishPlan.js";
 import type { CardActions } from "./ports.js";
 
-/**
- * These exercise the seam #156 identified: the composition from a completed
- * gesture to a *sent* poker Action, which the pure-function tests below #155
- * could not reach without a pointer. `end` comes through the real `endGesture`
- * so the event lists are the ones the hook actually replays.
- */
-
 function session(over: Partial<GestureSession>): GestureSession {
   return {
     pointerId: 1,
@@ -33,7 +26,6 @@ const armedFold = session({
 
 const tap = session({ classification: null });
 
-/** All flags open: on turn, Check and Fold both legal, nothing in flight. */
 const open: Pick<CardActions, "foldLegal" | "checkLegal" | "pending"> = {
   foldLegal: true,
   checkLegal: true,
@@ -106,7 +98,6 @@ describe("planFinish — Fold", () => {
 
     expect(sent(plan.effects)).toEqual([]);
     expect(plan.leaving).toBeNull();
-    // Disarm is announced before the release, matching the reducer's order.
     expect(dispatched(plan.effects)).toEqual(["FOLD_DISARMED", "RELEASED"]);
   });
 

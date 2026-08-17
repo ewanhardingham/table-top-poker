@@ -54,14 +54,6 @@ export function App() {
   const clearHand = useTableStore((state) => state.clearHand);
 
   useEffect(() => {
-    // Silently re-attach to the room this table was hosting on mount (#175) —
-    // a refresh keeps the room alive server-side for the grace window (#130
-    // §7). Confirm the room is still live over HTTP before restoring: the WS
-    // handshake 404s once the room is gone, but the socket can't tell that
-    // from a transient drop and would retry forever, so this check is what
-    // decides the fall-through. A live room restores its code/QR and the
-    // socket reconnects; a gone room (or absent/malformed storage) clears the
-    // stored room and falls through to the create-room screen.
     const stored = loadHostedRoom(window.localStorage);
     if (stored === null) return;
     fetchRoom(stored.code)
@@ -81,9 +73,6 @@ export function App() {
   const [menuSeatId, setMenuSeatId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // "View table" collapses the showdown overlay without leaving showdown, so
-  // the felt's controls are reachable; the Showdown chip reopens it. Reset
-  // whenever the table is not at showdown, so each new showdown opens featured.
   const [showdownCollapsed, setShowdownCollapsed] = useState(false);
   const atShowdown = handView?.phase === "showdown";
   useEffect(() => {
@@ -116,7 +105,6 @@ export function App() {
 
   const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
   const handleCreateRoom = useCallback(() => {
-    // Hosting the table is the kiosk's audio-unlock gesture (#178).
     void unlockAudio();
     createRoom(seatCount)
       .then((room) => {
@@ -157,8 +145,6 @@ export function App() {
     [roomCode],
   );
 
-  // Sound toggles apply the instant they're flipped (a mute you can hear stop),
-  // unlike seat count which commits on Done. The whole triple is sent each time.
   const handleChangeSoundSettings = useCallback(
     (next: SoundSettings) => {
       if (roomCode === null) return;
@@ -178,8 +164,6 @@ export function App() {
   );
 
   const handleStartHand = useCallback(() => {
-    // Also an unlock gesture, so a table that rejoined after a refresh (with no
-    // fresh create-room tap) still wakes its audio before the deal.
     void unlockAudio();
     send({ type: "startHand" });
   }, [send]);
@@ -191,8 +175,6 @@ export function App() {
 
   const claimedSeatCount = seats.filter((seat) => seat.claimed).length;
   const handInProgress = handView !== null;
-  // The server rejects startHand/nextHand below two deal-in seats, so both
-  // controls key off the same count rather than a raw claimed-seat tally.
   const enoughPlayers = countDealInSeats(seats) >= MIN_SEAT_COUNT;
   const canStartHand = !handInProgress && enoughPlayers;
   const handComplete = isHandComplete(handView);

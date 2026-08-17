@@ -1,11 +1,3 @@
-/**
- * Design tokens for the felt/night palette. `table-client` and
- * `player-client` both style against these rather than hard-coding values.
- *
- * These tokens are the palette's only source of truth — there is nothing else
- * to reconcile a new token against (issue #160, decision 9).
- */
-
 const feltGradient =
   "linear-gradient(180deg,#6a1a1f 0%,#4b1317 42%,#2c0c0f 100%)";
 
@@ -29,11 +21,6 @@ export const color = {
   lossBorder: "rgba(229,68,60,.34)",
   winBackground: "rgba(123,216,143,.1)",
   winBorder: "rgba(123,216,143,.4)",
-  /**
-   * The win green at plate weight: opaque enough to carry light text over a
-   * card face, where `winBackground` — tuned for a wash over the dark shell —
-   * would wash out to nothing.
-   */
   winPlate: "rgba(32,78,42,.9)",
   winBright: "#7bd88f",
   winKicker: "#8fdfa1",
@@ -75,12 +62,7 @@ export const color = {
   seatWinnerBackground: "rgba(250,234,231,.14)",
   seatActorBackground: "rgba(20,7,8,.72)",
   buttonMarker: "#faf6f0",
-  /**
-   * Saturated enough that it never reads as "the white button marker,
-   * slightly tinted" from a couple of metres away.
-   */
   blindSmallMarker: "#5aa9f0",
-  /** Amber rather than lemon, so it sits inside the warm felt palette. */
   blindBigMarker: "#f2c14e",
 } as const;
 
@@ -90,7 +72,6 @@ export const font = {
   mono: "'IBM Plex Mono', monospace",
 } as const;
 
-/** Named rungs of the type scale, from mono kicker labels up to the room-code display. */
 export const fontSize = {
   xs: "10px",
   sm: "12px",
@@ -115,7 +96,6 @@ export const shadow = {
   pill: "0 16px 40px -14px rgba(229,68,60,.6), inset 0 1px 0 rgba(255,255,255,.5)",
   card: "0 22px 44px -16px rgba(0,0,0,.85)",
   seatResting: "0 0 0 1px rgba(255,255,255,.1)",
-  /** The actor-glow pulse's three keyframes, driven by Motion's `animate`. */
   seatActorGlow: [
     "0 0 0 2px rgba(229,68,60,.95), 0 0 34px 6px rgba(229,68,60,.3)",
     "0 0 0 3px rgba(255,120,110,1), 0 0 54px 14px rgba(229,68,60,.5)",

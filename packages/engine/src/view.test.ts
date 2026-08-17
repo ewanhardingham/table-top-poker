@@ -25,13 +25,9 @@ function headsUpToRiver(seed: string): EngineState {
   return state;
 }
 
-/** Three-way, preflop action closed and the flop dealt — a non-trivial board. */
 function onTheFlopThreeWay(): EngineState {
   let state = createInitialState([0, 1, 2]);
   state = playAll(state, [{ type: "startHand", seatId: 0, seed: "mid" }]);
-  // ring (button 0) = [1, 2, 0], so preflop runs [0, 1, 2] with BB = seat 2.
-  // Only the BB can check preflop absent a raise; everyone else calls. The
-  // BB acts last, so its check closes the street — no extra option turn.
   state = playAll(state, [
     { type: "call", seatId: 0 },
     { type: "call", seatId: 1 },
@@ -222,15 +218,6 @@ const actionArb = fc.constantFrom<"fold" | "check" | "call" | "raise">(
   "raise",
 );
 
-/**
- * Asserts the leak-freeness property against the state as it stands right
- * now: every seat's dealt cards are visible to every viewer (including the
- * table) exactly when that viewer is entitled to them — the owner while
- * still live, or anyone once the seat is revealed at showdown — and never
- * otherwise. Called after the deal, after every action, and at the end, so
- * every intermediate street and every partial-fold configuration gets
- * checked, not just whatever state a hand happens to finish in.
- */
 function assertNoLeak(
   state: EngineState,
   dealtCards: ReadonlyMap<SeatId, readonly [Card, Card]>,
@@ -258,8 +245,6 @@ function assertNoLeak(
       for (const card of cards) {
         const present = cardKeys.has(`${card.rank}${card.suit}`);
         if (isRevealed) {
-          // Post-showdown, every viewer — including the table — sees
-          // every live seat's cards, not just the owner.
           expect(present).toBe(true);
         } else if (isLiveOwner) {
           expect(present).toBe(true);

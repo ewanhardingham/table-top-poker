@@ -19,11 +19,6 @@ const actionArb = fc.constantFrom<"fold" | "check" | "call" | "raise">(
   "raise",
 );
 
-/**
- * Deep-freezes state so any in-place mutation throws (ES modules are always
- * strict mode) — a stronger check than snapshot-and-compare, since it also
- * catches mutation of a nested object that later gets discarded unread.
- */
 function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);
