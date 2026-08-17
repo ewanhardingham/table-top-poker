@@ -8,6 +8,7 @@ import {
   MIN_SEAT_COUNT,
   MIN_SHOT_CLOCK_SECONDS,
   type RoomView,
+  type SeatId,
   type ServerMessage,
 } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
@@ -23,7 +24,12 @@ import {
 import type { MemoryFileSystem } from "@table-top-poker/recording/testing";
 import { ActionClock } from "./action-clock.js";
 import { buildApp } from "./app.js";
-import { RoomStore, toRoomView } from "./rooms.js";
+import {
+  type DispatchResult,
+  RoomStore,
+  type SeatCommandType,
+  toRoomView,
+} from "./rooms.js";
 
 const RECORDINGS_ROOT = "/recordings";
 
@@ -66,6 +72,21 @@ interface SeatClaimBody {
   readonly displayName: string;
   readonly sittingOut: boolean;
   readonly sittingOutReason: "voluntary" | "waiting-for-next-hand" | null;
+}
+
+/**
+ * Drives the store directly for test setup, settling the transaction the way
+ * `app.ts` does once its append confirms.
+ */
+function commitDispatch(
+  rooms: RoomStore,
+  code: string,
+  identity: SeatId | "table",
+  type: SeatCommandType,
+): DispatchResult {
+  const result = rooms.dispatch(code, identity, type);
+  if ("commit" in result) result.commit();
+  return result;
 }
 
 function unclaimedSeats(): RoomView["seats"] {
@@ -563,7 +584,7 @@ describe("seat claim/evict routes", () => {
     const code = await createRoom();
     rooms.claimSeat(code, 0, "P0");
     rooms.claimSeat(code, 1, "P1");
-    rooms.dispatch(code, "table", "startHand");
+    commitDispatch(rooms, code, "table", "startHand");
 
     const response = await app.inject({
       method: "POST",
@@ -869,7 +890,7 @@ describe("seat-count settings route", () => {
     const room = rooms.create();
     rooms.claimSeat(room.code, 0, "P0");
     rooms.claimSeat(room.code, 1, "P1");
-    rooms.dispatch(room.code, "table", "startHand");
+    commitDispatch(rooms, room.code, "table", "startHand");
 
     const table = new WebSocket(
       `ws://127.0.0.1:${String(port)}/ws?room=${room.code}&role=table`,
@@ -941,7 +962,7 @@ describe("shot-clock settings route", () => {
     const room = rooms.create();
     rooms.claimSeat(room.code, 0, "P0");
     rooms.claimSeat(room.code, 1, "P1");
-    const started = rooms.dispatch(room.code, "table", "startHand");
+    const started = commitDispatch(rooms, room.code, "table", "startHand");
     if (!("steps" in started)) throw new Error("expected start-hand steps");
 
     const settings = { enabled: true, seconds: 30 };
@@ -958,9 +979,9 @@ describe("shot-clock settings route", () => {
 
     const actor = rooms.currentActor(room.code);
     if (actor === undefined) throw new Error("expected a current actor");
-    const folded = rooms.dispatch(room.code, actor, "fold");
+    const folded = commitDispatch(rooms, room.code, actor, "fold");
     if (!("steps" in folded)) throw new Error("expected fold steps");
-    const next = rooms.dispatch(room.code, "table", "nextHand");
+    const next = commitDispatch(rooms, room.code, "table", "nextHand");
     if (!("steps" in next)) throw new Error("expected next-hand steps");
 
     expect(room.shotClockSettings).toEqual(settings);
@@ -1042,12 +1063,12 @@ describe("seat-count movement over WebSocket", () => {
     const player = connect(room.code, 5, token);
     await opened(player.socket);
 
-    rooms.dispatch(room.code, "table", "startHand");
+    commitDispatch(rooms, room.code, "table", "startHand");
     for (let i = 0; i < MAX_SEAT_COUNT; i++) {
       if (room.engine?.hand?.status === "complete") break;
       const actor = rooms.currentActor(room.code);
       if (actor === undefined) throw new Error("expected a current actor");
-      rooms.dispatch(room.code, actor, "fold");
+      commitDispatch(rooms, room.code, actor, "fold");
     }
 
     const response = await app.inject({
@@ -3145,5 +3166,282 @@ describe("hand summaries over WebSocket", () => {
       type: "hand-list",
       summaries: [],
     });
+  });
+});
+
+describe("the commit seam", () => {
+  const SHOT_CLOCK_SECONDS = 5;
+
+  interface Connection {
+    readonly socket: WebSocket;
+    readonly messages: ServerMessage[];
+  }
+
+  interface ArmedTimer {
+    readonly timeoutMs: number;
+    readonly fire: () => void;
+  }
+
+  /**
+   * A filesystem whose appends can be held open. Real appends are
+   * single-digit milliseconds, which is far too fast to interleave anything
+   * against on purpose — and interleaving is exactly what the seam exists to
+   * survive.
+   */
+  function gateAppends(inner: MemoryFileSystem) {
+    let held: Promise<void> | null = null;
+    let release = (): void => undefined;
+    let announceArrival = (): void => undefined;
+    let arrival = Promise.resolve();
+
+    return {
+      fileSystem: {
+        ...inner,
+        async appendFile(filePath: string, contents: string): Promise<void> {
+          announceArrival();
+          if (held !== null) await held;
+          await inner.appendFile(filePath, contents);
+        },
+      },
+      hold(): void {
+        held = new Promise<void>((resolve) => {
+          release = () => {
+            resolve();
+          };
+        });
+        arrival = new Promise<void>((resolve) => {
+          announceArrival = () => {
+            resolve();
+          };
+        });
+      },
+      /** Resolves once an append has reached the held gate. */
+      arrived(): Promise<void> {
+        return arrival;
+      },
+      release(): void {
+        held = null;
+        release();
+      },
+    };
+  }
+
+  interface SeamRig {
+    readonly app: FastifyInstance;
+    readonly rooms: RoomStore;
+    readonly code: string;
+    readonly armed: ArmedTimer[];
+    readonly gate: ReturnType<typeof gateAppends>;
+    readonly table: Connection;
+    readonly seats: Connection[];
+  }
+
+  async function settle(ms = 20): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function waitFor(condition: () => boolean): Promise<void> {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (condition()) return;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    throw new Error("timed out waiting for the room to catch up");
+  }
+
+  /**
+   * A heads-up room whose appends are gated and whose action timers are armed
+   * but never fired on their own, so a test fires them where it chooses.
+   */
+  async function headsUpRoom(shotClock = true): Promise<SeamRig> {
+    const gate = gateAppends(createMemoryFileSystem());
+    const armed: ArmedTimer[] = [];
+    const actionClock = new ActionClock(
+      90_000,
+      (callback, timeoutMs) => {
+        const handle = setTimeout(() => undefined, 60_000);
+        handle.unref();
+        armed.push({ timeoutMs, fire: callback });
+        return handle;
+      },
+      clearTimeout,
+    );
+    const rooms = new RoomStore();
+    const app = await buildApp({
+      rooms,
+      actionClock,
+      recordings: new DirectoryRecordings(RECORDINGS_ROOT, gate.fileSystem),
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+
+    const port = address.port;
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: 2 },
+    });
+    const { code } = created.json<RoomCreatedBody>();
+    if (shotClock) {
+      rooms.changeShotClockSettings(code, {
+        enabled: true,
+        seconds: SHOT_CLOCK_SECONDS,
+      });
+    }
+
+    function connect(query: string): Connection {
+      const socket = new WebSocket(
+        `ws://127.0.0.1:${String(port)}/ws?${query}`,
+      );
+      const messages: ServerMessage[] = [];
+      socket.on("message", (data: Buffer) => {
+        messages.push(JSON.parse(data.toString()) as ServerMessage);
+      });
+      return { socket, messages };
+    }
+
+    const table = connect(`room=${code}&role=table`);
+    const seats = [0, 1].map((seatId) => {
+      const claim = rooms.claimSeat(code, seatId, `P${String(seatId)}`);
+      if (!("seat" in claim)) throw new Error("expected a claimed seat");
+      return connect(
+        `room=${code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
+      );
+    });
+
+    await Promise.all(
+      [table, ...seats].map(
+        (conn) =>
+          new Promise<void>((resolve, reject) => {
+            if (conn.socket.readyState === WebSocket.OPEN) {
+              resolve();
+              return;
+            }
+            conn.socket.once("open", () => {
+              resolve();
+            });
+            conn.socket.once("error", reject);
+          }),
+      ),
+    );
+    await settle();
+    return { app, rooms, code, armed, gate, table, seats };
+  }
+
+  function actionsSeen(messages: ServerMessage[]) {
+    return messages
+      .filter((message) => message.type === "hand-update")
+      .map((message) => message.event)
+      .filter((event) => event.type === "ActionTaken");
+  }
+
+  it("discards a clock fold the room has moved past, even against the same seat", async () => {
+    // Heads-up, the non-button seat acts last preflop and first on the flop.
+    // Its own check is what moves the room on, so a fold queued behind that
+    // check finds the very seat it names back on the clock a beat later.
+    const rig = await headsUpRoom();
+    const { code, rooms, armed, gate, table, seats } = rig;
+    try {
+      table.socket.send(JSON.stringify({ type: "startHand" }));
+      await waitFor(() => rooms.currentActor(code) === 0);
+      seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+      await waitFor(() => rooms.currentActor(code) === 1);
+      const staleFold = armed.at(-1);
+      if (staleFold === undefined) throw new Error("expected an armed timer");
+
+      gate.hold();
+      seats[1]?.socket.send(JSON.stringify({ type: "check" }));
+      await gate.arrived();
+      staleFold.fire();
+      gate.release();
+      await settle();
+
+      expect(
+        actionsSeen(table.messages).filter((event) => event.action === "fold"),
+      ).toEqual([]);
+      const hand = rooms.get(code)?.engine?.hand;
+      if (hand?.status !== "betting") {
+        throw new Error("expected the hand to still be live");
+      }
+      expect(hand.street).toBe("flop");
+      expect(rooms.currentActor(code)).toBe(1);
+    } finally {
+      for (const conn of [table, ...seats]) conn.socket.close();
+      await rig.app.close();
+    }
+  });
+
+  it("arms the action clock only once the append confirms", async () => {
+    const rig = await headsUpRoom();
+    const { code, rooms, armed, gate, table } = rig;
+    try {
+      gate.hold();
+      table.socket.send(JSON.stringify({ type: "startHand" }));
+      await gate.arrived();
+
+      expect(armed).toEqual([]);
+      const releasedAt = Date.now();
+      gate.release();
+      await waitFor(() => armed.length > 0);
+
+      expect(armed.at(-1)?.timeoutMs).toBe(SHOT_CLOCK_SECONDS * 1000);
+      expect(rooms.get(code)?.turnEndsAt).toBeGreaterThanOrEqual(
+        releasedAt + SHOT_CLOCK_SECONDS * 1000,
+      );
+    } finally {
+      for (const conn of [table, ...rig.seats]) conn.socket.close();
+      await rig.app.close();
+    }
+  });
+
+  it("broadcasts nothing a failed append refused to record", async () => {
+    const fileSystem = createMemoryFileSystem();
+    const rooms = new RoomStore();
+    const app = await buildApp({
+      rooms,
+      recordings: new DirectoryRecordings(RECORDINGS_ROOT, fileSystem),
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: 2 },
+    });
+    const { code } = created.json<RoomCreatedBody>();
+    for (const seatId of [0, 1]) {
+      rooms.claimSeat(code, seatId, `P${String(seatId)}`);
+    }
+    const table = new WebSocket(
+      `ws://127.0.0.1:${String(address.port)}/ws?room=${code}&role=table`,
+    );
+    const messages: ServerMessage[] = [];
+    table.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        table.once("open", () => {
+          resolve();
+        });
+        table.once("error", reject);
+      });
+      fileSystem.failAlways("appendFile");
+
+      table.send(JSON.stringify({ type: "startHand" }));
+      await settle(50);
+
+      expect(messages.filter((m) => m.type === "hand-update")).toEqual([]);
+      expect(rooms.get(code)?.engine).toBeNull();
+      expect(rooms.get(code)?.revision).toBe(0);
+    } finally {
+      table.close();
+      await app.close();
+    }
   });
 });

@@ -1,6 +1,12 @@
-import { DEFAULT_SEAT_COUNT } from "@table-top-poker/protocol";
+import { DEFAULT_SEAT_COUNT, type SeatId } from "@table-top-poker/protocol";
 import { describe, expect, it } from "vitest";
-import { type Room, RoomStore, toRoomView } from "./rooms.js";
+import {
+  type DispatchResult,
+  type Room,
+  RoomStore,
+  type SeatCommandType,
+  toRoomView,
+} from "./rooms.js";
 
 function claimSeats(store: RoomStore, room: Room, count: number): void {
   for (let seatId = 0; seatId < count; seatId++) {
@@ -10,12 +16,24 @@ function claimSeats(store: RoomStore, room: Room, count: number): void {
   }
 }
 
+/** Dispatches and commits in one step, as `app.ts` does once its append confirms. */
+function commitDispatch(
+  store: RoomStore,
+  code: string,
+  identity: SeatId | "table",
+  type: SeatCommandType,
+): DispatchResult {
+  const result = store.dispatch(code, identity, type);
+  if ("commit" in result) result.commit();
+  return result;
+}
+
 function completeHand(store: RoomStore, room: Room): void {
   for (let attempt = 0; attempt < DEFAULT_SEAT_COUNT; attempt++) {
     if (room.engine?.hand?.status === "complete") return;
     const actor = store.currentActor(room.code);
     if (actor === undefined) throw new Error("expected a current actor");
-    const result = store.dispatch(room.code, actor, "fold");
+    const result = commitDispatch(store, room.code, actor, "fold");
     if (!("steps" in result)) throw new Error("expected dispatch steps");
   }
   throw new Error("hand did not complete");
@@ -39,7 +57,7 @@ describe("sitting-out reason in the room view", () => {
     });
 
     store.setSittingOut(room.code, 0, false);
-    store.dispatch(room.code, "table", "startHand");
+    commitDispatch(store, room.code, "table", "startHand");
     const lateClaim = store.claimSeat(room.code, 2, "P2");
     expect(lateClaim).toHaveProperty("seat");
     expect(toRoomView(room).seats[2]).toMatchObject({
@@ -48,7 +66,7 @@ describe("sitting-out reason in the room view", () => {
     });
 
     completeHand(store, room);
-    const nextHand = store.dispatch(room.code, "table", "nextHand");
+    const nextHand = commitDispatch(store, room.code, "table", "nextHand");
     expect(nextHand).toHaveProperty("steps");
     expect(toRoomView(room).seats[2]).toMatchObject({
       sittingOut: false,

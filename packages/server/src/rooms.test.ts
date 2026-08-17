@@ -5,14 +5,59 @@ import {
   MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
   MIN_SEAT_COUNT,
+  type SeatId,
 } from "@table-top-poker/protocol";
 import { describe, expect, it } from "vitest";
-import { type Room, RoomStore, toRoomView } from "./rooms.js";
+import {
+  type DispatchResult,
+  type EvictSeatResult,
+  type Room,
+  RoomStore,
+  type SeatCommandType,
+  toRoomView,
+} from "./rooms.js";
 
 /** A deterministic `Math.random` stand-in, repeating its last value forever. */
 function sequenceOf(values: readonly number[]): () => number {
   let index = 0;
   return () => values[index++] ?? values.at(-1) ?? 0;
+}
+
+/**
+ * Dispatches and commits in one step, as `app.ts` does once the append
+ * confirms. Tests about the staging seam itself call `dispatch` directly and
+ * settle the transaction themselves.
+ */
+function commitDispatch(
+  store: RoomStore,
+  code: string,
+  identity: SeatId | "table",
+  type: SeatCommandType,
+): DispatchResult {
+  const result = store.dispatch(code, identity, type);
+  if ("commit" in result) result.commit();
+  return result;
+}
+
+function commitEviction(
+  store: RoomStore,
+  code: string,
+  seatId: SeatId,
+): EvictSeatResult {
+  const result = store.evictSeat(code, seatId);
+  result.transaction?.commit();
+  return result;
+}
+
+function commitLeave(
+  store: RoomStore,
+  code: string,
+  seatId: SeatId,
+  token: string,
+): EvictSeatResult | { readonly error: "room-not-found" | "not-permitted" } {
+  const result = store.leaveSeat(code, seatId, token);
+  if (!("error" in result)) result.transaction?.commit();
+  return result;
 }
 
 describe("RoomStore", () => {
@@ -228,7 +273,7 @@ describe("RoomStore", () => {
       });
       expect(room.seats[1]?.claimed).toBe(false);
 
-      store.evictSeat(room.code, 0);
+      commitEviction(store, room.code, 0);
       expect(store.claimSeat(room.code, 1, "Avery")).toHaveProperty("seat");
     });
 
@@ -275,7 +320,7 @@ describe("RoomStore", () => {
       const room = store.create();
       store.claimSeat(room.code, 0, "P0");
       store.claimSeat(room.code, 1, "P1");
-      store.dispatch(room.code, "table", "startHand");
+      commitDispatch(store, room.code, "table", "startHand");
 
       const result = store.claimSeat(room.code, 2, "P2");
 
@@ -294,7 +339,7 @@ describe("RoomStore", () => {
       const room = store.create();
       store.claimSeat(room.code, 0, "P0");
 
-      store.evictSeat(room.code, 0);
+      commitEviction(store, room.code, 0);
 
       expect(room.seats[0]).toEqual({
         id: 0,
@@ -318,7 +363,7 @@ describe("RoomStore", () => {
       const room = store.create();
       const added = store.addBots(room, 1);
 
-      store.evictSeat(room.code, added.seats[0]?.id ?? 0);
+      commitEviction(store, room.code, added.seats[0]?.id ?? 0);
 
       expect(room.seats[0]).not.toHaveProperty("bot");
       expect(toRoomView(room).seats[0]).not.toHaveProperty("bot");
@@ -335,7 +380,7 @@ describe("RoomStore", () => {
         displayName: "Blair",
       });
 
-      store.evictSeat(room.code, 0);
+      commitEviction(store, room.code, 0);
 
       expect(room.seats[0]).not.toHaveProperty("displayName");
     });
@@ -343,7 +388,7 @@ describe("RoomStore", () => {
     it("evicting a seat in an unknown room is a no-op", () => {
       const store = new RoomStore();
       expect(() => {
-        store.evictSeat("ZZZZ", 0);
+        commitEviction(store, "ZZZZ", 0);
       }).not.toThrow();
     });
   });
@@ -362,7 +407,7 @@ describe("RoomStore", () => {
       const room = store.create();
       const token = claimWithToken(store, room.code, 0);
 
-      const result = store.leaveSeat(room.code, 0, token);
+      const result = commitLeave(store, room.code, 0, token);
 
       expect(result).not.toHaveProperty("error");
       expect(room.seats[0]).toEqual({
@@ -379,7 +424,7 @@ describe("RoomStore", () => {
       const room = store.create();
       claimWithToken(store, room.code, 0);
 
-      const result = store.leaveSeat(room.code, 0, "not-the-token");
+      const result = commitLeave(store, room.code, 0, "not-the-token");
 
       expect(result).toEqual({ error: "not-permitted" });
       expect(room.seats[0]).toMatchObject({ claimed: true });
@@ -389,14 +434,14 @@ describe("RoomStore", () => {
       const store = new RoomStore();
       const room = store.create();
 
-      expect(store.leaveSeat(room.code, 0, "any")).toEqual({
+      expect(commitLeave(store, room.code, 0, "any")).toEqual({
         error: "not-permitted",
       });
     });
 
     it("reports room-not-found for an unknown room", () => {
       const store = new RoomStore();
-      expect(store.leaveSeat("ZZZZ", 0, "any")).toEqual({
+      expect(commitLeave(store, "ZZZZ", 0, "any")).toEqual({
         error: "room-not-found",
       });
     });
@@ -407,14 +452,14 @@ describe("RoomStore", () => {
       const tokens = [0, 1, 2].map((seatId) =>
         claimWithToken(store, room.code, seatId),
       );
-      store.dispatch(room.code, "table", "startHand");
+      commitDispatch(store, room.code, "table", "startHand");
       const actor = store.currentActor(room.code);
       if (actor === undefined) throw new Error("expected a current actor");
 
-      const result = store.leaveSeat(room.code, actor, tokens[actor] ?? "");
+      const result = commitLeave(store, room.code, actor, tokens[actor] ?? "");
 
       if ("error" in result) throw new Error("expected the leave to dispatch");
-      expect(result.dispatch?.steps.at(-1)?.event).toMatchObject({
+      expect(result.transaction?.steps.at(-1)?.event).toMatchObject({
         type: "ActionTaken",
         seatId: actor,
         action: "fold",
@@ -437,7 +482,7 @@ describe("RoomStore", () => {
         if (room.engine?.hand?.status === "complete") return;
         const actor = store.currentActor(room.code);
         if (actor === undefined) throw new Error("expected a current actor");
-        const result = store.dispatch(room.code, actor, "fold");
+        const result = commitDispatch(store, room.code, actor, "fold");
         if (!("steps" in result)) throw new Error("expected dispatch steps");
       }
       throw new Error("hand did not complete");
@@ -488,7 +533,7 @@ describe("RoomStore", () => {
       const store = new RoomStore();
       const room = store.create(2);
       claimSeats(store, room, [0, 1]);
-      const started = store.dispatch(room.code, "table", "startHand");
+      const started = commitDispatch(store, room.code, "table", "startHand");
       if (!("steps" in started)) throw new Error("expected dispatch steps");
 
       expect(store.changeSeatCount(room.code, 4)).toMatchObject({
@@ -499,7 +544,7 @@ describe("RoomStore", () => {
       claimSeats(store, room, [2]);
       completeHand(store, room);
 
-      const next = store.dispatch(room.code, "table", "nextHand");
+      const next = commitDispatch(store, room.code, "table", "nextHand");
 
       if (!("steps" in next)) throw new Error("expected dispatch steps");
       expect(room.engine?.seats).toEqual([0, 1, 2]);
@@ -546,7 +591,7 @@ describe("RoomStore", () => {
       const store = new RoomStore();
       const room = store.create();
       claimSeats(store, room, [2, 5, 7]);
-      const started = store.dispatch(room.code, "table", "startHand");
+      const started = commitDispatch(store, room.code, "table", "startHand");
       if (!("steps" in started)) throw new Error("expected dispatch steps");
       const liveEngine = room.engine;
 
@@ -562,7 +607,7 @@ describe("RoomStore", () => {
       expect(room.engine).toBe(liveEngine);
 
       completeHand(store, room);
-      const next = store.dispatch(room.code, "table", "nextHand");
+      const next = commitDispatch(store, room.code, "table", "nextHand");
 
       if (!("steps" in next)) throw new Error("expected dispatch steps");
       expect(next.seatMoves).toEqual([
@@ -581,10 +626,10 @@ describe("RoomStore", () => {
       const store = new RoomStore();
       const room = store.create();
       claimSeats(store, room, [2, 5, 7]);
-      const started = store.dispatch(room.code, "table", "startHand");
+      const started = commitDispatch(store, room.code, "table", "startHand");
       if (!("steps" in started)) throw new Error("expected dispatch steps");
       completeHand(store, room);
-      const second = store.dispatch(room.code, "table", "nextHand");
+      const second = commitDispatch(store, room.code, "table", "nextHand");
       if (!("steps" in second)) throw new Error("expected dispatch steps");
       completeHand(store, room);
 
@@ -610,7 +655,7 @@ describe("RoomStore", () => {
         false,
       ]);
 
-      const next = store.dispatch(room.code, "table", "nextHand");
+      const next = commitDispatch(store, room.code, "table", "nextHand");
 
       if (!("steps" in next)) throw new Error("expected dispatch steps");
       expect(next.seatMoves).toBeUndefined();
@@ -631,7 +676,7 @@ describe("RoomStore", () => {
 
     it("rejects a command for an unknown room", () => {
       const store = new RoomStore();
-      expect(store.dispatch("ZZZZ", "table", "startHand")).toEqual({
+      expect(commitDispatch(store, "ZZZZ", "table", "startHand")).toEqual({
         error: "room-not-found",
       });
     });
@@ -639,7 +684,7 @@ describe("RoomStore", () => {
     it("rejects a table-only command sent by a seat", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      expect(store.dispatch(room.code, 0, "startHand")).toEqual({
+      expect(commitDispatch(store, room.code, 0, "startHand")).toEqual({
         error: "not-permitted",
       });
     });
@@ -647,7 +692,7 @@ describe("RoomStore", () => {
     it("rejects a seat-only command sent by the table", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      expect(store.dispatch(room.code, "table", "fold")).toEqual({
+      expect(commitDispatch(store, room.code, "table", "fold")).toEqual({
         error: "not-permitted",
       });
     });
@@ -655,7 +700,7 @@ describe("RoomStore", () => {
     it("rejects starting a hand with fewer than 2 dealt-in seats", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 1);
-      expect(store.dispatch(room.code, "table", "startHand")).toEqual({
+      expect(commitDispatch(store, room.code, "table", "startHand")).toEqual({
         reason: "not-enough-players",
       });
     });
@@ -663,7 +708,7 @@ describe("RoomStore", () => {
     it("rejects an action before any hand has started", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      expect(store.dispatch(room.code, 0, "fold")).toEqual({
+      expect(commitDispatch(store, room.code, 0, "fold")).toEqual({
         reason: "hand-not-in-progress",
       });
     });
@@ -676,7 +721,7 @@ describe("RoomStore", () => {
       });
       const room = roomWithClaimedSeats(store, 3);
 
-      const result = store.dispatch(room.code, "table", "startHand");
+      const result = commitDispatch(store, room.code, "table", "startHand");
 
       if (!("steps" in result)) throw new Error("expected dispatch steps");
       expect(result.steps.map((step) => step.event.type)).toEqual([
@@ -697,11 +742,11 @@ describe("RoomStore", () => {
     it("excludes a mid-hand joiner from the deal, showing it sitting out", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      store.dispatch(room.code, "table", "startHand");
+      commitDispatch(store, room.code, "table", "startHand");
       const midHandJoin = store.claimSeat(room.code, 2, "P2");
       if (!("seat" in midHandJoin)) throw new Error("expected a claim");
 
-      const foldResult = store.dispatch(room.code, 2, "fold");
+      const foldResult = commitDispatch(store, room.code, 2, "fold");
 
       expect(foldResult).toMatchObject({
         reason: "not-your-turn",
@@ -715,7 +760,7 @@ describe("RoomStore", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
 
-      store.dispatch(room.code, "table", "startHand");
+      commitDispatch(store, room.code, "table", "startHand");
 
       expect(room.seats[0]?.sittingOut).toBe(false);
       expect(room.seats[1]?.sittingOut).toBe(false);
@@ -724,9 +769,9 @@ describe("RoomStore", () => {
     it("rejects a second startHand once a hand is already in progress", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      store.dispatch(room.code, "table", "startHand");
+      commitDispatch(store, room.code, "table", "startHand");
 
-      const result = store.dispatch(room.code, "table", "startHand");
+      const result = commitDispatch(store, room.code, "table", "startHand");
       expect(result).toMatchObject({
         reason: "hand-already-in-progress",
         command: {
@@ -748,7 +793,7 @@ describe("RoomStore", () => {
     it("rejects an out-of-turn fold", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      const started = store.dispatch(room.code, "table", "startHand");
+      const started = commitDispatch(store, room.code, "table", "startHand");
       if (!("steps" in started)) throw new Error("expected dispatch steps");
       const streetStarted = started.steps.at(-1)?.event;
       if (streetStarted?.type !== "StreetStarted") {
@@ -759,13 +804,13 @@ describe("RoomStore", () => {
       );
       if (!outOfTurnSeat) throw new Error("expected an out-of-turn seat");
 
-      expect(store.dispatch(room.code, outOfTurnSeat.id, "fold")).toMatchObject(
-        {
-          reason: "not-your-turn",
-          command: { type: "fold", seatId: outOfTurnSeat.id },
-          rejection: { type: "Rejection", reason: "not-your-turn" },
-        },
-      );
+      expect(
+        commitDispatch(store, room.code, outOfTurnSeat.id, "fold"),
+      ).toMatchObject({
+        reason: "not-your-turn",
+        command: { type: "fold", seatId: outOfTurnSeat.id },
+        rejection: { type: "Rejection", reason: "not-your-turn" },
+      });
     });
 
     function completeHand(store: RoomStore, room: Room): void {
@@ -773,7 +818,7 @@ describe("RoomStore", () => {
         if (room.engine?.hand?.status === "complete") return;
         const actor = store.currentActor(room.code);
         if (actor === undefined) throw new Error("expected a current actor");
-        const result = store.dispatch(room.code, actor, "fold");
+        const result = commitDispatch(store, room.code, actor, "fold");
         if (!("steps" in result)) throw new Error("expected dispatch steps");
       }
       throw new Error("hand did not complete");
@@ -783,11 +828,11 @@ describe("RoomStore", () => {
       it("deals a mid-hand joiner into the next hand", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         store.claimSeat(room.code, 2, "P2");
         completeHand(store, room);
 
-        const result = store.dispatch(room.code, "table", "nextHand");
+        const result = commitDispatch(store, room.code, "table", "nextHand");
 
         if (!("steps" in result)) throw new Error("expected dispatch steps");
         const holeCardsDealt = result.steps.find(
@@ -805,13 +850,13 @@ describe("RoomStore", () => {
       it("keeps a between-hand joiner sitting out until the next deal-in", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         completeHand(store, room);
         store.claimSeat(room.code, 2, "P2");
 
         expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: true });
 
-        const result = store.dispatch(room.code, "table", "nextHand");
+        const result = commitDispatch(store, room.code, "table", "nextHand");
 
         if (!("steps" in result)) throw new Error("expected dispatch steps");
         expect(toRoomView(room).seats[2]).toMatchObject({ sittingOut: false });
@@ -820,11 +865,11 @@ describe("RoomStore", () => {
       it("excludes a disconnected seat from the next hand's deal-in", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         completeHand(store, room);
         store.setSeatDisconnected(room.code, 2, true);
 
-        const result = store.dispatch(room.code, "table", "nextHand");
+        const result = commitDispatch(store, room.code, "table", "nextHand");
 
         if (!("steps" in result)) throw new Error("expected dispatch steps");
         expect(room.engine?.seats).not.toContain(2);
@@ -833,11 +878,11 @@ describe("RoomStore", () => {
       it("rejects nextHand once too few seats remain eligible, without dealing anyone in", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         completeHand(store, room);
         store.setSeatDisconnected(room.code, 1, true);
 
-        expect(store.dispatch(room.code, "table", "nextHand")).toEqual({
+        expect(commitDispatch(store, room.code, "table", "nextHand")).toEqual({
           reason: "not-enough-players",
         });
       });
@@ -845,13 +890,13 @@ describe("RoomStore", () => {
       it("rejects nextHand as stale-next-hand while a hand is still live, leaving seats and button untouched", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         store.setSeatDisconnected(room.code, 2, true);
 
         const seatsBefore = room.engine?.seats;
         const buttonBefore = room.engine?.button;
 
-        const result = store.dispatch(room.code, "table", "nextHand");
+        const result = commitDispatch(store, room.code, "table", "nextHand");
 
         expect(result).toMatchObject({ reason: "stale-next-hand" });
         expect(room.engine?.seats).toBe(seatsBefore);
@@ -864,11 +909,11 @@ describe("RoomStore", () => {
       it("auto-folds the current actor before freeing the evicted seat", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         const actor = store.currentActor(room.code);
         if (actor === undefined) throw new Error("expected a current actor");
 
-        store.evictSeat(room.code, actor);
+        commitEviction(store, room.code, actor);
 
         expect(room.seats[actor]).toMatchObject({ claimed: false });
         expect(store.currentActor(room.code)).not.toBe(actor);
@@ -881,11 +926,11 @@ describe("RoomStore", () => {
       it("keeps a bot reclaimed into an evicted live seat out until the next hand", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         const actor = store.currentActor(room.code);
         if (actor === undefined) throw new Error("expected a current actor");
 
-        store.evictSeat(room.code, actor);
+        commitEviction(store, room.code, actor);
         const added = store.addBots(room, 1);
         const bot = added.seats[0];
         if (bot === undefined) throw new Error("expected a bot seat");
@@ -904,7 +949,7 @@ describe("RoomStore", () => {
         expect(room.engine.hand.players.get(actor)?.folded).toBe(true);
 
         completeHand(store, room);
-        const next = store.dispatch(room.code, "table", "nextHand");
+        const next = commitDispatch(store, room.code, "table", "nextHand");
         if (!("steps" in next)) throw new Error("expected next-hand steps");
         const holeCardsDealt = next.steps.find(
           (step) => step.event.type === "HoleCardsDealt",
@@ -927,7 +972,7 @@ describe("RoomStore", () => {
       it("auto-folds a later in-hand seat without moving the current actor", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         if (room.engine?.hand?.status !== "betting") {
           throw new Error("expected a betting hand");
         }
@@ -937,16 +982,16 @@ describe("RoomStore", () => {
           throw new Error("expected two seats to be awaiting action");
         }
 
-        const result = store.evictSeat(room.code, evicted);
+        const result = commitEviction(store, room.code, evicted);
 
-        if (result.dispatch === undefined) {
+        if (result.transaction === undefined) {
           throw new Error("expected the eviction fold to dispatch");
         }
-        expect(result.dispatch.command).toEqual({
+        expect(result.transaction.command).toEqual({
           type: "evict",
           seatId: evicted,
         });
-        expect(result.dispatch.steps.map((step) => step.event)).toEqual([
+        expect(result.transaction.steps.map((step) => step.event)).toEqual([
           { type: "ActionTaken", seatId: evicted, action: "fold" },
         ]);
         expect(room.seats[evicted]).toMatchObject({ claimed: false });
@@ -958,20 +1003,18 @@ describe("RoomStore", () => {
       it("completes a heads-up hand when evicting the current actor", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         const actor = store.currentActor(room.code);
         if (actor === undefined) throw new Error("expected a current actor");
 
-        const result = store.evictSeat(room.code, actor);
+        const result = commitEviction(store, room.code, actor);
 
-        if (result.dispatch === undefined) {
+        if (result.transaction === undefined) {
           throw new Error("expected the eviction fold to dispatch");
         }
-        expect(result.dispatch.steps.map((step) => step.event.type)).toEqual([
-          "ActionTaken",
-          "HandFoldedOut",
-          "HandComplete",
-        ]);
+        expect(result.transaction.steps.map((step) => step.event.type)).toEqual(
+          ["ActionTaken", "HandFoldedOut", "HandComplete"],
+        );
         expect(room.seats[actor]).toMatchObject({ claimed: false });
         expect(store.currentActor(room.code)).toBeUndefined();
         expect(room.engine?.hand?.status).toBe("complete");
@@ -980,11 +1023,11 @@ describe("RoomStore", () => {
       it("frees a claimed seat via evictSeat regardless of connection status", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         completeHand(store, room);
         store.setSeatDisconnected(room.code, 2, true);
 
-        store.evictSeat(room.code, 2);
+        commitEviction(store, room.code, 2);
 
         expect(room.seats[2]).toMatchObject({ claimed: false, token: null });
       });
@@ -992,12 +1035,12 @@ describe("RoomStore", () => {
       it("has no automatic eviction — a disconnected seat stays occupied across any number of hands", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         completeHand(store, room);
         store.setSeatDisconnected(room.code, 2, true);
 
         for (let i = 0; i < 5; i++) {
-          store.dispatch(room.code, "table", "nextHand");
+          commitDispatch(store, room.code, "table", "nextHand");
           completeHand(store, room);
         }
 
@@ -1008,7 +1051,7 @@ describe("RoomStore", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 2);
 
-        store.evictSeat(room.code, 1);
+        commitEviction(store, room.code, 1);
 
         expect(room.seats[1]).toMatchObject({ claimed: false });
       });
@@ -1020,7 +1063,7 @@ describe("RoomStore", () => {
         const room = roomWithClaimedSeats(store, 3);
         store.setSittingOut(room.code, 2, true);
 
-        const result = store.dispatch(room.code, "table", "startHand");
+        const result = commitDispatch(store, room.code, "table", "startHand");
 
         if (!("steps" in result)) throw new Error("expected dispatch steps");
         expect(room.engine?.seats).not.toContain(2);
@@ -1034,11 +1077,11 @@ describe("RoomStore", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);
         store.setSittingOut(room.code, 2, true);
-        store.dispatch(room.code, "table", "startHand");
+        commitDispatch(store, room.code, "table", "startHand");
         completeHand(store, room);
 
         store.setSittingOut(room.code, 2, false);
-        const result = store.dispatch(room.code, "table", "nextHand");
+        const result = commitDispatch(store, room.code, "table", "nextHand");
 
         if (!("steps" in result)) throw new Error("expected dispatch steps");
         expect(room.engine?.seats).toContain(2);
@@ -1051,6 +1094,201 @@ describe("RoomStore", () => {
         store.setSittingOut(room.code, 0, true);
 
         expect(room.seats[0]?.sittingOut).toBe(false);
+      });
+    });
+  });
+
+  describe("the commit seam", () => {
+    function roomWithClaimedSeats(
+      store: RoomStore,
+      seatIds: readonly SeatId[],
+    ) {
+      const room = store.create();
+      for (const seatId of seatIds) {
+        store.claimSeat(room.code, seatId, `P${String(seatId)}`);
+      }
+      return room;
+    }
+
+    function stagedDispatch(
+      store: RoomStore,
+      code: string,
+      identity: SeatId | "table",
+      type: SeatCommandType,
+    ) {
+      const result = store.dispatch(code, identity, type);
+      if (!("commit" in result)) throw new Error("expected a transaction");
+      return result;
+    }
+
+    it("changes nothing about the room until the transaction commits", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+
+      const transaction = stagedDispatch(
+        store,
+        room.code,
+        "table",
+        "startHand",
+      );
+
+      expect(room.engine).toBeNull();
+      expect(room.revision).toBe(0);
+      expect(store.currentActor(room.code)).toBeUndefined();
+
+      transaction.commit();
+
+      expect(room.engine?.hand?.status).toBe("betting");
+      expect(room.revision).toBe(1);
+    });
+
+    it("leaves a discarded dispatch no trace, and takes the next one", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+
+      stagedDispatch(store, room.code, "table", "startHand").discard();
+
+      expect(room.engine).toBeNull();
+      expect(room.revision).toBe(0);
+
+      const retried = stagedDispatch(store, room.code, "table", "startHand");
+      retried.commit();
+
+      expect(room.engine?.hand?.status).toBe("betting");
+      expect(room.revision).toBe(1);
+    });
+
+    it("refuses to settle a transaction twice", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      const transaction = stagedDispatch(
+        store,
+        room.code,
+        "table",
+        "startHand",
+      );
+
+      transaction.commit();
+
+      expect(() => {
+        transaction.commit();
+      }).toThrow(/already settled/);
+      expect(() => {
+        transaction.discard();
+      }).toThrow(/already settled/);
+      expect(room.revision).toBe(1);
+    });
+
+    it("leaves a rejected command's revision alone, so a queued clock fold survives it", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      commitDispatch(store, room.code, "table", "startHand");
+      const revision = room.revision;
+      const actor = store.currentActor(room.code);
+      if (actor === undefined) throw new Error("expected a current actor");
+
+      const rejected = store.dispatch(room.code, 1 - actor, "fold");
+
+      expect(rejected).toMatchObject({ reason: "not-your-turn" });
+      expect(room.revision).toBe(revision);
+    });
+
+    it("stages the seat shrink with the hand it belongs to, not before", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [2, 5, 7]);
+      commitDispatch(store, room.code, "table", "startHand");
+      store.changeSeatCount(room.code, 3);
+      for (let fold = 0; fold < 2; fold++) {
+        const actor = store.currentActor(room.code);
+        if (actor === undefined) throw new Error("expected a current actor");
+        commitDispatch(store, room.code, actor, "fold");
+      }
+      const engineBefore = room.engine;
+
+      const transaction = stagedDispatch(store, room.code, "table", "nextHand");
+
+      expect(room.seats).toHaveLength(MAX_SEAT_COUNT);
+      expect(room.pendingSeatCount).toBe(3);
+      expect(room.engine).toBe(engineBefore);
+      expect(transaction.seatMoves).toEqual([
+        { from: 2, to: 0 },
+        { from: 5, to: 1 },
+        { from: 7, to: 2 },
+      ]);
+
+      transaction.commit();
+
+      expect(room.seats).toHaveLength(3);
+      expect(room.pendingSeatCount).toBeNull();
+      expect(room.engine?.seats).toEqual([0, 1, 2]);
+    });
+
+    it("frees an evicted seat only once its fold is committed", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1, 2]);
+      commitDispatch(store, room.code, "table", "startHand");
+      const actor = store.currentActor(room.code);
+      if (actor === undefined) throw new Error("expected a current actor");
+
+      const eviction = store.evictSeat(room.code, actor);
+
+      if (eviction.transaction === undefined) {
+        throw new Error("expected the eviction fold to stage");
+      }
+      expect(room.seats[actor]).toMatchObject({ claimed: true });
+      expect(store.currentActor(room.code)).toBe(actor);
+
+      eviction.transaction.commit();
+
+      expect(room.seats[actor]).toMatchObject({ claimed: false });
+      expect(store.currentActor(room.code)).not.toBe(actor);
+    });
+
+    it("carries the whole operation the recording takes", () => {
+      const startedAt = "2026-08-17T19:30:00.000Z";
+      const store = new RoomStore(
+        Math.random,
+        undefined,
+        () => "seed-1",
+        undefined,
+        () => new Date(startedAt),
+      );
+      const room = roomWithClaimedSeats(store, [0, 1]);
+
+      const transaction = stagedDispatch(
+        store,
+        room.code,
+        "table",
+        "startHand",
+      );
+
+      expect(transaction.operation).toEqual({
+        context: { startedAt, seats: [0, 1], button: 0 },
+        command: { type: "startHand", seatId: 0, seed: "seed-1" },
+        outcome: transaction.steps.map((step) => step.event),
+      });
+    });
+
+    it("gives a rejection the operation that records it, and no hand context", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      commitDispatch(store, room.code, "table", "startHand");
+
+      const rejected = store.dispatch(room.code, "table", "startHand");
+
+      if (!("reason" in rejected)) throw new Error("expected a rejection");
+      expect(rejected.operation).toEqual({
+        command: rejected.command,
+        outcome: rejected.rejection,
+      });
+    });
+
+    it("has no operation for a refusal the engine never ruled on", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0]);
+
+      expect(store.dispatch(room.code, "table", "startHand")).toEqual({
+        reason: "not-enough-players",
       });
     });
   });
@@ -1078,7 +1316,7 @@ describe("RoomStore", () => {
     it("is the seat named by the hand's own StreetStarted event", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      const started = store.dispatch(room.code, "table", "startHand");
+      const started = commitDispatch(store, room.code, "table", "startHand");
       if (!("steps" in started)) throw new Error("expected dispatch steps");
       const streetStarted = started.steps.at(-1)?.event;
       if (streetStarted?.type !== "StreetStarted") {
@@ -1091,11 +1329,11 @@ describe("RoomStore", () => {
     it("advances to the next actor after a legal action", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, 2);
-      store.dispatch(room.code, "table", "startHand");
+      commitDispatch(store, room.code, "table", "startHand");
       const actor = store.currentActor(room.code);
       if (actor === undefined) throw new Error("expected a current actor");
 
-      store.dispatch(room.code, actor, "call");
+      commitDispatch(store, room.code, actor, "call");
 
       expect(store.currentActor(room.code)).not.toBe(actor);
     });
@@ -1176,7 +1414,7 @@ describe("changeShotClockSettings", () => {
     const room = store.create();
     store.claimSeat(room.code, 0, "P0");
     store.claimSeat(room.code, 1, "P1");
-    const started = store.dispatch(room.code, "table", "startHand");
+    const started = commitDispatch(store, room.code, "table", "startHand");
     if (!("steps" in started)) throw new Error("expected start-hand steps");
     const settings = { enabled: true, seconds: 30 };
 
@@ -1188,9 +1426,9 @@ describe("changeShotClockSettings", () => {
 
     const actor = store.currentActor(room.code);
     if (actor === undefined) throw new Error("expected a current actor");
-    const folded = store.dispatch(room.code, actor, "fold");
+    const folded = commitDispatch(store, room.code, actor, "fold");
     if (!("steps" in folded)) throw new Error("expected fold steps");
-    const next = store.dispatch(room.code, "table", "nextHand");
+    const next = commitDispatch(store, room.code, "table", "nextHand");
     if (!("steps" in next)) throw new Error("expected next-hand steps");
 
     expect(room.shotClockSettings).toEqual(settings);
