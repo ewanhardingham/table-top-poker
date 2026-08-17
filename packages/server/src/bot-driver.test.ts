@@ -1,6 +1,6 @@
 import type { ServerMessage } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { buildApp } from "./app.js";
 import { RoomStore } from "./rooms.js";
@@ -79,13 +79,11 @@ describe("bot driver", () => {
   afterEach(async () => {
     if (socket) await closeTable(socket);
     if (app) await app.close();
-    vi.useRealTimers();
     socket = undefined;
     app = undefined;
   });
 
   it("chains legal actions for an all-bot hand started by the table", async () => {
-    vi.useFakeTimers();
     const rooms = new RoomStore();
     const room = rooms.create(3);
     const added = rooms.addBots(room, 3);
@@ -102,10 +100,6 @@ describe("bot driver", () => {
     socket = running.socket;
 
     socket.send(JSON.stringify({ type: "startHand" }));
-    for (let attempt = 0; attempt < 30; attempt++) {
-      if (room.engine?.hand?.status === "complete") break;
-      await vi.advanceTimersByTimeAsync(1);
-    }
     await waitForMessage(
       running,
       (message) =>
