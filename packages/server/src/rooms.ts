@@ -53,12 +53,7 @@ export interface Room {
   readonly code: string;
   readonly seats: Seat[];
   engine: EngineState | null;
-  /**
-   * Counts committed engine operations. A caller that captured it earlier can
-   * ask the only question that makes a queued auto-fold safe — "has anything
-   * happened since?" — which the Actor's identity alone cannot answer (Phase 2
-   * spec #129 §3).
-   */
+  /** Committed engine operations, counted so a caller can ask what has happened since. */
   revision: number;
   pendingSeatCount: number | null;
   turnEndsAt: number | null;
@@ -119,18 +114,13 @@ export interface DispatchSuccess {
 }
 
 /**
- * An accepted dispatch that has changed nothing yet: the Room still holds the
- * engine state, the seats and the pending seat count it had before. The caller
- * records {@link operation}, then calls {@link commit} — or {@link discard} if
- * the append failed — so nothing is ever broadcast that was not recorded first
- * (Phase 2 spec #129 §3). The obligation rides on the handle rather than on a
- * convention a later edit can quietly drop, so settling twice throws.
+ * An accepted dispatch that has changed nothing yet. The caller records
+ * {@link operation}, then settles the handle exactly once — see the commit
+ * seam in `docs/design/server.md`.
  */
 export interface DispatchTransaction extends DispatchSuccess {
   readonly operation: RoomOperation;
-  /** Applies the staged changes to the Room and bumps its revision. */
   commit(): void;
-  /** Abandons them, leaving the Room exactly as the dispatch found it. */
   discard(): void;
 }
 
@@ -165,7 +155,6 @@ function makeSeats(seatCount: number): Seat[] {
 }
 
 interface SeatRepack {
-  /** The seat row the Room takes on, ready to replace `room.seats`. */
   readonly seats: readonly Seat[];
   readonly moves: readonly SeatMove[];
   readonly mapping: ReadonlyMap<SeatId, SeatId>;
@@ -369,11 +358,9 @@ function toRoomOperation(
 /** Everything a committed dispatch changes about its Room, and nothing else. */
 interface StagedTransition {
   readonly engine: EngineState;
-  /** A pending shrink this dispatch takes up, seat row and all. */
   readonly repack?: SeatRepack;
-  /** The seats this dispatch deals in, when it opens a Hand. */
+  /** The seats it deals in, when it opens a Hand. */
   readonly dealIn?: readonly SeatId[];
-  /** A seat whose eviction waits on the engine operation that covers it. */
   readonly freedSeat?: SeatId;
 }
 
@@ -543,9 +530,8 @@ export class RoomStore {
 
   /**
    * Frees a seat, folding the hand it is holding first. Where a fold is
-   * needed the seat is not freed here: it is freed by the returned
-   * transaction, so the seat and the engine operation that covers it land
-   * together or not at all.
+   * needed the returned transaction is what frees the seat — see the commit
+   * seam in `docs/design/server.md`.
    */
   evictSeat(code: string, seatId: SeatId): EvictSeatResult {
     const room = this.#rooms.get(code);
@@ -553,9 +539,8 @@ export class RoomStore {
     if (!seat) return {};
 
     if (this.currentActor(code) === seatId) {
-      const result = this.#dispatch(code, seatId, "fold", seatId);
-      if (!("commit" in result)) return {};
-      return { transaction: result };
+      const transaction = this.#stageSeatRelease(room, seatId, "fold");
+      return transaction === undefined ? {} : { transaction };
     }
 
     const hand = room.engine?.hand;
@@ -567,9 +552,8 @@ export class RoomStore {
       player !== undefined &&
       !player.folded
     ) {
-      const transaction = this.#stageEviction(room, seatId);
-      if (transaction === undefined) return {};
-      return { transaction };
+      const transaction = this.#stageSeatRelease(room, seatId, "evict");
+      return transaction === undefined ? {} : { transaction };
     }
 
     freeSeat(seat);
@@ -684,22 +668,13 @@ export class RoomStore {
 
   /**
    * Decides one Command against the Room and stages what it would change,
-   * without changing anything. Every filesystem-free, synchronous decision
-   * lives here; the caller sequences the append and the commit.
+   * without changing anything — see the commit seam in
+   * `docs/design/server.md`.
    */
   dispatch(
     code: string,
     identity: SeatId | "table",
     type: SeatCommandType,
-  ): DispatchResult {
-    return this.#dispatch(code, identity, type);
-  }
-
-  #dispatch(
-    code: string,
-    identity: SeatId | "table",
-    type: SeatCommandType,
-    freedSeat?: SeatId,
   ): DispatchResult {
     const room = this.#rooms.get(code);
     if (!room) return { error: "room-not-found" };
@@ -751,7 +726,6 @@ export class RoomStore {
         engine: decided.engine,
         ...(repack === undefined ? {} : { repack }),
         ...(opensHand ? { dealIn: candidateEngine.seats } : {}),
-        ...(freedSeat === undefined ? {} : { freedSeat }),
       },
       {
         command,
@@ -761,9 +735,14 @@ export class RoomStore {
     );
   }
 
-  #stageEviction(room: Room, seatId: SeatId): DispatchTransaction | undefined {
+  /** The fold or eviction that has to be recorded before a seat is freed. */
+  #stageSeatRelease(
+    room: Room,
+    seatId: SeatId,
+    type: "fold" | "evict",
+  ): DispatchTransaction | undefined {
     if (room.engine === null) return undefined;
-    const command: Command = { type: "evict", seatId };
+    const command: Command = { type, seatId };
     const decided = this.#decide(room.engine, command);
     if (!("steps" in decided)) return undefined;
     return this.#stage(
@@ -828,7 +807,9 @@ export class RoomStore {
         room.engine = transition.engine;
         room.revision += 1;
       },
-      discard: settle,
+      discard: () => {
+        settle();
+      },
     };
   }
 

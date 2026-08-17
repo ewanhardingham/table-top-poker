@@ -280,13 +280,7 @@ export async function buildApp(
   const actionClock =
     options.actionClock ?? new ActionClock(options.actionClockMs);
   const socketRoomCode = new Map<WebSocket, string>();
-  /**
-   * One operation queue per Room. Socket Commands, clock-driven folds and Seat
-   * mutations enter their Room's queue in arrival order and run one at a time,
-   * so an awaited append can never be overtaken by the next operation; other
-   * Rooms are untouched by it (Phase 2 spec #129 §3). The tail is dropped once
-   * it drains, leaving nothing behind for an idle Room.
-   */
+  /** One operation queue per Room — see `docs/design/server.md`. Idle Rooms drop their tail. */
   const roomQueues = new Map<string, Promise<unknown>>();
   const pingMissed = new Map<WebSocket, number>();
   const evictedSockets = new WeakSet<WebSocket>();
@@ -313,11 +307,7 @@ export async function buildApp(
     return queued;
   }
 
-  /**
-   * Queues work nothing awaits — a socket Command, a fired timer. Their
-   * failures have nowhere to be returned to, so they land in the log rather
-   * than as an unhandled rejection.
-   */
+  /** Queues work nothing awaits, so its failures land in the log, not unhandled. */
   function enqueueDetached(
     code: string,
     operation: () => Promise<void> | void,
@@ -328,8 +318,8 @@ export async function buildApp(
   }
 
   function send(socket: WebSocket, message: ServerMessage): void {
-    // A queued operation outlives the message that started it, so its socket
-    // may have gone in between; `ws` treats a send after close as an error.
+    // A queued operation outlives the message that started it, and `ws` treats
+    // a send after close as an error.
     if (socket.readyState !== socket.OPEN) return;
     socket.send(JSON.stringify(message));
   }
@@ -429,7 +419,18 @@ export async function buildApp(
     const identity = socketIdentity.get(socket);
     const code = socketRoomCode.get(socket);
     if (!isSeat(identity) || code === undefined) return;
-    rooms.setSeatDisconnected(code, identity, disconnected);
+    enqueueDetached(code, () => {
+      setPresence(code, identity, disconnected);
+    });
+  }
+
+  /** Presence decides deal-in eligibility, so it takes its turn in the queue. */
+  function setPresence(
+    code: string,
+    seatId: SeatId,
+    disconnected: boolean,
+  ): void {
+    rooms.setSeatDisconnected(code, seatId, disconnected);
     broadcastRoomView(code);
   }
 
@@ -538,8 +539,7 @@ export async function buildApp(
   /**
    * Hands the room's recording one whole engine operation and waits for it to
    * be confirmed on disk. Answers whether the operation may now be applied and
-   * broadcast: nothing is published before its append confirms (Phase 2 spec
-   * #129 §3).
+   * broadcast.
    */
   async function appendOperation(
     code: string,
@@ -547,11 +547,8 @@ export async function buildApp(
   ): Promise<boolean> {
     const recording = roomRecordings.get(code);
     if (recording === undefined) {
-      // Every room created through `POST /rooms` has one. Reaching here means
-      // play is happening unrecorded, which the Room invariant forbids — so
-      // it is a loud bug, never a quiet skip (Phase 2 spec #129 §3). The Room
-      // is still played out: refusing the operation would strand the table on
-      // a bug of ours, and losing the transcript is the smaller harm.
+      // A bug of ours rather than a disk failure, so it is loud but not fatal
+      // to the table — see `docs/design/server.md`.
       app.log.error({ room: code }, "dispatch in a room with no recording");
       return true;
     }
@@ -560,16 +557,13 @@ export async function buildApp(
       await recording.append(operation);
       return true;
     } catch (error) {
-      // Filesystem detail belongs in operational logs, never on the wire.
-      // Telling the table and offering Retry / Continue without recording /
-      // End session is issue #121's recording-paused state; until then the
-      // operation is dropped, loudly here and nowhere else.
+      // Filesystem detail belongs in operational logs, never on the wire; the
+      // table-facing recovery is issue #121.
       app.log.error({ err: error, room: code }, "recording append failed");
       return false;
     }
   }
 
-  /** Records a refusal the engine ruled on. It changes nothing, so it commits nothing. */
   async function recordRejection(
     code: string,
     rejection: DispatchRejection,
@@ -747,23 +741,12 @@ export async function buildApp(
       options.actionClock === undefined && options.actionClockMs !== undefined
         ? options.actionClockMs
         : seconds * 1000;
-    // "preserve" keeps the Actor's existing deadline — another Seat's eviction
-    // must not hand them a fresh interval — but still re-arms the timer, so it
-    // carries the revision that eviction produced. Left alone, the fold it
-    // fires would dequeue stale and never be replaced.
     const preserved = policy === "preserve" ? room.turnEndsAt : null;
     const timeoutMs =
       preserved === null
         ? fullInterval
         : Math.max(preserved - now().getTime(), 0);
     room.turnEndsAt = preserved ?? now().getTime() + fullInterval;
-    // The revision this clock was armed against. A fired timer is no longer a
-    // timer — it is an operation queued behind whatever else arrived first,
-    // and clearing the timer cannot recall it. "Nothing has happened since I
-    // was scheduled" is the precondition for an auto-fold, and the Actor's
-    // identity cannot state it: heads-up, the non-button Seat acts last
-    // preflop and first on the flop, so a stale fold can find its Seat back on
-    // the clock a beat later, having just checked (Phase 2 spec #129 §3).
     const scheduledAt = room.revision;
     actionClock.schedule(code, timeoutMs, () => {
       enqueueDetached(code, async () => {
@@ -794,9 +777,9 @@ export async function buildApp(
   }
 
   /**
-   * Records an accepted dispatch, commits it, and only then tells the room.
-   * The order is the whole point of the seam: the append may fail, and an
-   * operation that failed to record is one the room must never have seen.
+   * Records an accepted dispatch, commits it, and only then tells the room —
+   * including arming the clock, so append latency costs nobody their thinking
+   * time. See the commit seam in `docs/design/server.md`.
    */
   async function publishDispatch(
     code: string,
@@ -804,18 +787,22 @@ export async function buildApp(
     options: {
       readonly actionClock?: ActionClockPolicy;
     } = {},
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (!(await appendOperation(code, transaction.operation))) {
       transaction.discard();
-      return;
+      // A refused operation cancels the Actor's clock rather than leaving a
+      // deadline nothing will honour: the timer that would have fired is
+      // spent, and no replacement may act on an unrecorded Room (§3).
+      actionClock.clear(code);
+      const room = rooms.get(code);
+      if (room !== undefined) room.turnEndsAt = null;
+      return false;
     }
     transaction.commit();
 
     if (transaction.seatMoves !== undefined) {
       applySeatMoves(code, transaction.seatMoves);
     }
-    // The clock arms only now, so a slow append is never deducted from the
-    // next player's thinking time.
     rescheduleActionClock(code, options.actionClock ?? "reschedule");
     for (const step of transaction.steps) {
       fanOutHandUpdate(code, step);
@@ -830,6 +817,7 @@ export async function buildApp(
       if (rollBotSitStates(code)) broadcastRoomView(code);
     }
     scheduleBotAction(code);
+    return true;
   }
 
   await app.register(fastifyStatic, { root: publicDir, index: false });
@@ -911,10 +899,14 @@ export async function buildApp(
     return { url, dataUrl };
   });
 
-  app.post<RoomCodeRoute>("/rooms/:code/end", (request, reply) => {
+  app.post<RoomCodeRoute>("/rooms/:code/end", async (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
-    endRoom(room.code);
+    // Behind the queue, so teardown never lands between an append and the
+    // commit it was going to confirm.
+    await enqueue(room.code, () => {
+      endRoom(room.code);
+    });
     return reply.code(204).send();
   });
 
@@ -954,35 +946,43 @@ export async function buildApp(
 
   app.post<RoomCodeRoute>("/rooms/:code/seats/count", changeSeatCount);
 
-  app.post<RoomCodeRoute>("/rooms/:code/sound", (request, reply) => {
+  app.post<RoomCodeRoute>("/rooms/:code/sound", async (request, reply) => {
     const body = ChangeSoundSettingsRequestSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({ error: "invalid-request-body" });
     }
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
-    const result = rooms.changeSoundSettings(room.code, body.data);
+    const result = await enqueue(room.code, () => {
+      const settings = rooms.changeSoundSettings(room.code, body.data);
+      if (!("error" in settings)) broadcastRoomView(room.code);
+      return settings;
+    });
     if ("error" in result) {
       return reply.code(404).send({ error: result.error });
     }
-    broadcastRoomView(room.code);
     return result;
   });
 
-  app.post<RoomCodeRoute>("/rooms/:code/shot-clock", (request, reply) => {
+  app.post<RoomCodeRoute>("/rooms/:code/shot-clock", async (request, reply) => {
     const body = ChangeShotClockRequestSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({ error: "invalid-request-body" });
     }
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
-    const result = rooms.changeShotClockSettings(room.code, body.data);
+    // Queued with everything else: a pending edit is taken up by the next
+    // committed deal-in, so it must not slip in beside one mid-append.
+    const result = await enqueue(room.code, () => {
+      const settings = rooms.changeShotClockSettings(room.code, body.data);
+      if (!("error" in settings)) broadcastRoomView(room.code);
+      return settings;
+    });
     if ("error" in result) {
       return reply
         .code(result.error === "room-not-found" ? 404 : 400)
         .send({ error: result.error });
     }
-    broadcastRoomView(room.code);
     return result;
   });
 
@@ -1033,25 +1033,27 @@ export async function buildApp(
 
   /**
    * Publishes the fold a freed seat owed, then broadcasts the seat itself.
-   * The seat is freed by the transaction, so it is never given up on a
-   * broadcast the recording refused. Runs inside the Room's queue.
+   * Answers false when that fold could not be recorded: the seat is still
+   * holding its hand, so it must not be taken from its player either.
    */
   async function publishSeatRelease(
     code: string,
     seatId: SeatId,
     released: EvictSeatResult,
     notify: boolean,
-  ): Promise<void> {
+  ): Promise<boolean> {
     if (released.transaction !== undefined) {
-      await publishDispatch(code, released.transaction, {
+      const published = await publishDispatch(code, released.transaction, {
         actionClock:
           released.transaction.command.type === "evict"
             ? "preserve"
             : "reschedule",
       });
+      if (!published) return false;
     }
     broadcastRoomView(code);
     closeSeatSockets(code, seatId, notify);
+    return true;
   }
 
   app.post<RoomSeatRoute>(
@@ -1063,7 +1065,7 @@ export async function buildApp(
       }
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      await enqueue(room.code, () =>
+      const released = await enqueue(room.code, () =>
         publishSeatRelease(
           room.code,
           seatId,
@@ -1071,6 +1073,9 @@ export async function buildApp(
           true,
         ),
       );
+      if (!released) {
+        return reply.code(503).send({ error: "recording-unavailable" });
+      }
       return reply.code(204).send();
     },
   );
@@ -1090,9 +1095,13 @@ export async function buildApp(
       const refusal = await enqueue(code, async () => {
         const result = rooms.leaveSeat(code, seatId, body.data.token);
         if ("error" in result) return result.error;
-        await publishSeatRelease(code, seatId, result, false);
-        return undefined;
+        return (await publishSeatRelease(code, seatId, result, false))
+          ? undefined
+          : "recording-unavailable";
       });
+      if (refusal === "recording-unavailable") {
+        return reply.code(503).send({ error: refusal });
+      }
       if (refusal !== undefined) {
         return reply
           .code(refusal === "room-not-found" ? 404 : 403)
@@ -1158,40 +1167,42 @@ export async function buildApp(
             clearTimeout(timer);
             tableGraceTimers.delete(code);
           }
-        } else if (isSeat(identity)) {
-          rooms.setSeatDisconnected(code, identity, false);
         }
 
-        if (movedFrom !== undefined && isSeat(identity)) {
-          send(socket, { type: "seat-moved", from: movedFrom, to: identity });
-        }
+        // The catch-up takes its turn in the Room's queue, so a joiner is
+        // never caught up to a state the recording has yet to confirm.
+        const joined = identity;
+        enqueueDetached(code, () => {
+          if (isSeat(joined)) {
+            rooms.setSeatDisconnected(code, joined, false);
+          }
 
-        const room = rooms.get(code);
-        if (room) {
+          if (movedFrom !== undefined && isSeat(joined)) {
+            send(socket, { type: "seat-moved", from: movedFrom, to: joined });
+          }
+
+          const room = rooms.get(code);
+          if (!room) return;
           broadcastRoomView(code);
           // Incremental pushes alone would leave a reloaded table with an
           // empty picker for hands it had already seen — Phase 1's catch-up
           // is one view snapshot, which carries no summaries (§5). Sent even
           // when empty, so the picker has a definite starting state.
-          if (identity === "table") sendHandList(socket, code);
+          if (joined === "table") sendHandList(socket, code);
           // One fresh snapshot on connect, never event replay (§7, §9).
-          if (room.engine !== null) {
-            if (identity === "table") {
-              send(socket, {
-                type: "view-snapshot",
-                view: view(room.engine, "table", room.turnEndsAt),
-              });
-            } else if (
-              isSeat(identity) &&
-              room.engine.seats.includes(identity)
-            ) {
-              send(socket, {
-                type: "view-snapshot",
-                view: view(room.engine, identity, room.turnEndsAt),
-              });
-            }
+          if (room.engine === null) return;
+          if (joined === "table") {
+            send(socket, {
+              type: "view-snapshot",
+              view: view(room.engine, "table", room.turnEndsAt),
+            });
+          } else if (isSeat(joined) && room.engine.seats.includes(joined)) {
+            send(socket, {
+              type: "view-snapshot",
+              view: view(room.engine, joined, room.turnEndsAt),
+            });
           }
-        }
+        });
 
         socket.on("pong", () => {
           const missed = pingMissed.get(socket) ?? 0;
@@ -1302,13 +1313,16 @@ export async function buildApp(
                 code,
                 setTimeout(() => {
                   tableGraceTimers.delete(code);
-                  endRoom(code);
+                  enqueueDetached(code, () => {
+                    endRoom(code);
+                  });
                 }, graceWindowMs),
               );
             }
           } else if (isSeat(currentIdentity)) {
-            rooms.setSeatDisconnected(code, currentIdentity, true);
-            broadcastRoomView(code);
+            enqueueDetached(code, () => {
+              setPresence(code, currentIdentity, true);
+            });
           }
         });
       },
