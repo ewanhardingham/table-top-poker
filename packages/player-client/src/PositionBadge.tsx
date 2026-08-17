@@ -9,26 +9,9 @@ import {
 
 export interface PositionBadgeProps {
   readonly marker: PositionMarker;
-  /**
-   * Muted to match a banner that is no longer reporting live state. Nothing
-   * else on this screen dims when the socket drops, but this disc is the
-   * brightest thing on it: at full strength it would out-shout the very
-   * banner telling the player their actions won't send (issue #207,
-   * decision 5).
-   */
   readonly dimmed?: boolean;
 }
 
-/**
- * The dealer/blind disc, drawn the way the table draws it on a seat pod:
- * the same three labels and colours (from `ui-shared`, so the two can't
- * drift), the same `shadow.card` lift, and the same split of diameter and
- * font size across two elements — `width: 2.1em` and `fontSize: 0.8em` on one
- * element would make the true diameter `2.1 x 0.8em` and shrink the disc to a
- * third of its intended size.
- *
- * Sized to stand as tall as the banner's kicker-and-text block beside it.
- */
 const DIAMETER = "2.1em";
 const LABEL_FONT_SIZE = "0.8em";
 
@@ -59,8 +42,6 @@ export function PositionBadge({ marker, dimmed = false }: PositionBadgeProps) {
         opacity: dimmed ? 0.55 : 1,
       }}
     >
-      {/* "D" read aloud is a letter, not a position — `aria-label` above says
-          what it means, so the label itself is decoration to a screen reader. */}
       <span
         aria-hidden="true"
         style={{

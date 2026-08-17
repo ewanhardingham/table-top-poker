@@ -28,7 +28,6 @@ function orderedDeck(): Card[] {
   return deck;
 }
 
-/** djb2 string hash, folded into a 32-bit seed for the PRNG below. */
 function hashSeed(seed: string): number {
   let hash = 5381;
   for (let i = 0; i < seed.length; i++) {
@@ -37,7 +36,6 @@ function hashSeed(seed: string): number {
   return hash >>> 0;
 }
 
-/** mulberry32 — small, deterministic, sufficient for a shuffle (not crypto). */
 function mulberry32(seed: number): () => number {
   let state = seed;
   return () => {
@@ -49,7 +47,6 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** The full 52-card deck shuffled deterministically from `seed`. */
 export function shuffledDeck(seed: string): Card[] {
   const deck = orderedDeck();
   const random = mulberry32(hashSeed(seed));

@@ -4,15 +4,9 @@ export interface StoredSeatToken {
   readonly roomCode: string;
   readonly seatId: number;
   readonly token: string;
-  /** Added with named claims; absent tokens still reconnect for migration. */
   readonly displayName?: string;
 }
 
-/**
- * Persists a claimed seat's token for reconnect (ticket 33 reads it back).
- * Takes an injected `Storage` so callers can pass `window.localStorage` or a
- * test double without reaching for a global.
- */
 export function saveSeatToken(
   storage: Storage,
   seatToken: StoredSeatToken,
@@ -20,11 +14,6 @@ export function saveSeatToken(
   storage.setItem(KEY, JSON.stringify(seatToken));
 }
 
-/**
- * Reads back a stored seat token for auto-reconnect on mount. Malformed or
- * absent storage both read as "nothing to reclaim" — a cleared/corrupted
- * localStorage must never fall back to any other seat (Phase 1 spec #130 §7).
- */
 export function loadSeatToken(storage: Storage): StoredSeatToken | null {
   const raw = storage.getItem(KEY);
   if (raw === null) return null;

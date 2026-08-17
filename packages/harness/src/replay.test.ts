@@ -70,8 +70,6 @@ describe("replay guarantee", () => {
 
     const hand1 = handLogPaths(path.join(logDir, "game-1"), 1);
 
-    // Re-pipe the persisted command log (the file on disk, unmodified) through
-    // a fresh harness instance with no logging attached.
     const replayed = collectingWritable();
     await runHarness({
       state: createInitialState([...seats]),

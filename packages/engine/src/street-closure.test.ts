@@ -17,8 +17,6 @@ function actor(state: EngineState): SeatId {
 
 describe("street closure — limped-around preflop", () => {
   it("closes after one lap ending on the BB, with nobody raising", () => {
-    // 3 seats; button 0, small blind 1, big blind 2. Preflop opens on the
-    // first seat left of the blinds, which three-handed is the button.
     const BUTTON = 0;
     const SB = 1;
     const BB = 2;
@@ -29,7 +27,6 @@ describe("street closure — limped-around preflop", () => {
     ]);
     expect(street(state).toAct).toEqual([BUTTON, SB, BB]);
 
-    // Only the BB may check an unraised preflop; everyone else calls.
     state = playAll(state, [{ type: "call", seatId: BUTTON }]);
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct).toEqual([SB, BB]);
@@ -38,14 +35,11 @@ describe("street closure — limped-around preflop", () => {
     expect(street(state).street).toBe("preflop");
     expect(street(state).toAct).toEqual([BB]);
 
-    // The BB's option is simply their turn, and it is the last one — no
-    // second visit, and checking it closes preflop.
     state = playAll(state, [{ type: "check", seatId: BB }]);
     expect(street(state).street).toBe("flop");
   });
 
   it("rejects the small blind trying to open preflop", () => {
-    // The reported production bug: preflop opened on the small blind.
     const BUTTON = 0;
     const SB = 1;
     const BB = 2;
@@ -75,8 +69,6 @@ describe("street closure — limped-around preflop", () => {
     ]);
     expect(street(state).toAct).toEqual([BB]);
 
-    // Folding the option closes preflop exactly as checking it would; the
-    // BB must not be re-queued behind their own fold.
     state = playAll(state, [{ type: "fold", seatId: BB }]);
     expect(street(state).street).toBe("flop");
     expect(street(state).toAct).toEqual([SB, BUTTON]);
@@ -93,8 +85,6 @@ describe("street closure — limped-around preflop", () => {
       const bigBlind = bigBlindSeat(ring, 0);
       const smallBlind = smallBlindSeat(ring, 0);
 
-      // Preflop never opens on either blind with 3+ seats; heads-up the
-      // small blind is on the button and opens by rule.
       expect(actor(state)).not.toBe(bigBlind);
       if (n > 2) expect(actor(state)).not.toBe(smallBlind);
 
@@ -128,8 +118,6 @@ describe("street closure — raised and called", () => {
       { type: "startHand", seatId: BUTTON, seed: "raised" },
     ]);
 
-    // Button calls, SB raises mid-lap — the requeue runs in ring order from
-    // the raiser, so the BB (who had not yet acted) still gets their turn.
     state = playAll(state, [
       { type: "call", seatId: BUTTON },
       { type: "raise", seatId: SB },
@@ -159,7 +147,6 @@ describe("street closure — raised and called", () => {
       { type: "raise", seatId: SB },
       { type: "raise", seatId: BB },
     ]);
-    // BB re-raised: only the button and SB owe a response now, in that order.
     expect(street(state).toAct).toEqual([BUTTON, SB]);
 
     state = playAll(state, [
@@ -170,8 +157,6 @@ describe("street closure — raised and called", () => {
   });
 
   it("requeues correctly when the raiser is the BB and an earlier seat already folded", () => {
-    // 4 seats; button 0, small blind 1, big blind 2, UTG 3 — so preflop
-    // runs UTG, button, SB, BB.
     const BUTTON = 0;
     const SB = 1;
     const BB = 2;
@@ -189,7 +174,6 @@ describe("street closure — raised and called", () => {
       { type: "fold", seatId: SB },
       { type: "raise", seatId: BB },
     ]);
-    // SB already folded, so only UTG and the button owe a response.
     expect(street(state).toAct).toEqual([UTG, BUTTON]);
 
     state = playAll(state, [

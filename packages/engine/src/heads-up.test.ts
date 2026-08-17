@@ -12,9 +12,6 @@ describe("heads-up (2 live players)", () => {
     let state = createInitialState([0, 1]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "hu" }]);
 
-    // Button (0) is also the Small Blind and acts first preflop — they face
-    // the BB's post, so they must call/fold/raise, not check; only the BB
-    // (seat 1) can check an unraised preflop.
     expect(betting(state).street).toBe("preflop");
     expect(betting(state).toAct).toEqual([0, 1]);
 
@@ -23,7 +20,6 @@ describe("heads-up (2 live players)", () => {
       { type: "check", seatId: 1 },
     ]);
 
-    // Postflop: the non-button seat (BB) now acts first, button last.
     expect(betting(state).street).toBe("flop");
     expect(betting(state).toAct).toEqual([1, 0]);
 

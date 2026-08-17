@@ -23,11 +23,6 @@ const seatErrorCopy: Record<string, string> = {
   "claim-failed": "Couldn't reach the table — try that seat again.",
 };
 
-/**
- * Why a pending seat selection can no longer be claimed, or null while it
- * still can. A live room view can take the seat or repack it out of the table
- * between selecting it and claiming it.
- */
 export function selectionLostMessage(
   seatId: number,
   seat: SeatView | undefined,
@@ -54,8 +49,6 @@ type SeatGridStyle = CSSProperties & {
 function seatGridStyle(seatCount: number): SeatGridStyle {
   const rowCount = Math.max(1, Math.ceil(seatCount / 2));
 
-  // Row count and column count are data, so they stay inline; the grid's
-  // sizing and shrink behaviour live in the `.seat-grid` CSS rule.
   return {
     "--seat-row-count": rowCount,
     gridTemplateColumns: seatCount <= 1 ? "1fr" : "repeat(2, minmax(0, 1fr))",
@@ -75,9 +68,6 @@ function seatStyle(claimed: boolean, selected: boolean): CSSProperties {
           border: `1px solid ${
             selected ? color.accentBright : color.accentBorder
           }`,
-          // Selection is carried by the brighter border and the ring, not by
-          // a fill: `lossBackground` is the error surface this same screen
-          // uses below, and a selected seat is not an error.
           background: color.accentWash,
           boxShadow: selected ? `0 0 0 2px ${color.accentBorder}` : undefined,
         }),
@@ -182,10 +172,6 @@ export function SeatPicker({
     !selectedSeat.claimed &&
     displayName.trim() !== "";
 
-  // Room views now arrive live over the lobby socket, so the selected seat can
-  // be claimed by someone else or repacked away while this player is still
-  // typing. Drop the selection and say why — the typed name is deliberately
-  // kept, so picking another seat doesn't mean typing it again.
   useEffect(() => {
     if (selectedSeatId === null) return;
     const lost = selectionLostMessage(selectedSeatId, selectedSeat);

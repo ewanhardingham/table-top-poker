@@ -308,8 +308,6 @@ describe("Seats", () => {
   });
 
   it("reveals nothing on the felt at showdown — no hole cards, hand, or winner mark", () => {
-    // The reveal overlay (issue #169) owns who-won and every hand; the seat
-    // pods stay plain so nothing shifts when the hand ends.
     const view: TableView = {
       phase: "showdown",
       button: 0,
@@ -386,8 +384,6 @@ describe("Seats", () => {
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
 
-    // Reaching showdown keeps the seat in-hand rather than sitting-out, even
-    // though the felt no longer reveals its cards (the overlay does that).
     expect(html).toMatch(/data-testid="seat-pod-2"[^>]*data-status="in-hand"/);
     expect(html).not.toContain("hole-cards");
     expect(html).not.toContain('data-testid="seat-pod-2-sitting-out"');
@@ -424,7 +420,6 @@ describe("Seats", () => {
   });
 
   it("flips a top-row seat's identity placard so that side of the table reads it upright", () => {
-    // Four seats: 0 and 1 sit along the bottom edge, 2 and 3 along the top.
     const html = renderToStaticMarkup(
       <Seats
         seats={seats.map((seat) =>
@@ -442,8 +437,6 @@ describe("Seats", () => {
     expect(styleOf(html, "seat-pod-3-placard")).toContain(
       "transform:rotate(180deg)",
     );
-    // The identity is one row rather than the bottom row's column, so a
-    // top-row seat is only ever about an avatar deep however long the name.
     expect(styleOf(html, "seat-pod-3-placard")).toContain("flex-direction:row");
     expect(html).toMatch(
       /data-testid="seat-pod-3-placard"[\s\S]*data-testid="seat-pod-3-avatar"[\s\S]*data-testid="seat-pod-3-name"/,
@@ -460,8 +453,6 @@ describe("Seats", () => {
       />,
     );
 
-    // Same row, same order — only the rotation separates the two rows, so
-    // both players see an identically-shaped seat from where they sit.
     expect(html).toMatch(
       /data-testid="seat-pod-0-placard"[^>]*data-flipped="false"/,
     );
@@ -498,8 +489,6 @@ describe("Seats", () => {
       />,
     );
 
-    // The callout is a sibling of the placard, not a child of it, so it keeps
-    // its own inward footprint while still reading upright from the top side.
     expect(subtreeOf(html, "seat-pod-3-placard")).not.toContain("To act");
     expect(html).toMatch(
       /data-testid="seat-pod-3-placard"[\s\S]*data-testid="seat-pod-3-to-act"/,
@@ -561,8 +550,6 @@ describe("Seats", () => {
       />,
     );
 
-    // Seats 2 and 3 are the top row: one waiting for the next hand, one with
-    // a name long enough to need the caption's existing 8em bound.
     const waiting = subtreeOf(html, "seat-pod-2-placard");
     expect(waiting).toContain("Waiting for next hand");
     expect(waiting).toContain("Claimed after the deal");
@@ -595,8 +582,6 @@ describe("Seats", () => {
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
 
     expect(html).toMatch(/data-testid="seat-pod-2"[^>]*data-status="folded"/);
-    // The fade still lives on the surface, outside the rotation, so a flipped
-    // seat folds exactly as visibly as a bottom-row one.
     expect(styleOf(html, "seat-pod-2-surface")).toContain("opacity:0.34");
     expect(styleOf(html, "seat-pod-2-placard")).toContain(
       "transform:rotate(180deg)",
@@ -616,11 +601,6 @@ describe("Seats", () => {
   });
 });
 
-/**
- * The rendered markup of the `div` carrying `testid`, including its own tags —
- * enough to ask what is inside an element rather than merely near it, without
- * pinning a test to how deeply anything is nested.
- */
 function subtreeOf(html: string, testid: string): string {
   const start = html.indexOf(`<div data-testid="${testid}"`);
   expect(start).toBeGreaterThanOrEqual(0);
@@ -635,7 +615,6 @@ function subtreeOf(html: string, testid: string): string {
   throw new Error(`unclosed element for ${testid}`);
 }
 
-/** The inline `style` attribute of the span carrying `testid`, if drawn. */
 function styleOf(html: string, testid: string): string | null {
   const match = new RegExp(`data-testid="${testid}"[^>]*style="([^"]*)"`).exec(
     html,
@@ -644,8 +623,6 @@ function styleOf(html: string, testid: string): string | null {
 }
 
 const threeHanded: Extract<TableView, { phase: "betting" }> = {
-  // Seats 3, 0 and 1 are in the hand with the button on 3, so ring order
-  // (3 -> 0 -> 1) runs the opposite way to seat-number order.
   phase: "betting",
   turnEndsAt: null,
   button: 3,
@@ -690,8 +667,6 @@ describe("Seats: position markers", () => {
       <Seats seats={seats} view={threeHanded} />,
     );
 
-    // Seat 0 is the lowest seat number but sits button+1, so it is the small
-    // blind — seat-number arithmetic from the button would have said seat 4.
     expect(html).not.toContain('data-testid="seat-pod-0-button"');
     expect(html).not.toContain('data-testid="seat-pod-3-small-blind"');
     expect(html).not.toContain('data-testid="seat-pod-0-big-blind"');
@@ -717,8 +692,6 @@ describe("Seats: position markers", () => {
     expect(html).not.toContain('big-blind"');
   });
 
-  // Issue #160, decision 4: heads-up the button *is* the small blind, and the
-  // client suppresses both blinds rather than doubling up a seat.
   it.each([
     [
       "betting",
@@ -781,8 +754,6 @@ describe("Seats: position markers", () => {
     expect(sizes[0]).toBeDefined();
     expect(sizes[1]).toEqual(sizes[0]);
     expect(sizes[2]).toEqual(sizes[0]);
-    // The label's font size lives on an inner span, so the diameter resolves
-    // against the pod and not against the marker's own text.
     expect(sizes[0]?.[0]).toBe(sizes[0]?.[1]);
 
     const fontSizes = html.match(/font-size:0\.62em/g);

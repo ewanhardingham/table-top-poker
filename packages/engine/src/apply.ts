@@ -20,13 +20,6 @@ function seatState(hand: BettingHandState, seat: number) {
   return must(hand.players.get(seat), `unknown seat ${String(seat)}`);
 }
 
-/**
- * The positional facts a completed hand has to keep once `ring` is dropped:
- * both blind seats and the size of the field they were dealt from. Resolved
- * here, while `ring` is still in scope, so `view` reports the same ids in
- * every phase — and so the button's rotation on `HandComplete` can't reach
- * back and change what the finished hand says about itself.
- */
 function resolvedBlinds(hand: BettingHandState) {
   return {
     smallBlind: smallBlindSeat(hand.ring, hand.button),
@@ -35,7 +28,6 @@ function resolvedBlinds(hand: BettingHandState) {
   };
 }
 
-/** Pure reducer: folds one event into state. Never mutates its input. */
 export function apply(state: EngineState, event: HandEvent): EngineState {
   switch (event.type) {
     case "HandStarted": {
@@ -96,9 +88,6 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
       }
       const raiseOccurred = hand.raiseOccurred || event.action === "raise";
 
-      // Ordinary actions always belong to `toAct[0]`; an eviction may fold a
-      // live seat later in the queue, so remove the event's seat by identity
-      // and leave the current actor at the head of the queue.
       const toAct =
         event.action === "raise"
           ? requeueAfterRaise(hand.ring, players, event.seatId)

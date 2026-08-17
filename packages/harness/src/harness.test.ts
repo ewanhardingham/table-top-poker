@@ -218,8 +218,6 @@ describe("runHarness", () => {
       const input = Readable.from(
         [
           { type: "startHand", seatId: 0, seed: "seed-1" },
-          // Seat 0 opens preflop three-handed and faces the BB's post, so
-          // checking is illegal rather than merely out of turn.
           { type: "check", seatId: 0 },
         ].map((command) => JSON.stringify(command) + "\n"),
       );

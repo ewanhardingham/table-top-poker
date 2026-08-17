@@ -30,7 +30,6 @@ vi.mock("./store/store.js", async (importOriginal) => {
   };
 });
 
-/** Captures the button's onClick prop so the node test can exercise it. */
 vi.mock("./TableControls.js", () => ({
   TableControls: (props: TableControlsProps) => {
     addBotClick.current =

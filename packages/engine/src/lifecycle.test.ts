@@ -10,12 +10,9 @@ describe("a full hand, 3 seats, start to showdown", () => {
     let state = createInitialState([0, 1, 2]);
     expect(state.button).toBe(0);
 
-    // ring (button 0) = [1, 2, 0]; preflop order = [0, 1, 2], BB = seat 2.
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "seed-1" }]);
     expect(state.hand?.status).toBe("betting");
 
-    // Preflop: 0 and 1 call the BB (not free to check — only the BB itself
-    // is), 2 (BB) raises, 0 calls, 1 calls (closes back to raiser).
     state = playAll(state, [
       { type: "call", seatId: 0 },
       { type: "call", seatId: 1 },
@@ -28,7 +25,6 @@ describe("a full hand, 3 seats, start to showdown", () => {
       state.hand && "street" in state.hand ? state.hand.street : null,
     ).toBe("flop");
 
-    // Flop: everyone checks around (order = [1, 2, 0], no BB special-case).
     state = playAll(state, [
       { type: "check", seatId: 1 },
       { type: "check", seatId: 2 },
@@ -38,7 +34,6 @@ describe("a full hand, 3 seats, start to showdown", () => {
       state.hand && "street" in state.hand ? state.hand.street : null,
     ).toBe("turn");
 
-    // Turn: 1 folds, 2 and 0 remain live, betting continues.
     state = playAll(state, [
       { type: "fold", seatId: 1 },
       { type: "check", seatId: 2 },
@@ -48,7 +43,6 @@ describe("a full hand, 3 seats, start to showdown", () => {
       state.hand && "street" in state.hand ? state.hand.street : null,
     ).toBe("river");
 
-    // River: 2 checks, 0 raises, 2 calls -> showdown.
     const beforeRiver = state;
     const riverEvents = playAndCollect(beforeRiver, [
       { type: "check", seatId: 2 },
@@ -62,9 +56,7 @@ describe("a full hand, 3 seats, start to showdown", () => {
     const showdown = riverEvents.find((e) => e.type === "ShowdownReached");
     expect(showdown).toBeDefined();
     if (showdown?.type === "ShowdownReached") {
-      // Seat 1 folded on the turn — never revealed, even though it was live earlier.
       expect(showdown.results.map((r) => r.seatId).sort()).toEqual([0, 2]);
-      // Deterministic for seed "seed-1": seat 2 holds the clear best hand.
       expect(showdown.winners).toEqual([2]);
     }
     expect(riverEvents.at(-1)?.type).toBe("HandComplete");

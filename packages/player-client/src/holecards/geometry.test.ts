@@ -56,9 +56,6 @@ describe("foldThreshold", () => {
   });
 
   it("never falls below the floor on a short viewport", () => {
-    // On a small or split-screen window the proportional term would put the
-    // threshold inside an ordinary thumb flick, and Fold is the one Action
-    // that costs money.
     expect(foldThreshold(400)).toBe(MIN_FOLD_DISTANCE_PX);
     expect(foldThreshold(0)).toBe(MIN_FOLD_DISTANCE_PX);
   });
@@ -76,8 +73,6 @@ describe("foldFlightDistance", () => {
   });
 
   it("is always further than the threshold the release crossed", () => {
-    // Otherwise a committed pair could travel *back down* as the flight took
-    // over from the finger.
     for (const height of [0, 400, 812, 1400]) {
       expect(foldFlightDistance(height)).toBeGreaterThan(foldThreshold(height));
     }

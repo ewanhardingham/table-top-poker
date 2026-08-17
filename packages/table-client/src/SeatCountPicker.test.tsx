@@ -4,9 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SeatCountPicker } from "./SeatCountPicker.js";
 
-const noop = () => {
-  /* unused in these tests */
-};
+const noop = () => undefined;
 
 function render(seatCount = MAX_SEAT_COUNT) {
   return renderToStaticMarkup(

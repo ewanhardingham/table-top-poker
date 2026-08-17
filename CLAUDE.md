@@ -1,5 +1,25 @@
 # table-top-poker
 
+## Code comments
+
+Code documents itself through names, types, and structure. Reach for a clearer
+name or a smaller function before reaching for a comment. A comment is a last
+resort, and a rare one.
+
+Write an inline comment only when the reasoning is genuinely non-obvious *and*
+has nowhere better to live — and even then keep it to a line. Everything with a
+home elsewhere goes there instead:
+
+- Business logic, domain rules, and design rationale live in `CONTEXT.md`,
+  `docs/adr/`, or `docs/design/`. Reference the decision (`ADR-0002`, issue
+  number), don't restate it inline.
+- Machine-readable directives that must sit in the code stay — `eslint-disable`,
+  `@ts-expect-error`, `prettier-ignore` — each with the reason it's needed.
+
+Do not add comments that restate the code, label sections, narrate the obvious,
+or duplicate a type or name. When you touch a file, delete such comments you
+find.
+
 ## Commit convention
 
 This repository uses [Conventional Commits](https://www.conventionalcommits.org/). Every commit message must start with a type, an optional scope, and a description:

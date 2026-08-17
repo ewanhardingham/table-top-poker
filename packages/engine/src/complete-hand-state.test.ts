@@ -6,7 +6,6 @@ describe("CompleteHandState carries how the hand ended", () => {
   it("tags a fold-out completion with reason 'folded-out' and the winner", () => {
     let state = createInitialState([0, 1, 2]);
     state = playAll(state, [{ type: "startHand", seatId: 0, seed: "foldout" }]);
-    // Preflop runs button, SB, BB — the BB is left holding the pot.
     state = playAll(state, [
       { type: "fold", seatId: 0 },
       { type: "fold", seatId: 1 },

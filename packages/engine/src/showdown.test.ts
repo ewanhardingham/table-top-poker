@@ -20,8 +20,6 @@ function playAndCollect(state: EngineState, commands: Command[]): HandEvent[] {
   return all;
 }
 
-// Both scenarios play a heads-up hand with no raises (call/check throughout)
-// so the only thing that varies between seeds is the dealt cards.
 const headsUpToRiver: Command[] = [
   { type: "call", seatId: 0 },
   { type: "check", seatId: 1 },

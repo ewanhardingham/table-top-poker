@@ -54,9 +54,6 @@ for (const suit of SUITS) {
   }
 }
 
-// Canonical 7-card category frequencies over all C(52,7) = 133,784,560 hands
-// — settled combinatorics (only 4,824 of the 7,462 5-card classes are
-// reachable from seven cards), independent of any evaluator implementation.
 const CANONICAL_7CARD_FREQUENCIES: Record<string, number> = {
   "straight-flush": 41584,
   "four-of-a-kind": 224848,
@@ -129,8 +126,6 @@ describe("exhaustive 7-card enumeration vs phe", () => {
     expect(categoryFrequencies).toEqual(CANONICAL_7CARD_FREQUENCIES);
     expect(pheToOurScore.size).toBe(4824);
 
-    // Ordering must agree: as phe's strength value increases (weaker),
-    // our score must strictly decrease (also weaker).
     const orderedByPhe = [...pheToOurScore.entries()].sort(
       (x, y) => x[0] - y[0],
     );

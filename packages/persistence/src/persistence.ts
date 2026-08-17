@@ -18,10 +18,8 @@ export function assertValidGameId(gameId: string): void {
   }
 }
 
-/** A logged command line is the bare `Command` plus a version tag. */
 export type LoggedCommand = Command & { readonly v: number };
 
-/** A logged event line is the bare `HandEvent`/`Rejection` plus a version tag. */
 export type LoggedEvent = (HandEvent | Rejection) & { readonly v: number };
 
 export interface GameManifest {
@@ -46,12 +44,6 @@ export function handLogPaths(gameDir: string, handIndex: number): HandLogPaths {
   };
 }
 
-/**
- * Append-as-you-go JSONL logger for one game: a seats manifest written once,
- * plus a command/event log file pair per hand. Every write is a single
- * synchronous fs call, so a killed process loses at most the record it was
- * mid-write on, never a batch of completed records.
- */
 export class HandLog {
   readonly gameDir: string;
   #handIndex = 0;

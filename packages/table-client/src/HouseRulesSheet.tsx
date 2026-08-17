@@ -79,11 +79,6 @@ export interface ShotClockSecondsDraft {
   readonly valid: boolean;
 }
 
-/**
- * Keeps transient keystrokes visible while committing only valid settings.
- * For example, replacing 90 with 45 naturally produces "4" before "45";
- * "4" is retained in the input but does not overwrite the last valid value.
- */
 export function updateShotClockSecondsDraft(
   draft: ShotClockSecondsDraft,
   input: string,
@@ -100,11 +95,6 @@ export function updateShotClockSecondsDraft(
   return { ...draft, input, valid: false };
 }
 
-/**
- * A single on/off switch. `nested` renders the smaller, indented variant used
- * by the sub-settings under a master toggle; `disabled` greys it out and blocks
- * interaction (a category toggle while its master is off).
- */
 function Toggle({
   label,
   checked,
@@ -183,7 +173,6 @@ function Toggle({
   );
 }
 
-/** The table-device House rules sheet; seat count is its first setting. */
 export function HouseRulesSheet({
   seatCount,
   pendingSeatCount,
@@ -431,9 +420,6 @@ export function HouseRulesSheet({
                   {moves
                     .map(
                       (move) =>
-                        // The destination stays labelled: a bare number beside
-                        // a name reads as a score, and numeric names ("7→2")
-                        // would be unreadable otherwise.
                         `${seatLabel(move.from, seats)} → Seat ${String(move.to + 1)}`,
                     )
                     .join(", ")}

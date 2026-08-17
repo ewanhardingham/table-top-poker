@@ -16,7 +16,6 @@ const style: CSSProperties = {
   fontSize: fontSize.md,
 };
 
-/** The inline notice shown when a table repack changes a player's position. */
 export function SeatMovedNotice({ message }: SeatMovedNoticeProps) {
   return (
     <div data-testid="seat-moved-notice" style={style}>

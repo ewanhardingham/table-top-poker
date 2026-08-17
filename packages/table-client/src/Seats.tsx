@@ -15,22 +15,13 @@ import { posFor } from "./table/posFor.js";
 export interface SeatsProps {
   readonly seats: readonly SeatView[];
   readonly view: TableView | null;
-  /** Current room setting, used only to scale the countdown colour ramp. */
   readonly shotClockSeconds?: number;
-  /** Called with a claimed seat's id when its pod is clicked — table-only, see ADR-0003. */
   readonly onSeatClick?: (seatId: number) => void;
 }
 
 type SeatStatus =
   "open" | "sitting-out" | "disconnected" | "folded" | "in-hand";
 
-/**
- * One diameter and one font size for all three markers, resolved against the
- * pod rather than against the marker's own text. The two are set on separate
- * elements on purpose: `width: 1.6em` and `fontSize: 0.6em` on the *same*
- * element made the true diameter `1.6 x 0.6em`, which is why the button
- * marker rendered at roughly a third of the avatar instead of half of it.
- */
 const MARKER_DIAMETER = "1.6em";
 const MARKER_FONT_SIZE = "0.62em";
 
@@ -43,11 +34,6 @@ interface SeatVisual {
   readonly avatarColor: string;
 }
 
-/**
- * Merges one seat's static room membership with whatever the in-progress
- * `view` knows about it — the single place `Seats` reasons about `TableView`'s
- * per-phase shape, so the render below stays a plain lookup.
- */
 function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
   const handSeat =
     view?.phase === "betting"
@@ -77,8 +63,6 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
           ? "folded"
           : "in-hand";
     } else if (participatedInCurrentHand) {
-      // `SeatView.sittingOut` may change during a hand, but the hand view is
-      // authoritative about whether this seat is still in that hand.
       status = "in-hand";
     } else {
       status = seat.disconnected
@@ -89,8 +73,6 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
     }
   }
 
-  // Showdown no longer marks a winning seat on the felt — the reveal overlay
-  // owns who-won (issue #169). Only the fold-out ending still crowns a seat.
   const isWinner =
     view?.phase === "folded-out" ? view.winner === seat.id : false;
 
@@ -119,12 +101,6 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
   };
 }
 
-/**
- * The seat pods ringing the felt's two long edges, percentage-positioned via
- * `posFor` so the layout holds across the table device's real viewport. This
- * is the only place `seats` and the in-progress `view` are merged into a
- * single per-seat picture — `Board` only ever renders the centre content.
- */
 export function Seats({
   seats,
   view,
@@ -136,17 +112,7 @@ export function Seats({
       {seats.map((seat) => {
         const visual = deriveSeat(seat, view);
         const pos = posFor(seat.id, seats.length);
-        // Bottom-row seats sit at posFor's ~90% and top-row at ~10%. The
-        // midline split below decides how a seat's contents are arranged and
-        // which way round its writing reads — it never repositions anything
-        // posFor already placed.
         const isTopRow = pos.top < 50;
-        // One rule, one place: everything a top-row seat writes turns half a
-        // revolution so the player at that edge reads it upright. Anything
-        // added to a pod later has to carry this too. The callout takes the
-        // number rather than the style because motion composes `rotate` into
-        // the same transform as its `y` and `scale`, and a CSS `transform`
-        // there would simply be overwritten.
         const flipDegrees = isTopRow ? 180 : 0;
         const flipStyle = isTopRow
           ? { transform: `rotate(${String(flipDegrees)}deg)` }
@@ -311,19 +277,6 @@ export function Seats({
           </div>
         );
 
-        // Every seat is a *placard* (issue #204): the avatar, marker, name and
-        // status in one row, avatar first. Both rows are built identically and
-        // only the top row is turned half a revolution, so each player reads
-        // an identically-shaped seat — avatar on their left, copy to its right
-        // — from wherever they are sitting.
-        //
-        // The row replaced a vertical stack, which trades depth for width: a
-        // seat now grows sideways from the anchor `posFor` placed rather than
-        // inward toward the felt's centre. That is deliberate. A row is only
-        // ever about one avatar tall however long the name, so it stays well
-        // clear of the rail behind it and the board in front, and rotation
-        // changes no layout box — the anchor and the seat's footprint are
-        // exactly what they'd be unrotated.
         const podContent = (
           <div
             data-testid={`seat-pod-${String(seat.id)}-placard`}
@@ -436,11 +389,6 @@ export function Seats({
                 <motion.div
                   data-testid={`seat-pod-${String(seat.id)}-to-act`}
                   data-flipped={isTopRow}
-                  // The callout stays a sibling of the placard, keeping its
-                  // own inward footprint below the seat; only its own text is
-                  // turned for a top-row player. `rotate` rides in the
-                  // animated transform so it composes with `y` and `scale`
-                  // rather than being overwritten by them.
                   initial={{
                     opacity: 0,
                     y: 6,
@@ -470,9 +418,6 @@ export function Seats({
             {seat.disconnected && (
               <span
                 data-testid={`seat-pod-${String(seat.id)}-disconnected`}
-                // Same copy either way; a top-row badge just turns with the
-                // rest of that seat's writing so one player never reads half
-                // their seat upside down.
                 style={flipStyle}
               >
                 Disconnected

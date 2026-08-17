@@ -19,7 +19,6 @@ export interface BotsAdded {
   readonly joined: number;
 }
 
-/** Reads server-global capabilities once when the table client boots. */
 export async function fetchConfig(): Promise<ServerConfig> {
   const response = await fetch("/config", { method: "GET" });
   if (!response.ok) {
@@ -28,14 +27,6 @@ export async function fetchConfig(): Promise<ServerConfig> {
   return (await response.json()) as ServerConfig;
 }
 
-/**
- * Confirms a room is still live before the table re-attaches on refresh
- * (#175). The WebSocket handshake 404s for a dead room, but a browser socket
- * can't tell that rejection from a transient drop, so the reconnect loop would
- * retry forever — this HTTP check decides existence up front, mirroring the
- * player client's reclaim-on-mount. Rejects on a 404 (grace window elapsed) or
- * any non-2xx.
- */
 export async function fetchRoom(code: string): Promise<RoomView> {
   const response = await fetch(`/rooms/${code}/join`, { method: "POST" });
   if (!response.ok) {
@@ -44,7 +35,6 @@ export async function fetchRoom(code: string): Promise<RoomView> {
   return (await response.json()) as RoomView;
 }
 
-/** `seatCount` is the table size the creator picked — 2-8, re-validated server-side. */
 export async function createRoom(seatCount: number): Promise<CreatedRoom> {
   const response = await fetch("/rooms", {
     method: "POST",
@@ -64,7 +54,6 @@ export async function endSession(code: string): Promise<void> {
   }
 }
 
-/** The test-mode table action that fills currently-free seats with bots. */
 export async function addBots(code: string, count: number): Promise<BotsAdded> {
   const response = await fetch(`/rooms/${code}/bots`, {
     method: "POST",
@@ -77,7 +66,6 @@ export async function addBots(code: string, count: number): Promise<BotsAdded> {
   return (await response.json()) as BotsAdded;
 }
 
-/** The table device's manual evict action (ADR-0003) — no automatic trigger. */
 export async function evictSeat(code: string, seatId: number): Promise<void> {
   const response = await fetch(`/rooms/${code}/seats/${String(seatId)}/evict`, {
     method: "POST",
@@ -87,7 +75,6 @@ export async function evictSeat(code: string, seatId: number): Promise<void> {
   }
 }
 
-/** The table device's House rules setting for the room seat count. */
 export async function changeSeatCount(
   code: string,
   seatCount: number,
@@ -103,7 +90,6 @@ export async function changeSeatCount(
   return (await response.json()) as SeatCountChange;
 }
 
-/** The table device's room-wide tactile-sound settings (#182). */
 export async function changeSoundSettings(
   code: string,
   settings: SoundSettings,
@@ -121,7 +107,6 @@ export async function changeSoundSettings(
   return (await response.json()) as SoundSettings;
 }
 
-/** The table device's deferred room-wide action-clock settings. */
 export async function changeShotClockSettings(
   code: string,
   settings: ShotClockSettings,

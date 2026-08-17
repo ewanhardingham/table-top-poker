@@ -520,8 +520,6 @@ describe("RoomStore", () => {
       expect(room.pendingSeatCount).toBeNull();
       expect(room.seats).toHaveLength(3);
       expect(room.engine?.seats).toEqual([0, 1, 2]);
-      // The completed hand's next button was old seat 5; after repacking it
-      // is seat 1 and the new hand keeps it there.
       expect(room.engine?.button).toBe(1);
       expect(room.engine?.hand?.status).toBe("betting");
     });
@@ -717,7 +715,6 @@ describe("RoomStore", () => {
       );
     });
 
-    /** Folds every actor in turn until only one live player remains (fold-out). */
     function completeHand(store: RoomStore, room: Room): void {
       for (let i = 0; i < DEFAULT_SEAT_COUNT; i++) {
         if (room.engine?.hand?.status === "complete") return;

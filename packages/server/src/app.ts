@@ -50,13 +50,6 @@ const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const publicIndexPath = fileURLToPath(
   new URL("../public/index.html", import.meta.url),
 );
-/**
- * A release build (ticket 34's `build:release` script) stages the real
- * table/player apps here, under their own subpath so each is servable at
- * its own base URL from the same origin; unstaged (dev, tests, a checkout
- * that hasn't run the release script), these don't exist and every route
- * below falls back to `publicIndexPath`'s placeholder.
- */
 const publicTableIndexPath = fileURLToPath(
   new URL("../public/table/index.html", import.meta.url),
 );
@@ -70,29 +63,15 @@ function readIndexOr(stagedPath: string): Buffer {
 
 export interface BuildAppOptions {
   readonly rooms?: RoomStore;
-  /** Root directory for append-as-you-go per-game hand logs. */
   readonly handLogDir?: string;
-  /** Enables test-only server features such as bot players. */
   readonly testMode?: boolean;
-  /** Randomness for bot actions, delays, and between-hand sit rolls. */
   readonly botRng?: BotRng;
-  /**
-   * Bot action delay in milliseconds. A scalar is useful for deterministic
-   * tests; a two-item range is sampled for each scheduled action in the
-   * form `[minimum, maximum)`.
-   */
   readonly botActionDelayMs?: number | readonly [number, number];
-  /** Overridable for tests only; production uses each room's configured seconds. */
   readonly actionClockMs?: number;
-  /** Injectable action clock for deterministic server tests. */
   readonly actionClock?: ActionClock;
-  /** Injectable wall clock for deterministic deadline assertions. */
   readonly now?: () => number;
-  /** How often the server pings every open socket (Phase 1 spec #130 §7). */
   readonly pingIntervalMs?: number;
-  /** Missed pongs before a seat's badge flips to "disconnected". */
   readonly missedPongLimit?: number;
-  /** How long the table device's own socket may stay down before the room ends. */
   readonly graceWindowMs?: number;
 }
 
@@ -104,12 +83,6 @@ interface RoomSeatRoute {
   Params: { code: string; seatId: string };
 }
 
-/**
- * The two roles that skip seat-token authentication, kept in one place so the
- * set of unauthenticated connections is reviewable at a glance: `table` is the
- * shared table device, `lobby` is an unclaimed player watching the room view.
- * Anything else must present a seat token.
- */
 const UNAUTHENTICATED_ROLES = ["table", "lobby"] as const;
 type UnauthenticatedRole = (typeof UNAUTHENTICATED_ROLES)[number];
 
@@ -164,12 +137,6 @@ function sampleBotActionDelay(delay: BotActionDelay, rng: BotRng): number {
   return minimum + unitRandom(rng) * (maximum - minimum);
 }
 
-/**
- * Narrows a socket's identity to a seat. Only a seat may be handed
- * `view(state, seatId)` or have its presence tracked; the table and lobby
- * identities are deliberately excluded, so every per-seat path goes through
- * this one guard rather than its own `!== "lobby"` check.
- */
 function isSeat(identity: SocketIdentity | undefined): identity is SeatId {
   return identity !== undefined && identity !== "table" && identity !== "lobby";
 }
@@ -182,7 +149,6 @@ const CLAIM_ERROR_STATUS: Record<ClaimSeatError, number> = {
   "duplicate-display-name": 409,
 };
 
-/** Looks up a room, replying 404 and returning undefined when it's not live. */
 function findRoomOrReject(
   rooms: RoomStore,
   code: string,
@@ -196,14 +162,6 @@ function findRoomOrReject(
   return room;
 }
 
-/**
- * `HandEvent` is the engine's full, unredacted truth by design (secrecy
- * lives solely in `view` — Phase 1 spec #130 §3/§4). The *wire* event
- * carried alongside that view is a transport-level exception: `HoleCardsDealt`
- * must be redacted per recipient before it ever leaves the server, or the
- * "raw event for audit/animation" bullet in §6 would leak every seat's cards
- * to every socket regardless of what `view` shows.
- */
 function redactEventFor(
   event: HandEvent,
   identity: SeatId | "table",
@@ -218,7 +176,6 @@ function redactEventFor(
   };
 }
 
-/** Seat ids arrive as route/query strings — reject anything that isn't a bare integer. */
 function parseSeatId(raw: string): number | undefined {
   return /^\d+$/.test(raw) ? Number(raw) : undefined;
 }
@@ -277,9 +234,7 @@ export async function buildApp(
   const socketRoomCode = new Map<WebSocket, string>();
   const pingMissed = new Map<WebSocket, number>();
   const evictedSockets = new WeakSet<WebSocket>();
-  /** One timer per room, armed the moment its table-role socket closes. */
   const tableGraceTimers = new Map<string, NodeJS.Timeout>();
-  /** At most one pending bot action per room; replaced when the actor moves. */
   const botActionTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const app = Fastify();
 
@@ -307,7 +262,6 @@ export async function buildApp(
     }
   }
 
-  /** Refreshes the displayed completed hand after an immediate between-hand repack. */
   function broadcastDisplayedHand(code: string): void {
     const room = rooms.get(code);
     const sockets = roomSockets.get(code);
@@ -329,11 +283,6 @@ export async function buildApp(
     }
   }
 
-  /**
-   * Applies a positional repack to every currently open player socket before
-   * the new room view or hand snapshot is sent. The token stays with the
-   * player, while this transport identity follows the moved seat.
-   */
   function applySeatMoves(code: string, moves: readonly SeatMove[]): void {
     const sockets = roomSockets.get(code);
     if (!sockets) return;
@@ -346,16 +295,6 @@ export async function buildApp(
     }
   }
 
-  /**
-   * A seat token only protects the next connection attempt. Remove all
-   * currently open sockets for an evicted seat too, otherwise that socket
-   * could keep issuing commands until it disconnected on its own.
-   *
-   * `notify` sends the `player-evicted` notice; a voluntary leave (ADR-0005)
-   * passes `false`, since it isn't an eviction and its client has already
-   * torn itself down. Either way the socket is flagged so its own close
-   * handler skips the disconnected-presence toggle on the freed seat.
-   */
   function closeSeatSockets(code: string, seatId: SeatId, notify = true): void {
     const sockets = roomSockets.get(code);
     if (!sockets) return;
@@ -372,7 +311,6 @@ export async function buildApp(
     }
   }
 
-  /** Cosmetic presence toggle for a seat's socket — never touches `rooms.dispatch`. */
   function markPresence(socket: WebSocket, disconnected: boolean): void {
     const identity = socketIdentity.get(socket);
     const code = socketRoomCode.get(socket);
@@ -381,13 +319,6 @@ export async function buildApp(
     broadcastRoomView(code);
   }
 
-  /**
-   * Ends a room the same way whether triggered by "End session" or the
-   * table device's own reconnect grace window elapsing (Phase 1 spec #130
-   * §7): notify every socket, close them, discard the transport bookkeeping,
-   * then discard the room itself. Hand logs on disk are untouched — this
-   * only ever touches in-memory state.
-   */
   function endRoom(code: string): void {
     const sockets = roomSockets.get(code);
     if (sockets) {
@@ -411,7 +342,6 @@ export async function buildApp(
     rooms.end(code);
   }
 
-  /** Persists the exact engine command and resulting events for replay/audit. */
   function logDispatch(
     code: string,
     result: DispatchRejection | DispatchSuccess,
@@ -449,7 +379,7 @@ export async function buildApp(
       try {
         socket.ping();
       } catch {
-        // Socket is already on its way down; its 'close' handler cleans up.
+        // socket already closing; its 'close' handler cleans up
       }
     }
   }, pingIntervalMs);
@@ -461,13 +391,6 @@ export async function buildApp(
     done();
   });
 
-  /**
-   * Fans one event out to every socket in the room, per-recipient: the
-   * table gets `view(state, 'table')`, a seat gets `view(state, seatId)`
-   * only if it was actually dealt into the hand that produced this state —
-   * a sitting-out seat's socket gets nothing, never another seat's cards
-   * (Phase 1 spec #130 §4, §6).
-   */
   function fanOutHandUpdate(code: string, step: DispatchStep): void {
     const sockets = roomSockets.get(code);
     if (!sockets) return;
@@ -497,12 +420,6 @@ export async function buildApp(
     botActionTimers.delete(code);
   }
 
-  /**
-   * Rolls the between-hand cadence for every bot. This runs when the prior
-   * hand reaches HandComplete, before the table can issue nextHand, so the
-   * next deal-in sees the resulting voluntary seat states. A bot never
-   * releases its claim; only the sitting-out bit changes.
-   */
   function rollBotSitStates(code: string): boolean {
     if (!testMode) return false;
     const room = rooms.get(code);
@@ -510,17 +427,10 @@ export async function buildApp(
 
     let changed = false;
     const bots = room.seats.filter((seat) => seat.claimed && seat.bot === true);
-    // Remember which bots were already sitting out. A bot that returns for
-    // this boundary should remain in for the next deal rather than being
-    // immediately asked to sit out again in the same roll.
     const sittingOutBots = bots.filter((seat) => seat.sittingOut);
     const activeBots = bots.filter((seat) => !seat.sittingOut);
 
-    // Returning bots are considered first so a table can recover from a
-    // previous roll that left only one eligible seat.
     for (const seat of sittingOutBots) {
-      // Guard before the roll so a disconnected bot never consumes an RNG
-      // draw it cannot act on, matching the recovery and sit-out loops below.
       if (seat.disconnected) continue;
       if (shouldSitIn(botRng)) {
         rooms.setSittingOut(code, seat.id, false);
@@ -534,9 +444,6 @@ export async function buildApp(
       ).length;
     let eligibleCount = dealInEligible();
 
-    // A failed sit-in roll must not permanently strand a room that still has
-    // two connected claimed seats available. This is a recovery override, not
-    // a normal cadence decision, and is only used until two seats can deal in.
     if (eligibleCount < 2) {
       for (const seat of sittingOutBots) {
         if (eligibleCount >= 2) break;
@@ -548,12 +455,7 @@ export async function buildApp(
       }
     }
 
-    // Active bots may opt out only while the table would still have two
-    // connected, claimed, non-sitting-out seats for the next deal-in.
     for (const seat of activeBots) {
-      // Guard before the roll so the draw is only consumed when the seat can
-      // actually sit out; drawing first would let the two-seat floor shift
-      // every later action-selection draw for a deterministic RNG.
       if (seat.disconnected || seat.sittingOut || eligibleCount <= 2) continue;
       if (!shouldSitOut(botRng)) continue;
       rooms.setSittingOut(code, seat.id, true);
@@ -563,10 +465,6 @@ export async function buildApp(
     return changed;
   }
 
-  /**
-   * Arms the one pending bot action for a room, replacing any stale timer
-   * left behind by a real action, eviction, or another room-store mutation.
-   */
   function scheduleBotAction(code: string): void {
     clearBotActionTimer(code);
     if (!testMode) return;
@@ -581,9 +479,6 @@ export async function buildApp(
       () => {
         botActionTimers.delete(code);
 
-        // Everything below is deliberately read again at fire time. A timer
-        // may outlive an intervening human action, eviction, hand completion,
-        // or room teardown.
         const currentRoom = rooms.get(code);
         if (!currentRoom || rooms.currentActor(code) !== actor) return;
         const currentSeat = currentRoom.seats[actor];
@@ -602,11 +497,6 @@ export async function buildApp(
         const action = chooseBotAction(actorView.legalActions, botRng);
         const result = rooms.dispatch(code, actor, action);
         if (!("steps" in result)) {
-          // `action` came straight from the engine's `legalActions`, so a
-          // rejection is not expected. If it somehow happens, re-arm the
-          // clock and the bot so the seat still faces a deadline and the bot
-          // retries rather than stalling — an eviction path may have left the
-          // clock preserved (unarmed) while this actor remains on it.
           rescheduleActionClock(code);
           scheduleBotAction(code);
           return;
@@ -618,13 +508,6 @@ export async function buildApp(
     botActionTimers.set(code, timer);
   }
 
-  /**
-   * Re-arms the room's action clock against whoever is now on the clock —
-   * called after every command a room accepts, real or synthesized, so the
-   * clock always reflects the live actor. A disconnected socket plays no
-   * part here; only `dispatch` outcomes move this clock, per
-   * Phase 1 spec #130 §7.
-   */
   function rescheduleActionClock(code: string): void {
     const room = rooms.get(code);
     const actor = rooms.currentActor(code);
@@ -641,9 +524,6 @@ export async function buildApp(
       return;
     }
 
-    // `actionClockMs` is only a convenience override for the default clock
-    // used by the existing timer tests. An injected clock is authoritative so
-    // tests can observe each room's configured duration directly.
     const timeoutMs =
       options.actionClock === undefined && options.actionClockMs !== undefined
         ? options.actionClockMs
@@ -656,9 +536,6 @@ export async function buildApp(
         return;
       }
 
-      // A timeout should preserve a free check. Read legal actions at fire
-      // time because the scheduled callback may outlive another room-store
-      // mutation even after its timer has been replaced.
       const actorView =
         currentRoom.engine === null
           ? undefined
@@ -669,11 +546,6 @@ export async function buildApp(
           ? "check"
           : "fold";
       const result = rooms.dispatch(code, actor, action);
-      // `actor` was read as the live current actor at schedule time, and
-      // any real action in between would have rescheduled (and thus
-      // replaced) this very timer — so `dispatch` rejecting the synthesized
-      // action isn't expected to happen. If it somehow does, the clock still
-      // re-arms below.
       if ("steps" in result) {
         publishDispatch(code, result);
         return;
@@ -682,7 +554,6 @@ export async function buildApp(
     });
   }
 
-  /** Publishes an accepted dispatch, including any positional seat moves. */
   function publishDispatch(
     code: string,
     result: DispatchSuccess,
@@ -701,9 +572,6 @@ export async function buildApp(
         if (room !== undefined) room.turnEndsAt = null;
       }
     } else {
-      // Arm before the first hand-update is sent: every live view, including
-      // the HandStarted view, carries the deadline that governs the resulting
-      // actor. A reconnect snapshot reads the same room field.
       rescheduleActionClock(code);
     }
     for (const step of result.steps) {
@@ -718,18 +586,10 @@ export async function buildApp(
     scheduleBotAction(code);
   }
 
-  // `index: false` — the explicit "/" route below owns index resolution
-  // (placeholder vs. a staged table build), so the static plugin only ever
-  // serves fingerprinted assets (`/table/assets/*`, `/player/assets/*`),
-  // never racing its own directory-index behaviour against that route.
   await app.register(fastifyStatic, { root: publicDir, index: false });
   await app.register(fastifyWebsocket);
 
   app.get("/", (_request, reply) => {
-    // The HTML shell names the current fingerprinted bundle, so it must never
-    // be cached: a stale shell pins a long-lived kiosk to an old build even
-    // across app restarts (the disk cache survives them). `no-store` forces a
-    // fresh shell every load; the hashed assets it points at stay cacheable.
     return reply
       .type("text/html")
       .header("cache-control", "no-store")
@@ -739,8 +599,6 @@ export async function buildApp(
   app.get("/config", () => ({ testMode }));
 
   app.post("/rooms", async (request, reply) => {
-    // The table client picks a seat count (issue #74); this is the trust
-    // boundary that decides whether it's a size a room may actually have.
     const body = CreateRoomRequestSchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({
@@ -754,11 +612,6 @@ export async function buildApp(
     return { code: room.code, joinUrl: url, qrCodeDataUrl };
   });
 
-  /**
-   * Test-mode table action: fill existing free seats with virtual players.
-   * Keeping this route out of the Fastify registration entirely when the gate
-   * is off makes the production surface a plain 404.
-   */
   if (testMode) {
     app.post<RoomCodeRoute>("/rooms/:code/bots", (request, reply) => {
       const body = AddBotsRequestSchema.safeParse(request.body);
@@ -798,11 +651,6 @@ export async function buildApp(
     return reply.code(204).send();
   });
 
-  /**
-   * Table-device house rules: change the room's seat count (issue #77). The
-   * HTTP boundary is intentionally the same ungated table-action boundary as
-   * `/end` and `/evict`; role authentication is not part of this transport.
-   */
   const changeSeatCount = (
     request: FastifyRequest<RoomCodeRoute>,
     reply: FastifyReply,
@@ -835,12 +683,6 @@ export async function buildApp(
 
   app.post<RoomCodeRoute>("/rooms/:code/seats/count", changeSeatCount);
 
-  /**
-   * Table-device sound settings (#182): the room-wide
-   * master/cards/actions/notifications toggles. Same ungated table-action
-   * boundary as `/seats/count` — the table
-   * owns these and pushes them to every surface via the broadcast `room-view`.
-   */
   app.post<RoomCodeRoute>("/rooms/:code/sound", (request, reply) => {
     const body = ChangeSoundSettingsRequestSchema.safeParse(request.body);
     if (!body.success) {
@@ -856,11 +698,6 @@ export async function buildApp(
     return result;
   });
 
-  /**
-   * Table-device shot-clock settings: every edit is queued for the next hand,
-   * so this route never re-arms or clears a live hand's action timer. The
-   * resulting pending value is pushed through the room-view broadcast.
-   */
   app.post<RoomCodeRoute>("/rooms/:code/shot-clock", (request, reply) => {
     const body = ChangeShotClockRequestSchema.safeParse(request.body);
     if (!body.success) {
@@ -878,12 +715,6 @@ export async function buildApp(
     return result;
   });
 
-  /**
-   * Where the QR code's join URL lands. `PLAYER_CLIENT_ORIGIN` points dev at
-   * the player-client's own Vite server; unset, it serves a release build
-   * staged at `public/player` (ticket 34's `build:release`), or the
-   * placeholder if none has been staged.
-   */
   app.get<RoomCodeRoute>("/join/:code", (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
@@ -891,7 +722,6 @@ export async function buildApp(
     if (playerOrigin) {
       return reply.redirect(`${playerOrigin}/join/${room.code}`);
     }
-    // See the table shell above: never cache the HTML that names the bundle.
     return reply
       .type("text/html")
       .header("cache-control", "no-store")
@@ -933,7 +763,6 @@ export async function buildApp(
     },
   );
 
-  /** The table device's manual evict action (ADR-0003) — no automatic trigger. */
   app.post<RoomSeatRoute>(
     "/rooms/:code/seats/:seatId/evict",
     (request, reply) => {
@@ -946,9 +775,6 @@ export async function buildApp(
       const eviction = rooms.evictSeat(request.params.code, seatId);
       if (eviction.dispatch !== undefined) {
         publishDispatch(request.params.code, eviction.dispatch, {
-          // A non-current eviction leaves the actor and its existing deadline
-          // untouched; a current-seat eviction uses a normal fold command and
-          // starts the next actor's clock as usual.
           actionClock:
             eviction.dispatch.command.type === "evict"
               ? "preserve"
@@ -961,7 +787,6 @@ export async function buildApp(
     },
   );
 
-  /** A player releasing their own seat (ADR-0005) — the token-gated twin of evict. */
   app.post<RoomSeatRoute>(
     "/rooms/:code/seats/:seatId/leave",
     (request, reply) => {
@@ -985,8 +810,6 @@ export async function buildApp(
       }
       if (result.dispatch !== undefined) {
         publishDispatch(request.params.code, result.dispatch, {
-          // Same fold/queue handling as evict: a non-actor leave preserves the
-          // current actor's clock, a current-actor leave folds and reschedules.
           actionClock:
             result.dispatch.command.type === "evict"
               ? "preserve"
@@ -994,7 +817,6 @@ export async function buildApp(
         });
       }
       broadcastRoomView(request.params.code);
-      // Voluntary leave, not an eviction — close the socket without the notice.
       closeSeatSockets(request.params.code, seatId, false);
       return reply.code(204).send();
     },
@@ -1057,22 +879,16 @@ export async function buildApp(
             tableGraceTimers.delete(code);
           }
         } else if (isSeat(identity)) {
-          // A reconnecting seat resumes silently, no penalty (§7) — clear
-          // any presence badge a prior drop had set.
           rooms.setSeatDisconnected(code, identity, false);
         }
 
         if (movedFrom !== undefined && isSeat(identity)) {
-          // A disconnected player may still have the pre-repack seat in
-          // localStorage. The token authenticates the player; this stale
-          // position is only the source for the resync notice.
           send(socket, { type: "seat-moved", from: movedFrom, to: identity });
         }
 
         const room = rooms.get(code);
         if (room) {
           broadcastRoomView(code);
-          // One fresh snapshot on connect, never event replay (§7, §9).
           if (room.engine !== null) {
             if (identity === "table") {
               send(socket, {
@@ -1114,8 +930,6 @@ export async function buildApp(
             return;
           }
 
-          // Voluntary sit-out/in (ADR-0002) never reaches the engine — it's
-          // a seat-only room-store mutation, not a hand command.
           if (
             parseResult.data.type === "sitOut" ||
             parseResult.data.type === "sitIn"
@@ -1159,8 +973,6 @@ export async function buildApp(
           }
 
           publishDispatch(code, dispatchResult);
-          // A fresh deal-in (new join, reconnect) changes seat state the
-          // routine hand-update fan-out above doesn't cover.
           if (
             parseResult.data.type === "startHand" ||
             parseResult.data.type === "nextHand"
@@ -1179,9 +991,6 @@ export async function buildApp(
           if (evictedSockets.delete(socket)) return;
 
           if (currentIdentity === "table") {
-            // Room may already be gone (this close came from `endRoom` itself
-            // closing every socket) — only arm a fresh grace window for a
-            // room that's still live.
             if (rooms.get(code) && !tableGraceTimers.has(code)) {
               tableGraceTimers.set(
                 code,

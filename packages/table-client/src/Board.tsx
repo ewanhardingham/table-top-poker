@@ -12,7 +12,6 @@ export interface BoardProps {
   readonly seats?: readonly SeatView[];
 }
 
-/** The community cards, dealt in one at a time via Motion rather than CSS keyframes. */
 function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
   return (
     <div
@@ -33,13 +32,6 @@ function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
   );
 }
 
-/**
- * "Hand complete" pill grouped directly above the community cards — the
- * two move as one unit rather than the banner pinned to the felt's edge
- * independently of the board it's describing. Never says "you" (unlike
- * player-client's identical-looking banner, decision from issue #63)
- * since the table has no single viewer to address.
- */
 function HandCompleteBanner({ text }: { readonly text: string }) {
   return (
     <div
@@ -82,11 +74,6 @@ function HandCompleteBanner({ text }: { readonly text: string }) {
   );
 }
 
-/**
- * The felt's centre content — community cards, plus a "hand complete" banner
- * naming the winner only for the fold-out ending. At showdown the reveal
- * overlay (issue #169) owns the result, so the felt shows just the board.
- */
 export function Board({ view, seats = [] }: BoardProps) {
   if (view.phase === "no-hand") {
     return (
@@ -107,10 +94,6 @@ export function Board({ view, seats = [] }: BoardProps) {
   }
 
   if (view.phase === "showdown") {
-    // The reveal overlay (issue #169) owns the showdown result — winner(s),
-    // hands, and hole cards. The felt keeps only the community cards, so that
-    // "View table" reveals them behind the collapsed overlay; the redundant
-    // "Hand complete" banner is suppressed here.
     return (
       <div
         data-testid="board"

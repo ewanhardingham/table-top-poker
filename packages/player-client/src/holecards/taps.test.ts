@@ -42,7 +42,6 @@ describe("tapLanded", () => {
     const third = tapLanded(second.window, 1200);
 
     expect(second.event).toEqual({ type: "DOUBLE_TAPPED" });
-    // Without this, a triple-tap would send two Checks 100ms apart.
     expect(third).toEqual({ window: 1200, event: { type: "TAPPED" } });
   });
 

@@ -25,10 +25,6 @@ const overlayStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   background: color.overlay,
-  // The panel is centred and visually small, but this wrapper spans the
-  // whole felt — without this, its invisible edges swallow clicks on
-  // whatever sits behind them, like the "Deal hand" control in the
-  // bottom-right rail. Only the panel itself should be clickable.
   pointerEvents: "none",
 };
 
@@ -62,11 +58,6 @@ const kickerStyle: CSSProperties = {
   color: color.textMuted,
 };
 
-/**
- * The centred lobby overlay showing the room's QR/code/URL — pinned open
- * while `handView === null`, otherwise toggled by `JoinCodeToggle` and
- * dismissable so the board stays reachable mid-hand.
- */
 export function JoinPanel({
   roomCode,
   joinUrl,

@@ -78,8 +78,6 @@ describe("SeatPicker", () => {
     expect(html).toContain('data-testid="seat-grid"');
     expect(html).toContain('data-seat-count="6"');
     expect(html).toContain("grid-template-columns:repeat(2, minmax(0, 1fr))");
-    // Row count feeds the `.seat-grid` track template in CSS; the sizing and
-    // compact-layout behaviour live there, not in the inline styles.
     expect(html).toContain("--seat-row-count:3;");
   });
 
@@ -99,8 +97,6 @@ describe("SeatPicker", () => {
     );
 
     expect(html).toContain("--seat-row-count:4;");
-    // The classes the `@container seat` query keys on must be present so the
-    // card can flip to its horizontal layout when its own box gets short.
     expect(html).toContain('class="seat-option"');
     expect(html).toContain('class="seat-row"');
     expect(html).toContain('class="seat-avatar"');

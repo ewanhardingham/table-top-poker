@@ -9,7 +9,6 @@ if (!rootEl) {
   throw new Error("#root element not found");
 }
 
-// Bound on the document so it catches pinches started anywhere in the shell.
 lockViewport(document);
 
 ReactDOM.createRoot(rootEl).render(

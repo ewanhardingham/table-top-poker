@@ -4,10 +4,6 @@ import { describe, expect, it } from "vitest";
 import { SeatPanel } from "./SeatPanel.js";
 import { playerTopPillStyle } from "./topPillStyle.js";
 
-/**
- * Markup with the tags stripped — the seat pill spans several of them — and
- * its non-breaking spaces normalised, so assertions read as plain text.
- */
 function textOf(html: string): string {
   return html.replace(/<[^>]*>/g, "").replace(/\u00a0/g, " ");
 }
@@ -29,12 +25,6 @@ describe("SeatPanel", () => {
     expect(textOf(html)).toContain("Avery · Seat 3");
   });
 
-  /*
-   * The pill truncates from the name end only, so the seat number survives a
-   * squeeze (ADR-0006). jsdom has no layout, so the guard is on the structure
-   * that produces that: only the name may shrink and clip, and the seat number
-   * is fixed. A layout test would pass on a bar that still overflows.
-   */
   it("truncates the name, never the seat number", () => {
     const html = renderToStaticMarkup(
       <SeatPanel seatId={2} displayName="Bartholomew" sittingOut={false} />,
@@ -45,7 +35,6 @@ describe("SeatPanel", () => {
     expect(name).toContain("overflow:hidden");
     expect(name).toContain("text-overflow:ellipsis");
 
-    // The seat number's own span is fixed, so it is never the part clipped.
     const seatNumber = /<span style="flex:none">[^<]*Seat 3<\/span>/.exec(html);
     expect(seatNumber).not.toBeNull();
   });
@@ -68,8 +57,6 @@ describe("SeatPanel", () => {
       />,
     );
     expect(html).toContain('data-testid="sitting-out-badge"');
-    // Short by design: the label shares a narrow row with the seat pill and
-    // the menu, and "waiting" here can only mean the next hand (ADR-0006).
     expect(html).toContain("Waiting");
     expect(html).not.toContain("Waiting for next hand");
   });

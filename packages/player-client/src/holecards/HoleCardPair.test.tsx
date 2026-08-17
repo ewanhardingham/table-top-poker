@@ -68,8 +68,6 @@ describe("HoleCardPair", () => {
     expect(html).toContain('data-rank="J"');
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(2);
     expect(html).toContain('aria-disabled="true"');
-    // Inert, but still in the tab order with its name intact: at showdown
-    // that name is where a screen-reader user reads their own hand.
     expect(html).not.toMatch(/<button[^>]*\sdisabled/);
   });
 
@@ -85,8 +83,6 @@ describe("HoleCardPair", () => {
   });
 
   it("carries the bend affordance on both cards", () => {
-    // The recognizer hit-tests this attribute, so the classifier never needs
-    // to know where the corner is drawn.
     const html = renderToStaticMarkup(
       <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
     );
@@ -110,8 +106,6 @@ describe("HoleCardPair", () => {
     expect(html).toContain("touch-action:none");
     expect(html).toContain("-webkit-touch-callout:none");
     expect(html).toContain("user-select:none");
-    // Android Chrome's press wash reads as a highlight on the cards during a
-    // long-press; the surface does its own press feedback, so it is turned off.
     expect(html).toContain("-webkit-tap-highlight-color:transparent");
   });
 
@@ -123,11 +117,6 @@ describe("HoleCardPair", () => {
     expect(html).not.toContain('data-testid="hole-cards-hint"');
   });
 
-  // The confirmation is transient, so a settled pair claiming a Check just
-  // landed would be a lie. The other half of this — that the stamp *does*
-  // arrive on a gesture Check, and takes the sighted hint's place when it
-  // does — needs a rendered double-tap, which is the DOM test layer #156 is
-  // still deciding on.
   it("stamps no Check confirmation over a pair that has not just checked", () => {
     const html = renderToStaticMarkup(
       <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
@@ -142,15 +131,10 @@ describe("HoleCardPair", () => {
       <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
     );
 
-    // A live region inserted along with its own text is not reliably
-    // announced, so the region has to be here first — with nothing in it.
     expect(html).toMatch(/<span role="status"[^>]*><\/span>/);
   });
 
   it("renders the words the selector chose, for every hint it can choose", () => {
-    // The copy lives in the selector and this is the only thing that prints it,
-    // so the surface can never teach a gesture in different words from the ones
-    // the §11 table settles.
     const cases: readonly {
       readonly state: Partial<CardState & { bendAxis: BendAxis }>;
       readonly ctx?: Partial<HintContext>;
@@ -204,13 +188,10 @@ describe("HoleCardPair", () => {
       return hint.id;
     });
 
-    // All nine of them, each rendered by the same block.
     expect(new Set(rendered).size).toBe(9);
   });
 
   it("names the corner the bend affordance is actually drawn in", () => {
-    // "bottom-right" tracks the rendered zone rather than being hard-coded: if
-    // the overlapped layout ever mirrors, the copy follows it.
     const html = renderToStaticMarkup(
       <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
     );

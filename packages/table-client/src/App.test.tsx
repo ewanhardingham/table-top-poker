@@ -6,13 +6,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App.js";
 import type { TableStore } from "./store/store.js";
 
-/**
- * These tests render on the server, and zustand serves `getInitialState` to
- * `useSyncExternalStore` there — a plain `setState` would never reach the
- * markup. So the hook reads a per-test override instead; the real slices still
- * supply every value the test does not name, including the setters
- * `useWebSocket` reads.
- */
 const store = vi.hoisted((): { overrides: Partial<TableStore> } => ({
   overrides: {},
 }));
@@ -54,7 +47,6 @@ const liveHand: TableView = {
   ],
 };
 
-/** A finished hand: the rail offers "Next hand" in this state. */
 const completeHand: TableView = {
   phase: "folded-out",
   button: 0,
@@ -64,7 +56,6 @@ const completeHand: TableView = {
   winner: 0,
 };
 
-/** A showdown: the reveal overlay owns the result here. */
 const showdownHand: TableView = {
   phase: "showdown",
   button: 0,
@@ -99,7 +90,6 @@ const showdownHand: TableView = {
   ],
 };
 
-/** Puts the table in a room, with the seats claimed and hand state given. */
 function enterRoom(
   claimedSeats: number,
   handView: TableView | null,
@@ -153,8 +143,6 @@ describe("App", () => {
     expect(html).toContain('data-testid="join-panel"');
     expect(html).toContain('data-placement="join-panel"');
     expect(html).not.toContain('data-placement="rail"');
-    // The join card is the room-join surface in the lobby; a second copy of
-    // the code in the status bar would be redundant.
     expect(html).not.toContain('data-testid="join-code-toggle"');
     expect(html).toContain('data-testid="connection-status"');
   });
@@ -221,8 +209,6 @@ describe("App", () => {
     expect(html).not.toMatch(
       /data-testid="showdown-next-hand-button"[^>]*disabled/,
     );
-    // The rail offers "View showdown" to reopen the overlay, not "Next hand" —
-    // dealing the next hand lives in the overlay itself.
     expect(html).toContain('data-testid="view-showdown-button"');
     expect(html).not.toContain('data-testid="next-hand-button"');
   });

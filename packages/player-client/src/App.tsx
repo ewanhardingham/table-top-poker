@@ -52,8 +52,6 @@ export function App() {
   const [seatMoveMessage, setSeatMoveMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    // Silently reclaim a stored seat on mount (Phase 1 spec #130 §7) — a
-    // cleared/absent token just falls through to the normal join flow.
     const stored = loadSeatToken(window.localStorage);
     if (stored === null) return;
     joinRoom(stored.roomCode)
@@ -74,23 +72,12 @@ export function App() {
       });
   }, [setRoomView, setSeat]);
 
-  // Keep the browser URL and the join-form prefill pointing at the room the
-  // player is actually in. Without this the address bar stays pinned to the
-  // first `/join/:code` it loaded, so a player who joins several rooms in one
-  // session keeps landing back on the join screen prefilled with the *first*
-  // code rather than the one they last used. `replaceState` (not push) so this
-  // never adds back-button history. We only rewrite on an active room; leaving
-  // keeps the last room's path, which is what the prefill should offer next.
   useEffect(() => {
     if (typeof window === "undefined" || roomCode === null) return;
     window.history.replaceState(null, "", joinPathForCode(roomCode));
     setDefaultRoomCode(roomCode);
   }, [roomCode]);
 
-  // Drop this player out of their seat locally: forget the stored and in-memory
-  // seat token, and clear the seat and hand slices so no stale seat or hole
-  // cards survive into the next room (#171). Callers that also leave the room
-  // entirely add clearRoom() themselves.
   const dropSeat = useCallback(() => {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
@@ -155,7 +142,6 @@ export function App() {
     send({ type: playerSeat.sittingOut ? "sitIn" : "sitOut" });
   }, [playerSeat, send]);
 
-  // A live seat still in the hand — used to warn that leaving forfeits it.
   const inLiveHand =
     handView?.phase === "betting" &&
     handView.seats.some(
@@ -163,8 +149,6 @@ export function App() {
     );
 
   const handleLeave = useCallback(() => {
-    // Optimistic exit (ADR-0005): fire the release, then tear down locally and
-    // land on the join screen. Nulling the ws params cancels the reconnect.
     if (roomCode !== null && seatId !== null && seatToken !== null) {
       leaveSeat(roomCode, seatId, seatToken);
     }
@@ -182,9 +166,6 @@ export function App() {
         .then((view) => {
           setEvictionMessage(null);
           setSeatMoveMessage(null);
-          // A freshly joined room has no hand for this player yet; drop any
-          // hand view carried over from a previous room so the seat picker
-          // and lobby never show stale hole cards (#171).
           clearHand();
           setRoomView(view);
         })
@@ -198,8 +179,6 @@ export function App() {
   const handleClaim = useCallback(
     (seat: number, name: string) => {
       if (roomCode === null) return;
-      // The seat tap is this phone's audio-unlock gesture (#178): resume the
-      // context and warm the buffers now, while we're inside the user gesture.
       void unlockAudio();
       claimSeat(roomCode, seat, name)
         .then((claim) => {

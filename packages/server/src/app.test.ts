@@ -33,7 +33,6 @@ const publicPlayerDir = fileURLToPath(
   new URL("../public/player", import.meta.url),
 );
 
-/** Stages a fake release build (ticket 34) so tests can assert it's served in place of the placeholder. */
 function stageBuiltIndex(dir: string, marker: string): void {
   mkdirSync(dir, { recursive: true });
   writeFileSync(`${dir}/index.html`, `<!doctype html><p>${marker}</p>`);
@@ -1411,8 +1410,6 @@ describe("hand command dispatch over WebSocket", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // A socket that joins mid-hand takes the connect-time snapshot path,
-    // which is the other place a seat view is handed out.
     const lateLobby = connect(`room=${room.code}&role=lobby`);
     await opened(lateLobby.socket);
     await settle();
@@ -1425,8 +1422,6 @@ describe("hand command dispatch over WebSocket", () => {
       expect(JSON.stringify(watcher.messages)).not.toContain("yourHoleCards");
     }
 
-    // The seat itself still got its cards — the guard is about identity, not
-    // about the hand having failed to start.
     expect(JSON.stringify(seat0.messages)).toContain("yourHoleCards");
 
     lobby.socket.close();
@@ -1551,10 +1546,6 @@ describe("hand command dispatch over WebSocket", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // button = seat 0, ring = [1, 2, 0], BB = seat 2 (see rooms.ts/room.ts),
-    // so preflop runs [0, 1, 2]. Button and SB call, BB raises — forcing
-    // seat 0 and seat 1 to act again (street closure waits for every live
-    // player since the raise, not just one lap), both call, street closes.
     seat0.socket.send(JSON.stringify({ type: "call" }));
     await settle();
     seat1.socket.send(JSON.stringify({ type: "call" }));
@@ -1566,7 +1557,6 @@ describe("hand command dispatch over WebSocket", () => {
     seat1.socket.send(JSON.stringify({ type: "call" }));
     await settle();
 
-    // Flop: everyone checks.
     seat1.socket.send(JSON.stringify({ type: "check" }));
     await settle();
     seat2.socket.send(JSON.stringify({ type: "check" }));
@@ -1574,8 +1564,6 @@ describe("hand command dispatch over WebSocket", () => {
     seat0.socket.send(JSON.stringify({ type: "check" }));
     await settle();
 
-    // Turn: seat 0 folds instead of its final check — two live players
-    // remain, so the hand keeps going rather than folding out.
     seat1.socket.send(JSON.stringify({ type: "check" }));
     await settle();
     seat2.socket.send(JSON.stringify({ type: "check" }));
@@ -1583,7 +1571,6 @@ describe("hand command dispatch over WebSocket", () => {
     seat0.socket.send(JSON.stringify({ type: "fold" }));
     await settle();
 
-    // River: the two remaining live seats check down to showdown.
     seat1.socket.send(JSON.stringify({ type: "check" }));
     await settle();
     seat2.socket.send(JSON.stringify({ type: "check" }));
@@ -1782,7 +1769,6 @@ describe("hand command dispatch over WebSocket", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Preflop's first actor is seat 0 (the button, three-handed), not seat 1.
     seat1.socket.send(JSON.stringify({ type: "check" }));
     await settle();
 
@@ -1810,7 +1796,6 @@ describe("hand command dispatch over WebSocket", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Seat 0 (the button, first to act) faces the BB's post and can't check.
     seat0.socket.send(JSON.stringify({ type: "check" }));
     await settle();
 
@@ -2063,7 +2048,6 @@ describe("action clock", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Preflop's first actor is seat 0 (the button) — takes no action at all.
     await settle(ACTION_CLOCK_MS + 60);
 
     const folds = actionsSeen(table.messages).filter(
@@ -2178,7 +2162,6 @@ describe("action clock", () => {
       (event) => event.action === "check" && event.seatId === 1,
     ).length;
 
-    // The flop's first actor has a free check; expiry should preserve it.
     await settle(ACTION_CLOCK_MS + 60);
 
     const seatOneChecksAfterExpiry = actionsSeen(table.messages).filter(
@@ -2254,8 +2237,6 @@ describe("action clock", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Seat 0 (the button, first to act) acts immediately; seat 1 (SB) then
-    // sits idle and should be the one auto-folded, not seat 0.
     seat0.socket.send(JSON.stringify({ type: "call" }));
     await settle(ACTION_CLOCK_MS + 60);
 
@@ -2284,17 +2265,12 @@ describe("action clock", () => {
     table.socket.send(JSON.stringify({ type: "startHand" }));
     await settle();
 
-    // Preflop, no raise: one lap of [0, 1, 2]. The button and SB never
-    // matched the BB's post, so they must call rather than check.
     seat0.socket.send(JSON.stringify({ type: "call" }));
     await settle();
     seat1.socket.send(JSON.stringify({ type: "call" }));
     await settle();
-    // The BB acts last, so its check is the option and closes the street.
     seat2.socket.send(JSON.stringify({ type: "check" }));
     await settle();
-    // Preflop closes; the flop's first actor (seat 1, SB) now idles out. A
-    // free check is preserved when the shot clock expires.
     await settle(ACTION_CLOCK_MS + 60);
 
     const streetsStarted = table.messages
@@ -2391,8 +2367,6 @@ describe("action clock duration selection", () => {
       expect(room.shotClockSettings).toEqual(oldSettings);
       expect(room.pendingShotClock).toEqual(newSettings);
 
-      // Firing the timer that was armed before the edit still applies the
-      // old in-flight behavior to the current actor.
       initialTimer.callback();
       await new Promise((resolve) => setTimeout(resolve, 5));
       expect(room.engine?.hand?.status).toBe("complete");
@@ -2430,8 +2404,6 @@ describe("action clock duration selection", () => {
     const app = await buildApp({
       rooms,
       actionClock,
-      // This must not mask the per-room duration when an injected clock is
-      // used; it remains here to guard that test-only override explicitly.
       actionClockMs: 1,
     });
     await app.listen({ port: 0, host: "127.0.0.1" });
@@ -2575,11 +2547,9 @@ describe("presence and reconnection", () => {
     );
     await opened(seat0.socket);
 
-    // Two ping intervals elapse with no pong reply.
     await settle(50);
 
     expect(seatDisconnected(table.messages, 0)).toBe(true);
-    // A presence-only badge never causes a rejection or a fold.
     expect(rooms.get(room.code)?.seats[0]?.claimed).toBe(true);
   });
 
@@ -2674,7 +2644,6 @@ describe("presence and reconnection", () => {
     seat0.socket.close();
     await settle();
 
-    // Whoever's turn it is gets auto-folded by ticket 14's action clock.
     const engine = rooms.get(room.code)?.engine;
     if (engine?.hand?.status !== "betting") {
       throw new Error("expected a betting hand in progress");
@@ -2695,8 +2664,6 @@ describe("presence and reconnection", () => {
     }
     const view = snapshot.view;
     if (!("yourSeatId" in view) || toAct !== 0) {
-      // Only assert the burn-pile shape when seat 0 was the one who folded;
-      // otherwise it just resumes normally, covered by the prior test.
       return;
     }
     expect(view.yourHoleCards).toBeNull();

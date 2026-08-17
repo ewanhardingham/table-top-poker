@@ -3,9 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SeatMenu } from "./SeatMenu.js";
 
-const noop = () => {
-  /* unused in these tests */
-};
+const noop = () => undefined;
 
 describe("SeatMenu", () => {
   it("shows the seat number and an Evict action", () => {

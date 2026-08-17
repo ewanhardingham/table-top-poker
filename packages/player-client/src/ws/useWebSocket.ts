@@ -19,24 +19,13 @@ export interface SeatConnectionParams {
 }
 
 export interface UseWebSocketOptions {
-  /**
-   * The socket closed before ever opening — an upgrade-time rejection (a
-   * bad or stale seat token), not a network blip. Retrying would spin
-   * forever against a seat that's gone, so the caller drops back to the
-   * seat picker instead (Phase 1 spec #130 §7 — a cleared token never
-   * auto-reclaims a seat).
-   */
   readonly onRejected?: () => void;
-  /** The room ended — manual "End session" or the table's grace window elapsing. */
   readonly onRoomEnded?: () => void;
-  /** The seat was evicted by the table device. */
   readonly onEvicted?: () => void;
-  /** The table repacked this player's seat during a seat-count change. */
   readonly onSeatMoved?: (move: SeatMove) => void;
 }
 
 export interface SeatSocket {
-  /** No-ops silently unless the socket is open — calling `WebSocket.send` before then throws. */
   readonly send: (command: ClientCommand) => void;
 }
 
@@ -48,23 +37,6 @@ interface ActiveConnection {
 
 const RETRY_DELAY_MS = 1500;
 
-/**
- * Opens a seat-scoped WebSocket connection once a seat is claimed and
- * reflects its lifecycle into the connection slice. Every `room-view` push
- * replaces the seat list; every `hand-update`/`view-snapshot` replaces the
- * hand slice with the fresh `view(state, seatId)` the server just computed
- * for this seat — the view is source of truth (Phase 1 spec #130 §6),
- * never rebuilt from the raw event locally. That same snapshot also clears
- * any pending/rejected action, since the view is what "next legal action or
- * next view snapshot" (§9) resolves against. `command-rejected` is
- * delivered to the sender only, so it's always this player's own action
- * being rejected — it feeds the action slice's rejection, never a
- * broadcast.
- *
- * A socket that closes after having opened retries after a fixed delay —
- * a transient drop, not a rejection. One that closes without ever opening
- * is treated as terminal and is not retried; see `onRejected`.
- */
 export function useWebSocket(
   params: SeatConnectionParams | null,
   options: UseWebSocketOptions = {},
@@ -98,18 +70,9 @@ export function useWebSocket(
     connectionRef.current = { roomCode, token, seatId };
   }
 
-  // Keep the existing socket open after a seat move. The transport seat is
-  // updated for reconnects without making the server briefly mark the player
-  // disconnected while the effect restarts.
-  // The effect is keyed by room and token; the mutable seat in the connection
-  // ref deliberately does not appear in its dependencies because a repack
-  // must not bounce the socket.
   useEffect(() => {
     const connection = connectionRef.current;
     if (connection === null) {
-      // No params means no seat — leaving, or not yet joined. Clear the
-      // has-connected latch with the connection so a later session starts
-      // silent again rather than inheriting this one's history (ADR-0006).
       resetConnection();
       return;
     }
@@ -150,8 +113,6 @@ export function useWebSocket(
         switch (message.type) {
           case "room-view":
             setRoomView(message.view);
-            // Phones obey the table's sound settings (#182); mirror them into
-            // the audio engine's gate so cue playback honours the room.
             applyRoomSoundSettings(message.view.soundSettings);
             {
               const seat = message.view.seats.find(
@@ -168,11 +129,8 @@ export function useWebSocket(
             }
             break;
           case "hand-update":
-            // The server only ever sends a seat's socket its own `view(state, seatId)`.
             setHandView(message.view as PlayerView);
             viewSnapshotReceived();
-            // Cues fire on the live event only, never on the `view-snapshot`
-            // below — so a reconnect/refresh can't replay a burst (#175).
             onHandUpdate({
               surface: "player",
               event: message.event,

@@ -34,9 +34,6 @@ describe("saveDiscovered", () => {
   });
 
   it("survives a storage that refuses to write", () => {
-    // Safari in private browsing throws from `setItem`. Losing the record of a
-    // discovered gesture costs the player a hint they have already outgrown;
-    // losing the Fold it was written during would cost them the hand.
     const storage = fakeStorage();
     vi.spyOn(storage, "setItem").mockImplementation(() => {
       throw new DOMException("QuotaExceededError");
@@ -63,9 +60,6 @@ describe("loadDiscovered", () => {
   });
 
   it("reads malformed storage as nothing discovered", () => {
-    // A cleared or corrupted localStorage re-teaches the gestures rather than
-    // guessing: an extra hint is a small cost, and there is nothing else the
-    // set could honestly be.
     for (const raw of ["", "not json", "{}", '"bend"', "null", "42"]) {
       expect(
         loadDiscovered(fakeStorage({ "ttp:discovered-gestures": raw })),
@@ -74,8 +68,6 @@ describe("loadDiscovered", () => {
   });
 
   it("keeps the gestures it recognises and drops everything else", () => {
-    // A key written by a later version of the surface, or by hand: the set is
-    // an allow-list, so an unknown name never reaches the selector.
     const storage = fakeStorage({
       "ttp:discovered-gestures": JSON.stringify(["bend", "shuffle", 7, null]),
     });

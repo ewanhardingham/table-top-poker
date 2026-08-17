@@ -9,21 +9,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { seatLabel } from "./seatLabel.js";
 
-/**
- * The burger (settings) toggle lives in the top-right of the felt at
- * `top:20 right:24`, 52px square. The overlay reserves this much clearance at
- * the top so its panel never creeps under it. Kept in sync with
- * `SettingsToggle`.
- */
 const BURGER_CLEARANCE = "5.25rem";
 
-/**
- * Uniformly scales the measured content down until it fits inside the stage's
- * padding box, so every element shrinks together rather than the panel
- * clipping its own overflow. `offset*`/`client*` sizes are layout sizes and
- * ignore CSS transforms, so applying the returned scale never feeds back into
- * the measurement — no observer loop. Only ever scales down (never past 1).
- */
 function useFitToBox() {
   const stageRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -63,30 +50,17 @@ function useFitToBox() {
   return { stageRef, contentRef, scale };
 }
 
-/** The showdown shape of the table view — the only phase this overlay renders. */
 type ShowdownView = Extract<TableView, { phase: "showdown" }>;
 
 export interface ShowdownOverlayProps {
   readonly view: ShowdownView;
   readonly seats: readonly SeatView[];
-  /**
-   * `true` once "View table" is pressed: the overlay animates out so the felt
-   * and its controls are reachable, and the rail's "View showdown" button
-   * brings it back. Reset to `false` on each new showdown by the caller, so
-   * every hand opens featured.
-   */
   readonly collapsed: boolean;
-  /**
-   * Whether enough players are dealt in for the server to accept `nextHand` —
-   * mirrors the rail's own gate. False disables "Next hand" with a reason
-   * rather than dealing into a rejection.
-   */
   readonly canDealNextHand: boolean;
   readonly onNextHand: () => void;
   readonly onViewTable: () => void;
 }
 
-/** A row of face-up cards at a given em scale. */
 function CardRow({
   cards,
   scale,
@@ -105,7 +79,6 @@ function CardRow({
   );
 }
 
-/** The community cards, labelled, at the top of the overlay. */
 function BoardStrip({ board }: { readonly board: readonly CardType[] }) {
   return (
     <div
@@ -132,11 +105,6 @@ function BoardStrip({ board }: { readonly board: readonly CardType[] }) {
   );
 }
 
-/**
- * One revealed seat: cards, name, and hand description. Winners glow (a gentle
- * pulse via `.showdown-win-glow`) and, when `featured`, render larger so the
- * result reads at a glance across the table.
- */
 function OverlayPlayer({
   result,
   name,
@@ -302,18 +270,6 @@ function OverlayButtons({
   );
 }
 
-/**
- * The showdown reveal: a single centred panel over a dimmed felt (issue #169,
- * prototype variant E). It shows the board, every seat that reached showdown as
- * name + cards + hand description, and the winner(s) featured larger with a
- * pulsing green glow. It supersedes the per-seat reveal and the felt's winner
- * mark — who won lives only here.
- *
- * "View table" animates the panel out so the felt's own controls (house rules,
- * end session, join QR) are reachable; the rail's "View showdown" button brings
- * it back. The panel always fits its bounding box — content scales to the
- * viewport and never scrolls, heads-up or full ring.
- */
 export function ShowdownOverlay({
   view,
   seats,
@@ -347,7 +303,6 @@ export function ShowdownOverlay({
             background: "rgba(5,4,4,.6)",
             backdropFilter: "blur(2px)",
             padding: "1.5rem",
-            // Keep the panel out from under the top-right burger menu.
             paddingTop: BURGER_CLEARANCE,
           }}
         >

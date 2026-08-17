@@ -29,13 +29,11 @@ function press(
   });
 }
 
-/** A viewport whose fold threshold is comfortably above the floor. */
 const VIEWPORT_HEIGHT = 900;
 const FOLD_THRESHOLD_PX = foldThreshold(VIEWPORT_HEIGHT);
 
 const onTurn = { foldLegal: true, foldThresholdPx: FOLD_THRESHOLD_PX };
 
-/** Drag to an absolute point, from the origin `press()` uses. */
 function to(dx: number, dy: number) {
   return { x: 100 + dx, y: 100 + dy };
 }
@@ -68,7 +66,6 @@ describe("moveGesture", () => {
   });
 
   it("keeps the first classification for the rest of the gesture", () => {
-    // The drag starts sideways — Ignored — then curves decisively upward.
     const slid = moveGesture(press(), to(-40, 0), onTurn);
     const curved = moveGesture(slid.session, to(-40, -400), onTurn);
 
@@ -78,9 +75,6 @@ describe("moveGesture", () => {
   });
 
   it("produces no events at all once classified, so a drag never re-renders", () => {
-    // The guarantee behind "a finger drag causes zero React re-renders":
-    // continuous values come back as `bend`, destined for a `MotionValue`, and
-    // the reducer is never told that a finger moved.
     const bending = moveGesture(
       press({ fromBendZone: true }),
       to(-20, 0),
@@ -132,14 +126,12 @@ describe("moveGesture", () => {
     });
     expect(offTurn.session.classification).toBe("Ignored");
 
-    // Legality returning mid-drag does not promote it.
     const later = moveGesture(offTurn.session, to(0, -400), onTurn);
     expect(later.session.classification).toBe("Ignored");
   });
 });
 
 describe("crossing the reveal threshold", () => {
-  /** Inward travel, in px, that puts the peel at a given progress. */
   function inward(progress: number) {
     return -(progress * BEND_TRAVEL_PX);
   }
@@ -174,16 +166,12 @@ describe("crossing the reveal threshold", () => {
 
     for (const progress of [0.95, 1, 0.5, 0]) {
       const step = moveGesture(crossed, to(inward(progress), 0), onTurn);
-      // Including dragging *back*: the commit happened on crossing, so it can
-      // neither be undone nor re-announced.
       expect(step.events).toEqual([]);
       expect(step.session.crossed).toBe(true);
     }
   });
 
   it("stops driving the peel from the finger once committed", () => {
-    // The turn owns the motion from the threshold on, so a finger still on the
-    // glass cannot drag the card back out of a commit it already made.
     const bending = moveGesture(
       press({ fromBendZone: true }),
       to(-20, 0),
@@ -205,7 +193,6 @@ describe("crossing the reveal threshold", () => {
       onTurn,
     );
 
-    // Order matters: the reducer only accepts a crossing from `Bending`.
     expect(flick.events).toEqual([
       { type: "CLASSIFIED", as: "Bending" },
       { type: "BEND_CROSSED" },
@@ -223,7 +210,6 @@ describe("crossing the reveal threshold", () => {
 });
 
 describe("the fold drag", () => {
-  /** A fold drag already classified, with the finger `up` px above the start. */
   function dragging(up: number) {
     return moveGesture(press(), to(0, -up), onTurn);
   }
@@ -236,8 +222,6 @@ describe("the fold drag", () => {
   });
 
   it("moves the pair up only, so a fold drag cannot push the cards downward", () => {
-    // The classifier admits an upward-dominant drag; wandering back below the
-    // start of it must not turn the gesture into a shove.
     const started = dragging(40).session;
 
     expect(moveGesture(started, to(0, 30), onTurn).fold).toEqual({ offset: 0 });
@@ -262,9 +246,6 @@ describe("the fold drag", () => {
   });
 
   it("disarms again when the player pulls the cards back down", () => {
-    // Card motion and the in-gesture text are the whole arming signal, so an
-    // armed prompt over cards that have come back below the line would be a
-    // lie — and releasing there must commit nothing.
     const armed = moveGesture(
       dragging(FOLD_THRESHOLD_PX).session,
       to(0, -(FOLD_THRESHOLD_PX + 40)),
@@ -293,8 +274,6 @@ describe("the fold drag", () => {
   });
 
   it("keeps the cards tracking the finger after a view disarms the drag", () => {
-    // §6: the surface never freezes under the player's hand. The drag is not
-    // ended, only disarmed, so the pair carries on following the finger.
     const armed = moveGesture(
       dragging(FOLD_THRESHOLD_PX).session,
       to(0, -(FOLD_THRESHOLD_PX + 40)),
@@ -313,9 +292,6 @@ describe("the fold drag", () => {
   });
 
   it("leaves the session alone for every other lifecycle event", () => {
-    // The pointer is ended by the pointer, and by nothing else: `finish` bails
-    // on a release it has no session for, so a session cleared out from under a
-    // held finger would leave the synthesised click to reveal the next pair.
     const armed = dragging(FOLD_THRESHOLD_PX).session;
 
     for (const event of [
@@ -336,7 +312,6 @@ describe("the fold drag", () => {
       onTurn,
     );
 
-    // Order matters: the reducer only arms a drag it has already classified.
     expect(flick.events).toEqual([
       { type: "CLASSIFIED", as: "FoldDragging" },
       { type: "FOLD_ARMED" },
@@ -364,7 +339,6 @@ describe("the fold drag", () => {
 });
 
 describe("endGesture", () => {
-  /** A fold drag carried `up` px, from a pair that started face-down. */
   function foldDragged(up: number): GestureSession {
     return moveGesture(press(), to(0, -up), onTurn).session;
   }
@@ -420,19 +394,12 @@ describe("endGesture", () => {
   });
 
   it("commits nothing when the browser takes the pointer away mid-flick", () => {
-    // The player never let go: crossing the line offers the Fold, and only the
-    // completing release accepts it.
     expect(
       endGesture(foldDragged(FOLD_THRESHOLD_PX + 40), { cancelled: true }),
     ).toEqual({ events: [{ type: "CANCELLED" }], commitsFold: false });
   });
 
   it("agrees with the reducer about which releases fold", () => {
-    // The Action and the presentation are decided by two different `armed`
-    // flags — the session's, read synchronously in the pointer handler, and the
-    // reducer's. Both are driven by the same `FOLD_ARMED`/`FOLD_DISARMED`
-    // events; this is the invariant that keeps them from disagreeing about
-    // whether the player just folded.
     for (const up of [
       FOLD_THRESHOLD_PX - 1,
       FOLD_THRESHOLD_PX,

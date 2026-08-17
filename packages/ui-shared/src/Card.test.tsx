@@ -22,7 +22,6 @@ describe("Card", () => {
     const html = renderToStaticMarkup(<Card rank="Q" suit="diamonds" />);
     expect(html.match(/class="card-index/g)).toHaveLength(2);
     expect(html).toContain("rotate(180deg)");
-    // Both copies carry the rank, so a card lifted from either corner reads.
     expect(html.match(/Q/g)?.length).toBeGreaterThanOrEqual(2);
   });
 

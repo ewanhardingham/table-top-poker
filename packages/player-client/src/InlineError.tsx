@@ -12,7 +12,6 @@ const style: CSSProperties = {
   textAlign: "center",
 };
 
-/** The centred inline error line shown below the join form and seat picker. */
 export function InlineError({ testId, message }: InlineErrorProps) {
   return (
     <div data-testid={testId} style={style}>

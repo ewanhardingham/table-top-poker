@@ -59,11 +59,6 @@ describe("StatusBar", () => {
     expect(html).toContain("height:30px");
   });
 
-  /*
-   * The status starts at `disconnected` before any socket is opened, so
-   * reporting it verbatim would warn every player about a drop that has not
-   * happened, on every load (ADR-0006).
-   */
   it("does not warn about a connection never yet made", () => {
     for (const connectionStatus of ["disconnected", "connecting"] as const) {
       expect(
@@ -111,13 +106,6 @@ describe("StatusBar", () => {
     expect(html).not.toContain('data-testid="player-menu-button"');
   });
 
-  /*
-   * The menu holds sit out and leave, so a burger pushed off the edge strands
-   * the player — and `.app-shell` clips rather than scrolls, so it does not
-   * merely move, it disappears. jsdom cannot measure that, so these guard the
-   * structure that prevents it: a reserved column for the menu, and a left
-   * column that shrinks below its content instead of pushing.
-   */
   it("reserves a column for the menu that content cannot consume", () => {
     const html = renderToStaticMarkup(
       <StatusBar
@@ -138,7 +126,6 @@ describe("StatusBar", () => {
     expect(header).toContain("display:grid");
     expect(header).toContain("grid-template-columns:minmax(0, 1fr) auto");
 
-    // The pills give way, not the menu.
     const seatPanel =
       /<div[^>]*data-testid="seat-panel"[^>]*>/.exec(html)?.[0] ?? "";
     expect(seatPanel).toContain("min-width:0");

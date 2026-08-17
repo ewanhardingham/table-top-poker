@@ -129,11 +129,9 @@ describe("Board", () => {
     const html = renderToStaticMarkup(<Board view={view} />);
 
     expect(html).toMatch(/data-testid="board"[^>]*data-phase="showdown"/);
-    // The overlay owns the result now, so the felt drops the banner entirely.
     expect(html).not.toContain('data-testid="hand-complete-banner"');
     expect(html).not.toContain("Pair of Aces");
     expect(html).toMatch(/data-testid="community-cards"/);
-    // Only the 5 board cards — no seat's hole cards duplicated in the board.
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(5);
   });
 });

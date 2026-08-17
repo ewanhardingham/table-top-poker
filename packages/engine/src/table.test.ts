@@ -12,8 +12,6 @@ describe("legalActions", () => {
     if (started.hand?.status !== "betting") {
       throw new Error("expected betting");
     }
-    // ring (button 0) = [1, 2, 0]; seat 1 (SB) faces the BB's post.
-    // Preflop order is [0, 1, 2], but legality is positional, not turn-based.
     expect(legalActions(started.hand, 1)).toEqual(["fold", "call", "raise"]);
   });
 
@@ -25,8 +23,6 @@ describe("legalActions", () => {
     if (started.hand?.status !== "betting") {
       throw new Error("expected betting");
     }
-    // BB is seat 2 here — its own post already matches, so it may check on
-    // its turn, which is the last one of the preflop lap.
     const afterLap = playAll(started, [
       { type: "call", seatId: 0 },
       { type: "call", seatId: 1 },

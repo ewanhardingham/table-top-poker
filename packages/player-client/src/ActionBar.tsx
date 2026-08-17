@@ -29,7 +29,6 @@ const LABELS: Record<ActionType, string> = {
   raise: "Raise",
 };
 
-/** Per-button sub-caption ("muck"/"no bet"/…). This copy is the spec. */
 const SUB_LABELS: Record<ActionType, string> = {
   fold: "muck",
   check: "no bet",
@@ -74,14 +73,6 @@ const rejectionStyle: CSSProperties = {
   color: "#f0aa9d",
 };
 
-/**
- * Fold/check/call/raise as the permanent base layer (Phase 1 spec #130
- * §9) — always rendered during a betting phase, never swapped out for
- * gestures. Disabled unless the action is in `legalActions` and nothing
- * else is pending; the pressed button carries `data-pending` until its
- * ack/reject lands. A rejection renders inline, once, near the buttons —
- * no toast, no persistent banner.
- */
 export function ActionBar({
   legalActions,
   pendingAction,
@@ -108,9 +99,6 @@ export function ActionBar({
         gap: "0.7em",
       }}
     >
-      {/* No pending command to attribute the reject to (no correlation id
-          on the wire, Phase 1 spec #130 §6) — falls back to a bar-level
-          message rather than guessing which button triggered it. */}
       {rejection !== null && rejection.action === null && (
         <div
           data-testid="action-rejection"
