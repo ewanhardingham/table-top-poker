@@ -6,8 +6,15 @@ export interface JoinCodeToggleProps {
   readonly onOpen: () => void;
 }
 
+/*
+ * Shrinkable rather than fixed, so a narrow table screen squeezes this pill
+ * instead of pushing the connection badge off the edge (ADR-0006). The
+ * `min-width: 0` is on the wrapper, never on the button — the button's own
+ * automatic minimum is what stops the room code being painted outside its
+ * border.
+ */
 const wrapperStyle: CSSProperties = {
-  flex: "none",
+  flex: "0 1 auto",
   minWidth: 0,
 };
 
@@ -21,6 +28,7 @@ const buttonStyle: CSSProperties = {
   border: `1px solid ${color.accentBorder}`,
   backdropFilter: "blur(6px)",
   WebkitBackdropFilter: "blur(6px)",
+  overflow: "hidden",
 };
 
 /**
@@ -41,8 +49,13 @@ export function JoinCodeToggle({ roomCode, onOpen }: JoinCodeToggleProps) {
         onClick={onOpen}
         style={buttonStyle}
       >
+        {/* The kicker yields first: it labels the pill, whereas the code is
+         * the thing a player has to read off the screen to join. */}
         <span
           style={{
+            minWidth: 0,
+            flexShrink: 100,
+            overflow: "hidden",
             fontFamily: font.mono,
             fontSize: fontSize.xs,
             fontWeight: 600,
@@ -55,6 +68,7 @@ export function JoinCodeToggle({ roomCode, onOpen }: JoinCodeToggleProps) {
         </span>
         <span
           style={{
+            flex: "none",
             fontFamily: font.mono,
             fontWeight: 700,
             fontSize: fontSize.lg,

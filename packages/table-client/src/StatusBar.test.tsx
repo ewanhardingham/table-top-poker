@@ -60,4 +60,34 @@ describe("StatusBar", () => {
     expect(html).toContain('data-testid="connection-status"');
     expect(html).toContain("margin-left:auto");
   });
+
+  /*
+   * The badge used to be `flex: none`, so on a narrow table screen it was
+   * pushed off the right edge rather than giving way (ADR-0006). jsdom has no
+   * layout engine, so this guards the structure that fixes it: the badge
+   * shrinks first and hard, and its own minimum is the status dot.
+   */
+  it("yields the connection label before the room pill gives ground", () => {
+    const html = renderToStaticMarkup(
+      <StatusBar
+        roomCode="ABCD"
+        connectionStatus="disconnected"
+        showRoomCode={true}
+        onOpenJoin={noop}
+      />,
+    );
+
+    const badge =
+      /<span[^>]*data-testid="connection-status"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(badge).toContain("flex-shrink:100");
+    expect(badge).toContain("overflow:hidden");
+    // Not on the pill itself — that is what let it paint text outside its
+    // own border once it collapsed.
+    expect(badge).not.toContain("min-width:0");
+
+    const label =
+      /<span class="connection-status-label"[^>]*>/.exec(html)?.[0] ?? "";
+    expect(label).toContain("min-width:0");
+    expect(label).toContain("text-overflow:ellipsis");
+  });
 });

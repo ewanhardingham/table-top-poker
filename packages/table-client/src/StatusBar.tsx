@@ -27,6 +27,15 @@ const badgeStyle: CSSProperties = {
   borderRadius: radius.pill,
   background: color.control,
   border: `1px solid ${color.border}`,
+  /*
+   * Precedence as a shrink weight, as on the player's bar (ADR-0006): the
+   * connection is the first thing to give way, yielding its label ~100×
+   * faster than the room pill beside it. No `min-width: 0` here — the pill's
+   * automatic minimum is its own dot, so it stops there rather than
+   * collapsing and painting its text outside its border.
+   */
+  flexShrink: 100,
+  overflow: "hidden",
 };
 
 /**
@@ -62,7 +71,7 @@ export function StatusBar({
         <span
           data-testid="connection-status"
           data-status={connectionStatus}
-          style={{ ...badgeStyle, flex: "none", marginLeft: "auto" }}
+          style={{ ...badgeStyle, marginLeft: "auto" }}
         >
           <span
             style={{
@@ -73,8 +82,14 @@ export function StatusBar({
               background: tone.dot,
             }}
           />
+          {/* First to go when the bar is tight — the dot beside it keeps
+           * reporting the state in colour. */}
           <span
+            className="connection-status-label"
             style={{
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
               fontFamily: font.mono,
               fontSize: fontSize.xs,
               fontWeight: 600,
