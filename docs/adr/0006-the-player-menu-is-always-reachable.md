@@ -71,6 +71,12 @@ out > player name > connection.** Concretely:
 - Top-bar pills are tracked at `0.1em` rather than `0.16em`, trimmed on the
   shared style so the row still reads as one set.
 
+The last three rules are not about the burger and so are not the player's
+alone: any status bar with more content than width picks something to
+sacrifice, and picking by shrink weight beats picking by accident. The
+table's bar follows them too — its badge collapses to the dot, and its room
+pill drops the `ROOM` kicker before the code.
+
 Because jsdom has no layout engine, the automated guard is on this structure
 — the reserved track, the shrinkable column, the truncation target — and not
 on measured widths, which would pass on a bar that still overflows. The
@@ -89,6 +95,13 @@ to this bar want a real render at 320px with every pill forced on.
   seat number, waiting can only mean the next hand.
 - Anything added to the reserved track in future shares a fixed column with
   the burger and so competes with it directly. Prefer the flexible column.
-- `table-client`'s status bar still uses the unshrinkable-flex pattern this
-  supersedes for the player. It has no menu to lose, so it is a latent
-  layout bug rather than a trap, and is left for a separate change.
+- `table-client`'s status bar carried the same unshrinkable-flex pattern and
+  now follows the same rule: its connection badge yields its label to the
+  bare dot, and the room pill gives up its `ROOM` kicker before the code.
+  There is no menu to strand there, so the stake is only a badge pushed off
+  the edge below ~293px — but the discipline is the same one, and applying it
+  in both places is what stops the pattern being reintroduced by copying the
+  other client. Below ~215px the room pill and the badge cannot both fit at
+  their minimums and will overlap; no table display is that narrow, and
+  making the room code itself truncate would cost the one thing on that
+  screen a player has to be able to read.
