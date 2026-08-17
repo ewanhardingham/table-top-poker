@@ -3232,6 +3232,8 @@ describe("the commit seam", () => {
     readonly code: string;
     readonly armed: ArmedTimer[];
     readonly gate: ReturnType<typeof gateAppends>;
+    /** The disk under the gate, for arming a failure. */
+    readonly disk: MemoryFileSystem;
     readonly table: Connection;
     readonly seats: Connection[];
   }
@@ -3253,7 +3255,8 @@ describe("the commit seam", () => {
    * but never fired on their own, so a test fires them where it chooses.
    */
   async function headsUpRoom(shotClock = true): Promise<SeamRig> {
-    const gate = gateAppends(createMemoryFileSystem());
+    const disk = createMemoryFileSystem();
+    const gate = gateAppends(disk);
     const armed: ArmedTimer[] = [];
     const actionClock = new ActionClock(
       90_000,
@@ -3327,7 +3330,7 @@ describe("the commit seam", () => {
       ),
     );
     await settle();
-    return { app, rooms, code, armed, gate, table, seats };
+    return { app, rooms, code, armed, gate, disk, table, seats };
   }
 
   function actionsSeen(messages: ServerMessage[]) {
@@ -3392,6 +3395,55 @@ describe("the commit seam", () => {
       );
     } finally {
       for (const conn of [table, ...rig.seats]) conn.socket.close();
+      await rig.app.close();
+    }
+  });
+
+  it("cancels the Actor's clock when the fold it fired could not be recorded", async () => {
+    const rig = await headsUpRoom();
+    const { code, rooms, armed, disk, table } = rig;
+    try {
+      table.socket.send(JSON.stringify({ type: "startHand" }));
+      await waitFor(() => rooms.currentActor(code) === 0);
+      const expired = armed.at(-1);
+      if (expired === undefined) throw new Error("expected an armed timer");
+
+      disk.failAlways("appendFile");
+      expired.fire();
+      await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+      expect(
+        actionsSeen(table.messages).filter((event) => event.action === "fold"),
+      ).toEqual([]);
+      expect(rooms.currentActor(code)).toBe(0);
+    } finally {
+      for (const conn of [table, ...rig.seats]) conn.socket.close();
+      await rig.app.close();
+    }
+  });
+
+  it("keeps a seat whose fold could not be recorded, and says so", async () => {
+    const rig = await headsUpRoom();
+    const { app, code, rooms, disk, table, seats } = rig;
+    try {
+      table.socket.send(JSON.stringify({ type: "startHand" }));
+      await waitFor(() => rooms.currentActor(code) === 0);
+      disk.failAlways("appendFile");
+
+      const response = await app.inject({
+        method: "POST",
+        url: `/rooms/${code}/seats/0/evict`,
+      });
+
+      expect(response.statusCode).toBe(503);
+      expect(response.json()).toEqual({ error: "recording-unavailable" });
+      expect(rooms.get(code)?.seats[0]).toMatchObject({ claimed: true });
+      expect(seats[0]?.socket.readyState).toBe(WebSocket.OPEN);
+      expect(
+        actionsSeen(table.messages).filter((event) => event.action === "fold"),
+      ).toEqual([]);
+    } finally {
+      for (const conn of [table, ...seats]) conn.socket.close();
       await rig.app.close();
     }
   });

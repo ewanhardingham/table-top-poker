@@ -59,14 +59,22 @@ Nothing is broadcast before it is recorded (Phase 2 spec #129 §3, issue #118).
   Settling a transaction twice throws: the obligation rides on the handle rather
   than on a convention a later edit can drop.
 - `app.ts` sequences it — `append` → `commit()` (or `discard()` on failure) →
-  broadcast — in `publishDispatch`. A refused append is dropped and logged; the
-  table-facing recovery is issue #121's recording-paused state. A Room with no
-  open recording at all is a bug in this server rather than a disk failure, so
-  it is logged loudly and played on: refusing would strand the table.
+  broadcast — in `publishDispatch`, which answers whether the operation was
+  published. A refused append is dropped and logged, and it **cancels the
+  Actor's clock**: the timer that fired is spent, and nothing may act on an
+  unrecorded Room. Eviction and leave hang on that answer too — a seat whose
+  fold could not be recorded is still holding its hand, so it is not taken from
+  its player and the route answers `503 recording-unavailable` rather than 204.
+  The table-facing recovery is issue #121's recording-paused state. A Room with
+  no open recording at all is a bug in this server rather than a disk failure,
+  so it is logged loudly and played on: refusing would strand the table.
 - `app.ts` owns **one operation queue per Room** (`enqueue`). Socket Commands,
-  clock-driven folds and Seat mutations run one at a time in arrival order;
-  other Rooms are unaffected. HTTP seat routes await their turn in it, so a
-  reply never races the broadcast it caused.
+  clock-driven folds, Seat mutations (claims, evictions, presence, sit-out/in,
+  seat count), Room settings, a joiner's catch-up and the Room's own teardown
+  run one at a time in arrival order; other Rooms are unaffected. HTTP routes
+  await their turn in it, so a reply never races the broadcast it caused.
+  Reads outside the queue are safe by construction: a staged transaction
+  mutates nothing, so anything read there is already committed.
 - The Room holds a **monotonic `revision`**, bumped on every committed
   transaction and by nothing else — a rejection or a Seat mutation changes no
   engine state and must not invalidate a queued fold, or the hand would stall.
@@ -95,8 +103,8 @@ Nothing is broadcast before it is recorded (Phase 2 spec #129 §3, issue #118).
   resync notice.
 - **Sit-out/in** (ADR-0002) is a seat-only room-store mutation that never
   reaches the engine.
-- **Room end**: `endRoom` handles both "End session" and the table's grace
-  window elapsing identically — notify, close, discard transport bookkeeping,
+- **Room end**: `endRoom` runs in the Room's queue and handles both "End
+  session" and the table's grace window elapsing identically — notify, close, discard transport bookkeeping,
   discard the room. Only in-memory state; hand logs on disk are untouched. The
   table socket closing arms a single `graceWindowMs` timer; a table reconnect
   clears it.
