@@ -109,6 +109,11 @@ export class RoomRecording {
    * leaving the recording latched, if the retry fails too.
    */
   retry(operation: RoomOperation): Promise<void> {
+    if (this.#closing) {
+      return Promise.reject(
+        new Error(`recording for room ${this.roomId} is closed`),
+      );
+    }
     const settled = this.#queue.then(() => this.#retryNow(operation));
     this.#queue = settled.then(
       () => undefined,
@@ -133,6 +138,9 @@ export class RoomRecording {
    * to end rather than retry. A no-op when the recording never latched.
    */
   async discardLatched(operation: RoomOperation | undefined): Promise<void> {
+    if (this.#closing) {
+      throw new Error(`recording for room ${this.roomId} is closed`);
+    }
     const settled = this.#queue.then(() => this.#discardLatchedNow(operation));
     this.#queue = settled.then(
       () => undefined,

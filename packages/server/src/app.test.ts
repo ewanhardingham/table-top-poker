@@ -3254,7 +3254,10 @@ describe("the commit seam", () => {
    * A heads-up room whose appends are gated and whose action timers are armed
    * but never fired on their own, so a test fires them where it chooses.
    */
-  async function headsUpRoom(shotClock = true): Promise<SeamRig> {
+  async function headsUpRoom(
+    shotClock = true,
+    testMode = false,
+  ): Promise<SeamRig> {
     const disk = createMemoryFileSystem();
     const gate = gateAppends(disk);
     const armed: ArmedTimer[] = [];
@@ -3272,6 +3275,7 @@ describe("the commit seam", () => {
     const app = await buildApp({
       rooms,
       actionClock,
+      testMode,
       recordings: new DirectoryRecordings(RECORDINGS_ROOT, gate.fileSystem),
     });
     await app.listen({ port: 0, host: "127.0.0.1" });
@@ -3623,6 +3627,62 @@ describe("the commit seam", () => {
       } finally {
         for (const conn of [table, ...seats]) conn.socket.close();
         await rig.app.close();
+      }
+    });
+
+    it("rejects the test-mode add-bots seat claim while paused", async () => {
+      const rig = await headsUpRoom(true, true);
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        const addBots = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/bots`,
+          payload: { count: 1 },
+        });
+        expect(addBots.statusCode).toBe(503);
+        expect(addBots.json()).toEqual({ error: "recording-paused" });
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("does not drop a command still queued when the app closes", async () => {
+      const rig = await headsUpRoom();
+      const { code, rooms, disk, gate, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+
+        // Hold the first action's append open, then queue a second action
+        // behind it — still waiting on the room's own queue, not yet at the
+        // recording — before the app starts closing.
+        gate.hold();
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await gate.arrived();
+        seats[1]?.socket.send(JSON.stringify({ type: "check" }));
+
+        const closed = rig.app.close();
+        await settle();
+        gate.release();
+        await closed;
+
+        const commands = parseRecordedLines(
+          disk.read(commandsPath(rooms, code)),
+        ) as { type: string }[];
+        expect(commands.map((command) => command.type)).toEqual([
+          "startHand",
+          "call",
+          "check",
+        ]);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
       }
     });
 

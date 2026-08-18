@@ -649,6 +649,10 @@ export async function buildApp(
     clearInterval(pingTimer);
     for (const timer of tableGraceTimers.values()) clearTimeout(timer);
     for (const code of botActionTimers.keys()) clearBotActionTimer(code);
+    // A command already queued for a Room — dispatched but not yet appended —
+    // must land before that Room's recording closes, or it is dropped rather
+    // than lost loudly.
+    await Promise.all([...roomQueues.values()]);
     const draining = [...roomRecordings.keys()].map((code) =>
       drainRecording(code, pausedRooms.get(code)?.operation),
     );
@@ -986,14 +990,20 @@ export async function buildApp(
 
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      const joined = await enqueue(room.code, () => {
-        const result = rooms.addBots(room, body.data.count);
-        if (result.seats.length > 0) {
+      const result = await enqueue(room.code, () => {
+        if (isRecordingPaused(room.code)) {
+          return { error: "recording-paused" as const };
+        }
+        const added = rooms.addBots(room, body.data.count);
+        if (added.seats.length > 0) {
           broadcastRoomView(room.code);
         }
-        return result.seats.length;
+        return { joined: added.seats.length };
       });
-      return { joined };
+      if ("error" in result) {
+        return reply.code(503).send(result);
+      }
+      return result;
     });
   }
 
