@@ -158,13 +158,15 @@ function isSeat(identity: SocketIdentity | undefined): identity is SeatId {
   return identity !== undefined && identity !== "table" && identity !== "lobby";
 }
 
-const CLAIM_ERROR_STATUS: Record<ClaimSeatError, number> = {
-  "room-not-found": 404,
-  "seat-not-found": 404,
-  "seat-already-claimed": 409,
-  "invalid-display-name": 400,
-  "duplicate-display-name": 409,
-};
+const CLAIM_ERROR_STATUS: Record<ClaimSeatError | "recording-paused", number> =
+  {
+    "room-not-found": 404,
+    "seat-not-found": 404,
+    "seat-already-claimed": 409,
+    "invalid-display-name": 400,
+    "duplicate-display-name": 409,
+    "recording-paused": 503,
+  };
 
 function findRoomOrReject(
   rooms: RoomStore,
@@ -243,6 +245,13 @@ export async function buildApp(
   const now = options.now ?? (() => new Date());
   /** One open recording per live room, keyed by join code like every other map here. */
   const roomRecordings = new Map<string, RoomRecording>();
+  /** A Room enters here the moment an append fails — see recording-paused in `docs/design/server.md`. */
+  interface PausedRoom {
+    readonly operation: RoomOperation;
+    readonly transaction?: DispatchTransaction;
+    readonly onSettled?: () => void;
+  }
+  const pausedRooms = new Map<string, PausedRoom>();
   /**
    * Every completed hand of a room, oldest first, held for the Room's life —
    * no disk read is involved (Phase 2 spec #129 §5). A server restart
@@ -331,17 +340,16 @@ export async function buildApp(
     send(socket, { type: "command-rejected", reason });
   }
 
+  function broadcastToRoom(code: string, message: ServerMessage): void {
+    const sockets = roomSockets.get(code);
+    if (!sockets) return;
+    for (const socket of sockets) send(socket, message);
+  }
+
   function broadcastRoomView(code: string): void {
     const room = rooms.get(code);
-    const sockets = roomSockets.get(code);
-    if (!room || !sockets) return;
-    const message: ServerMessage = {
-      type: "room-view",
-      view: toRoomView(room),
-    };
-    for (const socket of sockets) {
-      send(socket, message);
-    }
+    if (!room) return;
+    broadcastToRoom(code, { type: "room-view", view: toRoomView(room) });
   }
 
   function broadcastDisplayedHand(code: string): void {
@@ -396,22 +404,22 @@ export async function buildApp(
   /**
    * Drains and closes a room's recording as the room goes away. What is on
    * disk stays there — closing releases the writer, it does not discard the
-   * recording.
+   * recording. `discardLatched` restores a paused Room's confirmed tail
+   * first; it is a no-op when `pausedOperation` is undefined.
    */
-  async function drainRecording(code: string): Promise<void> {
+  async function drainRecording(
+    code: string,
+    pausedOperation: RoomOperation | undefined,
+  ): Promise<void> {
     const recording = roomRecordings.get(code);
     if (recording === undefined) return;
     roomRecordings.delete(code);
     try {
+      await recording.discardLatched(pausedOperation);
       await recording.close();
     } catch (error) {
       app.log.error({ err: error, room: code }, "recording close failed");
     }
-  }
-
-  /** Fire-and-forget drain, for the synchronous room-teardown path. */
-  function closeRecording(code: string): void {
-    void drainRecording(code);
   }
 
   /** Cosmetic presence toggle for a seat's socket — never touches `rooms.dispatch`. */
@@ -438,10 +446,12 @@ export async function buildApp(
    * Ends a room the same way whether triggered by "End session" or the
    * table device's own reconnect grace window elapsing (Phase 1 spec #130
    * §7): notify every socket, close them, discard the transport bookkeeping,
-   * then discard the room itself. The Room recording on disk is closed, not
-   * removed — Phase 1's keep-everything-forever retention is binding.
+   * drain and close the recording, then discard the room itself. The Room
+   * recording on disk is closed, not removed — Phase 1's keep-everything-
+   * forever retention is binding. See "End session" under recording-paused
+   * in `docs/design/server.md` for the paused case.
    */
-  function endRoom(code: string): void {
+  async function endRoom(code: string): Promise<void> {
     const sockets = roomSockets.get(code);
     if (sockets) {
       for (const socket of sockets) {
@@ -463,7 +473,10 @@ export async function buildApp(
     handSummaries.delete(code);
     handsInProgress.delete(code);
     handsStarted.delete(code);
-    closeRecording(code);
+    const paused = pausedRooms.get(code);
+    pausedRooms.delete(code);
+    paused?.transaction?.discard();
+    await drainRecording(code, paused?.operation);
     rooms.end(code);
   }
 
@@ -557,19 +570,61 @@ export async function buildApp(
       await recording.append(operation);
       return true;
     } catch (error) {
-      // Filesystem detail belongs in operational logs, never on the wire; the
-      // table-facing recovery is issue #121.
+      // Filesystem detail belongs in operational logs, never on the wire —
+      // the table-facing recovery is `pauseRecording` below.
       app.log.error({ err: error, room: code }, "recording append failed");
       return false;
     }
   }
 
+  function isRecordingPaused(code: string): boolean {
+    return pausedRooms.has(code);
+  }
+
+  /** Stops the Actor's clock without arming a replacement — a bare cancel. */
+  function cancelActionClock(code: string): void {
+    actionClock.clear(code);
+    const room = rooms.get(code);
+    if (room !== undefined) room.turnEndsAt = null;
+  }
+
+  function broadcastRecordingPaused(code: string): void {
+    broadcastToRoom(code, { type: "recording-paused" });
+  }
+
+  function broadcastRecordingResumed(code: string): void {
+    broadcastToRoom(code, { type: "recording-resumed" });
+  }
+
+  /** Blocks the Room on a failed append — see recording-paused in `docs/design/server.md`. */
+  function pauseRecording(
+    code: string,
+    operation: RoomOperation,
+    settled: Omit<PausedRoom, "operation"> = {},
+  ): void {
+    if (pausedRooms.has(code)) {
+      // Every mutation route checks `isRecordingPaused` before it can reach
+      // an append, so a second pause while one is already retained is a bug
+      // rather than a real disk failure — refusing keeps the first retained
+      // operation intact instead of losing it under a replacement.
+      app.log.error({ room: code }, "recording paused again while paused");
+      return;
+    }
+    cancelActionClock(code);
+    clearBotActionTimer(code);
+    pausedRooms.set(code, { operation, ...settled });
+    broadcastRecordingPaused(code);
+  }
+
+  /** Answers whether the Rejection was recorded; pauses the Room otherwise. */
   async function recordRejection(
     code: string,
     rejection: DispatchRejection,
-  ): Promise<void> {
-    if (rejection.operation === undefined) return;
-    await appendOperation(code, rejection.operation);
+  ): Promise<boolean> {
+    if (rejection.operation === undefined) return true;
+    const recorded = await appendOperation(code, rejection.operation);
+    if (!recorded) pauseRecording(code, rejection.operation);
+    return recorded;
   }
 
   const pingTimer = setInterval(() => {
@@ -595,7 +650,7 @@ export async function buildApp(
     for (const timer of tableGraceTimers.values()) clearTimeout(timer);
     for (const code of botActionTimers.keys()) clearBotActionTimer(code);
     const draining = [...roomRecordings.keys()].map((code) =>
-      drainRecording(code),
+      drainRecording(code, pausedRooms.get(code)?.operation),
     );
     await Promise.all(draining);
   });
@@ -688,6 +743,7 @@ export async function buildApp(
       () => {
         botActionTimers.delete(code);
         enqueueDetached(code, async () => {
+          if (isRecordingPaused(code)) return;
           const currentRoom = rooms.get(code);
           if (!currentRoom || rooms.currentActor(code) !== actor) return;
           const currentSeat = currentRoom.seats[actor];
@@ -725,15 +781,13 @@ export async function buildApp(
     const room = rooms.get(code);
     const actor = rooms.currentActor(code);
     if (room === undefined || actor === undefined) {
-      actionClock.clear(code);
-      if (room !== undefined) room.turnEndsAt = null;
+      cancelActionClock(code);
       return;
     }
 
     const { enabled, seconds } = room.shotClockSettings;
     if (!enabled) {
-      actionClock.clear(code);
-      room.turnEndsAt = null;
+      cancelActionClock(code);
       return;
     }
 
@@ -750,6 +804,7 @@ export async function buildApp(
     const scheduledAt = room.revision;
     actionClock.schedule(code, timeoutMs, () => {
       enqueueDetached(code, async () => {
+        if (isRecordingPaused(code)) return;
         const currentRoom = rooms.get(code);
         if (currentRoom?.revision !== scheduledAt) return;
         if (rooms.currentActor(code) !== actor) {
@@ -777,33 +832,21 @@ export async function buildApp(
   }
 
   /**
-   * Records an accepted dispatch, commits it, and only then tells the room —
-   * including arming the clock, so append latency costs nobody their thinking
-   * time. See the commit seam in `docs/design/server.md`.
+   * Everything that happens once a dispatch's operation is confirmed on
+   * disk — shared by the normal commit path and a Retry that resumes a
+   * paused Room, so the commit seam has exactly one place that runs it.
    */
-  async function publishDispatch(
+  function settleDispatch(
     code: string,
     transaction: DispatchTransaction,
-    options: {
-      readonly actionClock?: ActionClockPolicy;
-    } = {},
-  ): Promise<boolean> {
-    if (!(await appendOperation(code, transaction.operation))) {
-      transaction.discard();
-      // A refused operation cancels the Actor's clock rather than leaving a
-      // deadline nothing will honour: the timer that would have fired is
-      // spent, and no replacement may act on an unrecorded Room (§3).
-      actionClock.clear(code);
-      const room = rooms.get(code);
-      if (room !== undefined) room.turnEndsAt = null;
-      return false;
-    }
+    policy: ActionClockPolicy,
+  ): void {
     transaction.commit();
 
     if (transaction.seatMoves !== undefined) {
       applySeatMoves(code, transaction.seatMoves);
     }
-    rescheduleActionClock(code, options.actionClock ?? "reschedule");
+    rescheduleActionClock(code, policy);
     for (const step of transaction.steps) {
       fanOutHandUpdate(code, step);
     }
@@ -817,7 +860,76 @@ export async function buildApp(
       if (rollBotSitStates(code)) broadcastRoomView(code);
     }
     scheduleBotAction(code);
+  }
+
+  /**
+   * Records an accepted dispatch, commits it, and only then tells the room —
+   * including arming the clock, so append latency costs nobody their thinking
+   * time. See the commit seam in `docs/design/server.md`. `onSettled` runs
+   * once the commit lands, live or via a later Retry, so a caller with
+   * follow-up work (freeing a seat, refreshing the room view) never has to
+   * duplicate it for the resumed path.
+   */
+  async function publishDispatch(
+    code: string,
+    transaction: DispatchTransaction,
+    options: {
+      readonly actionClock?: ActionClockPolicy;
+      readonly onSettled?: () => void;
+    } = {},
+  ): Promise<boolean> {
+    if (!(await appendOperation(code, transaction.operation))) {
+      // The transaction is retained, not discarded — a paused Room's Retry
+      // commits this exact operation once recording is confirmed (§3).
+      pauseRecording(code, transaction.operation, {
+        transaction,
+        ...(options.onSettled === undefined
+          ? {}
+          : { onSettled: options.onSettled }),
+      });
+      return false;
+    }
+    settleDispatch(code, transaction, options.actionClock ?? "reschedule");
+    options.onSettled?.();
     return true;
+  }
+
+  /**
+   * Resumes a paused Room: retries the operation it retained and, once
+   * confirmed, settles it exactly as a live dispatch would. The Actor's
+   * clock always restarts at a fresh full interval — a player who lost
+   * thinking time to the outage is not penalised for it (§3).
+   */
+  async function retryRecording(
+    code: string,
+  ): Promise<"resumed" | "still-paused" | "not-paused"> {
+    const paused = pausedRooms.get(code);
+    if (paused === undefined) return "not-paused";
+    const recording = roomRecordings.get(code);
+    if (recording === undefined) {
+      // The Room is still marked paused, so this is a bug rather than a
+      // disk failure a retry could fix — see `pauseRecording`.
+      app.log.error({ room: code }, "retry attempted with no recording");
+      return "still-paused";
+    }
+
+    try {
+      await recording.retry(paused.operation);
+    } catch (error) {
+      app.log.error({ err: error, room: code }, "recording retry failed");
+      return "still-paused";
+    }
+
+    pausedRooms.delete(code);
+    if (paused.transaction !== undefined) {
+      settleDispatch(code, paused.transaction, "reschedule");
+      paused.onSettled?.();
+    } else {
+      rescheduleActionClock(code, "reschedule");
+      scheduleBotAction(code);
+    }
+    broadcastRecordingResumed(code);
+    return "resumed";
   }
 
   await app.register(fastifyStatic, { root: publicDir, index: false });
@@ -904,9 +1016,7 @@ export async function buildApp(
     if (!room) return;
     // Behind the queue, so teardown never lands between an append and the
     // commit it was going to confirm.
-    await enqueue(room.code, () => {
-      endRoom(room.code);
-    });
+    await enqueue(room.code, () => endRoom(room.code));
     return reply.code(204).send();
   });
 
@@ -924,6 +1034,12 @@ export async function buildApp(
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
     const result = await enqueue(room.code, () => {
+      // A retained startHand/nextHand transaction snapshots the seats it
+      // deals in; a repack behind its back would make its Retry commit
+      // against seats that no longer match `room.seats`.
+      if (isRecordingPaused(room.code)) {
+        return { error: "recording-paused" as const };
+      }
       const change = rooms.changeSeatCount(room.code, body.data.seatCount);
       if ("error" in change) return change;
 
@@ -933,6 +1049,9 @@ export async function buildApp(
       return change;
     });
     if ("error" in result) {
+      if (result.error === "recording-paused") {
+        return reply.code(503).send({ error: result.error });
+      }
       if (result.error === "seat-count-below-floor") {
         return reply.code(400).send({
           error: result.error,
@@ -1012,6 +1131,9 @@ export async function buildApp(
       }
       const code = request.params.code;
       const result = await enqueue(code, () => {
+        if (isRecordingPaused(code)) {
+          return { error: "recording-paused" as const };
+        }
         const claim = rooms.claimSeat(code, seatId, body.data.displayName);
         if (!("error" in claim)) broadcastRoomView(code);
         return claim;
@@ -1042,18 +1164,24 @@ export async function buildApp(
     released: EvictSeatResult,
     notify: boolean,
   ): Promise<boolean> {
-    if (released.transaction !== undefined) {
-      const published = await publishDispatch(code, released.transaction, {
-        actionClock:
-          released.transaction.command.type === "evict"
-            ? "preserve"
-            : "reschedule",
-      });
-      if (!published) return false;
+    const finish = () => {
+      broadcastRoomView(code);
+      closeSeatSockets(code, seatId, notify);
+    };
+    if (released.transaction === undefined) {
+      finish();
+      return true;
     }
-    broadcastRoomView(code);
-    closeSeatSockets(code, seatId, notify);
-    return true;
+    // `onSettled` runs the seat's own release too, so a fold retained by a
+    // pause frees the seat and closes its socket the same way whether it
+    // commits now or later, via Retry.
+    return publishDispatch(code, released.transaction, {
+      actionClock:
+        released.transaction.command.type === "evict"
+          ? "preserve"
+          : "reschedule",
+      onSettled: finish,
+    });
   }
 
   app.post<RoomSeatRoute>(
@@ -1065,16 +1193,25 @@ export async function buildApp(
       }
       const room = findRoomOrReject(rooms, request.params.code, reply);
       if (!room) return;
-      const released = await enqueue(room.code, () =>
-        publishSeatRelease(
-          room.code,
-          seatId,
-          rooms.evictSeat(room.code, seatId),
-          true,
-        ),
+      const released = await enqueue(
+        room.code,
+        async (): Promise<boolean | "recording-paused"> => {
+          if (isRecordingPaused(room.code)) return "recording-paused";
+          return publishSeatRelease(
+            room.code,
+            seatId,
+            rooms.evictSeat(room.code, seatId),
+            true,
+          );
+        },
       );
-      if (!released) {
-        return reply.code(503).send({ error: "recording-unavailable" });
+      if (released !== true) {
+        return reply.code(503).send({
+          error:
+            released === "recording-paused"
+              ? released
+              : "recording-unavailable",
+        });
       }
       return reply.code(204).send();
     },
@@ -1093,19 +1230,39 @@ export async function buildApp(
       }
       const code = request.params.code;
       const refusal = await enqueue(code, async () => {
+        if (isRecordingPaused(code)) return "recording-paused" as const;
         const result = rooms.leaveSeat(code, seatId, body.data.token);
         if ("error" in result) return result.error;
         return (await publishSeatRelease(code, seatId, result, false))
           ? undefined
           : "recording-unavailable";
       });
-      if (refusal === "recording-unavailable") {
+      if (
+        refusal === "recording-paused" ||
+        refusal === "recording-unavailable"
+      ) {
         return reply.code(503).send({ error: refusal });
       }
       if (refusal !== undefined) {
         return reply
           .code(refusal === "room-not-found" ? 404 : 403)
           .send({ error: refusal });
+      }
+      return reply.code(204).send();
+    },
+  );
+
+  app.post<RoomCodeRoute>(
+    "/rooms/:code/recording/retry",
+    async (request, reply) => {
+      const room = findRoomOrReject(rooms, request.params.code, reply);
+      if (!room) return;
+      const result = await enqueue(room.code, () => retryRecording(room.code));
+      if (result === "not-paused") {
+        return reply.code(409).send({ error: "not-paused" });
+      }
+      if (result === "still-paused") {
+        return reply.code(503).send({ error: "recording-unavailable" });
       }
       return reply.code(204).send();
     },
@@ -1184,6 +1341,12 @@ export async function buildApp(
           const room = rooms.get(code);
           if (!room) return;
           broadcastRoomView(code);
+          // A joiner's own catch-up, not a broadcast: recording-paused is
+          // told once at the moment it starts, and a socket that connects
+          // after that moment would otherwise never learn play has stopped.
+          if (isRecordingPaused(code)) {
+            send(socket, { type: "recording-paused" });
+          }
           // Incremental pushes alone would leave a reloaded table with an
           // empty picker for hands it had already seen — Phase 1's catch-up
           // is one view snapshot, which carries no summaries (§5). Sent even
@@ -1259,6 +1422,10 @@ export async function buildApp(
             }
             const sittingOut = parseResult.data.type === "sitOut";
             enqueueDetached(code, () => {
+              if (isRecordingPaused(code)) {
+                sendRejection(socket, "recording-paused");
+                return;
+              }
               rooms.setSittingOut(code, currentIdentity, sittingOut);
               broadcastRoomView(code);
             });
@@ -1276,6 +1443,10 @@ export async function buildApp(
           }
           const commandType = parseResult.data.type;
           enqueueDetached(code, async () => {
+            if (isRecordingPaused(code)) {
+              sendRejection(socket, "recording-paused");
+              return;
+            }
             const dispatchResult = rooms.dispatch(
               code,
               currentIdentity,
@@ -1286,14 +1457,23 @@ export async function buildApp(
               return;
             }
             if ("reason" in dispatchResult) {
-              await recordRejection(code, dispatchResult);
-              sendRejection(socket, dispatchResult.reason);
+              const recorded = await recordRejection(code, dispatchResult);
+              sendRejection(
+                socket,
+                recorded ? dispatchResult.reason : "recording-paused",
+              );
               return;
             }
 
-            await publishDispatch(code, dispatchResult);
-            if (commandType === "startHand" || commandType === "nextHand") {
-              broadcastRoomView(code);
+            const published = await publishDispatch(code, dispatchResult, {
+              onSettled: () => {
+                if (commandType === "startHand" || commandType === "nextHand") {
+                  broadcastRoomView(code);
+                }
+              },
+            });
+            if (!published) {
+              sendRejection(socket, "recording-paused");
             }
           });
         });
@@ -1313,9 +1493,7 @@ export async function buildApp(
                 code,
                 setTimeout(() => {
                   tableGraceTimers.delete(code);
-                  enqueueDetached(code, () => {
-                    endRoom(code);
-                  });
+                  enqueueDetached(code, () => endRoom(code));
                 }, graceWindowMs),
               );
             }

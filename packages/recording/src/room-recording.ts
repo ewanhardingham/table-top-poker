@@ -45,10 +45,9 @@ function byteLength(text: string): number {
  *
  * An operation that still fails after its retries **latches** the recording:
  * every later operation is refused rather than written past the gap, because
- * a Command stream with a hole in it is worse than no Command stream. The
- * table-facing recovery from that state — retry, continue without recording,
- * end the session — is issue #121; this class only guarantees it never
- * happens silently.
+ * a Command stream with a hole in it is worse than no Command stream. `retry`
+ * and `discardLatched` are the table-facing recovery from that state — see
+ * recording-paused in `docs/design/server.md`.
  */
 export class RoomRecording {
   readonly roomId: string;
@@ -99,6 +98,69 @@ export class RoomRecording {
   async close(): Promise<void> {
     this.#closing = true;
     await this.#queue;
+  }
+
+  /**
+   * Retries the operation a caller retained after this recording latched.
+   * Truncates its Hand's files back to the last confirmed offsets first — the
+   * failed attempt's own rollback may itself have failed on the same broken
+   * disk, and this defends against that torn tail surviving into the retry —
+   * then writes the operation fresh. Resolves once it is confirmed; rejects,
+   * leaving the recording latched, if the retry fails too.
+   */
+  retry(operation: RoomOperation): Promise<void> {
+    const settled = this.#queue.then(() => this.#retryNow(operation));
+    this.#queue = settled.then(
+      () => undefined,
+      () => undefined,
+    );
+    return settled;
+  }
+
+  async #retryNow(operation: RoomOperation): Promise<void> {
+    if (!this.#failed) {
+      throw new Error(`recording for room ${this.roomId} is not paused`);
+    }
+    await this.#rollbackLatched(operation);
+    this.#failed = false;
+    return this.#appendNow(operation);
+  }
+
+  /**
+   * Discards the operation a caller retained after this recording latched,
+   * restoring its Hand's files to their last confirmed offsets on a
+   * best-effort basis — the exit a paused Room takes when the table chooses
+   * to end rather than retry. A no-op when the recording never latched.
+   */
+  async discardLatched(operation: RoomOperation | undefined): Promise<void> {
+    const settled = this.#queue.then(() => this.#discardLatchedNow(operation));
+    this.#queue = settled.then(
+      () => undefined,
+      () => undefined,
+    );
+    return settled;
+  }
+
+  async #discardLatchedNow(
+    operation: RoomOperation | undefined,
+  ): Promise<void> {
+    if (!this.#failed || operation === undefined) return;
+    await this.#rollbackLatched(operation);
+  }
+
+  /**
+   * The latched operation's own paths, from the state `#appendNow` restored
+   * after the failure — a hand-opening operation's paths are one Hand ahead
+   * of `#paths`, which still names the previous, already-confirmed Hand.
+   */
+  async #rollbackLatched(operation: RoomOperation): Promise<void> {
+    const opensHand = operation.context !== undefined;
+    const paths = opensHand
+      ? handRecordingPaths(this.roomDir, this.#handOrdinal + 1)
+      : this.#paths;
+    if (paths !== null) {
+      await this.#rollback(paths, this.#confirmed, opensHand);
+    }
   }
 
   async #appendNow(operation: RoomOperation): Promise<void> {
