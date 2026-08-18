@@ -670,4 +670,36 @@ describe("RoomRecording.close", () => {
       }),
     ).rejects.toThrow(/closed/);
   });
+
+  it("refuses a retry arriving after the close", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    const operation = {
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    };
+    fs.failAlways("appendFile");
+    await expect(recording.append(operation)).rejects.toThrow(/append failed/);
+    fs.healAll();
+    await recording.close();
+
+    await expect(recording.retry(operation)).rejects.toThrow(/closed/);
+  });
+
+  it("refuses a discardLatched arriving after the close", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    const operation = {
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    };
+    fs.failAlways("appendFile");
+    await expect(recording.append(operation)).rejects.toThrow(/append failed/);
+    fs.healAll();
+    await recording.close();
+
+    await expect(recording.discardLatched(operation)).rejects.toThrow(/closed/);
+  });
 });
