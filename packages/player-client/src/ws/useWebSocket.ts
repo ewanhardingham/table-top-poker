@@ -166,6 +166,12 @@ export function useWebSocket(
             // never sends these to a seat, and a phone has nothing to do
             // with one if it ever did.
             break;
+          case "recording-paused":
+          case "recording-resumed":
+            // Recording-paused's not-recording banner is a table-device
+            // surface (#122); a rejected command already tells a phone
+            // recording-paused through `command-rejected`.
+            break;
         }
       });
     }

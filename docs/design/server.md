@@ -65,7 +65,7 @@ Nothing is broadcast before it is recorded (Phase 2 spec #129 §3, issue #118).
   unrecorded Room. Eviction and leave hang on that answer too — a seat whose
   fold could not be recorded is still holding its hand, so it is not taken from
   its player and the route answers `503 recording-unavailable` rather than 204.
-  The table-facing recovery is issue #121's recording-paused state. A Room with
+  The table-facing recovery is the recording-paused state below. A Room with
   no open recording at all is a bug in this server rather than a disk failure,
   so it is logged loudly and played on: refusing would strand the table.
 - `app.ts` owns **one operation queue per Room** (`enqueue`). Socket Commands,
@@ -147,3 +147,39 @@ joinable and closed when it ends or the app does. It takes whole operations, and
 owns ordering, retry, confirmed offsets and rollback itself; the server hands it
 `transaction.operation` and waits. Its filesystem is injected, so every failure
 path is testable and the shipped server has no way to make itself fail.
+
+## Recording-paused
+
+A failed append — whether the operation carried an accepted engine transition
+or only a Rejection — never loses what could not be recorded and never lets
+play continue unrecorded. `pauseRecording` (`app.ts`) cancels the Actor's
+clock, retains the operation and its `DispatchTransaction` (when there is
+one) in `pausedRooms`, and broadcasts `recording-paused` to every socket in
+the Room. `isRecordingPaused` gates every further mutation while it holds:
+gameplay and sitting in/out over the socket, and seat claims and eviction
+over HTTP, all answer `recording-paused` — the same `ServerRejectionReason`
+(`protocol/src/hand.ts`) regardless of transport, never an engine
+`RejectionReason`. Sockets stay open, an existing identity may still
+reconnect and receive the last committed view, and presence may still
+change — none of that touches `rooms.dispatch`.
+
+Only the table has an exit to choose:
+
+- **Retry** (`POST /rooms/:code/recording/retry`) calls
+  `RoomRecording.retry`, which truncates the Hand's files back to their last
+  confirmed offsets before writing the retained operation fresh — the
+  original failure's own rollback may itself have failed on the same broken
+  disk. Once confirmed, `retryRecording` runs the retained transaction
+  through the same `settleDispatch` the live commit path uses (commit, seat
+  moves, fan-out, summary, bot scheduling), always with a **fresh full
+  interval** on the Actor's clock — a player who lost thinking time to the
+  outage is not penalised for it — and broadcasts `recording-resumed`. A
+  retained Rejection has no transaction to settle: only the clock restarts.
+- **End session** (`POST /rooms/:code/end`, unchanged) discards the retained
+  transaction rather than committing it, and `drainRecording` calls
+  `RoomRecording.discardLatched` — a best-effort restore of the confirmed
+  tail, safe to call unconditionally since it no-ops when nothing latched —
+  before closing.
+
+**Continue without recording** is a later ticket's third exit; nothing here
+should be read as ruling it out.

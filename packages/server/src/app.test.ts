@@ -3496,4 +3496,378 @@ describe("the commit seam", () => {
       await app.close();
     }
   });
+
+  describe("recording-paused", () => {
+    function commandsPath(rooms: RoomStore, code: string): string {
+      const roomId = rooms.get(code)?.id;
+      return `${RECORDINGS_ROOT}/${String(roomId)}/hand-0001.commands.jsonl`;
+    }
+
+    it("pauses the Room on a failed append: sockets stay up, the sender is told, and the clock cancels", async () => {
+      const rig = await headsUpRoom();
+      const { code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+        await settle();
+
+        expect(
+          seats[0]?.messages.filter((m) => m.type === "command-rejected"),
+        ).toEqual([{ type: "command-rejected", reason: "recording-paused" }]);
+        for (const conn of [table, ...seats]) {
+          expect(conn.socket.readyState).toBe(WebSocket.OPEN);
+          expect(conn.messages.some((m) => m.type === "recording-paused")).toBe(
+            true,
+          );
+        }
+        expect(rooms.currentActor(code)).toBe(0);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("pauses the Room when recording a Rejection fails, telling the sender recording-paused instead", async () => {
+      const rig = await headsUpRoom();
+      const { code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+
+        // Seat 1 acting out of turn: the engine rejects it before any state
+        // changes, but recording that Rejection also fails here.
+        seats[1]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(
+          () =>
+            (seats[1]?.messages ?? []).filter(
+              (m) => m.type === "command-rejected",
+            ).length > 0,
+        );
+        await settle();
+
+        expect(
+          seats[1]?.messages.filter((m) => m.type === "command-rejected"),
+        ).toEqual([{ type: "command-rejected", reason: "recording-paused" }]);
+        expect(rooms.get(code)?.turnEndsAt).toBeNull();
+        expect(table.messages.some((m) => m.type === "recording-paused")).toBe(
+          true,
+        );
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("rejects further gameplay and sitting in/out while paused", async () => {
+      const rig = await headsUpRoom();
+      const { code, rooms, disk, table, seats } = rig;
+      try {
+        const [seat0, seat1] = seats;
+        if (seat0 === undefined || seat1 === undefined) {
+          throw new Error("expected two connected seats");
+        }
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seat0.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        seat0.messages.length = 0;
+        seat1.messages.length = 0;
+        seat0.socket.send(JSON.stringify({ type: "call" }));
+        seat1.socket.send(JSON.stringify({ type: "sitOut" }));
+        await settle();
+
+        expect(seat0.messages).toEqual([
+          { type: "command-rejected", reason: "recording-paused" },
+        ]);
+        expect(seat1.messages).toEqual([
+          { type: "command-rejected", reason: "recording-paused" },
+        ]);
+        expect(rooms.currentActor(code)).toBe(0);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("rejects new seat claims and eviction over HTTP while paused", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        const claim = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/seats/1/claim`,
+          payload: { displayName: "Late" },
+        });
+        expect(claim.statusCode).toBe(503);
+        expect(claim.json()).toEqual({ error: "recording-paused" });
+
+        const evict = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/seats/1/evict`,
+        });
+        expect(evict.statusCode).toBe(503);
+        expect(evict.json()).toEqual({ error: "recording-paused" });
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("lets an existing identity reconnect and receive the last committed view while paused", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        const address = rigApp.server.address();
+        if (address === null || typeof address === "string") {
+          throw new Error("expected a bound TCP address");
+        }
+        const seat0 = rooms.get(code)?.seats[0];
+        seats[0]?.socket.close();
+        await settle();
+
+        const reconnectMessages: ServerMessage[] = [];
+        const reconnected = new WebSocket(
+          `ws://127.0.0.1:${String(address.port)}/ws?room=${code}&seat=0&token=${seat0?.token ?? ""}`,
+        );
+        reconnected.on("message", (data: Buffer) => {
+          reconnectMessages.push(JSON.parse(data.toString()) as ServerMessage);
+        });
+        await new Promise<void>((resolve, reject) => {
+          reconnected.once("open", () => {
+            resolve();
+          });
+          reconnected.once("error", reject);
+        });
+        await settle();
+
+        expect(reconnected.readyState).toBe(WebSocket.OPEN);
+        expect(reconnectMessages.some((m) => m.type === "view-snapshot")).toBe(
+          true,
+        );
+        reconnected.close();
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("resumes play with a fresh clock and a valid, correctly-truncated file tail after Retry", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        disk.healAll();
+        const releasedAt = Date.now();
+        const retry = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/retry`,
+        });
+        expect(retry.statusCode).toBe(204);
+        await waitFor(() => rooms.currentActor(code) === 1);
+        await settle();
+
+        expect(rooms.get(code)?.turnEndsAt).toBeGreaterThanOrEqual(
+          releasedAt + SHOT_CLOCK_SECONDS * 1000,
+        );
+        expect(
+          actionsSeen(table.messages).filter(
+            (event) => event.action === "call",
+          ),
+        ).toHaveLength(1);
+        expect(table.messages.some((m) => m.type === "recording-resumed")).toBe(
+          true,
+        );
+
+        const path = commandsPath(rooms, code);
+        expect(
+          (parseRecordedLines(disk.read(path)) as { type: string }[]).map(
+            (c) => c.type,
+          ),
+        ).toEqual(["startHand", "call"]);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("answers still-paused when a Retry's disk is still broken", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        const retry = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/retry`,
+        });
+
+        expect(retry.statusCode).toBe(503);
+        expect(retry.json()).toEqual({ error: "recording-unavailable" });
+        expect(rooms.currentActor(code)).toBe(0);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("answers not-paused when Retry is called on a Room that is not paused", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, table, seats } = rig;
+      try {
+        const retry = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/retry`,
+        });
+        expect(retry.statusCode).toBe(409);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("broadcasts a fresh room view when a retained startHand is retried", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        disk.failAlways("appendFile");
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() =>
+          table.messages.some((m) => m.type === "recording-paused"),
+        );
+        await settle();
+        const roomViewsBeforeRetry = table.messages.filter(
+          (m) => m.type === "room-view",
+        ).length;
+
+        disk.healAll();
+        const retry = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/retry`,
+        });
+        expect(retry.statusCode).toBe(204);
+        await waitFor(() => rooms.get(code)?.engine !== null);
+        await settle();
+
+        const roomViewsAfterRetry = table.messages.filter(
+          (m) => m.type === "room-view",
+        ).length;
+        expect(roomViewsAfterRetry).toBeGreaterThan(roomViewsBeforeRetry);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("frees the seat and closes its socket when a retained eviction is retried", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        const [seat0, seat1] = seats;
+        if (seat0 === undefined || seat1 === undefined) {
+          throw new Error("expected two connected seats");
+        }
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+
+        const evict = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/seats/1/evict`,
+        });
+        expect(evict.statusCode).toBe(503);
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        disk.healAll();
+        const retry = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/retry`,
+        });
+        expect(retry.statusCode).toBe(204);
+        await waitFor(() => rooms.get(code)?.seats[1]?.claimed === false);
+
+        await new Promise<void>((resolve) => {
+          if (seat1.socket.readyState === WebSocket.CLOSED) {
+            resolve();
+            return;
+          }
+          seat1.socket.once("close", () => {
+            resolve();
+          });
+        });
+        await settle();
+
+        expect(
+          table.messages.some(
+            (m) => m.type === "room-view" && m.view.seats[1]?.claimed === false,
+          ),
+        ).toBe(true);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("discards the retained operation and restores a valid file tail when a paused Room ends", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        const path = commandsPath(rooms, code);
+        const confirmedCommands = disk.read(path);
+
+        // The command lands, the event write fails, and every rollback
+        // truncate this failure gets to try fails too — a torn tail its own
+        // repair could not clean up.
+        disk.failWhen("appendFile", (target) =>
+          target.endsWith(".events.jsonl"),
+        );
+        disk.failAlways("truncate");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+        expect(disk.read(path)).not.toBe(confirmedCommands);
+
+        disk.healAll();
+        const ended = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/end`,
+        });
+
+        expect(ended.statusCode).toBe(204);
+        expect(rooms.get(code)).toBeUndefined();
+        expect(disk.read(path)).toBe(confirmedCommands);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+  });
 });

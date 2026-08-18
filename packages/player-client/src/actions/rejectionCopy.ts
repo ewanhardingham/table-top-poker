@@ -29,5 +29,7 @@ export function rejectionCopy(
       // Replay is a table-device surface; a phone never sends the request
       // this answers, so this exists only to keep the switch exhaustive.
       return "Hand review isn't available here.";
+    case "recording-paused":
+      return "The table paused the game to fix a recording problem.";
   }
 }
