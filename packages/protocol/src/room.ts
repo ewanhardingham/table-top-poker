@@ -208,6 +208,20 @@ export interface HandSummaryMessage {
   readonly summary: HandSummary;
 }
 
+/**
+ * A failed append has blocked the Room: every socket is told play has
+ * stopped, but never why — filesystem detail stays in operational server
+ * logs (Phase 2 spec #129 §3). Only the table may choose an exit.
+ */
+export interface RecordingPausedMessage {
+  readonly type: "recording-paused";
+}
+
+/** Sent once a paused Room's Retry has confirmed and play has resumed. */
+export interface RecordingResumedMessage {
+  readonly type: "recording-resumed";
+}
+
 export type ServerMessage =
   | RoomViewMessage
   | PlayerEvictedMessage
@@ -217,4 +231,6 @@ export type ServerMessage =
   | ViewSnapshotMessage
   | RoomEndedMessage
   | HandListMessage
-  | HandSummaryMessage;
+  | HandSummaryMessage
+  | RecordingPausedMessage
+  | RecordingResumedMessage;

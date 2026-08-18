@@ -386,6 +386,260 @@ describe("RoomRecording.append", () => {
   });
 });
 
+describe("RoomRecording.retry", () => {
+  it("rejects a retry when the recording was never latched", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+
+    await expect(
+      recording.retry({ command: { type: "call", seatId: 1 }, outcome: [] }),
+    ).rejects.toThrow(/not paused/);
+  });
+
+  it("writes the retained operation once the disk is healthy again", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+
+    fs.failAlways("appendFile");
+    const retained = {
+      command: { type: "call", seatId: 1 } as Command,
+      outcome: [
+        { type: "ActionTaken", seatId: 1, action: "call" },
+      ] as HandEvent[],
+    };
+    await expect(recording.append(retained)).rejects.toThrow(/append failed/);
+    await expect(recording.append(retained)).rejects.toThrow(
+      /recording-paused/,
+    );
+
+    fs.healAll();
+    await recording.retry(retained);
+
+    const hand1 = handRecordingPaths(ROOM_DIR, 1);
+    expect(
+      (lines(fs, hand1.commandsPath) as Command[]).map((c) => c.type),
+    ).toEqual(["startHand", "call"]);
+    expect(lines(fs, hand1.eventsPath)).toHaveLength(2);
+  });
+
+  it("truncates a tail its own failed rollback could not clean up, before writing again", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+    const hand1 = handRecordingPaths(ROOM_DIR, 1);
+    const confirmedCommands = fs.read(hand1.commandsPath);
+
+    // The command lands, the events write fails, and the rollback that would
+    // truncate the command file back also fails — leaving a line no event
+    // can account for.
+    fs.failWhen("appendFile", (target) => target.endsWith(".events.jsonl"));
+    fs.failNext("truncate");
+    const retained = {
+      command: { type: "call", seatId: 1 } as Command,
+      outcome: [
+        { type: "ActionTaken", seatId: 1, action: "call" },
+      ] as HandEvent[],
+    };
+    await expect(recording.append(retained)).rejects.toThrow(/append failed/);
+    expect(fs.read(hand1.commandsPath)).not.toBe(confirmedCommands);
+
+    fs.healAll();
+    await recording.retry(retained);
+
+    expect(
+      (lines(fs, hand1.commandsPath) as Command[]).map((c) => c.type),
+    ).toEqual(["startHand", "call"]);
+    expect(lines(fs, hand1.eventsPath)).toHaveLength(2);
+  });
+
+  it("resumes accepting later operations once a retry confirms", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+
+    fs.failAlways("appendFile");
+    const retained = {
+      command: { type: "call", seatId: 1 } as Command,
+      outcome: [
+        { type: "ActionTaken", seatId: 1, action: "call" },
+      ] as HandEvent[],
+    };
+    await expect(recording.append(retained)).rejects.toThrow();
+    fs.healAll();
+    await recording.retry(retained);
+
+    await recording.append({
+      command: { type: "fold", seatId: 2 },
+      outcome: [],
+    });
+
+    const hand1 = handRecordingPaths(ROOM_DIR, 1);
+    expect(
+      (lines(fs, hand1.commandsPath) as Command[]).map((c) => c.type),
+    ).toEqual(["startHand", "call", "fold"]);
+  });
+
+  it("retries a hand-opening operation cleanly after its own rollback failed to clean up", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+    const hand2 = handRecordingPaths(ROOM_DIR, 2);
+
+    fs.failWhen("appendFile", (target) =>
+      target.endsWith("0002.commands.jsonl"),
+    );
+    fs.failAlways("remove");
+    const nextHandOperation = {
+      context: {
+        startedAt: "2026-08-13T20:05:00.000Z",
+        seats: [0, 1],
+        button: 1,
+      },
+      command: nextHand,
+      outcome: [handStarted2],
+    };
+    await expect(recording.append(nextHandOperation)).rejects.toThrow();
+
+    fs.healAll();
+    await recording.retry(nextHandOperation);
+
+    expect(JSON.parse(fs.read(hand2.contextPath) ?? "")).toMatchObject({
+      handOrdinal: 2,
+    });
+    expect(
+      (lines(fs, hand2.commandsPath) as Command[]).map((c) => c.type),
+    ).toEqual(["nextHand"]);
+  });
+});
+
+describe("RoomRecording.discardLatched", () => {
+  it("does nothing when the recording has not latched", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+    const hand1 = handRecordingPaths(ROOM_DIR, 1);
+    const before = fs.read(hand1.commandsPath);
+
+    await recording.discardLatched({
+      command: { type: "call", seatId: 1 },
+      outcome: [],
+    });
+
+    expect(fs.read(hand1.commandsPath)).toBe(before);
+  });
+
+  it("does nothing when no operation was ever retained", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+    const hand1 = handRecordingPaths(ROOM_DIR, 1);
+    const before = fs.read(hand1.commandsPath);
+
+    fs.failAlways("appendFile");
+    await expect(
+      recording.append({ command: { type: "call", seatId: 1 }, outcome: [] }),
+    ).rejects.toThrow();
+    fs.healAll();
+
+    await recording.discardLatched(undefined);
+
+    expect(fs.read(hand1.commandsPath)).toBe(before);
+  });
+
+  it("restores a latched recording's confirmed tail on a best-effort basis", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+    const hand1 = handRecordingPaths(ROOM_DIR, 1);
+    const confirmedCommands = fs.read(hand1.commandsPath);
+
+    fs.failWhen("appendFile", (target) => target.endsWith(".events.jsonl"));
+    fs.failNext("truncate");
+    const retained = {
+      command: { type: "call", seatId: 1 } as Command,
+      outcome: [
+        { type: "ActionTaken", seatId: 1, action: "call" },
+      ] as HandEvent[],
+    };
+    await expect(recording.append(retained)).rejects.toThrow(/append failed/);
+    expect(fs.read(hand1.commandsPath)).not.toBe(confirmedCommands);
+
+    fs.healAll();
+    await recording.discardLatched(retained);
+
+    expect(fs.read(hand1.commandsPath)).toBe(confirmedCommands);
+  });
+
+  it("cleans up a hand-opening operation's own files, not the previous Hand's", async () => {
+    const fs = createMemoryFileSystem();
+    const recording = await openRecording(fs);
+    await recording.append({
+      context: context(),
+      command: startHand,
+      outcome: [handStarted],
+    });
+    const hand1 = handRecordingPaths(ROOM_DIR, 1);
+    const hand1Commands = fs.read(hand1.commandsPath);
+    const hand2 = handRecordingPaths(ROOM_DIR, 2);
+
+    fs.failWhen("appendFile", (target) =>
+      target.endsWith("0002.commands.jsonl"),
+    );
+    fs.failAlways("remove");
+    const nextHandOperation = {
+      context: {
+        startedAt: "2026-08-13T20:05:00.000Z",
+        seats: [0, 1],
+        button: 1,
+      },
+      command: nextHand,
+      outcome: [handStarted2],
+    };
+    await expect(recording.append(nextHandOperation)).rejects.toThrow(
+      /append failed/,
+    );
+    // The context sidecar for Hand 2 was written before the commands append
+    // failed, and the failed attempt's own rollback could not remove it.
+    expect(fs.read(hand2.contextPath)).not.toBeUndefined();
+
+    fs.healAll();
+    await recording.discardLatched(nextHandOperation);
+
+    expect(fs.read(hand2.contextPath)).toBeUndefined();
+    expect(fs.read(hand2.commandsPath)).toBeUndefined();
+    expect(fs.read(hand1.commandsPath)).toBe(hand1Commands);
+  });
+});
+
 describe("RoomRecording.close", () => {
   it("drains operations already queued before resolving", async () => {
     const fs = createMemoryFileSystem();

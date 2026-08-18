@@ -15,6 +15,7 @@ const ALL_REASONS: (RejectionReason | ServerRejectionReason)[] = [
   "room-not-found",
   "not-enough-players",
   "not-permitted",
+  "recording-paused",
 ];
 
 describe("rejectionCopy", () => {
