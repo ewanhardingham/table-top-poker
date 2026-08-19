@@ -183,3 +183,32 @@ Only the table has an exit to choose:
 
 **Continue without recording** is a later ticket's third exit; nothing here
 should be read as ruling it out.
+
+## Shutdown
+
+`SIGINT`/`SIGTERM` (`server.ts`) and "End session" close a Room's recording
+the same way — draining rather than dropping whatever was still in flight —
+they just differ in what triggers it and what happens after.
+
+- **A single Room ending** (`endRoom`, "End session" or the table's grace
+  window elapsing) runs in that Room's own operation queue, so it is already
+  ordered after anything already dispatched to it. It discards a paused
+  Room's retained transaction, then `drainRecording` restores a paused
+  recording's confirmed tail (`discardLatched`, a no-op unless the recording
+  latched) and closes the writer, before the Room itself is discarded.
+- **Process shutdown** (`onClose`, run from the `SIGINT`/`SIGTERM` handlers
+  in `server.ts` via `app.close()`) closes every Room's recording instead of
+  one. A command already dispatched but not yet appended when the signal
+  lands must still land: `onClose` first awaits every Room's operation queue
+  (`roomQueues`), *then* drains and closes each open `RoomRecording` the same
+  way `endRoom` does, restoring any paused Room's confirmed tail first. Only
+  once every recording is closed does the handler call `process.exit(0)` (or
+  `1` if closing itself throws) — a deploy is `systemctl restart poker`, so
+  this is the normal way the process ends, not an edge case.
+
+Either path leaves every Hand file a clean prefix of confirmed operations, so
+a recording closed this way always replays with no `incomplete-hand`. Only a
+`SIGKILL` — which gives the process no chance to run `onClose` at all — can
+still leave one torn final record; that is accepted and handled by the
+incomplete-Hand rule (`packages/engine`'s Replay capability) rather than
+defended against here.
