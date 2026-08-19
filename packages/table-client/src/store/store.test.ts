@@ -98,6 +98,21 @@ describe("useTableStore", () => {
     expect(useTableStore.getState().handView).toBeNull();
   });
 
+  it("latches recording-stopped true and keeps it through a room-view update", () => {
+    useTableStore.getState().setRecordingStopped();
+    expect(useTableStore.getState().recordingStopped).toBe(true);
+
+    useTableStore.getState().setRoomView({
+      code: "ABCD",
+      pendingSeatCount: null,
+      pendingShotClock: null,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
+      seats: [],
+    });
+    expect(useTableStore.getState().recordingStopped).toBe(true);
+  });
+
   it("clears the room slice back to its initial state", () => {
     useTableStore.getState().setRoomView({
       code: "ABCD",
@@ -115,8 +130,10 @@ describe("useTableStore", () => {
         },
       ],
     });
+    useTableStore.getState().setRecordingStopped();
     useTableStore.getState().clearRoom();
     expect(useTableStore.getState().roomCode).toBeNull();
     expect(useTableStore.getState().seats).toEqual([]);
+    expect(useTableStore.getState().recordingStopped).toBe(false);
   });
 });

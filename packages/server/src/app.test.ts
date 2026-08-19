@@ -3930,4 +3930,233 @@ describe("the commit seam", () => {
       }
     });
   });
+
+  describe("continue without recording", () => {
+    function commandsPath(rooms: RoomStore, code: string): string {
+      const roomId = rooms.get(code)?.id;
+      return `${RECORDINGS_ROOT}/${String(roomId)}/hand-0001.commands.jsonl`;
+    }
+
+    async function foldHandToCompletion(
+      code: string,
+      rooms: RoomStore,
+      seats: Connection[],
+    ): Promise<void> {
+      for (let i = 0; i < 8; i++) {
+        if (rooms.get(code)?.engine?.hand?.status === "complete") return;
+        const actor = rooms.currentActor(code);
+        if (actor === undefined) throw new Error("expected a current actor");
+        seats[actor]?.socket.send(JSON.stringify({ type: "fold" }));
+        await settle();
+      }
+      throw new Error("hand did not complete");
+    }
+
+    it("resumes play immediately with write access still revoked, and never repairs or writes to the recording again", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        const path = commandsPath(rooms, code);
+        const tailAfterFailure = disk.read(path);
+        // The repairs Retry performs are themselves writes — arm those to
+        // fail too, so a stray repair attempt here would leave a trace.
+        disk.failAlways("truncate");
+        disk.failAlways("remove");
+
+        const resumed = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/continue`,
+        });
+        expect(resumed.statusCode).toBe(204);
+        await waitFor(() => rooms.currentActor(code) === 1);
+        await settle();
+
+        expect(disk.read(path)).toBe(tailAfterFailure);
+        expect(table.messages.some((m) => m.type === "recording-stopped")).toBe(
+          true,
+        );
+
+        // Play goes on live on the same still-broken disk: no per-hand
+        // retry, no re-pause, and the recording never grows again.
+        seats[1]?.socket.send(JSON.stringify({ type: "check" }));
+        await waitFor(
+          () =>
+            actionsSeen(table.messages).filter((e) => e.action === "check")
+              .length > 0,
+        );
+        await settle();
+
+        expect(disk.read(path)).toBe(tailAfterFailure);
+        expect(
+          table.messages.filter((m) => m.type === "recording-paused"),
+        ).toHaveLength(1);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("answers not-paused when continue is called on a Room that is not paused", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, table, seats } = rig;
+      try {
+        const resumed = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/continue`,
+        });
+        expect(resumed.statusCode).toBe(409);
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("tells a socket that joins afterward that recording has stopped", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+        await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/continue`,
+        });
+
+        const address = rigApp.server.address();
+        if (address === null || typeof address === "string") {
+          throw new Error("expected a bound TCP address");
+        }
+        const joinerMessages: ServerMessage[] = [];
+        const joiner = new WebSocket(
+          `ws://127.0.0.1:${String(address.port)}/ws?room=${code}&role=table`,
+        );
+        joiner.on("message", (data: Buffer) => {
+          joinerMessages.push(JSON.parse(data.toString()) as ServerMessage);
+        });
+        await new Promise<void>((resolve, reject) => {
+          joiner.once("open", () => {
+            resolve();
+          });
+          joiner.once("error", reject);
+        });
+        await settle();
+
+        expect(joinerMessages.some((m) => m.type === "recording-stopped")).toBe(
+          true,
+        );
+        expect(joinerMessages.some((m) => m.type === "recording-paused")).toBe(
+          false,
+        );
+        joiner.close();
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("keeps hands recorded before the failure in the picker, but never offers the abandoned Hand", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) !== undefined);
+        await foldHandToCompletion(code, rooms, seats);
+        await settle();
+        expect(
+          table.messages
+            .filter((m) => m.type === "hand-summary")
+            .map((m) => m.summary.handOrdinal),
+        ).toEqual([1]);
+
+        table.socket.send(JSON.stringify({ type: "nextHand" }));
+        await waitFor(
+          () => rooms.get(code)?.engine?.hand?.status === "betting",
+        );
+        disk.failAlways("appendFile");
+        const actor = rooms.currentActor(code);
+        if (actor === undefined) throw new Error("expected a current actor");
+        // Heads-up, this fold both fails to record and ends hand 2 outright.
+        seats[actor]?.socket.send(JSON.stringify({ type: "fold" }));
+        await waitFor(() =>
+          table.messages.some((m) => m.type === "recording-paused"),
+        );
+
+        const resumed = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/continue`,
+        });
+        expect(resumed.statusCode).toBe(204);
+        await settle();
+
+        expect(
+          table.messages
+            .filter((m) => m.type === "hand-summary")
+            .map((m) => m.summary.handOrdinal),
+        ).toEqual([1]);
+
+        const address = rigApp.server.address();
+        if (address === null || typeof address === "string") {
+          throw new Error("expected a bound TCP address");
+        }
+        const joinerMessages: ServerMessage[] = [];
+        const joiner = new WebSocket(
+          `ws://127.0.0.1:${String(address.port)}/ws?room=${code}&role=table`,
+        );
+        joiner.on("message", (data: Buffer) => {
+          joinerMessages.push(JSON.parse(data.toString()) as ServerMessage);
+        });
+        await new Promise<void>((resolve, reject) => {
+          joiner.once("open", () => {
+            resolve();
+          });
+          joiner.once("error", reject);
+        });
+        await settle();
+
+        const handList = joinerMessages.find((m) => m.type === "hand-list");
+        expect(handList?.summaries.map((s) => s.handOrdinal)).toEqual([1]);
+        joiner.close();
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+
+    it("still ends cleanly, with nothing left to drain, after Continue without recording", async () => {
+      const rig = await headsUpRoom();
+      const { app: rigApp, code, rooms, disk, table, seats } = rig;
+      try {
+        table.socket.send(JSON.stringify({ type: "startHand" }));
+        await waitFor(() => rooms.currentActor(code) === 0);
+        disk.failAlways("appendFile");
+        seats[0]?.socket.send(JSON.stringify({ type: "call" }));
+        await waitFor(() => rooms.get(code)?.turnEndsAt === null);
+
+        const resumed = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/recording/continue`,
+        });
+        expect(resumed.statusCode).toBe(204);
+
+        const ended = await rigApp.inject({
+          method: "POST",
+          url: `/rooms/${code}/end`,
+        });
+        expect(ended.statusCode).toBe(204);
+        expect(rooms.get(code)).toBeUndefined();
+      } finally {
+        for (const conn of [table, ...seats]) conn.socket.close();
+        await rig.app.close();
+      }
+    });
+  });
 });

@@ -21,6 +21,7 @@ import {
 } from "./api/rooms.js";
 import { Board } from "./Board.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
+import { NotRecordingBanner } from "./NotRecordingBanner.js";
 import { SeatCountPicker } from "./SeatCountPicker.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
@@ -49,6 +50,7 @@ export function App() {
   const testMode = useTableStore((state) => state.testMode);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
+  const recordingStopped = useTableStore((state) => state.recordingStopped);
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
   const clearRoom = useTableStore((state) => state.clearRoom);
   const clearHand = useTableStore((state) => state.clearHand);
@@ -193,6 +195,7 @@ export function App() {
         showRoomCode={handInProgress && !joinOpen}
         onOpenJoin={toggleJoin}
       />
+      {recordingStopped && <NotRecordingBanner />}
       <main className="felt">
         {roomCode === null ? (
           <SeatCountPicker
