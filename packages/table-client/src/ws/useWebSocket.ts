@@ -26,6 +26,9 @@ export function useWebSocket(
   );
   const setRoomView = useTableStore((state) => state.setRoomView);
   const setHandView = useTableStore((state) => state.setHandView);
+  const setRecordingStopped = useTableStore(
+    (state) => state.setRecordingStopped,
+  );
   const socketRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -73,6 +76,8 @@ export function useWebSocket(
           setHandView(message.view);
         } else if (message.type === "room-ended") {
           optionsRef.current.onRoomEnded?.();
+        } else if (message.type === "recording-stopped") {
+          setRecordingStopped();
         }
       });
     }
@@ -85,7 +90,13 @@ export function useWebSocket(
       socketRef.current?.close();
       socketRef.current = null;
     };
-  }, [roomCode, setConnectionStatus, setRoomView, setHandView]);
+  }, [
+    roomCode,
+    setConnectionStatus,
+    setRoomView,
+    setHandView,
+    setRecordingStopped,
+  ]);
 
   const send = useCallback((command: ClientCommand) => {
     socketRef.current?.send(JSON.stringify(command));

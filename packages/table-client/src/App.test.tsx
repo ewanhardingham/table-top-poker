@@ -253,4 +253,17 @@ describe("App", () => {
       'data-testid="add-bot-button"',
     );
   });
+
+  it("shows the not-recording banner once recording has stopped, and hides it otherwise", () => {
+    enterRoom(2, liveHand);
+    expect(renderToStaticMarkup(<App />)).not.toContain(
+      'data-testid="not-recording-banner"',
+    );
+
+    enterRoom(2, liveHand);
+    store.overrides = { ...store.overrides, recordingStopped: true };
+    expect(renderToStaticMarkup(<App />)).toContain(
+      'data-testid="not-recording-banner"',
+    );
+  });
 });
