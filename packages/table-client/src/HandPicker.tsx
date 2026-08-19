@@ -218,7 +218,7 @@ export function HandPicker({ summaries, seats, onClose }: HandPickerProps) {
     >
       <Panel
         style={{
-          width: "min(640px, calc(100% - 32px))",
+          width: "min(820px, calc(100% - 32px))",
           maxHeight: "min(720px, calc(100% - 64px))",
           borderRadius: radius.panel,
           background: color.surfaceGradient,
