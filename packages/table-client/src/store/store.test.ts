@@ -1,9 +1,24 @@
 import {
   DEFAULT_SHOT_CLOCK,
   DEFAULT_SOUND_SETTINGS,
+  type HandSummary,
 } from "@table-top-poker/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useTableStore } from "./store.js";
+
+function summary(handOrdinal: number): HandSummary {
+  return {
+    handOrdinal,
+    startedAt: "2026-08-13T19:04:00.000Z",
+    button: 0,
+    seatsDealtIn: [0, 1],
+    survivors: [0],
+    board: [],
+    streetReached: "preflop",
+    bettingShape: { kind: "walk" },
+    outcome: { kind: "folded-out", winner: 0 },
+  };
+}
 
 describe("useTableStore", () => {
   beforeEach(() => {
@@ -135,5 +150,28 @@ describe("useTableStore", () => {
     expect(useTableStore.getState().roomCode).toBeNull();
     expect(useTableStore.getState().seats).toEqual([]);
     expect(useTableStore.getState().recordingStopped).toBe(false);
+  });
+
+  it("replaces the hand list wholesale on a hand-list message", () => {
+    useTableStore.getState().setHandList([summary(1), summary(2)]);
+    expect(useTableStore.getState().handSummaries).toHaveLength(2);
+
+    useTableStore.getState().setHandList([summary(1)]);
+    expect(useTableStore.getState().handSummaries).toEqual([summary(1)]);
+  });
+
+  it("appends a hand summary without disturbing the existing list", () => {
+    useTableStore.getState().setHandList([summary(1)]);
+    useTableStore.getState().addHandSummary(summary(2));
+    expect(useTableStore.getState().handSummaries).toEqual([
+      summary(1),
+      summary(2),
+    ]);
+  });
+
+  it("clears the accumulated hand history", () => {
+    useTableStore.getState().setHandList([summary(1)]);
+    useTableStore.getState().clearHandHistory();
+    expect(useTableStore.getState().handSummaries).toEqual([]);
   });
 });

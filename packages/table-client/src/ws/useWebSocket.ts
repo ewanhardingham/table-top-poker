@@ -29,6 +29,8 @@ export function useWebSocket(
   const setRecordingStopped = useTableStore(
     (state) => state.setRecordingStopped,
   );
+  const setHandList = useTableStore((state) => state.setHandList);
+  const addHandSummary = useTableStore((state) => state.addHandSummary);
   const socketRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -74,6 +76,10 @@ export function useWebSocket(
           });
         } else if (message.type === "view-snapshot") {
           setHandView(message.view);
+        } else if (message.type === "hand-list") {
+          setHandList(message.summaries);
+        } else if (message.type === "hand-summary") {
+          addHandSummary(message.summary);
         } else if (message.type === "room-ended") {
           optionsRef.current.onRoomEnded?.();
         } else if (message.type === "recording-stopped") {
@@ -96,6 +102,8 @@ export function useWebSocket(
     setRoomView,
     setHandView,
     setRecordingStopped,
+    setHandList,
+    addHandSummary,
   ]);
 
   const send = useCallback((command: ClientCommand) => {

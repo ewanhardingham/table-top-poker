@@ -107,7 +107,7 @@ export function TableControls({
           </div>
         )
       )}
-      {onReviewHands && (
+      {onReviewHands && handComplete && (
         <PillButton
           tone="outline"
           data-testid="review-hands-button"

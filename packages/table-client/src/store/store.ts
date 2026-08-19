@@ -4,14 +4,23 @@ import {
   createConnectionSlice,
 } from "./connectionSlice.js";
 import { createConfigSlice, type ConfigSlice } from "./configSlice.js";
+import {
+  createHandHistorySlice,
+  type HandHistorySlice,
+} from "./handHistorySlice.js";
 import { createHandSlice, type HandSlice } from "./handSlice.js";
 import { createRoomSlice, type RoomSlice } from "./roomSlice.js";
 
-export type TableStore = ConnectionSlice & ConfigSlice & RoomSlice & HandSlice;
+export type TableStore = ConnectionSlice &
+  ConfigSlice &
+  RoomSlice &
+  HandSlice &
+  HandHistorySlice;
 
 export const useTableStore = create<TableStore>()((...args) => ({
   ...createConnectionSlice(...args),
   ...createConfigSlice(...args),
   ...createRoomSlice(...args),
   ...createHandSlice(...args),
+  ...createHandHistorySlice(...args),
 }));
