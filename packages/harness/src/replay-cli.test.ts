@@ -129,6 +129,71 @@ describe("runReplayCli", () => {
     expect(stdout.text()).not.toMatch(/resolved/);
   });
 
+  it("resolves a join code and prints the chosen directory to stderr, never stdout", async () => {
+    const recordingsDir = tempDir();
+    await seedRoom(recordingsDir, "room-a", HAPPY_COMMANDS, { code: "AB12" });
+    const stdout = collectingWritable();
+    const stderr = collectingWritable();
+
+    const exitCode = await runReplayCli(
+      ["AB12", "--hand", "1", "--recordings-dir", recordingsDir],
+      { stdout: stdout.writable, stderr: stderr.writable },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(stderr.text()).toMatch(/resolved join code "AB12"/);
+    expect(stdout.text()).not.toMatch(/resolved/);
+  });
+
+  it("stdout is byte-identical whether the room is addressed by path, join code, or 'latest'", async () => {
+    const recordingsDir = tempDir();
+    await seedRoom(recordingsDir, "room-a", HAPPY_COMMANDS, { code: "AB12" });
+
+    async function run(room: string): Promise<string> {
+      const stdout = collectingWritable();
+      await runReplayCli(
+        [room, "--hand", "1", "--recordings-dir", recordingsDir],
+        { stdout: stdout.writable, stderr: collectingWritable().writable },
+      );
+      return stdout.text();
+    }
+
+    const byPath = await run(path.join(recordingsDir, "room-a"));
+    expect(await run("AB12")).toBe(byPath);
+    expect(await run("latest")).toBe(byPath);
+  });
+
+  it("a join code matching no recording fails with exit 1 and a diagnostic on stderr, nothing on stdout", async () => {
+    const recordingsDir = tempDir();
+    await seedRoom(recordingsDir, "room-a", HAPPY_COMMANDS, { code: "AB12" });
+    const stdout = collectingWritable();
+    const stderr = collectingWritable();
+
+    const exitCode = await runReplayCli(
+      ["ZZ99", "--hand", "1", "--recordings-dir", recordingsDir],
+      { stdout: stdout.writable, stderr: stderr.writable },
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.text()).toBe("");
+    expect(stderr.text()).toMatch(/missing-file/);
+  });
+
+  it("'latest' against an empty recordings directory fails with exit 1 and a diagnostic on stderr, nothing on stdout", async () => {
+    const recordingsDir = tempDir();
+    const stdout = collectingWritable();
+    const stderr = collectingWritable();
+
+    const exitCode = await runReplayCli(
+      ["latest", "--hand", "1", "--recordings-dir", recordingsDir],
+      { stdout: stdout.writable, stderr: stderr.writable },
+    );
+
+    expect(exitCode).toBe(1);
+    expect(stdout.text()).toBe("");
+    expect(stderr.text()).toMatch(/missing-file/);
+  });
+
   it("interleaves a Rejection with the position it occurred at", async () => {
     const recordingsDir = tempDir();
     await seedRoom(recordingsDir, "room-a", [
