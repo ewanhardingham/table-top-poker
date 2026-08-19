@@ -172,4 +172,63 @@ describe("TableControls", () => {
     expect(on).toContain('data-testid="add-bot-button"');
     expect(on).toContain("Add bot");
   });
+
+  it("hides Review hands before any hand has been played, even though Deal hand can start", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand
+        handComplete={false}
+        canDealNextHand
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onReviewHands={noop}
+      />,
+    );
+    expect(html).not.toContain('data-testid="review-hands-button"');
+  });
+
+  it("shows Review hands once the hand is complete", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete
+        canDealNextHand
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onReviewHands={noop}
+      />,
+    );
+    expect(html).toContain('data-testid="review-hands-button"');
+  });
+
+  it("hides Review hands while a hand is live and not yet complete", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete={false}
+        canDealNextHand
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onReviewHands={noop}
+      />,
+    );
+    expect(html).not.toContain('data-testid="review-hands-button"');
+  });
+
+  it("hides Review hands entirely when no handler is supplied", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand
+        handComplete={false}
+        canDealNextHand
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+      />,
+    );
+    expect(html).not.toContain('data-testid="review-hands-button"');
+  });
 });

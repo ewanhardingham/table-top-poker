@@ -20,6 +20,7 @@ import {
   fetchRoom,
 } from "./api/rooms.js";
 import { Board } from "./Board.js";
+import { HandPicker } from "./HandPicker.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
 import { NotRecordingBanner } from "./NotRecordingBanner.js";
 import { SeatCountPicker } from "./SeatCountPicker.js";
@@ -54,6 +55,8 @@ export function App() {
   const setRoomCreated = useTableStore((state) => state.setRoomCreated);
   const clearRoom = useTableStore((state) => state.clearRoom);
   const clearHand = useTableStore((state) => state.clearHand);
+  const handSummaries = useTableStore((state) => state.handSummaries);
+  const clearHandHistory = useTableStore((state) => state.clearHandHistory);
 
   useEffect(() => {
     const stored = loadHostedRoom(window.localStorage);
@@ -74,6 +77,8 @@ export function App() {
 
   const [menuSeatId, setMenuSeatId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const [handPickerOpen, setHandPickerOpen] = useState(false);
 
   const [showdownCollapsed, setShowdownCollapsed] = useState(false);
   const atShowdown = handView?.phase === "showdown";
@@ -97,9 +102,11 @@ export function App() {
   const handleRoomEnded = useCallback(() => {
     clearHostedRoom(window.localStorage);
     setSettingsOpen(false);
+    setHandPickerOpen(false);
     clearRoom();
     clearHand();
-  }, [clearRoom, clearHand]);
+    clearHandHistory();
+  }, [clearRoom, clearHand, clearHandHistory]);
 
   const { send } = useWebSocket(roomCode, {
     onRoomEnded: handleRoomEnded,
@@ -124,13 +131,15 @@ export function App() {
       .then(() => {
         clearHostedRoom(window.localStorage);
         setSettingsOpen(false);
+        setHandPickerOpen(false);
         clearRoom();
         clearHand();
+        clearHandHistory();
       })
       .catch((error: unknown) => {
         console.error(error);
       });
-  }, [roomCode, clearRoom, clearHand]);
+  }, [roomCode, clearRoom, clearHand, clearHandHistory]);
 
   const handleAddBot = useCallback(() => {
     if (roomCode === null || !testMode) return;
@@ -307,6 +316,18 @@ export function App() {
                 onAddBot={handleAddBot}
                 onViewShowdown={() => {
                   setShowdownCollapsed(false);
+                }}
+                onReviewHands={() => {
+                  setHandPickerOpen(true);
+                }}
+              />
+            )}
+            {handPickerOpen && (
+              <HandPicker
+                summaries={handSummaries}
+                seats={seats}
+                onClose={() => {
+                  setHandPickerOpen(false);
                 }}
               />
             )}
