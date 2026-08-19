@@ -180,9 +180,24 @@ Only the table has an exit to choose:
   `RoomRecording.discardLatched` — a best-effort restore of the confirmed
   tail, safe to call unconditionally since it no-ops when nothing latched —
   before closing.
-
-**Continue without recording** is a later ticket's third exit; nothing here
-should be read as ruling it out.
+- **Continue without recording**
+  (`POST /rooms/:code/recording/continue`) is for a failure Retry cannot fix
+  — a worn SD card flips read-only and stays there. `continueWithoutRecording`
+  commits the retained transaction exactly as `retryRecording` does, but
+  appends nothing: the repairs Retry performs are themselves writes, and
+  cannot run on the disk that just refused one, so the Hand in flight is left
+  exactly as the failed append's own rollback left it. `RoomRecording.close`
+  is called and the Room's entry in `roomRecordings` is dropped — `close`
+  touches no file, it only stops the recording accepting further operations.
+  `recordingStopped` then latches the choice for the Room's life: `isRecordingPaused`
+  can go on to answer false forever after (gameplay is never blocked again),
+  but `appendOperation` treats the Room as already recorded without touching
+  disk, and `accumulateHandSummary` stops entering completed hands into the
+  picker's listing — including the Hand that was in flight, which finishes
+  live but was never recorded whole. Hands recorded before the failure are
+  unaffected and stay in the listing. Broadcasts `recording-stopped`, a
+  persistent notice with no corresponding "resumed" — a socket that joins
+  afterward is caught up on connect, the same way a still-paused Room is.
 
 ## Shutdown
 

@@ -17,12 +17,19 @@ export interface RoomSlice {
   readonly pendingShotClock: ShotClockSettings | null;
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
+  /**
+   * Latched true once "Continue without recording" resumes the Room —
+   * never cleared while the Room lives, since recording never comes back
+   * (Phase 2 spec #129 §3).
+   */
+  readonly recordingStopped: boolean;
   readonly setRoomCreated: (room: {
     code: string;
     joinUrl: string;
     qrCodeDataUrl: string;
   }) => void;
   readonly setRoomView: (view: RoomView) => void;
+  readonly setRecordingStopped: () => void;
   readonly clearRoom: () => void;
 }
 
@@ -35,6 +42,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
   pendingShotClock: null,
   soundSettings: DEFAULT_SOUND_SETTINGS,
   shotClockSettings: DEFAULT_SHOT_CLOCK,
+  recordingStopped: false,
   setRoomCreated: ({ code, joinUrl, qrCodeDataUrl }) => {
     set({
       roomCode: code,
@@ -54,6 +62,9 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
       shotClockSettings: view.shotClockSettings,
     });
   },
+  setRecordingStopped: () => {
+    set({ recordingStopped: true });
+  },
   clearRoom: () => {
     set({
       roomCode: null,
@@ -64,6 +75,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      recordingStopped: false,
     });
   },
 });

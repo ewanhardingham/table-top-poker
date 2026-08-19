@@ -222,6 +222,16 @@ export interface RecordingResumedMessage {
   readonly type: "recording-resumed";
 }
 
+/**
+ * Sent once "Continue without recording" resumes a paused Room without its
+ * recording. A persistent notice, not a toggle: it is never followed by a
+ * `recording-resumed` for the same Room, and a socket that joins afterward
+ * gets it on connect (Phase 2 spec #129 §3, issue #122).
+ */
+export interface RecordingStoppedMessage {
+  readonly type: "recording-stopped";
+}
+
 export type ServerMessage =
   | RoomViewMessage
   | PlayerEvictedMessage
@@ -233,4 +243,5 @@ export type ServerMessage =
   | HandListMessage
   | HandSummaryMessage
   | RecordingPausedMessage
-  | RecordingResumedMessage;
+  | RecordingResumedMessage
+  | RecordingStoppedMessage;

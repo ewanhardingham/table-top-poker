@@ -168,9 +168,10 @@ export function useWebSocket(
             break;
           case "recording-paused":
           case "recording-resumed":
-            // Recording-paused's not-recording banner is a table-device
-            // surface (#122); a rejected command already tells a phone
-            // recording-paused through `command-rejected`.
+          case "recording-stopped":
+            // The not-recording banner is a table-device surface (#122); a
+            // rejected command already tells a phone recording-paused
+            // through `command-rejected`.
             break;
         }
       });

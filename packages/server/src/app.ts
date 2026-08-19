@@ -253,6 +253,12 @@ export async function buildApp(
   }
   const pausedRooms = new Map<string, PausedRoom>();
   /**
+   * A Room enters here once "Continue without recording" resumes it — see
+   * recording-paused in `docs/design/server.md`. Latched for the Room's
+   * life: nothing ever removes a code from this set.
+   */
+  const recordingStopped = new Set<string>();
+  /**
    * Every completed hand of a room, oldest first, held for the Room's life —
    * no disk read is involved (Phase 2 spec #129 §5). A server restart
    * destroys the Room outright, so there is no session whose listing would
@@ -477,6 +483,9 @@ export async function buildApp(
     pausedRooms.delete(code);
     paused?.transaction?.discard();
     await drainRecording(code, paused?.operation);
+    // A future Room may collide on this join code once it is re-rolled —
+    // leaving this set would start it already believing it has no recording.
+    recordingStopped.delete(code);
     rooms.end(code);
   }
 
@@ -505,7 +514,10 @@ export async function buildApp(
    * and summarises that hand the moment it completes — the same moment
    * "Review hands" becomes reachable (§6). Only a hand seen whole, from its
    * `HandStarted` to its `HandComplete`, is ever summarised, so a listing
-   * can't be built from a partial recording (§4).
+   * can't be built from a partial recording (§4). Once "Continue without
+   * recording" has latched, no hand completing from here has a recording to
+   * replay — including the one already in flight — so none of them enter
+   * the listing either (§3, issue #122).
    */
   function accumulateHandSummary(
     code: string,
@@ -527,6 +539,7 @@ export async function buildApp(
       if (step.event.type !== "HandComplete") continue;
 
       handsInProgress.delete(code);
+      if (recordingStopped.has(code)) continue;
       let summary: HandSummary;
       try {
         summary = summarise(inProgress.events, {
@@ -558,6 +571,10 @@ export async function buildApp(
     code: string,
     operation: RoomOperation,
   ): Promise<boolean> {
+    // "Continue without recording" latches this — no later operation is
+    // ever offered to the recording again, so nothing here re-pauses the
+    // Room on the very disk it just chose to stop trusting (§3, issue #122).
+    if (recordingStopped.has(code)) return true;
     const recording = roomRecordings.get(code);
     if (recording === undefined) {
       // A bug of ours rather than a disk failure, so it is loud but not fatal
@@ -899,6 +916,24 @@ export async function buildApp(
   }
 
   /**
+   * Settles a paused Room's retained operation exactly as a live dispatch
+   * would, once the reason it couldn't be applied has been resolved one way
+   * or another (recorded via Retry, or waved through by Continue without
+   * recording) — the one place Retry and Continue share for resuming play,
+   * so they cannot drift apart on it. A retained Rejection has no
+   * transaction to settle: only the clock restarts.
+   */
+  function resumePausedTransaction(code: string, paused: PausedRoom): void {
+    if (paused.transaction !== undefined) {
+      settleDispatch(code, paused.transaction, "reschedule");
+      paused.onSettled?.();
+    } else {
+      rescheduleActionClock(code, "reschedule");
+      scheduleBotAction(code);
+    }
+  }
+
+  /**
    * Resumes a paused Room: retries the operation it retained and, once
    * confirmed, settles it exactly as a live dispatch would. The Actor's
    * clock always restarts at a fresh full interval — a player who lost
@@ -925,14 +960,43 @@ export async function buildApp(
     }
 
     pausedRooms.delete(code);
-    if (paused.transaction !== undefined) {
-      settleDispatch(code, paused.transaction, "reschedule");
-      paused.onSettled?.();
-    } else {
-      rescheduleActionClock(code, "reschedule");
-      scheduleBotAction(code);
-    }
+    resumePausedTransaction(code, paused);
     broadcastRecordingResumed(code);
+    return "resumed";
+  }
+
+  /**
+   * Resumes a paused Room without repairing or ever writing to its
+   * recording again — the exit for a disk that will not accept a write a
+   * second time (§3, issue #122). The retained operation commits live
+   * exactly as `retryRecording` would, but nothing is appended for it: the
+   * repairs Retry performs (truncating to confirmed offsets, restoring a
+   * parseable tail) are themselves writes, and cannot run on the filesystem
+   * that just refused one. The recording is closed as it stands —
+   * `RoomRecording.close` touches no file — and `recordingStopped` latches
+   * the choice so no later operation, in this Hand or any after it, is ever
+   * offered to a recording again.
+   */
+  async function continueWithoutRecording(
+    code: string,
+  ): Promise<"resumed" | "not-paused"> {
+    const paused = pausedRooms.get(code);
+    if (paused === undefined) return "not-paused";
+    pausedRooms.delete(code);
+    recordingStopped.add(code);
+
+    const recording = roomRecordings.get(code);
+    roomRecordings.delete(code);
+    if (recording !== undefined) {
+      try {
+        await recording.close();
+      } catch (error) {
+        app.log.error({ err: error, room: code }, "recording close failed");
+      }
+    }
+
+    resumePausedTransaction(code, paused);
+    broadcastToRoom(code, { type: "recording-stopped" });
     return "resumed";
   }
 
@@ -1278,6 +1342,21 @@ export async function buildApp(
     },
   );
 
+  app.post<RoomCodeRoute>(
+    "/rooms/:code/recording/continue",
+    async (request, reply) => {
+      const room = findRoomOrReject(rooms, request.params.code, reply);
+      if (!room) return;
+      const result = await enqueue(room.code, () =>
+        continueWithoutRecording(room.code),
+      );
+      if (result === "not-paused") {
+        return reply.code(409).send({ error: "not-paused" });
+      }
+      return reply.code(204).send();
+    },
+  );
+
   app.register((wsApp, _opts, done) => {
     wsApp.get<WsRoute>(
       "/ws",
@@ -1351,11 +1430,14 @@ export async function buildApp(
           const room = rooms.get(code);
           if (!room) return;
           broadcastRoomView(code);
-          // A joiner's own catch-up, not a broadcast: recording-paused is
-          // told once at the moment it starts, and a socket that connects
-          // after that moment would otherwise never learn play has stopped.
+          // A joiner's own catch-up, not a broadcast: recording-paused and
+          // recording-stopped are each told once at the moment they start,
+          // and a socket that connects after that moment would otherwise
+          // never learn play has stopped, or that it is no longer recorded.
           if (isRecordingPaused(code)) {
             send(socket, { type: "recording-paused" });
+          } else if (recordingStopped.has(code)) {
+            send(socket, { type: "recording-stopped" });
           }
           // Incremental pushes alone would leave a reloaded table with an
           // empty picker for hands it had already seen — Phase 1's catch-up
