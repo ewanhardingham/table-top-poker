@@ -7,7 +7,7 @@ import { beatAt, chaptersOf, holdAt, toBeats } from "./beats.js";
 import { captionFor } from "./caption.js";
 import { CaptionStrip } from "./CaptionStrip.js";
 import { ReplayStage } from "./ReplayStage.js";
-import { ReplayTransport, TRANSPORT_HEIGHT } from "./ReplayTransport.js";
+import { ReplayTransport } from "./ReplayTransport.js";
 
 export interface HandReviewProps {
   readonly review: HandReviewState;
@@ -99,18 +99,10 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
   return (
     <>
       {view !== undefined && (
-        <ReplayStage
-          view={view}
-          seats={seats}
-          transportHeight={TRANSPORT_HEIGHT}
-          actionLabels={labels}
-        />
+        <ReplayStage view={view} seats={seats} actionLabels={labels} />
       )}
       <BackToHands onClose={onClose} />
-      <CaptionStrip
-        caption={captionFor(event, seats)}
-        transportHeight={TRANSPORT_HEIGHT}
-      />
+      <CaptionStrip caption={captionFor(event, seats)} />
       <ReplayTransport
         beats={beats}
         chapters={chapters}

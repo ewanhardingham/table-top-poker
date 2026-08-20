@@ -3,7 +3,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CAPTION_BAND, FELT_LAYER } from "./CaptionStrip.js";
-import { ReplayStage, TOP_BAND } from "./ReplayStage.js";
+import { TRANSPORT_HEIGHT } from "./ReplayTransport.js";
+import { BOTTOM_BAND, ReplayStage, TOP_BAND } from "./ReplayStage.js";
 
 const seats: readonly SeatView[] = [0, 1, 2, 3].map((id) => ({
   id,
@@ -30,32 +31,30 @@ const view: TableView = {
   seats: seats.map((seat) => ({ seatId: seat.id, folded: false })),
 };
 
-const TRANSPORT = 10.2;
-
 describe("ReplayStage", () => {
   it("lays the table out between reserved bands, clear of the transport", () => {
     const html = renderToStaticMarkup(
-      <ReplayStage
-        view={view}
-        seats={seats}
-        transportHeight={TRANSPORT}
-        actionLabels={new Map()}
-      />,
+      <ReplayStage view={view} seats={seats} actionLabels={new Map()} />,
     );
 
     expect(html).toContain(`top:${String(TOP_BAND)}em`);
-    expect(html).toContain(`bottom:${String(TRANSPORT + CAPTION_BAND)}em`);
+    expect(html).toContain(
+      `bottom:${String(TRANSPORT_HEIGHT + CAPTION_BAND + BOTTOM_BAND)}em`,
+    );
     expect(html).toContain(`z-index:${String(FELT_LAYER)}`);
+  });
+
+  it("reserves the Caption's band rather than letting a pod grow into it", () => {
+    const feltBottom = TRANSPORT_HEIGHT + CAPTION_BAND + BOTTOM_BAND;
+    const captionTop = TRANSPORT_HEIGHT + CAPTION_BAND;
+
+    expect(feltBottom).toBeGreaterThan(captionTop);
+    expect(feltBottom - captionTop).toBe(BOTTOM_BAND);
   });
 
   it("renders the felt through the live Seats and Board, projected", () => {
     const html = renderToStaticMarkup(
-      <ReplayStage
-        view={view}
-        seats={seats}
-        transportHeight={TRANSPORT}
-        actionLabels={new Map()}
-      />,
+      <ReplayStage view={view} seats={seats} actionLabels={new Map()} />,
     );
 
     expect(html).toContain('data-testid="seats"');
