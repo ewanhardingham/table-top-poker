@@ -13,6 +13,7 @@ import {
   type ServerMessage,
 } from "@table-top-poker/protocol";
 import type { FastifyInstance } from "fastify";
+import { randomUUID } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -3008,6 +3009,39 @@ describe("hand summaries over WebSocket", () => {
     expect(summaries[0]?.summary.survivors).toHaveLength(1);
     expect(summaries[0]?.summary.outcome.kind).toBe("folded-out");
     expect(Date.parse(summaries[0]?.summary.startedAt ?? "")).not.toBeNaN();
+  });
+
+  it("dates the summary from the recording's clock, not a second one", async () => {
+    const recordingClock = new Date("2026-01-02T03:04:05.000Z");
+    const laterClock = new Date("2026-01-02T03:09:09.000Z");
+    await app.close();
+    rooms = new RoomStore(
+      Math.random,
+      randomUUID,
+      randomUUID,
+      randomUUID,
+      () => recordingClock,
+    );
+    app = await buildApp({
+      rooms,
+      recordings: testRecordings(),
+      now: () => laterClock,
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+
+    const { code, table, seats } = await seatedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(code, seats);
+
+    expect(summariesIn(table.messages)[0]?.summary.startedAt).toBe(
+      recordingClock.toISOString(),
+    );
   });
 
   it("never pushes a summary to a player's socket", async () => {
