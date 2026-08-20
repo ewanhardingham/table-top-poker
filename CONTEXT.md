@@ -244,6 +244,23 @@ appeared and the viewer never sees them arrive. Chapters are the navigation
 contract; the per-position ticks beside them are a visual affordance that
 may collapse on an unusually long Hand.
 
+**Action label**:
+What a Seat has done on the Street now on the felt, carried in the same slot
+the live "To act" pill uses. Folded back out of the Event stream: the table
+view's Seats carry only `folded`, so the view at a position cannot supply
+them. Cleared at each new Street, on the same boundary a Chapter anchors to —
+once the Turn is out, "Seat 4 called" is about a Street nobody is looking at.
+Raise is orange rather than accent red, which belongs to the clock, and Call
+is the one cool fill on an otherwise warm felt.
+
+**Caption**:
+The beat the Scrub has landed on, named in a band of its own below the felt
+so it can never sit on a Seat pod. The Caption says what happened and the
+Scrub's track shows progress; between them no Event ordinal is ever on
+screen. Position-as-ordinal stays the addressing scheme, but `11 / 33` means
+nothing to someone at a poker table. Which Hand is under review belongs in
+the status bar instead, not to a second title floating over the felt.
+
 **Hand summary**:
 What one completed Hand looks like in a list of them — its ordinal and
 start time, the Button, the Seats dealt in and the Survivors, the public

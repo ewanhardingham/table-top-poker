@@ -1,20 +1,16 @@
 import type { SeatView, TableView } from "@table-top-poker/protocol";
 import { Board } from "../Board.js";
 import { Seats } from "../Seats.js";
+import type { SeatActionLabels } from "./actionLabels.js";
+import { CAPTION_BAND } from "./CaptionStrip.js";
 
 export interface ReplayStageProps {
   readonly view: TableView;
   readonly seats: readonly SeatView[];
   /** Height in `em` of the transport chrome drawn along the bottom. */
   readonly transportHeight: number;
+  readonly actionLabels: SeatActionLabels;
 }
-
-/**
- * The strip below the felt the caption claims (#127). Reserved here because
- * the band is what keeps the bottom seat row clear of the transport, not
- * because this component draws anything in it.
- */
-export const CAPTION_BAND = 2.4;
 
 /**
  * A seat pod is anchored by its avatar and grows *around* that anchor, so a
@@ -36,6 +32,7 @@ export function ReplayStage({
   view,
   seats,
   transportHeight,
+  actionLabels,
 }: ReplayStageProps) {
   return (
     <div
@@ -48,7 +45,7 @@ export function ReplayStage({
         bottom: `${String(transportHeight + CAPTION_BAND)}em`,
       }}
     >
-      <Seats seats={seats} view={view} />
+      <Seats seats={seats} view={view} actionLabels={actionLabels} />
       <div
         style={{
           position: "absolute",

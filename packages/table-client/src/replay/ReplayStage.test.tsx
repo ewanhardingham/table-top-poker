@@ -2,7 +2,8 @@ import type { SeatView, TableView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CAPTION_BAND, ReplayStage, TOP_BAND } from "./ReplayStage.js";
+import { CAPTION_BAND } from "./CaptionStrip.js";
+import { ReplayStage, TOP_BAND } from "./ReplayStage.js";
 
 const seats: readonly SeatView[] = [0, 1, 2, 3].map((id) => ({
   id,
@@ -34,7 +35,12 @@ const TRANSPORT = 10.2;
 describe("ReplayStage", () => {
   it("lays the table out between reserved bands, clear of the transport", () => {
     const html = renderToStaticMarkup(
-      <ReplayStage view={view} seats={seats} transportHeight={TRANSPORT} />,
+      <ReplayStage
+        view={view}
+        seats={seats}
+        transportHeight={TRANSPORT}
+        actionLabels={new Map()}
+      />,
     );
 
     expect(html).toContain(`top:${String(TOP_BAND)}em`);
@@ -43,7 +49,12 @@ describe("ReplayStage", () => {
 
   it("renders the felt through the live Seats and Board, projected", () => {
     const html = renderToStaticMarkup(
-      <ReplayStage view={view} seats={seats} transportHeight={TRANSPORT} />,
+      <ReplayStage
+        view={view}
+        seats={seats}
+        transportHeight={TRANSPORT}
+        actionLabels={new Map()}
+      />,
     );
 
     expect(html).toContain('data-testid="seats"');

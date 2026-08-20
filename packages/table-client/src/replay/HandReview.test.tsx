@@ -11,8 +11,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { HandReviewState } from "../store/replaySlice.js";
+import { CAPTION_BAND } from "./CaptionStrip.js";
 import { HandReview } from "./HandReview.js";
 import type { ReplayStageProps } from "./ReplayStage.js";
+import { TRANSPORT_HEIGHT } from "./ReplayTransport.js";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -22,14 +24,19 @@ const stagedView = vi.hoisted((): { current: TableView | null } => ({
   current: null,
 }));
 
+const stagedLabels = vi.hoisted(
+  (): { current: ReadonlyMap<number, string> | null } => ({ current: null }),
+);
+
 /**
  * The felt is the live `Seats` and `Board`; what matters here is *which*
- * projected view they are handed at a position, so the stage is stood in for
- * and the view it received is read back.
+ * projected view and labels they are handed at a position, so the stage is
+ * stood in for and what it received is read back.
  */
 vi.mock("./ReplayStage.js", () => ({
   ReplayStage: (props: ReplayStageProps) => {
     stagedView.current = props.view;
+    stagedLabels.current = props.actionLabels;
     return React.createElement("div", { "data-testid": "replay-stage" });
   },
 }));
@@ -119,6 +126,7 @@ interface Node {
   readonly props: {
     readonly onClick?: () => void;
     readonly onPointerDown?: (event: { readonly clientX: number }) => void;
+    readonly children?: string;
   };
 }
 
@@ -136,6 +144,43 @@ function render(review: HandReviewState = ready): Renderer {
     );
   });
   return renderer;
+}
+
+const TRACK_WIDTH = 100;
+
+/**
+ * A review whose track has been given a width, so a press lands on the
+ * ordinal under it rather than being ignored for want of a layout.
+ */
+function renderScrubbable(): Renderer {
+  let renderer!: Renderer;
+  act(() => {
+    renderer = create(
+      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      {
+        createNodeMock: () => ({
+          getBoundingClientRect: () => ({ left: 0, width: TRACK_WIDTH }),
+        }),
+      },
+    );
+  });
+  return renderer;
+}
+
+/** Drags the thumb to one ordinal, the way a finger on the track would. */
+function seek(renderer: Renderer, position: number): void {
+  act(() => {
+    renderer.root
+      .findByProps({ "data-testid": "replay-track" })
+      .props.onPointerDown?.({
+        clientX: (position / events.length) * TRACK_WIDTH,
+      });
+  });
+}
+
+function captionOf(renderer: Renderer): string | undefined {
+  return renderer.root.findByProps({ "data-testid": "replay-caption" }).props
+    .children;
 }
 
 function click(renderer: Renderer, testId: string): void {
@@ -265,5 +310,64 @@ describe("HandReview", () => {
     expect(loading).toContain("Loading the hand");
     expect(unavailable).toContain("can&#x27;t be replayed");
     expect(unavailable).toContain('data-testid="back-to-hands-button"');
+  });
+});
+
+describe("HandReview: the caption strip", () => {
+  it("names the beat the scrub has landed on", () => {
+    const renderer = render();
+
+    click(renderer, "replay-chapter-flop");
+
+    expect(captionOf(renderer)).toBe("The flop");
+  });
+
+  it("has nothing to name before the first event", () => {
+    const html = renderToStaticMarkup(
+      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+    );
+
+    expect(html).toContain('data-testid="replay-caption"');
+    expect(html).not.toContain("Hand begins");
+  });
+
+  it("keeps its own band, clear of the transport below it", () => {
+    const html = renderToStaticMarkup(
+      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+    );
+    const style =
+      /data-testid="replay-caption"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
+
+    expect(style).toContain(`bottom:${String(TRANSPORT_HEIGHT)}em`);
+    expect(style).toContain(`height:${String(CAPTION_BAND)}em`);
+  });
+
+  it("shows no Event ordinal anywhere on screen", () => {
+    const html = renderToStaticMarkup(
+      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+    );
+    const onScreen = html.replaceAll(/<[^>]*>/g, " ");
+
+    expect(onScreen).not.toMatch(/\d+\s*\/\s*\d+/);
+  });
+});
+
+describe("HandReview: per-seat action labels", () => {
+  it("hands the felt what each seat has done this street", () => {
+    const renderer = renderScrubbable();
+
+    seek(renderer, 4);
+
+    expect([...(stagedLabels.current?.entries() ?? [])]).toEqual([
+      [1, "check"],
+    ]);
+  });
+
+  it("clears them once the next street's cards are out", () => {
+    const renderer = render();
+
+    click(renderer, "replay-chapter-flop");
+
+    expect(stagedLabels.current?.size).toBe(0);
   });
 });
