@@ -6,13 +6,17 @@ export interface CaptionStripProps {
   readonly transportHeight: number;
 }
 
-/**
- * The band the caption owns. The strip has a band of its own so it can never
- * sit on a seat pod, and `ReplayStage` lays the felt out above it (§6).
- */
+/** The band the Caption owns, which `ReplayStage` lays the felt out above. */
 export const CAPTION_BAND = 2.4;
 
-/** What just happened, in the language of a poker table rather than ordinals. */
+/**
+ * A bottom-row pod grows below its anchor, so on a short felt it can reach
+ * into this band. The strip stays under the felt layer, so what gives is the
+ * caption rather than the table. See Caption in `CONTEXT.md`.
+ */
+export const CAPTION_LAYER = 0;
+export const FELT_LAYER = 1;
+
 export function CaptionStrip({ caption, transportHeight }: CaptionStripProps) {
   return (
     <div
@@ -23,6 +27,7 @@ export function CaptionStrip({ caption, transportHeight }: CaptionStripProps) {
         right: "1.8em",
         bottom: `${String(transportHeight)}em`,
         height: `${String(CAPTION_BAND)}em`,
+        zIndex: CAPTION_LAYER,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

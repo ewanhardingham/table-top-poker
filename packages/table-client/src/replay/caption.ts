@@ -1,17 +1,7 @@
-import type {
-  ActionType,
-  HandEvent,
-  SeatView,
-} from "@table-top-poker/protocol";
+import type { HandEvent, SeatView } from "@table-top-poker/protocol";
+import { actionVerb } from "../actionWords.js";
 import { seatLabel } from "../seatLabel.js";
 import { streetLabel } from "./beats.js";
-
-const actionVerb: Record<ActionType, string> = {
-  fold: "folded",
-  check: "checked",
-  call: "called",
-  raise: "raised",
-};
 
 const boardName = {
   flop: "The flop",
@@ -19,7 +9,7 @@ const boardName = {
   river: "The river",
 } as const;
 
-function listOf(names: readonly string[]): string {
+function joinNames(names: readonly string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} and ${String(names.at(-1))}`;
 }
@@ -28,7 +18,7 @@ function showdownCaption(
   event: Extract<HandEvent, { type: "ShowdownReached" }>,
   seats: readonly SeatView[],
 ): string {
-  const winners = listOf(
+  const winners = joinNames(
     event.winners.map((seatId) => seatLabel(seatId, seats)),
   );
   const description = event.results.find((result) =>
@@ -39,11 +29,7 @@ function showdownCaption(
   return `Showdown — ${winners} ${verb}${hand}`;
 }
 
-/**
- * The beat just landed on, in the language of a poker table. The Event
- * ordinal is the model's addressing scheme and never appears here: the track
- * shows progress, the caption says what happened (Phase 2 spec #129 §6).
- */
+/** The beat just landed on — see Caption in `CONTEXT.md`. */
 export function captionFor(
   event: HandEvent | null,
   seats: readonly SeatView[],

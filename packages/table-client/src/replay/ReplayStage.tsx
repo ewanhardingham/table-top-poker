@@ -1,8 +1,8 @@
 import type { SeatView, TableView } from "@table-top-poker/protocol";
 import { Board } from "../Board.js";
 import { Seats } from "../Seats.js";
-import type { SeatActionLabels } from "./actionLabels.js";
-import { CAPTION_BAND } from "./CaptionStrip.js";
+import type { SeatActionLabels } from "../actionWords.js";
+import { CAPTION_BAND, FELT_LAYER } from "./CaptionStrip.js";
 
 export interface ReplayStageProps {
   readonly view: TableView;
@@ -43,6 +43,7 @@ export function ReplayStage({
         left: 0,
         right: 0,
         bottom: `${String(transportHeight + CAPTION_BAND)}em`,
+        zIndex: FELT_LAYER,
       }}
     >
       <Seats seats={seats} view={view} actionLabels={actionLabels} />

@@ -55,11 +55,7 @@ const feltSurfaceStyle: CSSProperties = {
     "inset 0 0 12em 4em rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.08)",
 };
 
-/**
- * Which hand is under review, in the bar the connection badge sits in. It
- * belongs here rather than over the felt: a second title floating on the
- * table is one more thing between a reader and the board (§6).
- */
+/** Which hand is under review — see Caption in `CONTEXT.md`. */
 function ReviewingHand({ handOrdinal }: { readonly handOrdinal: number }) {
   return (
     <span

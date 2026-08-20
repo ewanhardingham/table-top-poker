@@ -252,10 +252,16 @@ them. Cleared at each new Street, on the same boundary a Chapter anchors to —
 once the Turn is out, "Seat 4 called" is about a Street nobody is looking at.
 Raise is orange rather than accent red, which belongs to the clock, and Call
 is the one cool fill on an otherwise warm felt.
+_Avoid_: Showing one beside a "To act" pill. They share a slot, and the
+clock wins it: a Seat facing a re-raise is on the clock, which is the more
+urgent of the two things to say about it.
 
 **Caption**:
 The beat the Scrub has landed on, named in a band of its own below the felt
-so it can never sit on a Seat pod. The Caption says what happened and the
+so it can never sit on a Seat pod. A bottom-row pod grows below its anchor
+and, on a felt short enough, reaches into that band anyway — the Caption is
+drawn under the felt, so what gives is the Caption and never the table. The
+Caption says what happened and the
 Scrub's track shows progress; between them no Event ordinal is ever on
 screen. Position-as-ordinal stays the addressing scheme, but `11 / 33` means
 nothing to someone at a poker table. Which Hand is under review belongs in
