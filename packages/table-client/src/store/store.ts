@@ -9,13 +9,15 @@ import {
   type HandHistorySlice,
 } from "./handHistorySlice.js";
 import { createHandSlice, type HandSlice } from "./handSlice.js";
+import { createReplaySlice, type ReplaySlice } from "./replaySlice.js";
 import { createRoomSlice, type RoomSlice } from "./roomSlice.js";
 
 export type TableStore = ConnectionSlice &
   ConfigSlice &
   RoomSlice &
   HandSlice &
-  HandHistorySlice;
+  HandHistorySlice &
+  ReplaySlice;
 
 export const useTableStore = create<TableStore>()((...args) => ({
   ...createConnectionSlice(...args),
@@ -23,4 +25,5 @@ export const useTableStore = create<TableStore>()((...args) => ({
   ...createRoomSlice(...args),
   ...createHandSlice(...args),
   ...createHandHistorySlice(...args),
+  ...createReplaySlice(...args),
 }));

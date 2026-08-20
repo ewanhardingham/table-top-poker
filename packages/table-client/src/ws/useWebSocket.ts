@@ -1,4 +1,8 @@
-import type { ClientCommand, ServerMessage } from "@table-top-poker/protocol";
+import type {
+  ClientCommand,
+  ReplayRequest,
+  ServerMessage,
+} from "@table-top-poker/protocol";
 import {
   applyRoomSoundSettings,
   onHandUpdate,
@@ -12,7 +16,12 @@ export interface UseWebSocketOptions {
 }
 
 export interface TableSocket {
-  readonly send: (command: ClientCommand) => void;
+  /**
+   * A replay request rides the same socket as a command — the socket already
+   * carries room identity from connect time (Phase 2 spec #129 §5) — though
+   * the server parses the two at separate schemas.
+   */
+  readonly send: (message: ClientCommand | ReplayRequest) => void;
 }
 
 const RETRY_DELAY_MS = 1500;
@@ -31,6 +40,8 @@ export function useWebSocket(
   );
   const setHandList = useTableStore((state) => state.setHandList);
   const addHandSummary = useTableStore((state) => state.addHandSummary);
+  const receiveReplay = useTableStore((state) => state.receiveReplay);
+  const failReview = useTableStore((state) => state.failReview);
   const socketRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -80,6 +91,13 @@ export function useWebSocket(
           setHandList(message.summaries);
         } else if (message.type === "hand-summary") {
           addHandSummary(message.summary);
+        } else if (message.type === "hand-replay") {
+          receiveReplay(message.handOrdinal, message.positions);
+        } else if (
+          message.type === "command-rejected" &&
+          message.reason === "hand-unavailable"
+        ) {
+          failReview();
         } else if (message.type === "room-ended") {
           optionsRef.current.onRoomEnded?.();
         } else if (message.type === "recording-stopped") {
@@ -104,10 +122,12 @@ export function useWebSocket(
     setRecordingStopped,
     setHandList,
     addHandSummary,
+    receiveReplay,
+    failReview,
   ]);
 
-  const send = useCallback((command: ClientCommand) => {
-    socketRef.current?.send(JSON.stringify(command));
+  const send = useCallback((message: ClientCommand | ReplayRequest) => {
+    socketRef.current?.send(JSON.stringify(message));
   }, []);
 
   return { send };
