@@ -42,7 +42,9 @@ import {
   unitRandom,
   type BotRng,
 } from "./bot-policy.js";
+import { tableReplayOf } from "./hand-replay.js";
 import { joinUrl, roomQrCodeDataUrl } from "./qr.js";
+import { redactEventFor } from "./redact-event.js";
 import {
   type ClaimSeatError,
   type DispatchRejection,
@@ -179,20 +181,6 @@ function findRoomOrReject(
     return undefined;
   }
   return room;
-}
-
-function redactEventFor(
-  event: HandEvent,
-  identity: SeatId | "table",
-): HandEvent {
-  if (event.type !== "HoleCardsDealt") return event;
-  return {
-    ...event,
-    deals:
-      identity === "table"
-        ? []
-        : event.deals.filter((deal) => deal.seatId === identity),
-  };
 }
 
 function parseSeatId(raw: string): number | undefined {
@@ -507,6 +495,58 @@ export async function buildApp(
       type: "hand-list",
       summaries: handSummaries.get(code) ?? [],
     });
+  }
+
+  /**
+   * Answers a `get-hand` with the whole Hand — every position of it, in one
+   * message (Phase 2 spec #129 §5).
+   *
+   * The listing is the authority on which ordinals may be served: it holds
+   * exactly the Hands this Room saw complete, so an ordinal missing from it
+   * is one still being dealt, abandoned mid-deal, or never recorded at all.
+   * Checking it here keeps the "an incomplete Hand is never offered" rule
+   * (§4) from resting on the picker alone.
+   *
+   * Reading takes no turn in the Room's queue: a completed Hand's files are
+   * final, and every later operation writes to a different Hand's — so
+   * queueing would only make replay wait on a disk that is already stalling.
+   */
+  function sendHandReplay(
+    socket: WebSocket,
+    code: string,
+    handOrdinal: number,
+  ): void {
+    const room = rooms.get(code);
+    const listed = handSummaries
+      .get(code)
+      ?.some((summary) => summary.handOrdinal === handOrdinal);
+    if (room === undefined || listed !== true) {
+      sendRejection(socket, "hand-unavailable");
+      return;
+    }
+
+    void options.recordings
+      .readHand(room.id, handOrdinal)
+      .then((read) => tableReplayOf(read))
+      .catch((error: unknown) => ({
+        status: "unavailable" as const,
+        diagnostic: `read failed: ${String(error)}`,
+      }))
+      .then((replay) => {
+        if (replay.status === "unavailable") {
+          app.log.error(
+            { room: code, hand: handOrdinal, replay: replay.diagnostic },
+            "could not replay hand",
+          );
+          sendRejection(socket, "hand-unavailable");
+          return;
+        }
+        send(socket, {
+          type: "hand-replay",
+          handOrdinal,
+          positions: replay.positions,
+        });
+      });
   }
 
   /**
@@ -1493,12 +1533,7 @@ export async function buildApp(
             if (replay.data.type === "list-hands") {
               sendHandList(socket, code);
             } else {
-              // `get-hand` is served by the Replay capability, which lands
-              // with the recording read path; the request shape is validated
-              // here so that ticket adds a response, not a boundary. Answer
-              // rather than drop it, so a client can tell an unbuilt feature
-              // from a dead socket.
-              sendRejection(socket, "replay-not-supported");
+              sendHandReplay(socket, code, replay.data.handOrdinal);
             }
             return;
           }

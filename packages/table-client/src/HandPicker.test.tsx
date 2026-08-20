@@ -1,8 +1,21 @@
 import type { Card, HandSummary, SeatView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+/* eslint-disable @typescript-eslint/no-deprecated -- React 19's DOM-free component test renderer is deprecated but remains the available interaction harness here. */
+import { act, create } from "react-test-renderer";
+import { describe, expect, it, vi } from "vitest";
 import { HandPicker } from "./HandPicker.js";
+
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+// The relative start-time label re-ticks on an interval; these tests render
+// in Node, which has no `window` to hang it off.
+vi.stubGlobal("window", {
+  setInterval: () => 0,
+  clearInterval: () => undefined,
+});
 
 const noop = () => undefined;
 
@@ -96,6 +109,7 @@ describe("HandPicker", () => {
       <HandPicker
         summaries={[foldedOutWalk, raiseWarToTurn]}
         seats={[seat(0), seat(1), seat(2)]}
+        onSelectHand={noop}
         onClose={noop}
       />,
     );
@@ -114,6 +128,7 @@ describe("HandPicker", () => {
       <HandPicker
         summaries={[foldedOutWalk]}
         seats={[seat(0), seat(1)]}
+        onSelectHand={noop}
         onClose={noop}
       />,
     );
@@ -126,6 +141,7 @@ describe("HandPicker", () => {
       <HandPicker
         summaries={[foldedOutWalk]}
         seats={[seat(0), seat(1)]}
+        onSelectHand={noop}
         onClose={noop}
       />,
     );
@@ -137,6 +153,7 @@ describe("HandPicker", () => {
       <HandPicker
         summaries={[showdown]}
         seats={[seat(0), seat(1)]}
+        onSelectHand={noop}
         onClose={noop}
       />,
     );
@@ -145,14 +162,53 @@ describe("HandPicker", () => {
 
   it("shows an empty state when no hands have completed", () => {
     const html = renderToStaticMarkup(
-      <HandPicker summaries={[]} seats={[]} onClose={noop} />,
+      <HandPicker
+        summaries={[]}
+        seats={[]}
+        onSelectHand={noop}
+        onClose={noop}
+      />,
     );
     expect(html).toContain("No hands played yet");
   });
 
+  it("hands the tapped hand's ordinal to the scrub", () => {
+    const onSelectHand = vi.fn();
+    let renderer!: {
+      root: {
+        findByProps(props: Record<string, unknown>): {
+          props: { onClick?: () => void };
+        };
+      };
+    };
+
+    act(() => {
+      renderer = create(
+        <HandPicker
+          summaries={[foldedOutWalk, raiseWarToTurn]}
+          seats={[seat(0), seat(1), seat(2)]}
+          onSelectHand={onSelectHand}
+          onClose={noop}
+        />,
+      );
+    });
+    act(() => {
+      renderer.root
+        .findByProps({ "data-testid": "hand-row-2" })
+        .props.onClick?.();
+    });
+
+    expect(onSelectHand).toHaveBeenCalledWith(2);
+  });
+
   it("exposes a close control", () => {
     const html = renderToStaticMarkup(
-      <HandPicker summaries={[]} seats={[]} onClose={noop} />,
+      <HandPicker
+        summaries={[]}
+        seats={[]}
+        onSelectHand={noop}
+        onClose={noop}
+      />,
     );
     expect(html).toContain('data-testid="close-hand-picker-button"');
   });

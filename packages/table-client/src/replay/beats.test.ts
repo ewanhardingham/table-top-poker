@@ -1,0 +1,118 @@
+import type {
+  Card,
+  HandEvent,
+  TableReplayPosition,
+} from "@table-top-poker/protocol";
+import { describe, expect, it } from "vitest";
+import { beatAt, chaptersOf, toBeats } from "./beats.js";
+
+const noHand = { phase: "no-hand", button: 0 } as const;
+
+/**
+ * Positions carry a view the beat model never reads, so every fixture here
+ * pairs its events with the same placeholder — what a beat is made of is the
+ * question under test.
+ */
+function positionsFor(
+  events: readonly HandEvent[],
+): readonly TableReplayPosition[] {
+  return [
+    { event: null, view: noHand },
+    ...events.map((event) => ({ event, view: noHand })),
+  ];
+}
+
+const card = (rank: Card["rank"]): Card => ({ rank, suit: "clubs" });
+
+/** The engine's own cascade order: close, deal, start. */
+function streetCascade(street: "flop" | "turn" | "river"): HandEvent[] {
+  const previous = { flop: "preflop", turn: "flop", river: "turn" } as const;
+  return [
+    { type: "StreetClosed", street: previous[street] },
+    { type: "BoardDealt", street, cards: [card("2")] },
+    { type: "StreetStarted", street, actor: 1 },
+  ];
+}
+
+const toTheTurn: readonly HandEvent[] = [
+  { type: "HandStarted", seed: "s", button: 0 },
+  { type: "HoleCardsDealt", deals: [] },
+  { type: "StreetStarted", street: "preflop", actor: 1 },
+  { type: "ActionTaken", seatId: 1, action: "call" },
+  ...streetCascade("flop"),
+  { type: "ActionTaken", seatId: 1, action: "check" },
+  ...streetCascade("turn"),
+  { type: "ActionTaken", seatId: 1, action: "raise" },
+];
+
+describe("toBeats", () => {
+  it("gives every event ordinal a beat, and position 0 none", () => {
+    const beats = toBeats(positionsFor(toTheTurn));
+
+    expect(beats).toHaveLength(toTheTurn.length);
+    expect(beats.map((beat) => beat.position)).toEqual(
+      toTheTurn.map((_event, index) => index + 1),
+    );
+  });
+
+  it("marks street starts, which the track draws heavier", () => {
+    const beats = toBeats(positionsFor(toTheTurn));
+
+    expect(
+      beats.filter((beat) => beat.isStreetStart).map((beat) => beat.position),
+    ).toEqual([3, 7, 11]);
+  });
+
+  it("stamps a BoardDealt with the street it opens, not the one it ends", () => {
+    const beats = toBeats(positionsFor(toTheTurn));
+
+    // ordinal 5 is `StreetClosed preflop`, 6 is the flop's `BoardDealt`.
+    expect(beatAt(beats, 5)?.street).toBe("preflop");
+    expect(beatAt(beats, 6)?.street).toBe("flop");
+  });
+
+  it("holds the beats that change the felt longer than the bookkeeping", () => {
+    const beats = toBeats(positionsFor(toTheTurn));
+    const weightOf = (position: number) => beatAt(beats, position)?.weight ?? 0;
+
+    expect(weightOf(6)).toBeGreaterThan(weightOf(5));
+  });
+
+  it("has no beat before the hand starts", () => {
+    expect(beatAt(toBeats(positionsFor(toTheTurn)), 0)).toBeNull();
+  });
+});
+
+describe("chaptersOf", () => {
+  it("anchors a street on its BoardDealt, so its cards are seen arriving", () => {
+    const chapters = chaptersOf(toBeats(positionsFor(toTheTurn)));
+
+    expect(chapters).toEqual([
+      { street: "preflop", label: "Preflop", position: 3 },
+      { street: "flop", label: "Flop", position: 6 },
+      { street: "turn", label: "Turn", position: 10 },
+    ]);
+  });
+
+  it("offers only the streets the hand reached", () => {
+    const walk: HandEvent[] = [
+      { type: "HandStarted", seed: "s", button: 0 },
+      { type: "StreetStarted", street: "preflop", actor: 1 },
+      { type: "ActionTaken", seatId: 1, action: "fold" },
+      { type: "HandFoldedOut", winner: 0 },
+      { type: "HandComplete" },
+    ];
+
+    expect(chaptersOf(toBeats(positionsFor(walk)))).toEqual([
+      { street: "preflop", label: "Preflop", position: 2 },
+    ]);
+  });
+
+  it("names each street once, however many beats it holds", () => {
+    const chapters = chaptersOf(toBeats(positionsFor(toTheTurn)));
+
+    expect(new Set(chapters.map((chapter) => chapter.street)).size).toBe(
+      chapters.length,
+    );
+  });
+});

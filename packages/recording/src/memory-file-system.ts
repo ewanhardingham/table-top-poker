@@ -115,6 +115,11 @@ export function createMemoryFileSystem(): MemoryFileSystem {
     exists(target) {
       return Promise.resolve(files.has(target) || dirs.has(target));
     },
+    readFile(filePath) {
+      return settle(() => {
+        checkFailure("readFile", filePath);
+      }).then(() => files.get(filePath));
+    },
     mkdir(dir) {
       return settle(() => {
         checkFailure("mkdir", dir);

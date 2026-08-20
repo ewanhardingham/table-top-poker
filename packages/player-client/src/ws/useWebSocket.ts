@@ -162,6 +162,7 @@ export function useWebSocket(
             break;
           case "hand-list":
           case "hand-summary":
+          case "hand-replay":
             // Hand review is a table-device surface (#129 §6); the server
             // never sends these to a seat, and a phone has nothing to do
             // with one if it ever did.

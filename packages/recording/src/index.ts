@@ -1,5 +1,10 @@
 export { nodeFileSystem } from "./file-system.js";
 export type { RecordingFileSystem } from "./file-system.js";
+export { readHandRecording } from "./hand-reader.js";
+export type {
+  HandRecordingRead,
+  ReadHandRecordingOptions,
+} from "./hand-reader.js";
 export { handStartContextFor } from "./hand-start-context.js";
 export type { HandPositions } from "./hand-start-context.js";
 export {

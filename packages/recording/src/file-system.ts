@@ -2,6 +2,7 @@ import {
   access,
   appendFile,
   mkdir,
+  readFile,
   rename,
   rm,
   truncate,
@@ -27,6 +28,8 @@ import {
 export interface RecordingFileSystem {
   /** Whether a file or directory is already there. */
   exists(target: string): Promise<boolean>;
+  /** The whole contents of `filePath`, or undefined if it is not there. */
+  readFile(filePath: string): Promise<string | undefined>;
   /** Creates `dir` and any missing parents; succeeds if it already exists. */
   mkdir(dir: string): Promise<void>;
   /** Creates or replaces `filePath` wholesale. */
@@ -49,6 +52,14 @@ export const nodeFileSystem: RecordingFileSystem = {
       return true;
     } catch {
       return false;
+    }
+  },
+  async readFile(filePath) {
+    try {
+      return await readFile(filePath, { encoding: "utf8" });
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw cause;
     }
   },
   async mkdir(dir) {

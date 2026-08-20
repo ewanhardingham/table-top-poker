@@ -19,6 +19,7 @@ import { seatLabel } from "./seatLabel.js";
 export interface HandPickerProps {
   readonly summaries: readonly HandSummary[];
   readonly seats: readonly SeatView[];
+  readonly onSelectHand: (handOrdinal: number) => void;
   readonly onClose: () => void;
 }
 
@@ -117,6 +118,10 @@ function BoardStrip({ board }: { readonly board: readonly CardType[] }) {
 }
 
 const rowStyle: CSSProperties = {
+  font: "inherit",
+  color: "inherit",
+  textAlign: "left",
+  cursor: "pointer",
   display: "grid",
   gridTemplateColumns: "3em 1fr 15em",
   alignItems: "center",
@@ -132,14 +137,22 @@ function HandRow({
   hand,
   seats,
   now,
+  onSelect,
 }: {
   readonly hand: HandSummary;
   readonly seats: readonly SeatView[];
   readonly now: number;
+  readonly onSelect: () => void;
 }) {
   const outcome = outcomeText(hand, seats);
   return (
-    <div data-testid={`hand-row-${String(hand.handOrdinal)}`} style={rowStyle}>
+    <button
+      type="button"
+      data-testid={`hand-row-${String(hand.handOrdinal)}`}
+      aria-label={`Review hand ${String(hand.handOrdinal)}`}
+      onClick={onSelect}
+      style={rowStyle}
+    >
       <span
         style={{
           fontFamily: font.display,
@@ -180,7 +193,7 @@ function HandRow({
           {formatRelative(hand.startedAt, now)}
         </span>
       </span>
-    </div>
+    </button>
   );
 }
 
@@ -192,7 +205,12 @@ const kickerStyle: CSSProperties = {
   color: color.textDim,
 };
 
-export function HandPicker({ summaries, seats, onClose }: HandPickerProps) {
+export function HandPicker({
+  summaries,
+  seats,
+  onSelectHand,
+  onClose,
+}: HandPickerProps) {
   const now = useNow();
   const ordered = useMemo(
     () => [...summaries].sort((a, b) => b.handOrdinal - a.handOrdinal),
@@ -298,6 +316,9 @@ export function HandPicker({ summaries, seats, onClose }: HandPickerProps) {
                 hand={hand}
                 seats={seats}
                 now={now}
+                onSelect={() => {
+                  onSelectHand(hand.handOrdinal);
+                }}
               />
             ))
           )}

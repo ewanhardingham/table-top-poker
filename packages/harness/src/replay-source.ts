@@ -1,16 +1,13 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import type {
-  ReplayAuditRecord,
-  ReplayCommandRecord,
-  ReplayInput,
-} from "@table-top-poker/engine";
+import type { ReplayInput } from "@table-top-poker/engine";
 import {
-  handRecordingPaths,
+  nodeFileSystem,
+  readHandRecording,
   RECORDING_LAYOUT_VERSION,
   roomManifestPath,
 } from "@table-top-poker/recording";
-import type { HandContext, RoomManifest } from "@table-top-poker/recording";
+import type { RoomManifest } from "@table-top-poker/recording";
 
 /** A hard failure: nothing is written to stdout and the CLI exits `1`. */
 export type ReplaySourceFailure =
@@ -188,49 +185,6 @@ export async function resolveRoomDirectory(
   return { roomDir: chosen.roomDir, manifest: chosen.manifest, note };
 }
 
-/** A validated final JSONL line the reader discarded because it was torn. */
-export interface TornRecord {
-  readonly file: string;
-  readonly line: number;
-}
-
-interface ParsedJsonl<T> {
-  readonly records: readonly T[];
-  readonly tornRecord: TornRecord | null;
-}
-
-/**
- * Parses a JSONL file, tolerating an unterminated final line as torn rather
- * than malformed: append-as-you-go persistence (`RoomRecording`) never
- * leaves a torn line anywhere but the last, since every earlier write already
- * completed with its trailing newline before the next one began.
- */
-function parseJsonl<T>(file: string, contents: string): ParsedJsonl<T> {
-  if (contents === "") return { records: [], tornRecord: null };
-
-  const endsWithNewline = contents.endsWith("\n");
-  const body = endsWithNewline ? contents.slice(0, -1) : contents;
-  const lines = body.split("\n");
-  const records: T[] = [];
-
-  for (const [index, line] of lines.entries()) {
-    try {
-      records.push(JSON.parse(line) as T);
-    } catch {
-      const isFinalLine = index === lines.length - 1;
-      if (isFinalLine && !endsWithNewline) {
-        return { records, tornRecord: { file, line: index + 1 } };
-      }
-      throw new ReplaySourceError({
-        kind: "malformed-record",
-        file,
-        line: index + 1,
-      });
-    }
-  }
-  return { records, tornRecord: null };
-}
-
 export interface LoadedHand {
   readonly roomDir: string;
   readonly resolutionNote: string | undefined;
@@ -238,11 +192,9 @@ export interface LoadedHand {
 }
 
 /**
- * Resolves `<room>`, reads Hand `handOrdinal`'s three files, and assembles
- * the `ReplayInput` the engine's `replayHand` takes. At most one of
- * `commands.jsonl`/`events.jsonl` can carry a torn final line — a crash can
- * only land mid-write of one file at a time — so `tornRecord` is whichever
- * one reports it.
+ * Resolves `<room>`, then reads Hand `handOrdinal` through the same reader
+ * the server's replay path uses — one parse of the durable format, so the
+ * stepper and the table can never disagree about what a torn tail is.
  */
 export async function loadHand(
   room: string,
@@ -251,62 +203,25 @@ export async function loadHand(
 ): Promise<LoadedHand> {
   const resolved = await resolveRoomDirectory(room, recordingsDir);
 
-  const paths = handRecordingPaths(resolved.roomDir, handOrdinal);
-  // Independent files, read concurrently — none depends on another's content.
-  const [contextText, commandsText, eventsText] = await Promise.all([
-    readFileOrUndefined(paths.contextPath),
-    // A missing commands/events file reads as empty — an empty Command log
-    // is the engine's own `invalid-command-log` failure, and a commands
-    // file with no matching events file is the orphaned-trailing-Command
-    // case §4 describes, not a harness-level "missing file".
-    readFileOrUndefined(paths.commandsPath).then((text) => text ?? ""),
-    readFileOrUndefined(paths.eventsPath).then((text) => text ?? ""),
-  ]);
-
-  if (contextText === undefined) {
-    throw new ReplaySourceError({
-      kind: "missing-file",
-      file: paths.contextPath,
-    });
+  const read = await readHandRecording({
+    fileSystem: nodeFileSystem,
+    roomDir: resolved.roomDir,
+    handOrdinal,
+  });
+  if (read.status === "missing-file") {
+    throw new ReplaySourceError({ kind: "missing-file", file: read.file });
   }
-  let context: HandContext;
-  try {
-    context = JSON.parse(contextText) as HandContext;
-  } catch {
+  if (read.status === "malformed-record") {
     throw new ReplaySourceError({
       kind: "malformed-record",
-      file: paths.contextPath,
-      line: 1,
+      file: read.file,
+      line: read.line,
     });
   }
-
-  const commands = parseJsonl<ReplayCommandRecord>(
-    paths.commandsPath,
-    commandsText,
-  );
-  const events = parseJsonl<ReplayAuditRecord>(paths.eventsPath, eventsText);
-
-  const tornRecord = commands.tornRecord ?? events.tornRecord ?? null;
-
-  const input: ReplayInput = {
-    sources: {
-      context: paths.contextPath,
-      commands: paths.commandsPath,
-      events: paths.eventsPath,
-    },
-    context: {
-      v: context.v,
-      seats: context.seats,
-      button: context.button,
-    },
-    commands: commands.records,
-    events: events.records,
-    tornRecord,
-  };
 
   return {
     roomDir: resolved.roomDir,
     resolutionNote: resolved.note,
-    input,
+    input: read.input,
   };
 }
