@@ -29,6 +29,10 @@ export const color = {
   accent: "#e5443c",
   accentBright: "#ef6259",
   accentDeep: "#a81d1c",
+
+  actionRaise: "#e08a34",
+  actionCall: "#3f83bd",
+  actionPassive: "rgba(255,255,255,.12)",
   disabledText: "rgba(243,236,225,.35)",
 
   avatarGradient: "linear-gradient(160deg,#e9a89f,#a13a2e)",

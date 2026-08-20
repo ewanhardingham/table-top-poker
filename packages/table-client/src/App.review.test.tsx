@@ -86,7 +86,10 @@ const liveHand: TableView = {
 };
 
 interface Node {
-  readonly props: { readonly onClick?: () => void };
+  readonly props: {
+    readonly onClick?: () => void;
+    readonly children?: string;
+  };
 }
 
 interface Renderer {
@@ -213,5 +216,33 @@ describe("App hand review", () => {
     expect(found("replay-transport")).toHaveLength(1);
     expect(found("seats")).toHaveLength(1);
     expect(found("join-panel")).toHaveLength(0);
+  });
+
+  it("names the hand under review in the status bar, not over the felt", () => {
+    inRoom(completeHand);
+    useTableStore.setState({
+      review: {
+        status: "ready",
+        handOrdinal: 3,
+        positions: [{ event: null, view: { phase: "no-hand", button: 0 } }],
+      },
+    });
+
+    const renderer = render();
+    const badge = renderer.root.findByProps({
+      "data-testid": "reviewing-hand",
+    });
+
+    expect(badge.props.children).toContain("hand 3");
+  });
+
+  it("takes the name back down when the review closes", () => {
+    inRoom(completeHand);
+
+    const renderer = render();
+
+    expect(
+      renderer.root.findAllByProps({ "data-testid": "reviewing-hand" }),
+    ).toHaveLength(0);
   });
 });

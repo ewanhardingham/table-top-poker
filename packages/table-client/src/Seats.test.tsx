@@ -1,4 +1,5 @@
 import type { SeatView, TableView } from "@table-top-poker/protocol";
+import { color } from "@table-top-poker/ui-shared";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -758,5 +759,81 @@ describe("Seats: position markers", () => {
 
     const fontSizes = html.match(/font-size:0\.62em/g);
     expect(fontSizes).toHaveLength(3);
+  });
+});
+
+describe("Seats: action labels", () => {
+  const labels = new Map<number, "fold" | "check" | "call" | "raise">([
+    [3, "raise"],
+    [1, "call"],
+  ]);
+
+  it("shows a pill for each seat that has acted", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} actionLabels={labels} />,
+    );
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-3-action"[^>]*data-action="raise"/,
+    );
+    expect(html).toContain("Raised");
+    expect(html).toMatch(
+      /data-testid="seat-pod-1-action"[^>]*data-action="call"/,
+    );
+    expect(html).toContain("Called");
+  });
+
+  it("leaves the seats that have not acted bare", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} actionLabels={labels} />,
+    );
+
+    expect(html).not.toContain('data-testid="seat-pod-2-action"');
+  });
+
+  it("yields the slot to the seat on the clock", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats}
+        view={threeHanded}
+        actionLabels={new Map([[0, "call" as const]])}
+      />,
+    );
+
+    expect(html).toContain('data-testid="seat-pod-0-to-act"');
+    expect(html).not.toContain('data-testid="seat-pod-0-action"');
+  });
+
+  it("keeps accent red for the clock alone, and paints raise orange", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} actionLabels={labels} />,
+    );
+
+    const raise = styleOf(html, "seat-pod-3-action") ?? "";
+    const toAct = styleOf(html, "seat-pod-0-to-act") ?? "";
+
+    expect(raise).not.toBe("");
+    expect(toAct).toContain(color.accent);
+    expect(raise).not.toContain(color.accent);
+    expect(raise).toContain(color.actionRaise);
+  });
+
+  it("gives call the one cool fill on a warm felt", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} actionLabels={labels} />,
+    );
+
+    const call = styleOf(html, "seat-pod-1-action") ?? "";
+
+    expect(call).toContain(color.actionCall);
+    expect(call).not.toContain(color.actionRaise);
+  });
+
+  it("flips a top-row pill with its pod", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={seats} view={threeHanded} actionLabels={labels} />,
+    );
+
+    expect(styleOf(html, "seat-pod-3-action")).toContain("rotate(180deg)");
   });
 });

@@ -7,7 +7,13 @@ import {
   type ShotClockSettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
-import { color, unlockAudio } from "@table-top-poker/ui-shared";
+import {
+  color,
+  font,
+  fontSize,
+  radius,
+  unlockAudio,
+} from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   changeSeatCount,
@@ -48,6 +54,37 @@ const feltSurfaceStyle: CSSProperties = {
   boxShadow:
     "inset 0 0 12em 4em rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.08)",
 };
+
+/**
+ * Which hand is under review, in the bar the connection badge sits in. It
+ * belongs here rather than over the felt: a second title floating on the
+ * table is one more thing between a reader and the board (§6).
+ */
+function ReviewingHand({ handOrdinal }: { readonly handOrdinal: number }) {
+  return (
+    <span
+      data-testid="reviewing-hand"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5em",
+        padding: "0.45em 0.9em",
+        borderRadius: radius.pill,
+        background: color.control,
+        border: `1px solid ${color.border}`,
+        fontFamily: font.mono,
+        fontSize: fontSize.xs,
+        fontWeight: 600,
+        letterSpacing: "0.16em",
+        textTransform: "uppercase",
+        color: color.textMuted,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {`Reviewing hand ${String(handOrdinal)}`}
+    </span>
+  );
+}
 
 export function App() {
   const roomCode = useTableStore((state) => state.roomCode);
@@ -231,6 +268,11 @@ export function App() {
         connectionStatus={connectionStatus}
         showRoomCode={handInProgress && !joinOpen}
         onOpenJoin={toggleJoin}
+        leading={
+          review === null ? undefined : (
+            <ReviewingHand handOrdinal={review.handOrdinal} />
+          )
+        }
       />
       {recordingStopped && <NotRecordingBanner />}
       <main className="felt">
