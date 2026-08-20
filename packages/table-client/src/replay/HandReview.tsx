@@ -29,6 +29,11 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
   const [playing, setPlaying] = useState(false);
   const [scrubbing, setScrubbing] = useState(false);
 
+  const labels = useMemo(
+    () => actionLabelsAt(positions, position),
+    [positions, position],
+  );
+
   useEffect(() => {
     setPosition(0);
     setPlaying(false);
@@ -89,6 +94,7 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
   }
 
   const view = positions[position]?.view ?? positions[0]?.view;
+  const event = positions[position]?.event ?? null;
 
   return (
     <>
@@ -97,12 +103,12 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
           view={view}
           seats={seats}
           transportHeight={TRANSPORT_HEIGHT}
-          actionLabels={actionLabelsAt(positions, position)}
+          actionLabels={labels}
         />
       )}
       <BackToHands onClose={onClose} />
       <CaptionStrip
-        caption={captionFor(positions[position]?.event ?? null, seats)}
+        caption={captionFor(event, seats)}
         transportHeight={TRANSPORT_HEIGHT}
       />
       <ReplayTransport

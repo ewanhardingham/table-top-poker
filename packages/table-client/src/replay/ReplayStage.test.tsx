@@ -2,7 +2,7 @@ import type { SeatView, TableView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { CAPTION_BAND } from "./CaptionStrip.js";
+import { CAPTION_BAND, FELT_LAYER } from "./CaptionStrip.js";
 import { ReplayStage, TOP_BAND } from "./ReplayStage.js";
 
 const seats: readonly SeatView[] = [0, 1, 2, 3].map((id) => ({
@@ -45,6 +45,7 @@ describe("ReplayStage", () => {
 
     expect(html).toContain(`top:${String(TOP_BAND)}em`);
     expect(html).toContain(`bottom:${String(TRANSPORT + CAPTION_BAND)}em`);
+    expect(html).toContain(`z-index:${String(FELT_LAYER)}`);
   });
 
   it("renders the felt through the live Seats and Board, projected", () => {
