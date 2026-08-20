@@ -776,11 +776,11 @@ describe("Seats: action labels", () => {
     expect(html).toMatch(
       /data-testid="seat-pod-3-action"[^>]*data-action="raise"/,
     );
-    expect(html).toContain("Raised");
+    expect(html).toContain("raised");
     expect(html).toMatch(
       /data-testid="seat-pod-1-action"[^>]*data-action="call"/,
     );
-    expect(html).toContain("Called");
+    expect(html).toContain("called");
   });
 
   it("leaves the seats that have not acted bare", () => {

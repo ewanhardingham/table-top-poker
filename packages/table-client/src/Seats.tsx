@@ -14,6 +14,7 @@ import {
   type PositionMarker,
 } from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
+import { actionVerb, type SeatActionLabels } from "./actionWords.js";
 import { posFor } from "./table/posFor.js";
 
 export interface SeatsProps {
@@ -21,15 +22,9 @@ export interface SeatsProps {
   readonly view: TableView | null;
   readonly shotClockSeconds?: number;
   readonly onSeatClick?: (seatId: number) => void;
-  /**
-   * What each seat has done this street, for the seats that have acted. The
-   * view carries only `folded`, so this is folded back out of the Event
-   * stream by whoever has one (#127).
-   */
-  readonly actionLabels?: ReadonlyMap<number, ActionType>;
+  readonly actionLabels?: SeatActionLabels;
 }
 
-/** The slot below a pod that the clock and the action label share. */
 const slotPillStyle = {
   padding: "0.35em 0.9em",
   borderRadius: "999px",
@@ -50,18 +45,7 @@ function slotMotion(flipDegrees: number) {
   };
 }
 
-const actionText: Record<ActionType, string> = {
-  fold: "Folded",
-  check: "Checked",
-  call: "Called",
-  raise: "Raised",
-};
-
-/**
- * Accent red is the clock's — the "To act" pill and the seat-pod glow — so
- * raise takes orange instead, and call is the one cool fill on a warm felt
- * (Phase 2 spec #129 §6).
- */
+/** See Action label in `CONTEXT.md` for why raise is not accent red. */
 const actionTone: Record<
   ActionType,
   { readonly background: string; readonly ink: string }
@@ -467,7 +451,7 @@ export function Seats({
                     color: actionTone[acted].ink,
                   }}
                 >
-                  {actionText[acted]}
+                  {actionVerb[acted]}
                 </motion.div>
               ) : null}
             </AnimatePresence>
