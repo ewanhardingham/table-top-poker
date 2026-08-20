@@ -1,6 +1,7 @@
 import type { HandEvent, SeatView } from "@table-top-poker/protocol";
 import { actionVerb } from "../actionWords.js";
 import { seatLabel } from "../seatLabel.js";
+import { showdownVerdict } from "../showdownVerdict.js";
 import { streetLabel } from "./beats.js";
 
 const boardName = {
@@ -18,15 +19,13 @@ function showdownCaption(
   event: Extract<HandEvent, { type: "ShowdownReached" }>,
   seats: readonly SeatView[],
 ): string {
-  const winners = joinNames(
-    event.winners.map((seatId) => seatLabel(seatId, seats)),
+  const { names, verb, description } = showdownVerdict(
+    event.winners,
+    event.results,
+    seats,
   );
-  const description = event.results.find((result) =>
-    event.winners.includes(result.seatId),
-  )?.description;
-  const verb = event.winners.length > 1 ? "split" : "wins";
   const hand = description === undefined ? "" : ` with ${description}`;
-  return `Showdown — ${winners} ${verb}${hand}`;
+  return `Showdown — ${joinNames(names)} ${verb}${hand}`;
 }
 
 /** The beat just landed on — see Caption in `CONTEXT.md`. */

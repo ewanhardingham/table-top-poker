@@ -15,6 +15,7 @@ import {
 } from "@table-top-poker/ui-shared";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { seatLabel } from "./seatLabel.js";
+import { showdownVerdict } from "./showdownVerdict.js";
 
 export interface HandPickerProps {
   readonly summaries: readonly HandSummary[];
@@ -26,7 +27,7 @@ export interface HandPickerProps {
 /**
  * Polls `Date.now()` on an interval rather than computing the relative
  * label once at mount, so it visibly goes stale ("just now" -> "1m ago")
- * while the picker stays open (§6).
+ * while the picker stays open (#129 §6).
  */
 function useNow(): number {
   const [now, setNow] = useState(() => Date.now());
@@ -84,11 +85,11 @@ function outcomeText(hand: HandSummary, seats: readonly SeatView[]): string {
   if (outcome.kind === "folded-out") {
     return `${seatLabel(outcome.winner, seats)} wins — everyone folded`;
   }
-  const names = outcome.winners.map((seatId) => seatLabel(seatId, seats));
-  const verb = outcome.winners.length > 1 ? "split" : "wins";
-  const description = outcome.reveals.find((reveal) =>
-    outcome.winners.includes(reveal.seatId),
-  )?.description;
+  const { names, verb, description } = showdownVerdict(
+    outcome.winners,
+    outcome.reveals,
+    seats,
+  );
   const headline = `${names.join(" & ")} ${verb}`;
   return description ? `${headline} — ${description}` : headline;
 }
