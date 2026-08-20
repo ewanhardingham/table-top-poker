@@ -8,15 +8,9 @@ export interface HandPositions {
 }
 
 /**
- * The Hand context an operation opens a Hand with, or undefined when it opens
- * none. A Hand recording begins only when `startHand`/`nextHand` is
- * **accepted** (Phase 2 spec #129 §3), so the test is a generated
- * `HandStarted` event — never the Command's type, which is also what a
- * *rejected* `nextHand` looks like.
- *
- * `startedAt` is read here, as the operation is staged, rather than when its
- * append confirms: on a stalling disk those are seconds apart, and this
- * timestamp records when the Hand began for the players.
+ * Keyed on a generated `HandStarted`, never the Command's type — a *rejected*
+ * `nextHand` looks the same. `startedAt` is read here, as the operation is
+ * staged, so it records when the Hand began rather than when its append landed.
  */
 export function handStartContextFor(
   events: readonly HandEvent[],

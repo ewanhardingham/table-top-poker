@@ -16,22 +16,10 @@ export interface CreateRoomRecordingOptions {
   readonly createdAt: string;
 }
 
-/**
- * Where Room recordings are created. A seam rather than a bare function so
- * the server can hold one for the process, and so tests can hand `buildApp`
- * a recordings root backed by an in-memory filesystem — there is deliberately
- * no way to hand it *nothing*, because recording is a Room invariant.
- */
+/** Where Room recordings are created — see Recording in `docs/design/server.md`. */
 export interface Recordings {
   create(options: CreateRoomRecordingOptions): Promise<RoomRecording>;
-  /**
-   * Reads one Hand of an already-created Room recording back.
-   *
-   * On the root rather than on {@link RoomRecording} deliberately: a
-   * recording on disk outlives its writer. "Continue without recording"
-   * closes the writer and never reopens it, and the Hands recorded before
-   * that failure must stay replayable (Phase 2 spec #129 §3).
-   */
+  /** On the root, not the writer: a recording on disk outlives its writer. */
   readHand(roomId: string, handOrdinal: number): Promise<HandRecordingRead>;
 }
 
@@ -53,12 +41,7 @@ export class DirectoryRecordings implements Recordings {
     this.#retries = retries;
   }
 
-  /**
-   * Creates the root and proves it accepts a write, throwing if it does not.
-   * The server calls this before it listens and refuses to start on failure:
-   * a Room that cannot be recorded must never become joinable, and an
-   * unwritable disk found at the first hand is found far too late.
-   */
+  /** Proves the root accepts a write before the server listens. */
   async ensureWritable(): Promise<void> {
     const probe = path.join(this.root, WRITE_PROBE_FILENAME);
     try {
@@ -72,14 +55,7 @@ export class DirectoryRecordings implements Recordings {
     }
   }
 
-  /**
-   * Opens a Room's recording by writing its immutable `room.json`. Resolving
-   * is the caller's licence to publish the Room; rejecting leaves no
-   * directory behind and must leave no joinable Room either.
-   *
-   * The manifest is published by rename, so a concurrent reader sees either
-   * no `room.json` or a complete one, never a half-written document.
-   */
+  /** Resolving is the licence to publish the Room; the manifest lands by rename. */
   async create(options: CreateRoomRecordingOptions): Promise<RoomRecording> {
     assertValidRoomId(options.roomId);
     const roomDir = path.join(this.root, options.roomId);
@@ -92,10 +68,7 @@ export class DirectoryRecordings implements Recordings {
     const manifestPath = roomManifestPath(roomDir);
     const stagingPath = `${manifestPath}.tmp`;
 
-    // `room.json` is immutable, so a directory that already has one is a
-    // finished recording — never something to reopen or write over. The
-    // server's ids are UUIDs and cannot collide, but the harness takes
-    // `--room-id` from argv and a developer will reuse one.
+    // The harness takes `--room-id` from argv, so a developer will reuse one.
     if (await this.#fs.exists(manifestPath)) {
       throw new Error(
         `could not create the recording for room ${options.roomId}: ${manifestPath} already exists`,
@@ -137,11 +110,7 @@ export class DirectoryRecordings implements Recordings {
     });
   }
 
-  /**
-   * A rollback is itself a write on the filesystem that just refused one.
-   * The create is failing either way, and that failure is what keeps the Room
-   * unjoinable, so a repair that cannot run must not mask it.
-   */
+  /** A rollback is itself a write; the create fails either way, so it must not mask it. */
   async #tolerate(work: () => Promise<void>): Promise<void> {
     try {
       await work();

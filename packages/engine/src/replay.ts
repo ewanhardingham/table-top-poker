@@ -10,15 +10,7 @@ import type {
 import { must } from "./util.js";
 import { ENGINE_LOG_VERSION } from "./version.js";
 
-/**
- * The Hand context (CONTEXT.md), narrowed to the two facts Replay bootstraps
- * from: the participating Seats and the Button the Hand was dealt on. Not a
- * state snapshot — it carries no cards.
- *
- * The recording's own context document also carries the Hand ordinal and
- * `startedAt`; neither enters the engine. The ordinal addresses a file in a
- * layout the engine knows nothing about, and `startedAt` is a clock.
- */
+/** Hand context (`CONTEXT.md`), narrowed to what the engine bootstraps from. */
 export interface ReplayHandContext {
   readonly v: number;
   readonly seats: readonly SeatId[];
@@ -33,11 +25,7 @@ export type ReplayAuditRecord = (HandEvent | Rejection) & {
   readonly v: number;
 };
 
-/**
- * Where each stream came from, for diagnostics. Replay never opens these —
- * the I/O-owning caller reads the files and names them here so a failure can
- * say which one it is about.
- */
+/** Stream names for diagnostics; Replay never opens them. */
 export interface ReplaySources {
   readonly context: string;
   readonly commands: string;
@@ -60,13 +48,8 @@ export interface ReplayInput {
 }
 
 /**
- * One notch of the flipbook: its generated Event and the complete
- * `EngineState` after applying it. Position 0 is the starting state and has
- * no Event.
- *
- * The state is carried whole, never as a projected view: `FoldedOutView`
- * has no board, so a fold-out hand's board would be unreachable from a
- * sequence of views alone.
+ * See Replay position in `CONTEXT.md`. State is carried whole, never as a
+ * view: `FoldedOutView` has no board, so a fold-out's board would be lost.
  */
 export interface ReplayPosition {
   readonly position: number;
@@ -74,11 +57,7 @@ export interface ReplayPosition {
   readonly state: EngineState;
 }
 
-/**
- * A validated Rejection. It changes no state and creates no position:
- * `position` is the unchanged position it occurred at, and `record` is its
- * ordinal in the persisted audit stream.
- */
+/** A validated Rejection: it creates no position, only names the one it hit. */
 export interface ReplayRejection {
   readonly position: number;
   readonly record: number;
@@ -124,27 +103,15 @@ export type ReplayOutcome =
   | ({
       readonly status: "incomplete";
       readonly tornRecord: ReplayTornRecord | null;
-      /**
-       * The zero-based ordinal, in the Command log, of the first Command with
-       * no complete audit evidence — where replay stopped. Null when only a
-       * torn record made the replay incomplete.
-       */
+      /** Where replay stopped; null when only a torn record ended it. */
       readonly orphanedCommand: number | null;
     } & ReplayFlipbook)
   | { readonly status: "failed"; readonly failure: ReplayFailure };
 
 /**
- * Replays one recorded Hand into an addressable flipbook of positions.
- *
- * The Command log is the source of truth: Commands are re-run through
- * `decide`, the Events they generate are folded through `apply`, and the
- * complete generated Event/`Rejection` sequence is *compared* against the
- * persisted audit stream. Persisted records are never trusted, repaired or
- * substituted — a disagreement between complete records is a hard failure.
- *
- * Pure by construction: no filesystem, no clock, no ambient randomness. It
- * takes no audience, redaction or `revealEverything` option — the visibility
- * split is by surface, and callers project the returned state themselves.
+ * Replays one recorded Hand into an addressable flipbook — see Replay in
+ * `CONTEXT.md`. The Command log is the source of truth; persisted records are
+ * compared against, never trusted, repaired or substituted.
  */
 export function replayHand(input: ReplayInput): ReplayOutcome {
   const versionFailure = firstVersionMismatch(input);
@@ -266,15 +233,7 @@ export function replayHand(input: ReplayInput): ReplayOutcome {
   return { status: "complete", positions, rejections };
 }
 
-/**
- * A Hand's Command log opens with the operation that started it, which for
- * every Hand after the first is a `nextHand`. `decide` only accepts that
- * against a *completed* Hand, and Replay is scoped to one Hand starting from
- * no Hand at all — so the opening Command is run as the `startHand` it
- * behaved as. Both take the same path through `beginHand`, on the same seed
- * and the same recorded Button, so the generated Events are identical to the
- * ones the live run recorded.
- */
+/** See Replay in `docs/design/engine.md`. */
 function openingCommand(record: ReplayCommandRecord): Command {
   const command = bareCommand(record);
   if (command.type === "nextHand") {
@@ -283,12 +242,7 @@ function openingCommand(record: ReplayCommandRecord): Command {
   return command;
 }
 
-/**
- * Restores the Command as *recorded* onto a generated Rejection. `decide`
- * echoes back whatever Command it was handed, so without this the opening
- * `nextHand`-as-`startHand` substitution above would leak into the comparison
- * and report a faithful recording as corrupt.
- */
+/** See Replay in `docs/design/engine.md`. */
 function asRecorded(
   rejection: Rejection,
   record: ReplayCommandRecord,
@@ -337,12 +291,7 @@ function firstVersionMismatch(input: ReplayInput): ReplayFailure | null {
   return null;
 }
 
-/**
- * The same 2-to-8 bound `createInitialState` enforces, plus the Button being
- * a seated player. Checked here so a context naming a Button that was never
- * dealt in fails as an invalid context, not somewhere inside
- * `rotateFromButton`.
- */
+/** Checked here so a bad Button fails as an invalid context, not inside `rotateFromButton`. */
 function validateContext(
   context: ReplayHandContext,
   file: string,
@@ -374,11 +323,7 @@ function validateCommandLog(
   return null;
 }
 
-/**
- * Structural equality over parsed JSON records. Key order survives a JSONL
- * round trip, so `JSON.stringify` would usually agree — but "usually" is not
- * what an audit comparison is for.
- */
+/** Structural, not `JSON.stringify`: key order is not what an audit rests on. */
 function equal(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (Array.isArray(a) || Array.isArray(b)) {

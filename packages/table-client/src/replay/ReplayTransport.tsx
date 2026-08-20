@@ -15,10 +15,7 @@ export interface ReplayTransportProps {
   readonly currentStreet: Chapter["street"] | null;
 }
 
-/**
- * Comfortably past the ~44px touch-target floor at the table device's root
- * size, and wide enough to hit without aiming.
- */
+/** Past the ~44px touch-target floor at the table device's root size. */
 const CHIP_HEIGHT = 3.4;
 const ROW_GAP = 0.8;
 /** The grab zone, deliberately far taller than the 6px rail it draws. */
@@ -29,14 +26,7 @@ const BOTTOM_MARGIN = 1.4;
 export const TRANSPORT_HEIGHT =
   CHIP_HEIGHT + ROW_GAP + TRACK_HEIGHT + BOTTOM_MARGIN;
 
-/**
- * The scrub: a ticked track the width of the felt, chaptered by street, with
- * autoplay demoted to a chip beside the chapters.
- *
- * Sized for a finger rather than a cursor — the grab zone is the full height
- * of the track row, well past the visible rail, and the chips clear the touch
- * target floor (Phase 2 spec #129 §6).
- */
+/** The Scrub (`CONTEXT.md`), sized for a finger rather than a cursor. */
 export function ReplayTransport({
   beats,
   chapters,

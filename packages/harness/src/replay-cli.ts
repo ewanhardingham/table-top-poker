@@ -32,13 +32,7 @@ function incompleteHandDiagnostic(
   };
 }
 
-/**
- * The one flipbook position an all-torn Command log still supports: the
- * starting state, built from the Hand context alone. Mirrors the object
- * literal `replayHand` itself constructs (engine/src/replay.ts) — no public
- * engine constructor exists for "state at an arbitrary Button" (§4), and
- * this is the one caller-side place that legitimately needs the same shape.
- */
+/** See "An all-torn first Command line" in `packages/harness/README.md`. */
 function startingPositionOnly(loaded: LoadedHand): ReplayOutcome & {
   status: "complete";
 } {
@@ -54,15 +48,7 @@ function startingPositionOnly(loaded: LoadedHand): ReplayOutcome & {
   };
 }
 
-/**
- * Runs `harness replay`, returning the process exit code rather than setting
- * it, so callers — the real CLI and tests alike — decide what to do with it.
- *
- * Loads and validates the complete requested Hand before writing anything to
- * `stdout` (§7): every failure — bad arguments, a source-read failure, an
- * out-of-range selector, or the engine's own validation — writes only to
- * `stderr` and produces no stdout output at all.
- */
+/** Validates the whole Hand before any stdout: every failure writes only to stderr. */
 export async function runReplayCli(
   argv: readonly string[],
   streams: ReplayCliStreams,
@@ -77,16 +63,7 @@ export async function runReplayCli(
 
     const outcome = replayHand(loaded.input);
 
-    // A torn line on the Hand's very first Command line leaves `decide`
-    // nothing to replay, and the engine's own validation reports that as
-    // `invalid-command-log: empty` — correct when the log really is empty,
-    // but indistinguishable there from a crash mid-write of its first line.
-    // §4/§7 treat *any* torn final JSONL record as incomplete, not corrupt,
-    // with no carve-out for it being the first — so this is the one failure
-    // shape the harness reclassifies rather than passing straight through.
-    // Reaching it means `replayHand` already validated context and version
-    // (both run before the empty-log check), so position 0 is safe to
-    // synthesize without re-checking either.
+    // See "An all-torn first Command line" in `packages/harness/README.md`.
     if (
       outcome.status === "failed" &&
       outcome.failure.kind === "invalid-command-log" &&

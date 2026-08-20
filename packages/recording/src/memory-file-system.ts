@@ -5,9 +5,7 @@ import type { RecordingFileSystem } from "./file-system.js";
 export type FailableOperation = keyof RecordingFileSystem;
 
 export interface MemoryFileSystem extends RecordingFileSystem {
-  /** Contents of one file, or undefined if it does not exist. */
   read(filePath: string): string | undefined;
-  /** Every file path currently on the fake disk, sorted. */
   paths(): string[];
   /** Fails the next `count` calls to `operation`, then behaves normally again. */
   failNext(operation: FailableOperation, count?: number): void;
@@ -31,12 +29,7 @@ class MissingDirectoryError extends Error {
   }
 }
 
-/**
- * An in-memory `RecordingFileSystem` with arm-a-failure controls, faithful
- * about the things the recording module depends on: a write into a directory
- * that was never created fails, appends accumulate, and truncate is a byte
- * count. Test-only — production wires `nodeFileSystem`.
- */
+/** An in-memory `RecordingFileSystem` with arm-a-failure controls. Test-only. */
 export function createMemoryFileSystem(): MemoryFileSystem {
   const files = new Map<string, string>();
   const dirs = new Set<string>(["/"]);
@@ -60,11 +53,7 @@ export function createMemoryFileSystem(): MemoryFileSystem {
     throw new Error(`EIO: injected failure, ${operation}`);
   }
 
-  /**
-   * Runs `work`, turning a thrown failure into a rejected promise — a real
-   * filesystem never throws synchronously, and code that only handles
-   * rejections must be exercised the same way here.
-   */
+  /** A real filesystem never throws synchronously, so an armed failure rejects. */
   function settle(work: () => void): Promise<void> {
     try {
       work();

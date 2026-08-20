@@ -187,33 +187,19 @@ export interface RoomEndedMessage {
   readonly type: "room-ended";
 }
 
-/**
- * The session's hands so far, oldest ordinal first — sent when a table
- * identity connects, and in answer to a `list-hands` request. Deliberately
- * its own message and not part of `RoomView`, which changes on a different
- * cadence (seats, presence) and should not grow on every seat change
- * (Phase 2 spec #129 §5). Replaces the recipient's list wholesale.
- */
+/** The session's hands, oldest first; its own message, and replaces the list wholesale. */
 export interface HandListMessage {
   readonly type: "hand-list";
   readonly summaries: readonly HandSummary[];
 }
 
-/**
- * One hand's summary, pushed the moment that hand completes. Appends to the
- * list a `hand-list` established, so a table that connected mid-session
- * never has to re-request the hands it already holds.
- */
+/** Appends to the list `hand-list` established, so nothing is re-requested. */
 export interface HandSummaryMessage {
   readonly type: "hand-summary";
   readonly summary: HandSummary;
 }
 
-/**
- * A failed append has blocked the Room: every socket is told play has
- * stopped, but never why — filesystem detail stays in operational server
- * logs (Phase 2 spec #129 §3). Only the table may choose an exit.
- */
+/** Play has stopped, but never why; only the table may choose an exit. */
 export interface RecordingPausedMessage {
   readonly type: "recording-paused";
 }
@@ -223,12 +209,7 @@ export interface RecordingResumedMessage {
   readonly type: "recording-resumed";
 }
 
-/**
- * Sent once "Continue without recording" resumes a paused Room without its
- * recording. A persistent notice, not a toggle: it is never followed by a
- * `recording-resumed` for the same Room, and a socket that joins afterward
- * gets it on connect (Phase 2 spec #129 §3, issue #122).
- */
+/** A persistent notice, not a toggle — see recording-paused in `docs/design/server.md`. */
 export interface RecordingStoppedMessage {
   readonly type: "recording-stopped";
 }

@@ -1,12 +1,6 @@
 import type { Card, HandEvent, SeatId, Street } from "@table-top-poker/engine";
 
-/**
- * How the betting went, as a descriptor rather than a sentence (Phase 2
- * spec #129 §5). The felt's wording — *walk — folded round*, *raise war — 4
- * raises* — lives in `table-client` with the rest of its copy; putting it
- * here would force the dev stepper (§7) to parse English back into a number
- * `summarise` already had.
- */
+/** Structured, never prose — see Betting shape in `CONTEXT.md`. */
 export type BettingShape =
   | { readonly kind: "walk" }
   | { readonly kind: "preflop-raise" }
@@ -14,12 +8,7 @@ export type BettingShape =
   | { readonly kind: "one-raise" }
   | { readonly kind: "raise-war"; readonly raises: number };
 
-/**
- * One seat's showdown hand as the whole room saw it. Reveals only ever come
- * from a `ShowdownReached` event, which the engine emits solely for seats
- * that reached showdown live — so nothing here widens the visibility
- * boundary (Phase 1 spec #130 §4).
- */
+/** One seat's showdown hand; sourced only from `ShowdownReached`, so it widens no visibility. */
 export interface ShowdownReveal {
   readonly seatId: SeatId;
   readonly bestHand: readonly [Card, Card, Card, Card, Card];
@@ -49,11 +38,11 @@ export type HandOutcome =
 export interface HandSummaryContext {
   /** 1-based, matching the recording's `hand-NNNN` partition. */
   readonly handOrdinal: number;
-  /** ISO 8601 — the picker's start-time clock reads this (§6). */
+  /** ISO 8601 — the picker's start-time clock reads this (#129 §6). */
   readonly startedAt: string;
 }
 
-/** One row of the table device's hand picker, derived once and shared (§5). */
+/** One row of the table device's hand picker, derived once and shared (#129 §5). */
 export interface HandSummary {
   readonly handOrdinal: number;
   readonly startedAt: string;
@@ -71,20 +60,7 @@ export interface HandSummary {
 /** Raised when a recording is not a complete, valid hand — never for a well-formed one. */
 export class IncompleteHandError extends Error {}
 
-/**
- * The five shapes partition every hand, and the spec fixes the union without
- * fixing the predicates. Two boundary calls are made here deliberately:
- *
- * 1. **Two or more raises reads as a war wherever it happened**, so a preflop
- *    3-bet that ends preflop is `raise-war`, not `preflop-raise`. The count is
- *    the more informative fact, and `preflop-raise` — "preflop raise took it"
- *    — describes *one* raise winning uncontested.
- * 2. **`checked-down` is the residual**, so it also covers an unraised hand
- *    that saw a flop and then folded out. `walk` is reserved for the hand that
- *    died preflop, which is the distinction the picker needs (a walk is a
- *    visibly short row). The felt's copy for `checked-down` should therefore
- *    not promise a showdown — that is a `table-client` wording decision.
- */
+/** See Betting shape in `CONTEXT.md` for the two boundary calls. */
 function bettingShapeOf(
   raises: number,
   streetReached: Street,
@@ -99,18 +75,11 @@ function bettingShapeOf(
 }
 
 /**
- * Derives a hand's picker summary from the Events it produced.
+ * Derives a hand's picker summary from the Events it produced — pure, and the
+ * one derivation the live push and a replay from disk share.
  *
- * Pure: no I/O, no clock, no ambient state. The server calls it with the
- * Events it just broadcast; anything replaying from disk calls it with the
- * Events it just validated. Sharing one derivation is the point — two
- * independent ones would drift, and the picker would disagree with the scrub
- * it opens (Phase 2 spec #129 §5).
- *
- * Throws `IncompleteHandError` unless `events` is a complete hand: it must
- * open with `HandStarted`, close with `HandComplete`, and carry an outcome.
- * Callers holding a partial recording are expected to keep it out of the
- * listing rather than summarise it (§4).
+ * Throws `IncompleteHandError` unless `events` opens with `HandStarted`,
+ * closes with `HandComplete`, and carries an outcome.
  */
 export function summarise(
   events: readonly HandEvent[],
