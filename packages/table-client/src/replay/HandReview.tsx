@@ -2,7 +2,10 @@ import type { SeatView } from "@table-top-poker/protocol";
 import { color, font, fontSize } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { HandReviewState } from "../store/replaySlice.js";
+import { actionLabelsAt } from "./actionLabels.js";
 import { beatAt, chaptersOf, holdAt, toBeats } from "./beats.js";
+import { captionFor } from "./caption.js";
+import { CaptionStrip } from "./CaptionStrip.js";
 import { ReplayStage } from "./ReplayStage.js";
 import { ReplayTransport, TRANSPORT_HEIGHT } from "./ReplayTransport.js";
 
@@ -94,9 +97,14 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
           view={view}
           seats={seats}
           transportHeight={TRANSPORT_HEIGHT}
+          actionLabels={actionLabelsAt(positions, position)}
         />
       )}
       <BackToHands onClose={onClose} />
+      <CaptionStrip
+        caption={captionFor(positions[position]?.event ?? null, seats)}
+        transportHeight={TRANSPORT_HEIGHT}
+      />
       <ReplayTransport
         beats={beats}
         chapters={chapters}

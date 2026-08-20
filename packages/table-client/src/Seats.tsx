@@ -1,4 +1,8 @@
-import type { SeatView, TableView } from "@table-top-poker/protocol";
+import type {
+  ActionType,
+  SeatView,
+  TableView,
+} from "@table-top-poker/protocol";
 import {
   color,
   font,
@@ -17,7 +21,56 @@ export interface SeatsProps {
   readonly view: TableView | null;
   readonly shotClockSeconds?: number;
   readonly onSeatClick?: (seatId: number) => void;
+  /**
+   * What each seat has done this street, for the seats that have acted. The
+   * view carries only `folded`, so this is folded back out of the Event
+   * stream by whoever has one (#127).
+   */
+  readonly actionLabels?: ReadonlyMap<number, ActionType>;
 }
+
+/** The slot below a pod that the clock and the action label share. */
+const slotPillStyle = {
+  padding: "0.35em 0.9em",
+  borderRadius: "999px",
+  fontFamily: font.mono,
+  fontSize: "0.7em",
+  fontWeight: 700,
+  letterSpacing: "0.2em",
+  textTransform: "uppercase",
+  whiteSpace: "nowrap",
+};
+
+function slotMotion(flipDegrees: number) {
+  return {
+    initial: { opacity: 0, y: 6, scale: 0.9, rotate: flipDegrees },
+    animate: { opacity: 1, y: 0, scale: 1, rotate: flipDegrees },
+    exit: { opacity: 0, y: 6, scale: 0.9, rotate: flipDegrees },
+    transition: { duration: 0.2 },
+  };
+}
+
+const actionText: Record<ActionType, string> = {
+  fold: "Folded",
+  check: "Checked",
+  call: "Called",
+  raise: "Raised",
+};
+
+/**
+ * Accent red is the clock's — the "To act" pill and the seat-pod glow — so
+ * raise takes orange instead, and call is the one cool fill on a warm felt
+ * (Phase 2 spec #129 §6).
+ */
+const actionTone: Record<
+  ActionType,
+  { readonly background: string; readonly ink: string }
+> = {
+  fold: { background: color.actionPassive, ink: color.textDim },
+  check: { background: color.actionPassive, ink: color.textMuted },
+  call: { background: color.actionCall, ink: "#fff" },
+  raise: { background: color.actionRaise, ink: color.pillInk },
+};
 
 type SeatStatus =
   "open" | "sitting-out" | "disconnected" | "folded" | "in-hand";
@@ -106,11 +159,13 @@ export function Seats({
   view,
   shotClockSeconds = 90,
   onSeatClick,
+  actionLabels,
 }: SeatsProps) {
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
       {seats.map((seat) => {
         const visual = deriveSeat(seat, view);
+        const acted = visual.isActor ? undefined : actionLabels?.get(seat.id);
         const pos = posFor(seat.id, seats.length);
         const isTopRow = pos.top < 50;
         const flipDegrees = isTopRow ? 180 : 0;
@@ -385,35 +440,36 @@ export function Seats({
               {podContent}
             </motion.div>
             <AnimatePresence>
-              {visual.isActor && (
+              {visual.isActor ? (
                 <motion.div
+                  key="to-act"
                   data-testid={`seat-pod-${String(seat.id)}-to-act`}
                   data-flipped={isTopRow}
-                  initial={{
-                    opacity: 0,
-                    y: 6,
-                    scale: 0.9,
-                    rotate: flipDegrees,
-                  }}
-                  animate={{ opacity: 1, y: 0, scale: 1, rotate: flipDegrees }}
-                  exit={{ opacity: 0, y: 6, scale: 0.9, rotate: flipDegrees }}
-                  transition={{ duration: 0.2 }}
+                  {...slotMotion(flipDegrees)}
                   style={{
-                    padding: "0.35em 0.9em",
-                    borderRadius: "999px",
+                    ...slotPillStyle,
                     background: color.accent,
                     color: "#fff",
-                    fontFamily: font.mono,
-                    fontSize: "0.7em",
-                    fontWeight: 700,
-                    letterSpacing: "0.2em",
-                    textTransform: "uppercase",
-                    whiteSpace: "nowrap",
                   }}
                 >
                   To act
                 </motion.div>
-              )}
+              ) : acted !== undefined ? (
+                <motion.div
+                  key="acted"
+                  data-testid={`seat-pod-${String(seat.id)}-action`}
+                  data-action={acted}
+                  data-flipped={isTopRow}
+                  {...slotMotion(flipDegrees)}
+                  style={{
+                    ...slotPillStyle,
+                    background: actionTone[acted].background,
+                    color: actionTone[acted].ink,
+                  }}
+                >
+                  {actionText[acted]}
+                </motion.div>
+              ) : null}
             </AnimatePresence>
             {seat.disconnected && (
               <span

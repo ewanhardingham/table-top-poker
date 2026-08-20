@@ -22,7 +22,7 @@ export interface Beat {
   readonly isStreetBoundary: boolean;
 }
 
-const streetLabel: Record<Street, string> = {
+export const streetLabel: Record<Street, string> = {
   preflop: "Preflop",
   flop: "Flop",
   turn: "Turn",
@@ -46,7 +46,10 @@ const WEIGHTS: Record<HandEvent["type"], number> = {
 };
 
 /** A beat belongs to the street it *shows* — see Chapter in `CONTEXT.md`. */
-function streetOf(event: HandEvent, current: Street | null): Street | null {
+export function streetOf(
+  event: HandEvent,
+  current: Street | null,
+): Street | null {
   if (event.type === "StreetStarted" || event.type === "BoardDealt") {
     return event.street;
   }
