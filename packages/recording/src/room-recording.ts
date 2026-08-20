@@ -34,20 +34,9 @@ function byteLength(text: string): number {
 }
 
 /**
- * One Room's durable recording: the append-as-you-go writer behind
- * `<RECORDINGS_DIR>/<room-id>/`. Created by {@link DirectoryRecordings},
- * which has already written the `room.json` this recording lives alongside.
- *
- * Callers hand it whole engine operations and nothing else. It owns version
- * tagging, serialization, which Hand's files a record belongs in, ordering
- * across concurrent callers, the confirmed byte offsets a partial write is
- * rolled back to, retry, and a clean close.
- *
- * An operation that still fails after its retries **latches** the recording:
- * every later operation is refused rather than written past the gap, because
- * a Command stream with a hole in it is worse than no Command stream. `retry`
- * and `discardLatched` are the table-facing recovery from that state — see
- * recording-paused in `docs/design/server.md`.
+ * One Room's durable recording — see Room recording in `CONTEXT.md` and
+ * recording-paused in `docs/design/server.md`. Callers hand it whole
+ * operations; it owns everything from version tagging to a clean close.
  */
 export class RoomRecording {
   readonly roomId: string;
@@ -69,11 +58,7 @@ export class RoomRecording {
     this.#retries = options.retries ?? 2;
   }
 
-  /**
-   * Appends one complete engine operation. Resolves once every line of it is
-   * confirmed on disk; rejects — leaving the files exactly as they were —
-   * once the retries are spent.
-   */
+  /** Resolves once confirmed on disk; rejects leaving the files as they were. */
   append(operation: RoomOperation): Promise<void> {
     if (this.#closing) {
       return Promise.reject(
@@ -100,14 +85,7 @@ export class RoomRecording {
     await this.#queue;
   }
 
-  /**
-   * Retries the operation a caller retained after this recording latched.
-   * Truncates its Hand's files back to the last confirmed offsets first — the
-   * failed attempt's own rollback may itself have failed on the same broken
-   * disk, and this defends against that torn tail surviving into the retry —
-   * then writes the operation fresh. Resolves once it is confirmed; rejects,
-   * leaving the recording latched, if the retry fails too.
-   */
+  /** Truncates to confirmed offsets first: the failed attempt's own rollback may also have failed. */
   retry(operation: RoomOperation): Promise<void> {
     if (this.#closing) {
       return Promise.reject(
@@ -131,12 +109,7 @@ export class RoomRecording {
     return this.#appendNow(operation);
   }
 
-  /**
-   * Discards the operation a caller retained after this recording latched,
-   * restoring its Hand's files to their last confirmed offsets on a
-   * best-effort basis — the exit a paused Room takes when the table chooses
-   * to end rather than retry. A no-op when the recording never latched.
-   */
+  /** Best-effort restore to confirmed offsets; a no-op when never latched. */
   async discardLatched(operation: RoomOperation | undefined): Promise<void> {
     if (this.#closing) {
       throw new Error(`recording for room ${this.roomId} is closed`);
@@ -247,16 +220,7 @@ export class RoomRecording {
     }
   }
 
-  /**
-   * Cuts a half-written operation back to the last offsets this recording
-   * confirmed, so the files stay a prefix of completed operations.
-   *
-   * Every repair here is itself a write, and the filesystem that just refused
-   * one may refuse these too — a worn card flips read-only and stays there.
-   * Failures are therefore swallowed: the operation is being reported as
-   * failed regardless, and §4's incomplete-Hand rule is what reads whatever
-   * is left behind.
-   */
+  /** Repairs are themselves writes, so failures are swallowed — the caller already reports failure. */
   async #rollback(
     paths: HandRecordingPaths,
     confirmed: ConfirmedOffsets,

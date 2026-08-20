@@ -283,6 +283,14 @@ count. It is what makes otherwise identical fold-outs distinguishable in a
 list. Structured, never prose: the wording belongs to whichever client
 renders it.
 
+Two boundary calls fix the partition. Two or more raises read as a raise war
+wherever they happened, so a preflop 3-bet that ends preflop is a raise war,
+not a preflop raise — the count is the more informative fact, and a preflop
+raise is *one* raise winning uncontested. Checked down is the residual, so it
+also covers an unraised Hand that saw a flop and then folded out; a walk is
+reserved for the Hand that died preflop, which is the distinction the picker
+needs. A client's copy for checked down must therefore not promise a Showdown.
+
 **Survivor**:
 A Seat that was dealt into a Hand and never folded. One Survivor means the
 Hand folded out; two or more mean it reached Showdown. Distinct from the

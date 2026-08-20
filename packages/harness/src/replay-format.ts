@@ -50,14 +50,7 @@ function includesPosition(selector: ReplaySelector, position: number): boolean {
   }
 }
 
-/**
- * Renders a flipbook into the JSONL records §7 specifies, in transcript
- * order: each selected position, immediately followed by every Rejection
- * that occurred while the Hand stayed at that position. Both lists already
- * carry that relative order — positions ascend by construction, and a
- * Rejection's `position` never precedes the position it was pushed after —
- * so grouping by position reconstructs it without re-deriving an ordinal.
- */
+/** Transcript order: each position, then the Rejections that occurred at it. */
 export function renderFlipbook(
   hand: number,
   flipbook: ReplayFlipbook,

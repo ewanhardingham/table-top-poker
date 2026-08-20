@@ -20,6 +20,16 @@ seat's socket gets nothing, never another seat's cards. `isSeat` is the single
 guard that excludes the `table`/`lobby` identities from any per-seat path, so
 those never reach `view(state, seatId)` or presence tracking.
 
+`hand-replay.ts` is the server's whole replay adapter, and the same guarantee
+rests on it. The engine's flipbook carries complete `EngineState`; every
+position leaves the adapter projected through `view(state, "table")` into a
+protocol type that cannot hold one, and each position's Event goes through the
+same `redactEventFor` the live fan-out uses. There is no audience option and no
+other way out of the engine's replay on this side of the wire, so the table is
+shown exactly what it was shown live and no more. Only a `complete` replay is
+served: an incomplete one is refused rather than truncated, and one arriving
+here means the listing and the recording have already disagreed.
+
 ## Presence is cosmetic; the clock is connection-independent
 
 - `markPresence`/`setSeatDisconnected` toggle a **cosmetic** badge only — never
@@ -147,6 +157,28 @@ joinable and closed when it ends or the app does. It takes whole operations, and
 owns ordering, retry, confirmed offsets and rollback itself; the server hands it
 `transaction.operation` and waits. Its filesystem is injected, so every failure
 path is testable and the shipped server has no way to make itself fail.
+
+`RecordingFileSystem` is a narrow set of simple primitives; atomicity is not
+one of them. An atomic replace is composed as `writeFile` + `rename`, which
+keeps the in-memory fake faithful without it having to model atomicity.
+
+`RECORDING_LAYOUT_VERSION` versions the recording *directory* — `room.json`,
+the Hand context sidecar, the Room ID keying — and appears on `room.json` and
+nowhere else. It is not `ENGINE_LOG_VERSION`, which versions the engine records
+inside those files. A pre-Phase-2 directory is recognised by having no
+`room.json` at all, never by comparing this number.
+
+`handOrdinal` counts hands *started*, not hands completed — it is what a Hand
+recording numbers its `hand-NNNN` partitions by, and a summary's ordinal is the
+address `get-hand` resolves against a recording. Counting completions would
+desynchronise the two the first time a hand was abandoned mid-deal.
+
+Serving a `get-hand` takes no turn in the Room's operation queue: a completed
+Hand's files are final and every later operation writes to a different Hand's,
+so queueing would only make replay wait on a disk that is already stalling. The
+hand listing is the authority on which ordinals may be served — it holds exactly
+the Hands this Room saw complete, so an ordinal missing from it is one still
+being dealt, abandoned mid-deal, or never recorded at all.
 
 ## Recording-paused
 
