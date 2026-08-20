@@ -2,6 +2,7 @@ import {
   DEFAULT_SHOT_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   type HandSummary,
+  type TableReplayPosition,
 } from "@table-top-poker/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useTableStore } from "./store.js";
@@ -19,6 +20,10 @@ function summary(handOrdinal: number): HandSummary {
     outcome: { kind: "folded-out", winner: 0 },
   };
 }
+
+const positions: readonly TableReplayPosition[] = [
+  { event: null, view: { phase: "no-hand", button: 0 } },
+];
 
 describe("useTableStore", () => {
   beforeEach(() => {
@@ -173,5 +178,43 @@ describe("useTableStore", () => {
     useTableStore.getState().setHandList([summary(1)]);
     useTableStore.getState().clearHandHistory();
     expect(useTableStore.getState().handSummaries).toEqual([]);
+  });
+
+  it("holds a requested hand as loading until its positions arrive", () => {
+    useTableStore.getState().openReview(2);
+    expect(useTableStore.getState().review).toEqual({
+      status: "loading",
+      handOrdinal: 2,
+    });
+
+    useTableStore.getState().receiveReplay(2, positions);
+    expect(useTableStore.getState().review).toEqual({
+      status: "ready",
+      handOrdinal: 2,
+      positions,
+    });
+  });
+
+  it("drops a replay for a hand no longer under review", () => {
+    useTableStore.getState().openReview(2);
+    useTableStore.getState().receiveReplay(1, positions);
+    expect(useTableStore.getState().review?.status).toBe("loading");
+
+    useTableStore.getState().closeReview();
+    useTableStore.getState().receiveReplay(2, positions);
+    expect(useTableStore.getState().review).toBeNull();
+  });
+
+  it("marks a hand the server refused unavailable, and only while loading", () => {
+    useTableStore.getState().openReview(2);
+    useTableStore.getState().failReview();
+    expect(useTableStore.getState().review).toEqual({
+      status: "unavailable",
+      handOrdinal: 2,
+    });
+
+    useTableStore.getState().receiveReplay(2, positions);
+    useTableStore.getState().failReview();
+    expect(useTableStore.getState().review?.status).toBe("ready");
   });
 });

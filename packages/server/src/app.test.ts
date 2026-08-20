@@ -2,6 +2,7 @@ import {
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
   ENGINE_LOG_VERSION,
+  legalActions,
   DEFAULT_SOUND_SETTINGS,
   MAX_SEAT_COUNT,
   MAX_SHOT_CLOCK_SECONDS,
@@ -3098,15 +3099,18 @@ describe("hand summaries over WebSocket", () => {
     });
   });
 
-  it("answers a well-formed get-hand rather than dropping it", async () => {
-    const { table } = await seatedRoom();
-    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+  it("refuses a get-hand from a player's socket", async () => {
+    const { seats } = await seatedRoom();
+    const seat = seats[0];
+    if (seat === undefined) throw new Error("expected a connected seat");
+    seat.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
     await settle();
 
-    expect(table.messages).toContainEqual({
+    expect(seat.messages).toContainEqual({
       type: "command-rejected",
-      reason: "replay-not-supported",
+      reason: "not-permitted",
     });
+    expect(seat.messages.some((m) => m.type === "hand-replay")).toBe(false);
   });
 
   it("summarises nothing for a hand still in progress", async () => {
@@ -3166,6 +3170,274 @@ describe("hand summaries over WebSocket", () => {
       type: "hand-list",
       summaries: [],
     });
+  });
+});
+
+describe("hand replay over WebSocket", () => {
+  const SEAT_COUNT = 3;
+
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let fileSystem: MemoryFileSystem;
+  let port: number;
+
+  beforeEach(async () => {
+    fileSystem = createMemoryFileSystem();
+    rooms = new RoomStore();
+    app = await buildApp({
+      rooms,
+      recordings: new DirectoryRecordings(RECORDINGS_ROOT, fileSystem),
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function connect(query: string): {
+    socket: WebSocket;
+    messages: ServerMessage[];
+  } {
+    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/ws?${query}`);
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    return { socket, messages };
+  }
+
+  async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+  }
+
+  async function settle(): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  /** A room created through the real route, so it has a real recording. */
+  async function recordedRoom(): Promise<{
+    code: string;
+    table: { socket: WebSocket; messages: ServerMessage[] };
+    seats: Record<number, { socket: WebSocket }>;
+  }> {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: SEAT_COUNT },
+    });
+    const code = response.json<RoomCreatedBody>().code;
+    const table = connect(`room=${code}&role=table`);
+    await opened(table.socket);
+
+    const seats: Record<number, { socket: WebSocket }> = {};
+    for (let seatId = 0; seatId < SEAT_COUNT; seatId += 1) {
+      const claim = rooms.claimSeat(code, seatId, `P${String(seatId)}`);
+      if (!("seat" in claim)) throw new Error("expected a claimed seat");
+      const seat = connect(
+        `room=${code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
+      );
+      await opened(seat.socket);
+      seats[seatId] = seat;
+    }
+    await settle();
+    return { code, table, seats };
+  }
+
+  /** Folds whoever is on the clock until the hand is over. */
+  async function foldToTheEnd(
+    code: string,
+    seats: Record<number, { socket: WebSocket }>,
+  ): Promise<void> {
+    for (let i = 0; i < 8; i++) {
+      if (rooms.get(code)?.engine?.hand?.status === "complete") return;
+      const actor = rooms.currentActor(code);
+      if (actor === undefined) throw new Error("expected a current actor");
+      seats[actor]?.socket.send(JSON.stringify({ type: "fold" }));
+      await settle();
+    }
+    throw new Error("hand did not complete");
+  }
+
+  /** Checks or calls every seat around until the flop is out. */
+  async function passToTheFlop(
+    code: string,
+    seats: Record<number, { socket: WebSocket }>,
+  ): Promise<void> {
+    for (let i = 0; i < 12; i++) {
+      const hand = rooms.get(code)?.engine?.hand;
+      if (hand?.status !== "betting") throw new Error("hand is not betting");
+      if (hand.street !== "preflop") return;
+      const actor = rooms.currentActor(code);
+      if (actor === undefined) throw new Error("expected a current actor");
+      const legal = legalActions(hand, actor);
+      const action = legal.includes("check") ? "check" : "call";
+      seats[actor]?.socket.send(JSON.stringify({ type: action }));
+      await settle();
+    }
+    throw new Error("never reached the flop");
+  }
+
+  async function playOneHand(): Promise<{
+    code: string;
+    table: { socket: WebSocket; messages: ServerMessage[] };
+    seats: Record<number, { socket: WebSocket }>;
+  }> {
+    const room = await recordedRoom();
+    room.table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await foldToTheEnd(room.code, room.seats);
+    return room;
+  }
+
+  it("serves a completed hand as one whole replay, position 0 first", async () => {
+    const { table } = await playOneHand();
+
+    table.messages.length = 0;
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+    await settle();
+
+    const replays = table.messages.filter((m) => m.type === "hand-replay");
+    expect(replays).toHaveLength(1);
+    const replay = replays[0];
+    expect(replay?.handOrdinal).toBe(1);
+    expect(replay?.positions[0]?.event).toBeNull();
+    expect(replay?.positions[0]?.view.phase).toBe("no-hand");
+    expect(replay?.positions.map((position) => position.event?.type)).toEqual([
+      undefined,
+      "HandStarted",
+      "HoleCardsDealt",
+      "StreetStarted",
+      "ActionTaken",
+      "ActionTaken",
+      "HandFoldedOut",
+      "HandComplete",
+    ]);
+    expect(table.messages.some((m) => m.type === "command-rejected")).toBe(
+      false,
+    );
+  });
+
+  it("projects every replayed position through the table view", async () => {
+    const { table } = await playOneHand();
+
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+    await settle();
+
+    const replay = table.messages.find((m) => m.type === "hand-replay");
+    const views = JSON.stringify(
+      replay?.positions.map((position) => position.view),
+    );
+    expect(views).not.toContain("holeCards");
+    expect(views).not.toContain("players");
+    expect(views).not.toContain("seed");
+  });
+
+  it("shows the table no seat's hole cards at any position", async () => {
+    const { table } = await playOneHand();
+
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+    await settle();
+
+    const replay = table.messages.find((m) => m.type === "hand-replay");
+    const dealt = replay?.positions.find(
+      (position) => position.event?.type === "HoleCardsDealt",
+    );
+    expect(dealt?.event).toEqual({ type: "HoleCardsDealt", deals: [] });
+  });
+
+  it("replays a fold-out hand with the board it died on", async () => {
+    const { code, table, seats } = await recordedRoom();
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+    await passToTheFlop(code, seats);
+    await foldToTheEnd(code, seats);
+
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+    await settle();
+
+    const replay = table.messages.find((m) => m.type === "hand-replay");
+    // The terminal `folded-out` view carries no board, so the flop is only
+    // reachable from the positions before it.
+    expect(replay?.positions.at(-1)?.view.phase).toBe("folded-out");
+    const boards = (replay?.positions ?? []).flatMap((position) =>
+      "board" in position.view ? [position.view.board.length] : [],
+    );
+    expect(Math.max(...boards)).toBe(3);
+  });
+
+  it("refuses an ordinal the session has not completed", async () => {
+    const { table } = await playOneHand();
+
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 2 }));
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "hand-unavailable",
+    });
+    expect(table.messages.some((m) => m.type === "hand-replay")).toBe(false);
+  });
+
+  it("refuses the hand still being dealt", async () => {
+    const { code, table } = await playOneHand();
+    table.socket.send(JSON.stringify({ type: "nextHand" }));
+    await settle();
+    expect(rooms.get(code)?.engine?.hand?.status).toBe("betting");
+
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 2 }));
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "hand-unavailable",
+    });
+  });
+
+  it("refuses a hand whose recording has gone missing", async () => {
+    const { code, table } = await playOneHand();
+    const room = rooms.get(code);
+    if (!room) throw new Error("expected the room to be live");
+    await fileSystem.remove(
+      `${RECORDINGS_ROOT}/${room.id}/hand-0001.context.json`,
+    );
+
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+    await settle();
+
+    expect(table.messages).toContainEqual({
+      type: "command-rejected",
+      reason: "hand-unavailable",
+    });
+  });
+
+  it("still replays the hands recorded before Continue without recording", async () => {
+    const { code, table } = await playOneHand();
+    fileSystem.failAlways("appendFile");
+    table.socket.send(JSON.stringify({ type: "nextHand" }));
+    await settle();
+    expect(table.messages).toContainEqual({ type: "recording-paused" });
+    await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/recording/continue`,
+    });
+    await settle();
+
+    table.messages.length = 0;
+    table.socket.send(JSON.stringify({ type: "get-hand", handOrdinal: 1 }));
+    await settle();
+
+    const replay = table.messages.find((m) => m.type === "hand-replay");
+    expect(replay?.handOrdinal).toBe(1);
   });
 });
 

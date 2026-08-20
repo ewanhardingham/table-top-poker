@@ -8,7 +8,7 @@ import {
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import { color, unlockAudio } from "@table-top-poker/ui-shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   changeSeatCount,
   changeShotClockSettings,
@@ -21,6 +21,7 @@ import {
 } from "./api/rooms.js";
 import { Board } from "./Board.js";
 import { HandPicker } from "./HandPicker.js";
+import { HandReview } from "./replay/HandReview.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
 import { NotRecordingBanner } from "./NotRecordingBanner.js";
 import { SeatCountPicker } from "./SeatCountPicker.js";
@@ -38,6 +39,15 @@ import {
 } from "./storage/hostedRoom.js";
 import { useTableStore } from "./store/store.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
+
+const feltSurfaceStyle: CSSProperties = {
+  position: "absolute",
+  inset: "1em",
+  borderRadius: "0.7em",
+  background: color.felt,
+  boxShadow:
+    "inset 0 0 12em 4em rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.08)",
+};
 
 export function App() {
   const roomCode = useTableStore((state) => state.roomCode);
@@ -57,6 +67,9 @@ export function App() {
   const clearHand = useTableStore((state) => state.clearHand);
   const handSummaries = useTableStore((state) => state.handSummaries);
   const clearHandHistory = useTableStore((state) => state.clearHandHistory);
+  const review = useTableStore((state) => state.review);
+  const openReview = useTableStore((state) => state.openReview);
+  const closeReview = useTableStore((state) => state.closeReview);
 
   useEffect(() => {
     const stored = loadHostedRoom(window.localStorage);
@@ -103,10 +116,11 @@ export function App() {
     clearHostedRoom(window.localStorage);
     setSettingsOpen(false);
     setHandPickerOpen(false);
+    closeReview();
     clearRoom();
     clearHand();
     clearHandHistory();
-  }, [clearRoom, clearHand, clearHandHistory]);
+  }, [clearRoom, clearHand, clearHandHistory, closeReview]);
 
   const { send } = useWebSocket(roomCode, {
     onRoomEnded: handleRoomEnded,
@@ -132,6 +146,7 @@ export function App() {
         clearHostedRoom(window.localStorage);
         setSettingsOpen(false);
         setHandPickerOpen(false);
+        closeReview();
         clearRoom();
         clearHand();
         clearHandHistory();
@@ -139,7 +154,7 @@ export function App() {
       .catch((error: unknown) => {
         console.error(error);
       });
-  }, [roomCode, clearRoom, clearHand, clearHandHistory]);
+  }, [roomCode, clearRoom, clearHand, clearHandHistory, closeReview]);
 
   const handleAddBot = useCallback(() => {
     if (roomCode === null || !testMode) return;
@@ -184,6 +199,29 @@ export function App() {
     send({ type: "nextHand" });
   }, [send]);
 
+  const handleSelectHand = useCallback(
+    (handOrdinal: number) => {
+      openReview(handOrdinal);
+      setHandPickerOpen(false);
+      send({ type: "get-hand", handOrdinal });
+    },
+    [openReview, send],
+  );
+
+  const handleBackToHands = useCallback(() => {
+    closeReview();
+    setHandPickerOpen(true);
+  }, [closeReview]);
+
+  // A review left open can never swallow the board, so a hand starting takes
+  // the felt back with no confirmation (Phase 2 spec #129 §6).
+  const handLive = isHandLive(handView);
+  useEffect(() => {
+    if (!handLive) return;
+    closeReview();
+    setHandPickerOpen(false);
+  }, [handLive, closeReview]);
+
   const claimedSeatCount = seats.filter((seat) => seat.claimed).length;
   const handInProgress = handView !== null;
   const enoughPlayers = countDealInSeats(seats) >= MIN_SEAT_COUNT;
@@ -212,17 +250,16 @@ export function App() {
             onSeatCountChange={setSeatCount}
             onCreateRoom={handleCreateRoom}
           />
+        ) : review !== null ? (
+          <div style={feltSurfaceStyle}>
+            <HandReview
+              review={review}
+              seats={seats}
+              onClose={handleBackToHands}
+            />
+          </div>
         ) : (
-          <div
-            style={{
-              position: "absolute",
-              inset: "1em",
-              borderRadius: "0.7em",
-              background: color.felt,
-              boxShadow:
-                "inset 0 0 12em 4em rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.08)",
-            }}
-          >
+          <div style={feltSurfaceStyle}>
             <Seats
               seats={seats}
               view={handView}
@@ -326,6 +363,7 @@ export function App() {
               <HandPicker
                 summaries={handSummaries}
                 seats={seats}
+                onSelectHand={handleSelectHand}
                 onClose={() => {
                   setHandPickerOpen(false);
                 }}

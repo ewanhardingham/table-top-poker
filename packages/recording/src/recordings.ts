@@ -1,6 +1,8 @@
 import path from "node:path";
 import { nodeFileSystem } from "./file-system.js";
 import type { RecordingFileSystem } from "./file-system.js";
+import { readHandRecording } from "./hand-reader.js";
+import type { HandRecordingRead } from "./hand-reader.js";
 import { assertValidRoomId, roomManifestPath } from "./paths.js";
 import { RECORDING_LAYOUT_VERSION } from "./records.js";
 import type { RoomManifest } from "./records.js";
@@ -22,6 +24,15 @@ export interface CreateRoomRecordingOptions {
  */
 export interface Recordings {
   create(options: CreateRoomRecordingOptions): Promise<RoomRecording>;
+  /**
+   * Reads one Hand of an already-created Room recording back.
+   *
+   * On the root rather than on {@link RoomRecording} deliberately: a
+   * recording on disk outlives its writer. "Continue without recording"
+   * closes the writer and never reopens it, and the Hands recorded before
+   * that failure must stay replayable (Phase 2 spec #129 §3).
+   */
+  readHand(roomId: string, handOrdinal: number): Promise<HandRecordingRead>;
 }
 
 const WRITE_PROBE_FILENAME = ".recordings-write-probe";
@@ -114,6 +125,15 @@ export class DirectoryRecordings implements Recordings {
       roomDir,
       fileSystem: this.#fs,
       ...(this.#retries === undefined ? {} : { retries: this.#retries }),
+    });
+  }
+
+  readHand(roomId: string, handOrdinal: number): Promise<HandRecordingRead> {
+    assertValidRoomId(roomId);
+    return readHandRecording({
+      fileSystem: this.#fs,
+      roomDir: path.join(this.root, roomId),
+      handOrdinal,
     });
   }
 

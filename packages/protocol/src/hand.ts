@@ -14,20 +14,21 @@ export interface HandUpdateMessage {
 /**
  * A server-rejected command, reason-coded, delivered to the sender only.
  *
- * `replay-not-supported` answers a well-formed replay request this server
- * cannot serve yet, so a client can tell "not built" from a dropped socket.
- * It retires when the Replay read path lands.
+ * `hand-unavailable` answers a `get-hand` for an ordinal this Room cannot
+ * serve — never recorded, incomplete, or disagreeing with its own audit
+ * stream. One reason covers all three: which it was is filesystem detail, and
+ * that stays in operational server logs (Phase 2 spec #129 §3).
  *
  * `recording-paused` answers a command a paused Room cannot record — a
  * recording failure, not a rule violation, so it lives here and never
- * reaches the engine's own `RejectionReason` (Phase 2 spec #129 §3).
+ * reaches the engine's own `RejectionReason` (§3).
  */
 export type ServerRejectionReason =
   | "invalid-command"
   | "room-not-found"
   | "not-enough-players"
   | "not-permitted"
-  | "replay-not-supported"
+  | "hand-unavailable"
   | "recording-paused";
 
 export interface CommandRejectedMessage {

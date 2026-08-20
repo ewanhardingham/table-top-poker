@@ -6,6 +6,7 @@ import type {
 } from "@table-top-poker/engine";
 import { z } from "zod";
 import type { CommandRejectedMessage, HandUpdateMessage } from "./hand.js";
+import type { HandReplayMessage } from "./replay.js";
 import type { HandSummary } from "./summary.js";
 
 export const MIN_SEAT_COUNT = 2;
@@ -242,6 +243,7 @@ export type ServerMessage =
   | RoomEndedMessage
   | HandListMessage
   | HandSummaryMessage
+  | HandReplayMessage
   | RecordingPausedMessage
   | RecordingResumedMessage
   | RecordingStoppedMessage;
