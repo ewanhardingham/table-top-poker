@@ -10,7 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 /* eslint-disable @typescript-eslint/no-deprecated -- React 19's DOM-free component test renderer is deprecated but remains the available interaction harness here. */
 import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { HandReview as Review } from "../store/replaySlice.js";
+import type { HandReviewState } from "../store/replaySlice.js";
 import { HandReview } from "./HandReview.js";
 import type { ReplayStageProps } from "./ReplayStage.js";
 
@@ -113,7 +113,7 @@ const positions: readonly TableReplayPosition[] = [
   })),
 ];
 
-const ready: Review = { status: "ready", handOrdinal: 7, positions };
+const ready: HandReviewState = { status: "ready", handOrdinal: 7, positions };
 
 interface Node {
   readonly props: {
@@ -128,7 +128,7 @@ interface Renderer {
   };
 }
 
-function render(review: Review = ready): Renderer {
+function render(review: HandReviewState = ready): Renderer {
   let renderer!: Renderer;
   act(() => {
     renderer = create(
@@ -262,7 +262,7 @@ describe("HandReview", () => {
       />,
     );
 
-    expect(loading).toContain("Loading hand 7");
+    expect(loading).toContain("Loading the hand");
     expect(unavailable).toContain("can&#x27;t be replayed");
     expect(unavailable).toContain('data-testid="back-to-hands-button"');
   });

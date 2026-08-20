@@ -1,13 +1,13 @@
 import type { SeatView } from "@table-top-poker/protocol";
 import { color, font, fontSize } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { HandReview as Review } from "../store/replaySlice.js";
+import type { HandReviewState } from "../store/replaySlice.js";
 import { beatAt, chaptersOf, holdAt, toBeats } from "./beats.js";
 import { ReplayStage } from "./ReplayStage.js";
 import { ReplayTransport, TRANSPORT_HEIGHT } from "./ReplayTransport.js";
 
 export interface HandReviewProps {
-  readonly review: Review;
+  readonly review: HandReviewState;
   readonly seats: readonly SeatView[];
   readonly onClose: () => void;
 }
@@ -46,11 +46,11 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
     };
   }, [playing, position, scrubbing, atEnd, beats]);
 
-  const startScrubbing = useCallback((next: boolean) => {
-    setScrubbing(next);
-    // Pressing the track stops autoplay: the scrub is the primary mode and
-    // a clock fighting a finger is the worst of both.
-    if (next) setPlaying(false);
+  // Pressing the track stops autoplay: the scrub is the primary mode, and a
+  // clock fighting a finger is the worst of both.
+  const changeScrubbing = useCallback((scrubbing: boolean) => {
+    setScrubbing(scrubbing);
+    if (scrubbing) setPlaying(false);
   }, []);
 
   const togglePlay = useCallback(() => {
@@ -78,8 +78,8 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
           }}
         >
           {review.status === "loading"
-            ? `Loading hand ${String(review.handOrdinal)}`
-            : `Hand ${String(review.handOrdinal)} can't be replayed`}
+            ? "Loading the hand"
+            : "That hand can't be replayed"}
         </div>
       </>
     );
@@ -104,7 +104,7 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
         playing={playing}
         scrubbing={scrubbing}
         onSeek={setPosition}
-        onScrubbingChange={startScrubbing}
+        onScrubbingChange={changeScrubbing}
         onTogglePlay={togglePlay}
         currentStreet={beatAt(beats, position)?.street ?? null}
       />
