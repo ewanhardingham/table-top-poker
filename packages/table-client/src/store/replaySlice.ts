@@ -6,7 +6,7 @@ import type { StateCreator } from "zustand";
  * `positions`, so a reply that arrives after the table has backed out — or
  * moved on to another hand — can be recognised as stale and dropped.
  */
-export type HandReview =
+export type HandReviewState =
   | { readonly status: "loading"; readonly handOrdinal: number }
   | {
       readonly status: "ready";
@@ -16,7 +16,7 @@ export type HandReview =
   | { readonly status: "unavailable"; readonly handOrdinal: number };
 
 export interface ReplaySlice {
-  readonly review: HandReview | null;
+  readonly review: HandReviewState | null;
   readonly openReview: (handOrdinal: number) => void;
   readonly receiveReplay: (
     handOrdinal: number,

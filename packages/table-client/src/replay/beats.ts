@@ -5,18 +5,21 @@ import type {
 } from "@table-top-poker/protocol";
 
 /**
- * One Event ordinal, dressed for the transport: the street it belongs to, how
- * long autoplay holds on it, and whether it opens a street.
- *
- * Position is the Event ordinal throughout (Phase 2 spec #129 §2) — beat *n*
- * is the state after applying *n* Events, so position 0 has no beat.
+ * One Event ordinal, dressed for the transport. Position is the Event ordinal
+ * throughout (Phase 2 spec #129 §2) — beat *n* is the state after applying
+ * *n* Events, so position 0 has no beat.
  */
 export interface Beat {
   readonly position: number;
   readonly street: Street | null;
   /** How long autoplay holds here, in ms. */
   readonly weight: number;
-  readonly isStreetStart: boolean;
+  /**
+   * The first beat of its street: the track draws it heavier and a Chapter
+   * seeks to it. One flag for both, so a chip can never land beside the tick
+   * marking the boundary it names.
+   */
+  readonly isStreetBoundary: boolean;
 }
 
 const streetLabel: Record<Street, string> = {
@@ -27,14 +30,8 @@ const streetLabel: Record<Street, string> = {
 };
 
 /**
- * Autoplay's per-event pacing. The shape is the claim: beats that *change
- * what is on the felt* (a deal, a board, a showdown) are held, and beats that
- * only advance the bookkeeping go past quickly — `StreetClosed` is
- * near-instant, being a real ordinal with nothing to show.
- *
- * Weighting redistributes attention rather than saving time: measured against
- * a 33-event fixture it ran 27.7s to uniform's 28.1s, which is why autoplay
- * is the secondary control and the scrub is the primary one (§6).
+ * Autoplay's per-event pacing: beats that *change what is on the felt* are
+ * held, and beats that only advance the bookkeeping go past quickly (§6).
  */
 const WEIGHTS: Record<HandEvent["type"], number> = {
   HandStarted: 900,
@@ -48,12 +45,7 @@ const WEIGHTS: Record<HandEvent["type"], number> = {
   HandComplete: 2000,
 };
 
-/**
- * A beat belongs to the street it *shows*, which for a `BoardDealt` is the
- * street it opens rather than the one still in progress when it lands. That
- * stamping is what puts each street's first beat on its `BoardDealt`, and
- * `chaptersOf` needs no special case for the cascade.
- */
+/** A beat belongs to the street it *shows* — see Chapter in `CONTEXT.md`. */
 function streetOf(event: HandEvent, current: Street | null): Street | null {
   if (event.type === "StreetStarted" || event.type === "BoardDealt") {
     return event.street;
@@ -70,12 +62,13 @@ export function toBeats(
   for (const [index, position] of positions.entries()) {
     const event = position.event;
     if (event === null) continue;
+    const previous = street;
     street = streetOf(event, street);
     beats.push({
       position: index,
       street,
       weight: WEIGHTS[event.type],
-      isStreetStart: event.type === "StreetStarted",
+      isStreetBoundary: street !== null && street !== previous,
     });
   }
   return beats;
@@ -88,28 +81,13 @@ export interface Chapter {
   readonly position: number;
 }
 
-/**
- * The named landmarks people navigate by — "on the turn, when Seat 4 raised".
- * Each street's first beat is its anchor, which for every street after
- * preflop is its `BoardDealt`: the engine's cascade emits `StreetClosed →
- * BoardDealt → StreetStarted`, so anchoring on the street start would land
- * *after* the cards appeared and a viewer tapping "Turn" would never see the
- * turn card arrive (§6).
- */
+/** The Scrub's street landmarks — see Chapter in `CONTEXT.md`. */
 export function chaptersOf(beats: readonly Beat[]): readonly Chapter[] {
-  const chapters: Chapter[] = [];
-  const seen = new Set<Street>();
-
-  for (const beat of beats) {
-    if (beat.street === null || seen.has(beat.street)) continue;
-    seen.add(beat.street);
-    chapters.push({
-      street: beat.street,
-      label: streetLabel[beat.street],
-      position: beat.position,
-    });
-  }
-  return chapters;
+  return beats.flatMap((beat) => {
+    const street = beat.street;
+    if (!beat.isStreetBoundary || street === null) return [];
+    return [{ street, label: streetLabel[street], position: beat.position }];
+  });
 }
 
 export function beatAt(beats: readonly Beat[], position: number): Beat | null {

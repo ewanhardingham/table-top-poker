@@ -55,12 +55,14 @@ describe("toBeats", () => {
     );
   });
 
-  it("marks street starts, which the track draws heavier", () => {
+  it("marks each street's first beat, which the track draws heavier", () => {
     const beats = toBeats(positionsFor(toTheTurn));
 
     expect(
-      beats.filter((beat) => beat.isStreetStart).map((beat) => beat.position),
-    ).toEqual([3, 7, 11]);
+      beats
+        .filter((beat) => beat.isStreetBoundary)
+        .map((beat) => beat.position),
+    ).toEqual([3, 6, 10]);
   });
 
   it("stamps a BoardDealt with the street it opens, not the one it ends", () => {
@@ -113,6 +115,16 @@ describe("chaptersOf", () => {
 
     expect(new Set(chapters.map((chapter) => chapter.street)).size).toBe(
       chapters.length,
+    );
+  });
+
+  it("seeks each chapter to the beat the track draws heaviest", () => {
+    const beats = toBeats(positionsFor(toTheTurn));
+
+    expect(chaptersOf(beats).map((chapter) => chapter.position)).toEqual(
+      beats
+        .filter((beat) => beat.isStreetBoundary)
+        .map((beat) => beat.position),
     );
   });
 });
