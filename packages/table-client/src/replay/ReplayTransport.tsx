@@ -16,10 +16,18 @@ export interface ReplayTransportProps {
 }
 
 /**
- * Chapter chips (3.4em) + gap (0.8em) + track (4.6em) + bottom margin (1.4em),
- * in `em`. `ReplayStage` reserves this band so the seat ring rides clear of it.
+ * Comfortably past the ~44px touch-target floor at the table device's root
+ * size, and wide enough to hit without aiming.
  */
-export const TRANSPORT_HEIGHT = 10.2;
+const CHIP_HEIGHT = 3.4;
+const ROW_GAP = 0.8;
+/** The grab zone, deliberately far taller than the 6px rail it draws. */
+const TRACK_HEIGHT = 4.6;
+const BOTTOM_MARGIN = 1.4;
+
+/** The band `ReplayStage` reserves, so the seat ring rides clear of it. */
+export const TRANSPORT_HEIGHT =
+  CHIP_HEIGHT + ROW_GAP + TRACK_HEIGHT + BOTTOM_MARGIN;
 
 /**
  * The scrub: a ticked track the width of the felt, chaptered by street, with
@@ -80,10 +88,10 @@ export function ReplayTransport({
         position: "absolute",
         left: "1.8em",
         right: "1.8em",
-        bottom: "1.4em",
+        bottom: `${String(BOTTOM_MARGIN)}em`,
         display: "flex",
         flexDirection: "column",
-        gap: "0.8em",
+        gap: `${String(ROW_GAP)}em`,
         zIndex: 3,
       }}
     >
@@ -121,7 +129,7 @@ export function ReplayTransport({
         }}
         style={{
           position: "relative",
-          height: "4.6em",
+          height: `${String(TRACK_HEIGHT)}em`,
           display: "flex",
           alignItems: "center",
           cursor: "pointer",
@@ -152,15 +160,15 @@ export function ReplayTransport({
           <span
             key={beat.position}
             data-testid={`replay-tick-${String(beat.position)}`}
-            data-street-boundary={beat.isStreetStart}
+            data-street-boundary={beat.isStreetBoundary}
             style={{
               position: "absolute",
               left: `${String((beat.position / total) * 100)}%`,
               transform: "translateX(-50%)",
-              width: beat.isStreetStart ? "3px" : "2px",
-              height: beat.isStreetStart ? "2.2em" : "1.1em",
+              width: beat.isStreetBoundary ? "3px" : "2px",
+              height: beat.isStreetBoundary ? "2.2em" : "1.1em",
               borderRadius: "999px",
-              background: beat.isStreetStart
+              background: beat.isStreetBoundary
                 ? color.textMuted
                 : "rgba(255,255,255,.34)",
             }}
@@ -209,7 +217,7 @@ function Chip({
         fontSize: "0.78em",
         letterSpacing: "0.12em",
         textTransform: "uppercase",
-        minHeight: "3.4em",
+        minHeight: `${String(CHIP_HEIGHT)}em`,
         minWidth: "6em",
         padding: "0.9em 1.6em",
         borderRadius: "999px",

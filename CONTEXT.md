@@ -222,6 +222,28 @@ stepper shows the prefix with a warning.
 _Avoid_: Calling either corruption — a disagreement between complete records
 is the corrupt case, and it is a hard failure.
 
+**Hand review**:
+The table device's two surfaces for a finished Hand: a picker that chooses
+one from the session, and a Scrub that plays it back on the felt. Reachable
+only between Hands, and force-dismissed the moment a Hand starts — a review
+left open can never swallow the Board.
+
+**Scrub**:
+The table's replay transport: a timeline the width of the felt, ticked once
+per Replay position and chaptered by Street, draggable to any position.
+Autoplay is a secondary toggle, not the primary mode.
+_Avoid_: Calling it playback — getting to a moment is the point, not
+watching the Hand through.
+
+**Chapter**:
+A Street's landmark on the Scrub, seeking to the position that Street opens
+on. For every Street after preflop that is its `BoardDealt`, not its
+`StreetStarted`: the engine's cascade emits `StreetClosed → BoardDealt →
+StreetStarted`, so anchoring on the Street start lands after the cards
+appeared and the viewer never sees them arrive. Chapters are the navigation
+contract; the per-position ticks beside them are a visual affordance that
+may collapse on an unusually long Hand.
+
 **Hand summary**:
 What one completed Hand looks like in a list of them — its ordinal and
 start time, the Button, the Seats dealt in and the Survivors, the public

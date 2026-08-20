@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import type { Beat } from "./beats.js";
 import { MAX_TICKS, positionAtRatio, ticksFor } from "./track.js";
 
-function beats(count: number, streetStarts: readonly number[] = []): Beat[] {
+function beats(count: number, boundaries: readonly number[] = []): Beat[] {
   return Array.from({ length: count }, (_unused, index) => ({
     position: index + 1,
     street: "preflop" as const,
     weight: 100,
-    isStreetStart: streetStarts.includes(index + 1),
+    isStreetBoundary: boundaries.includes(index + 1),
   }));
 }
 
@@ -52,7 +52,9 @@ describe("ticksFor", () => {
       expect(drawn.map((tick) => tick.position)).toContain(boundary);
     }
     expect(
-      drawn.filter((tick) => tick.isStreetStart).map((tick) => tick.position),
+      drawn
+        .filter((tick) => tick.isStreetBoundary)
+        .map((tick) => tick.position),
     ).toEqual(boundaries);
   });
 });
