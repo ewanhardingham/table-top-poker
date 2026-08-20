@@ -4,21 +4,13 @@ import type {
   TableReplayPosition,
 } from "@table-top-poker/protocol";
 
-/**
- * One Event ordinal, dressed for the transport. Position is the Event ordinal
- * throughout (Phase 2 spec #129 §2) — beat *n* is the state after applying
- * *n* Events, so position 0 has no beat.
- */
+/** One Event ordinal, dressed for the transport — see Replay position in `CONTEXT.md`. */
 export interface Beat {
   readonly position: number;
   readonly street: Street | null;
   /** How long autoplay holds here, in ms. */
   readonly weight: number;
-  /**
-   * The first beat of its street: the track draws it heavier and a Chapter
-   * seeks to it. One flag for both, so a chip can never land beside the tick
-   * marking the boundary it names.
-   */
+  /** One flag for the heavier tick and the Chapter seek, so the two cannot drift apart. */
   readonly isStreetBoundary: boolean;
 }
 
@@ -29,10 +21,7 @@ export const streetLabel: Record<Street, string> = {
   river: "River",
 };
 
-/**
- * Autoplay's per-event pacing: beats that *change what is on the felt* are
- * held, and beats that only advance the bookkeeping go past quickly (§6).
- */
+/** Autoplay pacing: what changes the felt is held, bookkeeping goes past quickly. */
 const WEIGHTS: Record<HandEvent["type"], number> = {
   HandStarted: 900,
   HoleCardsDealt: 1400,
@@ -101,11 +90,7 @@ export function beatAt(beats: readonly Beat[], position: number): Beat | null {
 /** A hand opens on an empty felt, where there is nothing to hold on. */
 const LEAD_IN = 400;
 
-/**
- * How long autoplay stays at `position`: the weight of the Event that put the
- * felt in the state now on screen, so a board deal is held and a
- * `StreetClosed` is passed straight through.
- */
+/** The weight of the Event that put the felt in the state now on screen. */
 export function holdAt(beats: readonly Beat[], position: number): number {
   return beatAt(beats, position)?.weight ?? LEAD_IN;
 }

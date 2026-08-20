@@ -44,11 +44,7 @@ export interface Seat {
 }
 
 export interface Room {
-  /**
-   * The Room's durable opaque identity, naming its Room recording directory
-   * on disk. Distinct from `code`, which is a live human-typed handle that is
-   * re-rolled on collision and means nothing once the Room ends.
-   */
+  /** See Room ID in `CONTEXT.md`. */
   readonly id: string;
   readonly code: string;
   readonly seats: Seat[];
@@ -62,13 +58,7 @@ export interface Room {
   shotClockSettings: ShotClockSettings;
 }
 
-/**
- * A Room that has its durable identity and a reserved join code but is not
- * yet joinable. Room creation is transactional with recording creation: the
- * caller stages, writes `room.json`, and only then commits — so a Room whose
- * recording could not be created never enters the live store and never hands
- * out a code or a QR.
- */
+/** Staged, not yet joinable: Room creation is transactional with recording creation. */
 export interface StagedRoom {
   readonly room: Room;
   /** Publishes the Room into the live store and returns it. */
@@ -331,11 +321,7 @@ function resolveButtonFor(
   return ordered.find((id) => id > previousButton) ?? first;
 }
 
-/**
- * Turns an accepted dispatch into the whole operation the recording takes.
- * The state right after `HandStarted` is where a Hand's seats and button are
- * fixed; nothing later in the same operation moves them.
- */
+/** The state right after `HandStarted` is where a Hand's seats and button are fixed. */
 function toRoomOperation(
   success: DispatchSuccess,
   now: () => Date,
@@ -388,13 +374,7 @@ export class RoomStore {
     this.#now = now;
   }
 
-  /**
-   * Stages a room sized to the creator's chosen seat count (issue #74),
-   * without publishing it. The range is a domain rule, not a UI one, so an
-   * out-of-range count is a caller bug and throws — the HTTP edge parses the
-   * untrusted body with `CreateRoomRequestSchema` and answers 400 before ever
-   * reaching here.
-   */
+  /** An out-of-range count is a caller bug and throws; the HTTP edge answers 400 first. */
   stage(seatCount: number = DEFAULT_SEAT_COUNT): StagedRoom {
     if (!SeatCountSchema.safeParse(seatCount).success) {
       throw new RangeError(
@@ -431,11 +411,7 @@ export class RoomStore {
     };
   }
 
-  /**
-   * Stages and immediately publishes a room. The uninterrupted path is only
-   * safe where nothing else has to succeed first; the HTTP create route uses
-   * {@link stage} so the Room's recording is written before it is joinable.
-   */
+  /** Only safe where nothing else has to succeed first; the HTTP route uses {@link stage}. */
   create(seatCount: number = DEFAULT_SEAT_COUNT): Room {
     return this.stage(seatCount).commit();
   }

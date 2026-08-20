@@ -7,11 +7,7 @@ import type { RecordingFileSystem } from "./file-system.js";
 import { handRecordingPaths } from "./paths.js";
 import type { HandContext } from "./records.js";
 
-/**
- * What one Hand's three files hold, or why they could not be read. Nothing
- * here is a replay verdict: the engine's `replayHand` decides whether the
- * records agree, and this only reports the shapes it could not parse.
- */
+/** Not a replay verdict: this reports only the shapes it could not parse. */
 export type HandRecordingRead =
   | { readonly status: "read"; readonly input: ReplayInput }
   | { readonly status: "missing-file"; readonly file: string }
@@ -43,12 +39,7 @@ class MalformedRecordError extends Error {
   }
 }
 
-/**
- * Parses a JSONL file, tolerating an unterminated final line as torn rather
- * than malformed: append-as-you-go persistence (`RoomRecording`) never leaves
- * a torn line anywhere but the last, since every earlier write completed with
- * its trailing newline before the next one began.
- */
+/** A torn line can only ever be the last: every earlier write closed with its newline. */
 function parseJsonl<T>(file: string, contents: string): ParsedJsonl<T> {
   if (contents === "") return { records: [], tornRecord: null };
 
@@ -71,18 +62,7 @@ function parseJsonl<T>(file: string, contents: string): ParsedJsonl<T> {
   return { records, tornRecord: null };
 }
 
-/**
- * Reads Hand `handOrdinal` of the Room recording at `roomDir` into the
- * `ReplayInput` the engine's `replayHand` takes.
- *
- * The filesystem is injected rather than imported, so every caller reads
- * through the same seam the writer uses — which is what lets the server's
- * replay path be exercised against an in-memory disk (Phase 2 spec #129 §3).
- *
- * At most one of `commands.jsonl`/`events.jsonl` can carry a torn final line
- * — a crash lands mid-write of one file at a time — so `tornRecord` is
- * whichever one reports it.
- */
+/** At most one file can carry a torn final line: a crash lands mid-write of one. */
 export async function readHandRecording({
   fileSystem,
   roomDir,
@@ -92,10 +72,7 @@ export async function readHandRecording({
   // Independent files, read concurrently — none depends on another's content.
   const [contextText, commandsText, eventsText] = await Promise.all([
     fileSystem.readFile(paths.contextPath),
-    // A missing commands/events file reads as empty: an empty Command log is
-    // the engine's own `invalid-command-log` failure, and a commands file
-    // with no matching events file is the orphaned-trailing-Command case §4
-    // describes, not a missing file.
+    // Missing reads as empty: both cases are the engine's to name, not a read failure.
     fileSystem.readFile(paths.commandsPath).then((text) => text ?? ""),
     fileSystem.readFile(paths.eventsPath).then((text) => text ?? ""),
   ]);

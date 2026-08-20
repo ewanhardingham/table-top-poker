@@ -88,3 +88,17 @@ starts at `numSeats * 2 + boardLenSoFar`.
   or set to sit out).
 - A seat's `yourHoleCards` is null once folded; `legalActions` is populated only
   when it is that seat's turn (`toAct[0] === seatId`).
+
+## Replay
+
+A Hand's Command log opens with the operation that started it, which for every
+Hand after the first is a `nextHand`. `decide` only accepts that against a
+completed Hand, and Replay is scoped to one Hand starting from no Hand at all —
+so the opening Command is run as the `startHand` it behaved as. Both take the
+same path through `beginHand`, on the same seed and recorded Button, so the
+generated Events match the ones the live run recorded.
+
+Because `decide` echoes back whatever Command it was handed, a generated
+Rejection has the substituted Command on it. Replay restores the Command as
+*recorded* before comparing, or the substitution would leak into the audit
+comparison and report a faithful recording as corrupt.

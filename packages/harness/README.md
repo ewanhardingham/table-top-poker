@@ -109,6 +109,22 @@ passing the same `--seats` it was originally run with. Each hand's
 for a human or later replay tooling to read back; the harness CLI itself
 doesn't consume it.
 
+## Resolving `<room>` in the dev stepper
+
+The `<room>` positional resolves in this order: a literal path; a Room ID
+directly under `--recordings-dir`; then a four-character join code scanned
+across `--recordings-dir`, most recent `createdAt` winning a collision because
+codes are recycled; and finally the literal `latest`. A directory that exists
+always wins over a code scan, so a directory that happens to share a code's
+shape is never misread as one. The Room ID check is what makes the ID a
+harness run just printed usable as-is, without spelling out the path.
+
+The scan is deliberately unfiltered by layout version: `latest` and a join code
+pick the directory the timestamp actually names first and validate it second.
+Silently preferring an older, version-compatible directory would be the
+partial-replay-for-a-version-mismatch that the spec rules out, moved a step
+earlier.
+
 ## Failure modes
 
 The harness fails fast on malformed input rather than risk writing a
@@ -116,3 +132,16 @@ corrupt record into the output stream: invalid JSON on a line, a command
 `type` the engine doesn't recognize, or a malformed `--seats` value all
 print a message to stderr and exit non-zero, with nothing further written
 to stdout.
+
+### An all-torn first Command line
+
+`harness replay` treats any torn final JSONL record as incomplete, never as
+corrupt, and that carries no carve-out for the record being the Hand's first.
+When the first Command line is torn, `replayHand` has nothing to replay and
+reports `invalid-command-log: empty` — correct when the log really is empty,
+but indistinguishable there from a crash mid-write of the first line. The CLI
+reclassifies that one failure shape and emits the single position the Hand
+context alone still supports: position 0, the starting state, with the usual
+incomplete-Hand warning on stderr. It is the only failure the harness
+reclassifies rather than passing straight through, and reaching it means
+`replayHand` already validated the context and version.

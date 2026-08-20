@@ -84,14 +84,7 @@ async function listRoomDirs(recordingsDir: string): Promise<string[]> {
     .map((entry) => path.join(recordingsDir, entry.name));
 }
 
-/**
- * The manifest of every directory under `recordingsDir` that parses as a
- * Room recording — deliberately unfiltered by layout version, so a `latest`
- * or join-code scan picks the directory the timestamp actually names first
- * and validates it second. Silently preferring an older, version-compatible
- * directory instead would be the "partial replay for a version mismatch"
- * §7 rules out, just moved a step earlier.
- */
+/** Unfiltered by layout version — see Resolving `<room>` in `packages/harness/README.md`. */
 async function candidateManifests(
   recordingsDir: string,
 ): Promise<{ roomDir: string; manifest: RoomManifest }[]> {
@@ -124,18 +117,7 @@ function byCreatedAtDescending(
   return a.manifest.createdAt < b.manifest.createdAt ? 1 : -1;
 }
 
-/**
- * Resolves the `<room>` positional to a directory: a literal path, a
- * four-character join code (scanned across `recordingsDir`, most recent
- * `createdAt` wins on a collision — codes are recycled), or the literal
- * `latest` (Phase 2 spec #129 §7). A directory that exists — either `room`
- * taken literally, or `room` as a Room ID directly under `recordingsDir` —
- * is always taken over a code scan, so a directory happening to share a
- * code's shape is never misread as one. The second check is what makes the
- * Room ID a harness run just printed (`--room-id`, or the default sortable
- * timestamp) usable as-is, without spelling out the path to `recordingsDir`
- * by hand.
- */
+/** See Resolving `<room>` in `packages/harness/README.md`. */
 export async function resolveRoomDirectory(
   room: string,
   recordingsDir: string,
@@ -191,11 +173,7 @@ export interface LoadedHand {
   readonly input: ReplayInput;
 }
 
-/**
- * Resolves `<room>`, then reads Hand `handOrdinal` through the same reader
- * the server's replay path uses — one parse of the durable format, so the
- * stepper and the table can never disagree about what a torn tail is.
- */
+/** Reads through the same reader the server uses, so neither can disagree on a torn tail. */
 export async function loadHand(
   room: string,
   handOrdinal: number,
