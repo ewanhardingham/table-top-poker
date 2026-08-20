@@ -145,7 +145,7 @@ export function App() {
     setMenuSeatId(null);
   }, [roomCode, menuSeatId]);
 
-  const forgetSession = useCallback(() => {
+  const forgetRoom = useCallback(() => {
     clearHostedRoom(window.localStorage);
     setSettingsOpen(false);
     setHandPickerOpen(false);
@@ -155,7 +155,7 @@ export function App() {
     clearHandHistory();
   }, [clearRoom, clearHand, clearHandHistory, closeReview]);
 
-  const { send } = useWebSocket(roomCode, { onRoomEnded: forgetSession });
+  const { send } = useWebSocket(roomCode, { onRoomEnded: forgetRoom });
 
   const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
   const handleCreateRoom = useCallback(() => {
@@ -173,11 +173,11 @@ export function App() {
   const handleEndSession = useCallback(() => {
     if (!roomCode) return;
     endSession(roomCode)
-      .then(forgetSession)
+      .then(forgetRoom)
       .catch((error: unknown) => {
         console.error(error);
       });
-  }, [roomCode, forgetSession]);
+  }, [roomCode, forgetRoom]);
 
   const handleAddBot = useCallback(() => {
     if (roomCode === null || !testMode) return;
