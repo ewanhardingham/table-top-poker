@@ -32,6 +32,25 @@ export function liveSeats(hand: BettingHandState): SeatId[] {
   return hand.ring.filter((seat) => !seatState(hand, seat).folded);
 }
 
+export function actingSeats(hand: BettingHandState): SeatId[] {
+  return hand.ring.filter((seat) => canAct(seatState(hand, seat)));
+}
+
+export function canAct(seat: {
+  readonly folded: boolean;
+  readonly allIn: boolean;
+}): boolean {
+  return !seat.folded && !seat.allIn;
+}
+
+export function reopensBetting(action: ActionType): boolean {
+  return action === "raise" || action === "allInRaise";
+}
+
+export function isAllIn(action: ActionType): boolean {
+  return action === "allInCall" || action === "allInRaise";
+}
+
 export function initialToAct(
   ring: readonly SeatId[],
   live: readonly SeatId[],
@@ -87,20 +106,23 @@ export function legalActions(
   actorSeat: SeatId,
 ): ActionType[] {
   return facingBet(hand, actorSeat)
-    ? ["fold", "call", "raise"]
-    : ["fold", "check", "raise"];
+    ? ["fold", "call", "raise", "allInCall", "allInRaise"]
+    : ["fold", "check", "raise", "allInCall", "allInRaise"];
 }
 
 export function requeueAfterRaise(
   ring: readonly SeatId[],
-  players: ReadonlyMap<SeatId, { readonly folded: boolean }>,
+  players: ReadonlyMap<
+    SeatId,
+    { readonly folded: boolean; readonly allIn: boolean }
+  >,
   raiser: SeatId,
 ): SeatId[] {
   const idx = ring.indexOf(raiser);
   const result: SeatId[] = [];
   for (let step = 1; step < ring.length; step++) {
     const candidate = must(ring[(idx + step) % ring.length]);
-    if (!must(players.get(candidate)).folded) {
+    if (canAct(must(players.get(candidate)))) {
       result.push(candidate);
     }
   }

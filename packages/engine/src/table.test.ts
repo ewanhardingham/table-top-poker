@@ -4,7 +4,7 @@ import { legalActions } from "./table.js";
 import { playAll } from "./test-utils.js";
 
 describe("legalActions", () => {
-  it("offers fold/call/raise to a seat facing a bet preflop", () => {
+  it("offers the facing-a-bet actions to a seat facing a bet preflop", () => {
     const state = createInitialState([0, 1, 2]);
     const started = playAll(state, [
       { type: "startHand", seatId: 0, seed: "s" },
@@ -12,10 +12,16 @@ describe("legalActions", () => {
     if (started.hand?.status !== "betting") {
       throw new Error("expected betting");
     }
-    expect(legalActions(started.hand, 1)).toEqual(["fold", "call", "raise"]);
+    expect(legalActions(started.hand, 1)).toEqual([
+      "fold",
+      "call",
+      "raise",
+      "allInCall",
+      "allInRaise",
+    ]);
   });
 
-  it("offers fold/check/raise to the big blind on an unraised preflop", () => {
+  it("offers the unopened actions to the big blind on an unraised preflop", () => {
     const state = createInitialState([0, 1, 2]);
     const started = playAll(state, [
       { type: "startHand", seatId: 0, seed: "s" },
@@ -30,6 +36,12 @@ describe("legalActions", () => {
     if (afterLap.hand?.status !== "betting") {
       throw new Error("expected betting");
     }
-    expect(legalActions(afterLap.hand, 2)).toEqual(["fold", "check", "raise"]);
+    expect(legalActions(afterLap.hand, 2)).toEqual([
+      "fold",
+      "check",
+      "raise",
+      "allInCall",
+      "allInRaise",
+    ]);
   });
 });

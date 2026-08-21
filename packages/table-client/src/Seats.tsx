@@ -54,6 +54,8 @@ const actionTone: Record<
   check: { background: color.actionPassive, ink: color.textMuted },
   call: { background: color.actionCall, ink: "#fff" },
   raise: { background: color.actionRaise, ink: color.pillInk },
+  allInCall: { background: color.actionCall, ink: "#fff" },
+  allInRaise: { background: color.actionRaise, ink: color.pillInk },
 };
 
 type SeatStatus =

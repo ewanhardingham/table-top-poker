@@ -69,7 +69,13 @@ describe("view: legalActions", () => {
 
     const actorView = view(state, actor);
     if (actorView.phase !== "betting") throw new Error("expected betting");
-    expect(actorView.legalActions).toEqual(["fold", "check", "raise"]);
+    expect(actorView.legalActions).toEqual([
+      "fold",
+      "check",
+      "raise",
+      "allInCall",
+      "allInRaise",
+    ]);
 
     const other = must(state.hand.ring.find((seat) => seat !== actor));
     const otherView = view(state, other);

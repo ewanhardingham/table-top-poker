@@ -4,7 +4,7 @@ import { apply } from "./apply.js";
 import { decide } from "./decide.js";
 import { createInitialState } from "./room.js";
 import { legalActions } from "./table.js";
-import type { BettingHandState, EngineState } from "./types.js";
+import type { ActionType, BettingHandState, EngineState } from "./types.js";
 import { must } from "./util.js";
 
 const seatsArb = fc
@@ -12,11 +12,13 @@ const seatsArb = fc
   .map((raw) => [...new Set(raw)])
   .filter((seats) => seats.length >= 2);
 
-const actionArb = fc.constantFrom<"fold" | "check" | "call" | "raise">(
+const actionArb = fc.constantFrom<ActionType>(
   "fold",
   "check",
   "call",
   "raise",
+  "allInCall",
+  "allInRaise",
 );
 
 function deepFreeze<T>(value: T): T {
@@ -114,6 +116,7 @@ function assertBettingInvariants(hand: BettingHandState): void {
     expect(seen.has(seat)).toBe(false);
     seen.add(seat);
     expect(must(hand.players.get(seat)).folded).toBe(false);
+    expect(must(hand.players.get(seat)).allIn).toBe(false);
   }
 
   const live = hand.ring.filter((seat) => !must(hand.players.get(seat)).folded);
@@ -121,12 +124,12 @@ function assertBettingInvariants(hand: BettingHandState): void {
 }
 
 describe("property: decide/apply keep the betting invariants across a random hand", () => {
-  it("toAct always has an actor, no duplicates, no folded seats, and >=2 live", () => {
+  it("toAct always has an actor, no duplicates, nobody folded or all-in, and >=2 live", () => {
     fc.assert(
       fc.property(
         seatsArb,
         fc.string({ minLength: 1, maxLength: 10 }),
-        fc.array(fc.nat(2), { minLength: 0, maxLength: 60 }),
+        fc.array(fc.nat(4), { minLength: 0, maxLength: 60 }),
         (seats, seed, choices) => {
           let state: EngineState = createInitialState(seats);
           const started = decide(state, {
