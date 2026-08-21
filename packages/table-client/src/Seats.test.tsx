@@ -326,7 +326,7 @@ describe("Seats", () => {
     expect(html).not.toContain('data-testid="seat-pod-0-disconnected"');
   });
 
-  it("tables a shown hand on the seat plate with its rank badge and verdict", () => {
+  it("tables a shown hand on the seat plate with its rank badge, naming no hand", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
@@ -367,7 +367,8 @@ describe("Seats", () => {
     );
     expect(html).toContain('data-testid="seat-pod-0-showdown-rank"');
     expect(html).toContain("1st");
-    expect(html).toContain("Pair of Aces — wins");
+    expect(html).toContain("wins");
+    expect(html).not.toContain("Pair of Aces");
     expect(html).not.toContain('data-testid="seat-pod-1-showdown"');
   });
 
@@ -948,7 +949,9 @@ describe("Seats at showdown", () => {
       />,
     );
 
-    expect(html).toContain("Pair of Aces — splits");
+    expect(html).toContain("splits");
+    expect(html).not.toContain("Pair of Aces");
+    expect(html).not.toContain("Ace high");
     const places = [...html.matchAll(/showdown-rank"[^>]*>([^<]+)</g)].map(
       (match) => match[1],
     );
@@ -971,13 +974,12 @@ describe("Seats at showdown", () => {
     expect(html).toMatch(
       /data-testid="seat-pod-1-showdown"[^>]*data-winner="true"/,
     );
-    expect(html).toContain("Not shown — wins");
+    expect(html).toContain("not shown — wins");
     expect(html).not.toContain('data-testid="seat-pod-1-showdown-rank"');
-    expect(html).toContain("Pair of Aces");
-    expect(html).not.toContain("Pair of Aces — wins");
+    expect(html).not.toContain("Pair of Aces");
   });
 
-  it("bounds the verdict label so it cannot reach a neighbouring seat", () => {
+  it("never spells out the hand a seat made — the cards are the result", () => {
     const html = renderToStaticMarkup(
       <Seats
         seats={seats}
@@ -992,10 +994,11 @@ describe("Seats at showdown", () => {
       />,
     );
 
-    expect(styleOf(html, "seat-pod-0-showdown")).toContain("max-width:8.5rem");
-    expect(styleOf(html, "seat-pod-0-showdown-verdict")).toContain(
-      "text-overflow:ellipsis",
-    );
+    expect(html).not.toContain("Straight flush");
+    expect(html).not.toContain("Ace high");
+    expect(html).toContain('data-testid="seat-pod-0-showdown-rank"');
+    expect(html).toContain('data-testid="seat-pod-0-showdown-verdict"');
+    expect(html).not.toContain('data-testid="seat-pod-1-showdown-verdict"');
   });
 
   it("keeps a tap on a tabled hand out of the seat menu", () => {

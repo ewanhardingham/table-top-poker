@@ -107,7 +107,8 @@ describe("ReplayStage at showdown", () => {
     expect(html).toMatch(
       /data-testid="seat-pod-0-showdown"[^>]*data-shown="true"/,
     );
-    expect(html).toContain("Pair of Aces — wins");
+    expect(html).toContain("wins");
+    expect(html).not.toContain("Pair of Aces");
     expect(html).toMatch(
       /data-testid="seat-pod-1-showdown"[^>]*data-shown="false"/,
     );
