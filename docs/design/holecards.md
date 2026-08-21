@@ -60,6 +60,15 @@ no simulated pointer.
     because an all-in Hand is still private until the table's Reveal. It clears
     the fold gesture with it, which is the point: an all-in Seat cannot fold.
 
+`revealPublishes(from, to, showLegal)` is the other predicate the hook reads off
+the lifecycle, alongside `releaseCommitsFold`. Inside the Showdown showing
+window a committed flip face-up **is** the `show` (ADR-0008's #253 amendment):
+entering `Turning` publishes the Hand. A peek does not — it never reaches
+`Turning` — and neither does a pair already face-up when the window opened,
+because `showLegal` rising emits `RESET` and puts it face-down first. That reset
+is the whole safeguard against publishing by accident, so it is load-bearing,
+not tidiness.
+
 `CardState`/`CardEvent` are intentionally **complete**: every event name the
 phase needs is declared even where an arm does not yet answer it, so later
 slices add arms against this shape rather than reshaping it.

@@ -42,6 +42,10 @@ export function eventsForPropChange(
     events.push({ type: "FOLD_DISARMED" });
   }
 
+  if (!prev.actions.showLegal && next.actions.showLegal) {
+    events.push({ type: "RESET" });
+  }
+
   if (prev.actions.pending && !next.actions.pending) {
     events.push({ type: "PENDING_RESOLVED", hasCards: next.cards !== null });
   }

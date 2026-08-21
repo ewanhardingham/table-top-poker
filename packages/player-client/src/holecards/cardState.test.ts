@@ -3,6 +3,7 @@ import {
   initialCardState,
   reduce,
   releaseCommitsFold,
+  revealPublishes,
   type CardEvent,
   type CardState,
   type Presentation,
@@ -716,5 +717,23 @@ describe("reduce", () => {
         reduce(lockedState("Revealed"), { type: "DOUBLE_TAPPED" }),
       ).toEqual(lockedState("Revealed"));
     });
+  });
+});
+
+describe("revealPublishes", () => {
+  it("publishes the committed flip face-up while the window is open", () => {
+    expect(revealPublishes("FaceDown", "Turning", true)).toBe(true);
+    expect(revealPublishes("Peeking", "Turning", true)).toBe(true);
+  });
+
+  it("keeps the reveal local while the window is shut", () => {
+    expect(revealPublishes("FaceDown", "Turning", false)).toBe(false);
+  });
+
+  it("does not publish a peek, a hide, or a flip already in flight", () => {
+    expect(revealPublishes("FaceDown", "Peeking", true)).toBe(false);
+    expect(revealPublishes("Revealed", "FaceDown", true)).toBe(false);
+    expect(revealPublishes("Turning", "Turning", true)).toBe(false);
+    expect(revealPublishes("Turning", "Revealed", true)).toBe(false);
   });
 });

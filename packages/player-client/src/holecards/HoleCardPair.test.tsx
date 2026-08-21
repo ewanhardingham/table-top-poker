@@ -15,9 +15,11 @@ import type { CardActions } from "./ports.js";
 const actions: CardActions = {
   foldLegal: true,
   checkLegal: true,
+  showLegal: false,
   pending: false,
   fold: () => undefined,
   check: () => undefined,
+  show: () => undefined,
 };
 
 const queenJack: readonly [Card, Card] = [

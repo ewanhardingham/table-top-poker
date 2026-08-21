@@ -1,30 +1,64 @@
 import { describe, expect, it } from "vitest";
-import { allInChoices, isAllInAction, pressAllIn } from "./allIn.js";
+import {
+  allInChoices,
+  isAllInAction,
+  otherSeatIsAllIn,
+  pressAllIn,
+} from "./allIn.js";
+
+const facingBet = ["fold", "call", "raise", "allInCall", "allInRaise"] as const;
+const noBet = ["fold", "check", "raise", "allInCall", "allInRaise"] as const;
 
 describe("allInChoices", () => {
-  it("forks into a call and a raise when facing a bet", () => {
-    expect(
-      allInChoices(["fold", "call", "raise", "allInCall", "allInRaise"]),
-    ).toEqual([
+  it("offers one wide all-in while nobody has shoved", () => {
+    expect(allInChoices([...facingBet], false)).toEqual([
+      { action: "allInRaise", label: "All in" },
+    ]);
+    expect(allInChoices([...noBet], false)).toEqual([
+      { action: "allInRaise", label: "All in" },
+    ]);
+  });
+
+  it("splits into a call and a raise once another seat is all in", () => {
+    expect(allInChoices([...facingBet], true)).toEqual([
       { action: "allInCall", label: "All-in call" },
       { action: "allInRaise", label: "All-in raise" },
     ]);
   });
 
-  it("offers one all-in when there is no bet to call", () => {
-    expect(
-      allInChoices(["fold", "check", "raise", "allInCall", "allInRaise"]),
-    ).toEqual([{ action: "allInRaise", label: "All in" }]);
+  it("drops the call arm when the shove has already been retired, leaving nothing to match", () => {
+    expect(allInChoices([...noBet], true)).toEqual([
+      { action: "allInRaise", label: "All-in raise" },
+    ]);
   });
 
   it("offers nothing when it is not the player's turn", () => {
-    expect(allInChoices([])).toEqual([]);
+    expect(allInChoices([], true)).toEqual([]);
   });
 
   it("drops a choice the engine has not made legal", () => {
-    expect(allInChoices(["fold", "call", "raise", "allInRaise"])).toEqual([
-      { action: "allInRaise", label: "All-in raise" },
-    ]);
+    expect(allInChoices(["fold", "call", "raise", "allInRaise"], true)).toEqual(
+      [{ action: "allInRaise", label: "All-in raise" }],
+    );
+  });
+});
+
+describe("otherSeatIsAllIn", () => {
+  const live = { seatId: 0, folded: false, allIn: false };
+  const shover = { seatId: 1, folded: false, allIn: true };
+  const mucked = { seatId: 2, folded: true, allIn: false };
+  const seats = [live, shover, mucked];
+
+  it("sees another seat's shove", () => {
+    expect(otherSeatIsAllIn(seats, 0)).toBe(true);
+  });
+
+  it("does not count the asking seat's own shove", () => {
+    expect(otherSeatIsAllIn(seats, 1)).toBe(false);
+  });
+
+  it("is false when nobody is all in", () => {
+    expect(otherSeatIsAllIn([live, mucked], 0)).toBe(false);
   });
 });
 

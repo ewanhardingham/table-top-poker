@@ -32,23 +32,35 @@ export interface HandProps {
 
 const noAction = () => undefined;
 
-function cardActionsFrom(intent: ActionIntent | undefined): CardActions {
+function cardActionsFrom(
+  intent: ActionIntent | undefined,
+  showLegal: boolean,
+): CardActions {
   if (intent === undefined) {
     return {
       foldLegal: false,
       checkLegal: false,
+      showLegal: false,
       pending: false,
       fold: noAction,
       check: noAction,
+      show: noAction,
     };
   }
   return {
     foldLegal: intent.legalActions.includes("fold"),
     checkLegal: intent.legalActions.includes("check"),
+    showLegal,
     pending: intent.pendingAction !== null,
     fold: intent.fold,
     check: intent.check,
+    show: intent.show,
   };
+}
+
+/** At Showdown the reveal gesture publishes: see ADR-0008's amendment for #253. */
+export function revealWouldShow(view: PlayerView): boolean {
+  return view.phase === "showdown" && view.canShow && view.winners !== null;
 }
 
 type BannerTone = "turn" | "all-in" | "win" | "loss" | "idle" | "offline";
@@ -378,30 +390,6 @@ function HoleCardsRegion({
   );
 }
 
-function ShowMyHandButton({ onShow }: { readonly onShow: () => void }) {
-  return (
-    <button
-      type="button"
-      data-testid="show-my-hand"
-      onClick={onShow}
-      style={{
-        flex: "none",
-        height: "3.6em",
-        borderRadius: radius.control,
-        border: 0,
-        background: color.pillGradient,
-        color: color.pillInk,
-        boxShadow: shadow.pill,
-        fontFamily: font.body,
-        fontSize: fontSize.lg,
-        fontWeight: 700,
-      }}
-    >
-      Show my hand
-    </button>
-  );
-}
-
 export function Hand({
   view,
   seatId,
@@ -410,7 +398,7 @@ export function Hand({
   shotClockSeconds = 90,
   intent,
 }: HandProps) {
-  const actions = cardActionsFrom(intent);
+  const actions = cardActionsFrom(intent, revealWouldShow(view));
 
   if (view.phase === "no-hand") {
     return (
@@ -508,9 +496,6 @@ export function Hand({
             actions={actions}
             caption="You folded — cards are in the muck."
           />
-        )}
-        {view.canShow && view.winners !== null && (
-          <ShowMyHandButton onShow={intent?.show ?? noAction} />
         )}
         {intent?.rejection != null && (
           <RejectionNotice rejection={intent.rejection} />

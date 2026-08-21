@@ -6,20 +6,14 @@ import { allInChoices } from "./actions/allIn.js";
 
 const noop = () => undefined;
 
-const facingBet = allInChoices([
-  "fold",
-  "call",
-  "raise",
-  "allInCall",
-  "allInRaise",
-]);
-const unopposed = allInChoices([
-  "fold",
-  "check",
-  "raise",
-  "allInCall",
-  "allInRaise",
-]);
+const split = allInChoices(
+  ["fold", "call", "raise", "allInCall", "allInRaise"],
+  true,
+);
+const whole = allInChoices(
+  ["fold", "call", "raise", "allInCall", "allInRaise"],
+  false,
+);
 
 describe("AllInRow", () => {
   it("renders nothing when no all-in is on offer", () => {
@@ -30,14 +24,9 @@ describe("AllInRow", () => {
     expect(html).toBe("");
   });
 
-  it("offers both forks against a bet", () => {
+  it("offers both forks once another seat is all in", () => {
     const html = renderToStaticMarkup(
-      <AllInRow
-        choices={facingBet}
-        armed={null}
-        pending={false}
-        onPress={noop}
-      />,
+      <AllInRow choices={split} armed={null} pending={false} onPress={noop} />,
     );
 
     expect(html).toContain("All-in call");
@@ -46,14 +35,9 @@ describe("AllInRow", () => {
     expect(html).toContain('data-testid="action-allInRaise"');
   });
 
-  it("offers a single all in when there is no bet to call", () => {
+  it("offers a single wide all in while nobody has shoved", () => {
     const html = renderToStaticMarkup(
-      <AllInRow
-        choices={unopposed}
-        armed={null}
-        pending={false}
-        onPress={noop}
-      />,
+      <AllInRow choices={whole} armed={null} pending={false} onPress={noop} />,
     );
 
     expect(html).toContain("All in");
@@ -63,7 +47,7 @@ describe("AllInRow", () => {
   it("asks for a confirm on the armed choice only", () => {
     const html = renderToStaticMarkup(
       <AllInRow
-        choices={facingBet}
+        choices={split}
         armed="allInCall"
         pending={false}
         onPress={noop}
@@ -81,12 +65,7 @@ describe("AllInRow", () => {
 
   it("disables every choice while an action is in flight", () => {
     const html = renderToStaticMarkup(
-      <AllInRow
-        choices={facingBet}
-        armed={null}
-        pending={true}
-        onPress={noop}
-      />,
+      <AllInRow choices={split} armed={null} pending={true} onPress={noop} />,
     );
 
     expect(html).toMatch(/data-testid="action-allInCall"[^>]*disabled/);

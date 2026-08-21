@@ -8,9 +8,11 @@ import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
 const actions: CardActions = {
   foldLegal: false,
   checkLegal: false,
+  showLegal: false,
   pending: false,
   fold: () => undefined,
   check: () => undefined,
+  show: () => undefined,
 };
 
 const queenJack: readonly [Card, Card] = [
@@ -275,6 +277,35 @@ describe("eventsForPropChange", () => {
           props({ cards: queenJack, sealed: true }),
           props({ cards: queenJack }),
           faceDown,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe("the showing window opening", () => {
+    const showable: CardActions = { ...actions, showLegal: true };
+
+    it("returns the pair face-down, so the reveal that publishes is deliberate", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack }),
+          props({ cards: queenJack, actions: showable }),
+          revealed,
+        ),
+      ).toEqual([{ type: "RESET" }]);
+    });
+
+    it("produces nothing while the window is unchanged", () => {
+      const open = props({ cards: queenJack, actions: showable });
+      expect(eventsForPropChange(open, { ...open }, revealed)).toEqual([]);
+    });
+
+    it("produces nothing when the window closes", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, actions: showable }),
+          props({ cards: queenJack }),
+          revealed,
         ),
       ).toEqual([]);
     });
