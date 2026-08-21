@@ -1312,6 +1312,32 @@ describe("RoomStore", () => {
       });
     });
 
+    it("stamps an all-in raise with the seat that declared it", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      commitDispatch(store, room.code, "table", "startHand");
+      const actor = store.currentActor(room.code);
+      if (actor === undefined) throw new Error("expected a current actor");
+
+      const declared = commitDispatch(store, room.code, actor, "allInRaise");
+
+      if (!("steps" in declared)) throw new Error("expected a transaction");
+      expect(declared.command).toEqual({ type: "allInRaise", seatId: actor });
+      expect(declared.steps.map((step) => step.event.type)).toContain(
+        "ActionTaken",
+      );
+    });
+
+    it("refuses an all-in call from the table", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      commitDispatch(store, room.code, "table", "startHand");
+
+      expect(store.dispatch(room.code, "table", "allInCall")).toEqual({
+        error: "not-permitted",
+      });
+    });
+
     it("takes reveal from the table and stamps a seat on it", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, [0, 1]);

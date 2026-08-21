@@ -19,7 +19,7 @@ const queenJack: readonly [Card, Card] = [
 ];
 
 function props(overrides: Partial<HoleCardPairProps> = {}): HoleCardPairProps {
-  return { cards: null, locked: false, actions, ...overrides };
+  return { cards: null, locked: false, sealed: false, actions, ...overrides };
 }
 
 const faceDown: CardState = {
@@ -246,6 +246,35 @@ describe("eventsForPropChange", () => {
           props({ cards: queenJack }),
           props({ cards: queenJack, actions: pending }),
           leaving,
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  describe("all in", () => {
+    it("seals when sealed goes false → true", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack }),
+          props({ cards: queenJack, sealed: true }),
+          faceDown,
+        ),
+      ).toEqual([{ type: "SEALED" }]);
+    });
+
+    it("produces nothing while sealed is unchanged", () => {
+      const stillSealed = props({ cards: queenJack, sealed: true });
+      expect(
+        eventsForPropChange(stillSealed, { ...stillSealed }, faceDown),
+      ).toEqual([]);
+    });
+
+    it("produces nothing when a seal is released — the next deal reopens it", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, sealed: true }),
+          props({ cards: queenJack }),
+          faceDown,
         ),
       ).toEqual([]);
     });

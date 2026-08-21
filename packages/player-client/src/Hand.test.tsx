@@ -22,7 +22,7 @@ describe("Hand", () => {
       street: "flop",
       board: [],
       toAct: [1],
-      seats: [{ seatId: 0, folded: false }],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
       yourSeatId: 0,
       yourHoleCards: [
         { rank: "Q", suit: "diamonds" },
@@ -73,7 +73,7 @@ describe("Hand", () => {
         { rank: "2", suit: "clubs" },
       ],
       toAct: [0],
-      seats: [{ seatId: 0, folded: false }],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
       yourSeatId: 0,
       yourHoleCards: [
         { rank: "Q", suit: "diamonds" },
@@ -102,8 +102,8 @@ describe("Hand", () => {
       board: [],
       toAct: [1],
       seats: [
-        { seatId: 0, folded: true },
-        { seatId: 1, folded: false },
+        { seatId: 0, folded: true, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
       ],
       yourSeatId: 0,
       yourHoleCards: null,
@@ -127,7 +127,7 @@ describe("Hand", () => {
       street: "flop",
       board: [],
       toAct: [1],
-      seats: [{ seatId: 1, folded: false }],
+      seats: [{ seatId: 1, folded: false, allIn: false }],
       yourSeatId: 0,
       yourHoleCards: null,
       legalActions: [],
@@ -151,7 +151,7 @@ describe("Hand", () => {
       street: "turn",
       board: [],
       toAct: [0],
-      seats: [{ seatId: 0, folded: false }],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
       yourSeatId: 0,
       yourHoleCards: [
         { rank: "Q", suit: "diamonds" },
@@ -177,7 +177,7 @@ describe("Hand", () => {
       street: "turn",
       board: [],
       toAct: [0],
-      seats: [{ seatId: 0, folded: false }],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
       yourSeatId: 0,
       yourHoleCards: null,
       legalActions: ["fold", "check"],
@@ -200,8 +200,8 @@ describe("Hand", () => {
       board: [],
       toAct: [1],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: false },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
       ],
       yourSeatId: 0,
       yourHoleCards: null,
@@ -223,7 +223,7 @@ describe("Hand", () => {
       street: "turn",
       board: [],
       toAct: [0],
-      seats: [{ seatId: 0, folded: false }],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
       yourSeatId: 0,
       yourHoleCards: [
         { rank: "Q", suit: "diamonds" },
@@ -238,6 +238,57 @@ describe("Hand", () => {
     expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="offline"/);
     expect(html).toContain("Reconnecting");
     expect(html).not.toContain("Your turn");
+  });
+
+  describe("all in", () => {
+    function allInView(overrides: Partial<PlayerView> = {}): PlayerView {
+      return {
+        phase: "betting",
+        turnEndsAt: null,
+        button: 0,
+        smallBlind: 1,
+        bigBlind: 2,
+        dealtSeatCount: 3,
+        street: "turn",
+        board: [],
+        toAct: [1],
+        seats: [
+          { seatId: 0, folded: false, allIn: true },
+          { seatId: 1, folded: false, allIn: false },
+        ],
+        yourSeatId: 0,
+        yourHoleCards: [
+          { rank: "Q", suit: "diamonds" },
+          { rank: "J", suit: "clubs" },
+        ],
+        legalActions: [],
+        ...overrides,
+      } as PlayerView;
+    }
+
+    it("banners the run-out for the seat that is all in", () => {
+      const html = renderToStaticMarkup(<Hand view={allInView()} seatId={0} />);
+
+      expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="all-in"/);
+      expect(html).toContain("All in");
+    });
+
+    it("keeps the all-in seat's cards face down and inert through the run-out", () => {
+      const html = renderToStaticMarkup(<Hand view={allInView()} seatId={0} />);
+
+      expect(html).toContain('data-presentation="FaceDown"');
+      expect(html).toContain('aria-disabled="true"');
+    });
+
+    it("leaves a covering seat's own cards live", () => {
+      const covering = allInView({ yourSeatId: 1, toAct: [1] });
+      const html = renderToStaticMarkup(<Hand view={covering} seatId={1} />);
+
+      expect(html).toContain('aria-disabled="false"');
+      expect(html).not.toMatch(
+        /data-testid="turn-banner"[^>]*data-tone="all-in"/,
+      );
+    });
   });
 
   describe("showdown", () => {
@@ -342,6 +393,83 @@ describe("Hand", () => {
       expect(html).toContain('aria-disabled="false"');
     });
 
+    it("offers Show my hand once the table has revealed and this seat has not shown", () => {
+      const concealing: PlayerView = {
+        ...shownTable,
+        results: [shownTable.results[0]],
+        winners: [0],
+        yourSeatId: 1,
+        yourResult: shownTable.results[1],
+        canShow: true,
+      };
+      const html = renderToStaticMarkup(<Hand view={concealing} seatId={1} />);
+
+      expect(html).toContain('data-testid="show-my-hand"');
+      expect(html).toContain("Show my hand");
+    });
+
+    it("says why a show did not go through, on the screen that offered it", () => {
+      const concealing: PlayerView = {
+        ...shownTable,
+        results: [shownTable.results[0]],
+        winners: [0],
+        yourSeatId: 1,
+        yourResult: shownTable.results[1],
+        canShow: true,
+      };
+      const html = renderToStaticMarkup(
+        <Hand
+          view={concealing}
+          seatId={1}
+          intent={{
+            legalActions: [],
+            pendingAction: null,
+            rejection: { action: null, reason: "not-at-showdown" },
+            fold: () => undefined,
+            check: () => undefined,
+            call: () => undefined,
+            raise: () => undefined,
+            allIn: () => undefined,
+            show: () => undefined,
+          }}
+        />,
+      );
+
+      expect(html).toContain('data-testid="action-rejection"');
+      expect(html).toContain("There&#x27;s no hand of yours to show.");
+    });
+
+    it("withholds Show my hand until the table's reveal", () => {
+      const resting: PlayerView = {
+        ...shownTable,
+        results: [],
+        winners: null,
+        yourSeatId: 1,
+        yourResult: shownTable.results[1],
+        canShow: true,
+      };
+      const html = renderToStaticMarkup(<Hand view={resting} seatId={1} />);
+
+      expect(html).not.toContain('data-testid="show-my-hand"');
+    });
+
+    it("drops Show my hand once the hand has been shown", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={showdownViewFor(1)} seatId={1} />,
+      );
+
+      expect(html).not.toContain('data-testid="show-my-hand"');
+    });
+
+    it("never puts another seat's shown cards on a player's phone", () => {
+      const html = renderToStaticMarkup(
+        <Hand view={showdownViewFor(1)} seatId={1} />,
+      );
+
+      expect(html).toContain('data-rank="K"');
+      expect(html).not.toContain('data-rank="7"');
+    });
+
     it("shows the loser's own hole cards and a loss banner naming the winner", () => {
       const html = renderToStaticMarkup(
         <Hand view={showdownViewFor(1)} seatId={1} />,
@@ -431,10 +559,10 @@ describe("Hand", () => {
       board: [],
       toAct: [3],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: false },
-        { seatId: 2, folded: false },
-        { seatId: 3, folded: false },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
+        { seatId: 2, folded: false, allIn: false },
+        { seatId: 3, folded: false, allIn: false },
       ],
       yourSeatId: 0,
       yourHoleCards: null,

@@ -28,6 +28,8 @@ export function eventsForPropChange(
   } else {
     if (!samePair(prev.cards, next.cards)) events.push({ type: "DEALT" });
 
+    if (!prev.sealed && next.sealed) events.push({ type: "SEALED" });
+
     if (!prev.locked && next.locked) events.push({ type: "SHOWDOWN_REVEAL" });
   }
 

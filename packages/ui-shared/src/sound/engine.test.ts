@@ -76,7 +76,7 @@ const bettingView = (myTurn: boolean): PlayerView => ({
   street: "preflop",
   board: [],
   toAct: myTurn ? [0] : [1],
-  seats: [{ seatId: 0, folded: false }],
+  seats: [{ seatId: 0, folded: false, allIn: false }],
   yourSeatId: 0,
   yourHoleCards: pair(),
   legalActions: myTurn ? ["fold", "check"] : [],
@@ -100,6 +100,7 @@ const tableBettingView = (dealtSeatCount: number): TableView => ({
   seats: Array.from({ length: dealtSeatCount }, (_, seatId) => ({
     seatId,
     folded: false,
+    allIn: false,
   })),
   button: 0,
   smallBlind: 0,

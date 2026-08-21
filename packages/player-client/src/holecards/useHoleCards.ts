@@ -98,6 +98,7 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     initialCardState({
       hasCards: initial.cards !== null,
       locked: initial.locked,
+      sealed: initial.sealed,
     }),
   );
 

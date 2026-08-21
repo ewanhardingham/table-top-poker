@@ -51,9 +51,14 @@ no simulated pointer.
 - `Recognizer`: `Idle | Pressing | Bending | FoldDragging | Ignored | Committed`.
 - `armed`: whether releasing now commits the Fold. Only ever true while
   `FoldDragging`.
-- `locked`: showdown reached with this seat still live (story 48). Its own field
-  rather than a recognizer state or presentation, because the lock is not a
-  gesture outcome and `Revealed` is reachable two ways where only one is final.
+- `locked`: the pair is inert. Set two ways, and its own field rather than a
+  recognizer state or presentation, because the lock is not a gesture outcome
+  and `Revealed` is reachable two ways where only one is final.
+  - `SHOWDOWN_REVEAL` — showdown reached with this seat still live (story 48):
+    inert and face-**up**.
+  - `SEALED` — the seat declared all in (issue #253): inert and face-**down**,
+    because an all-in Hand is still private until the table's Reveal. It clears
+    the fold gesture with it, which is the point: an all-in Seat cannot fold.
 
 `CardState`/`CardEvent` are intentionally **complete**: every event name the
 phase needs is declared even where an arm does not yet answer it, so later
@@ -62,7 +67,8 @@ slices add arms against this shape rather than reshaping it.
 ### Key reducer rules
 
 - **Lock allow-list.** A locked pair hears only `DEALT`, `CARDS_GONE`,
-  `SHOWDOWN_REVEAL`, `TURN_FINISHED` (`survivesLock`). Enforced once at the top
+  `SEALED`, `SHOWDOWN_REVEAL`, `TURN_FINISHED` (`survivesLock`). `SHOWDOWN_REVEAL`
+  surviving the lock is what turns a sealed all-in pair face-up at the Reveal. Enforced once at the top
   of `reduce`, so tap/gesture events added later are inert against a decided
   hand *by default* and cannot reach one by being forgotten. `RESET` is
   deliberately **not** on the list: backgrounding must not conceal a showdown
@@ -235,8 +241,8 @@ produce nothing.
 - Cards arriving is the deal signal (there is no hand id on `PlayerView`), by
   card *identity* not reference, with a value comparison as a defensive second
   signal for a betting→betting swap without an intervening empty view.
-- `SHOWDOWN_REVEAL` is ordered *after* `DEALT`, so a seat whose cards only
-  arrive at showdown is dealt in before it's revealed.
+- `SEALED` and `SHOWDOWN_REVEAL` are ordered *after* `DEALT`, so a seat whose
+  cards only arrive at showdown is dealt in before it's revealed.
 - Only the falling edge of `pending` produces `PENDING_RESOLVED` (the pair
   already moved itself to `Leaving` on release); acknowledged vs rejected is
   read off the cards, not off any rejection state.

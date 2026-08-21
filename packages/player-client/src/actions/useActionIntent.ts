@@ -1,6 +1,7 @@
 import type { ActionType, ClientCommand } from "@table-top-poker/protocol";
 import { useCallback } from "react";
 import { usePlayerStore } from "../store/store.js";
+import type { AllInAction } from "./allIn.js";
 import type { ActionRejection } from "../store/actionSlice.js";
 import { legalActionsFromView } from "./legalActionsFromView.js";
 
@@ -12,6 +13,8 @@ export interface ActionIntent {
   readonly check: () => void;
   readonly call: () => void;
   readonly raise: () => void;
+  readonly allIn: (action: AllInAction) => void;
+  readonly show: () => void;
 }
 
 type SendableAction = Extract<ClientCommand["type"], ActionType>;
@@ -58,6 +61,12 @@ export function useActionIntent(
     },
     raise: () => {
       act("raise");
+    },
+    allIn: (action: AllInAction) => {
+      act(action);
+    },
+    show: () => {
+      send({ type: "show" });
     },
   };
 }

@@ -6,8 +6,15 @@ import {
   radius,
   shadow,
 } from "@table-top-poker/ui-shared";
-import type { CSSProperties } from "react";
-import { rejectionCopy } from "./actions/rejectionCopy.js";
+import { useEffect, useState, type CSSProperties } from "react";
+import { AllInRow } from "./AllInRow.js";
+import {
+  allInChoices,
+  isAllInAction,
+  pressAllIn,
+  type AllInAction,
+} from "./actions/allIn.js";
+import { RejectionNotice } from "./actions/RejectionNotice.js";
 import type { ActionRejection } from "./store/actionSlice.js";
 
 export interface ActionBarProps {
@@ -18,6 +25,7 @@ export interface ActionBarProps {
   readonly onCheck: () => void;
   readonly onCall: () => void;
   readonly onRaise: () => void;
+  readonly onAllIn: (action: AllInAction) => void;
 }
 
 const ACTIONS = ["fold", "check", "call", "raise"] as const;
@@ -66,15 +74,6 @@ const toneStyle: Record<OfferedAction, CSSProperties> = {
   },
 };
 
-const rejectionStyle: CSSProperties = {
-  padding: "0.7em 0.9em",
-  borderRadius: radius.control,
-  background: "rgba(232,139,125,.13)",
-  border: "1px solid rgba(232,139,125,.34)",
-  fontSize: fontSize.caption,
-  color: "#f0aa9d",
-};
-
 export function ActionBar({
   legalActions,
   pendingAction,
@@ -83,12 +82,26 @@ export function ActionBar({
   onCheck,
   onCall,
   onRaise,
+  onAllIn,
 }: ActionBarProps) {
   const handlers: Record<OfferedAction, () => void> = {
     fold: onFold,
     check: onCheck,
     call: onCall,
     raise: onRaise,
+  };
+  const [armedAllIn, setArmedAllIn] = useState<AllInAction | null>(null);
+  const choices = allInChoices(legalActions);
+
+  const offer = legalActions.join(",");
+  useEffect(() => {
+    setArmedAllIn(null);
+  }, [offer]);
+
+  const pressAllInChoice = (action: AllInAction) => {
+    const press = pressAllIn(armedAllIn, action);
+    setArmedAllIn(press.armed);
+    if (press.send !== null) onAllIn(press.send);
   };
 
   return (
@@ -102,13 +115,7 @@ export function ActionBar({
       }}
     >
       {rejection !== null && rejection.action === null && (
-        <div
-          data-testid="action-rejection"
-          data-rejected-action=""
-          style={rejectionStyle}
-        >
-          {rejectionCopy(rejection.reason)}
-        </div>
+        <RejectionNotice rejection={rejection} />
       )}
       <div
         style={{
@@ -168,18 +175,24 @@ export function ActionBar({
                 </span>
               </button>
               {rejection !== null && rejection.action === action && (
-                <div
-                  data-testid="action-rejection"
-                  data-rejected-action={action}
-                  style={rejectionStyle}
-                >
-                  {rejectionCopy(rejection.reason)}
-                </div>
+                <RejectionNotice rejection={rejection} attributedTo={action} />
               )}
             </div>
           );
         })}
       </div>
+      <AllInRow
+        choices={choices}
+        armed={armedAllIn}
+        pending={pendingAction !== null}
+        onPress={pressAllInChoice}
+      />
+      {rejection !== null && isAllInAction(rejection.action) && (
+        <RejectionNotice
+          rejection={rejection}
+          attributedTo={rejection.action}
+        />
+      )}
     </div>
   );
 }

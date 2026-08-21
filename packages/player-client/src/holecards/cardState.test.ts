@@ -25,27 +25,33 @@ function lockedState(presentation: Presentation): CardState {
 
 describe("initialCardState", () => {
   it("starts Absent when the seat holds no cards", () => {
-    expect(initialCardState({ hasCards: false, locked: false })).toEqual(
-      state("Absent"),
-    );
+    expect(
+      initialCardState({ hasCards: false, locked: false, sealed: false }),
+    ).toEqual(state("Absent"));
   });
 
   it("starts FaceDown when cards are already in hand on mount", () => {
-    expect(initialCardState({ hasCards: true, locked: false })).toEqual(
-      state("FaceDown"),
-    );
+    expect(
+      initialCardState({ hasCards: true, locked: false, sealed: false }),
+    ).toEqual(state("FaceDown"));
+  });
+
+  it("starts FaceDown and inert when mounting into an all-in seat", () => {
+    expect(
+      initialCardState({ hasCards: true, locked: false, sealed: true }),
+    ).toEqual(lockedState("FaceDown"));
   });
 
   it("starts Revealed and inert when mounting into a locked (showdown) pair", () => {
-    expect(initialCardState({ hasCards: true, locked: true })).toEqual(
-      lockedState("Revealed"),
-    );
+    expect(
+      initialCardState({ hasCards: true, locked: true, sealed: false }),
+    ).toEqual(lockedState("Revealed"));
   });
 
   it("stays Absent when locked with no cards", () => {
-    expect(initialCardState({ hasCards: false, locked: true })).toEqual(
-      state("Absent"),
-    );
+    expect(
+      initialCardState({ hasCards: false, locked: true, sealed: false }),
+    ).toEqual(state("Absent"));
   });
 });
 
@@ -226,6 +232,37 @@ describe("reduce", () => {
       expect(reduce(bending, { type: "SHOWDOWN_REVEAL" })).toEqual(
         lockedState("Turning"),
       );
+    });
+  });
+
+  describe("SEALED", () => {
+    it("turns the pair face-down and inert when the seat goes all in", () => {
+      for (const presentation of ["FaceDown", "Peeking", "Revealed"] as const) {
+        expect(reduce(state(presentation), { type: "SEALED" })).toEqual(
+          lockedState("FaceDown"),
+        );
+      }
+    });
+
+    it("clears any gesture the player still had a finger on", () => {
+      expect(reduce(state("Peeking", "Bending"), { type: "SEALED" })).toEqual(
+        lockedState("FaceDown"),
+      );
+    });
+
+    it("seals nothing for a seat holding no cards", () => {
+      expect(reduce(state("Absent"), { type: "SEALED" })).toEqual(
+        state("Absent"),
+      );
+      expect(reduce(state("Leaving"), { type: "SEALED" })).toEqual(
+        state("Leaving"),
+      );
+    });
+
+    it("still turns over at the table's reveal", () => {
+      expect(
+        reduce(lockedState("FaceDown"), { type: "SHOWDOWN_REVEAL" }),
+      ).toEqual(lockedState("Turning"));
     });
   });
 

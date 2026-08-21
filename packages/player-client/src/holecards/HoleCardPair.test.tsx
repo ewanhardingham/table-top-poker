@@ -28,7 +28,12 @@ const queenJack: readonly [Card, Card] = [
 describe("HoleCardPair", () => {
   it("deals in face-down, with no rank or suit anywhere in the document", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).toMatch(/data-testid="hole-cards"/);
@@ -39,7 +44,12 @@ describe("HoleCardPair", () => {
 
   it("renders as a real focusable button with an accessible name", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).toMatch(/<button [^>]*type="button"/);
@@ -50,7 +60,12 @@ describe("HoleCardPair", () => {
 
   it("names the cards for a screen reader once they are revealed", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).toContain(
@@ -60,7 +75,12 @@ describe("HoleCardPair", () => {
 
   it("renders a locked pair face-up and inert", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).toContain('data-presentation="Revealed"');
@@ -73,7 +93,12 @@ describe("HoleCardPair", () => {
 
   it("renders the Absent presentation and no card pair for a seat holding nothing", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={null} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={null}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).toMatch(/data-testid="no-hole-cards"/);
@@ -84,7 +109,12 @@ describe("HoleCardPair", () => {
 
   it("carries the bend affordance on both cards", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect((html.match(/data-bend-zone="true"/g) ?? []).length).toBe(2);
@@ -92,7 +122,12 @@ describe("HoleCardPair", () => {
 
   it("does not offer the bend affordance on a locked pair", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).not.toContain("data-bend-zone");
@@ -100,7 +135,12 @@ describe("HoleCardPair", () => {
 
   it("takes the whole gesture from the browser, so a drag is never a pan and a double-tap never a zoom", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).toContain("touch-action:none");
@@ -111,7 +151,12 @@ describe("HoleCardPair", () => {
 
   it("renders no hint while the pair is settled", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).not.toContain('data-testid="hole-cards-hint"');
@@ -119,7 +164,12 @@ describe("HoleCardPair", () => {
 
   it("stamps no Check confirmation over a pair that has not just checked", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).not.toContain('data-testid="check-stamp"');
@@ -128,7 +178,12 @@ describe("HoleCardPair", () => {
 
   it("mounts the live region empty, before there is any news to put in it", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
 
     expect(html).toMatch(/<span role="status"[^>]*><\/span>/);
@@ -193,7 +248,12 @@ describe("HoleCardPair", () => {
 
   it("names the corner the bend affordance is actually drawn in", () => {
     const html = renderToStaticMarkup(
-      <HoleCardPair cards={queenJack} locked={false} actions={actions} />,
+      <HoleCardPair
+        cards={queenJack}
+        locked={false}
+        sealed={false}
+        actions={actions}
+      />,
     );
     const zone = /<span data-bend-zone="true"[^>]*style="([^"]*)"/.exec(html);
     const zoneStyle = zone?.[1];

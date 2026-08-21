@@ -15,6 +15,7 @@ import {
 } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
 import type { CSSProperties } from "react";
+import { RejectionNotice } from "./actions/RejectionNotice.js";
 import type { ActionIntent } from "./actions/useActionIntent.js";
 import { HoleCardPair, type CardActions } from "./holecards/index.js";
 import { PositionBadge } from "./PositionBadge.js";
@@ -50,7 +51,7 @@ function cardActionsFrom(intent: ActionIntent | undefined): CardActions {
   };
 }
 
-type BannerTone = "turn" | "win" | "loss" | "idle" | "offline";
+type BannerTone = "turn" | "all-in" | "win" | "loss" | "idle" | "offline";
 
 interface Banner {
   readonly kicker: string;
@@ -75,6 +76,14 @@ const bannerToneStyle: Record<
     dot: color.accentBright,
     kicker: color.textBright,
     text: color.text,
+  },
+  "all-in": {
+    background:
+      "linear-gradient(120deg,rgba(229,68,60,.28),rgba(229,68,60,.10))",
+    border: color.accentBright,
+    dot: color.accentBright,
+    kicker: color.textBright,
+    text: color.textBright,
   },
   win: {
     background: color.winBackground,
@@ -110,6 +119,13 @@ type PlayerViewBetting = Extract<PlayerView, { phase: "betting" }>;
 
 function isDealtIn(view: PlayerViewBetting): boolean {
   return view.seats.some((s) => s.seatId === view.yourSeatId);
+}
+
+function isAllIn(view: PlayerView): boolean {
+  return (
+    view.phase === "betting" &&
+    (view.seats.find((s) => s.seatId === view.yourSeatId)?.allIn ?? false)
+  );
 }
 
 function seatLabel(seatId: number, seats: readonly SeatView[]): string {
@@ -198,6 +214,13 @@ function bannerFor(
       kicker: "Your turn",
       text: `You're to act — ${view.street}`,
       tone: "turn",
+    };
+  }
+  if (isAllIn(view)) {
+    return {
+      kicker: "All in",
+      text: "Your chips are in — the board runs out",
+      tone: "all-in",
     };
   }
   if (folded) {
@@ -320,11 +343,13 @@ const absentCaptionStyle: CSSProperties = {
 function HoleCardsRegion({
   cards,
   locked = false,
+  sealed = false,
   actions,
   caption,
 }: {
   readonly cards: readonly [CardType, CardType] | null;
   readonly locked?: boolean;
+  readonly sealed?: boolean;
   readonly actions: CardActions;
   readonly caption?: string;
 }) {
@@ -342,9 +367,38 @@ function HoleCardsRegion({
         textAlign: "center",
       }}
     >
-      <HoleCardPair cards={cards} locked={locked} actions={actions} />
+      <HoleCardPair
+        cards={cards}
+        locked={locked}
+        sealed={sealed}
+        actions={actions}
+      />
       {absent && <span style={absentCaptionStyle}>{caption}</span>}
     </div>
+  );
+}
+
+function ShowMyHandButton({ onShow }: { readonly onShow: () => void }) {
+  return (
+    <button
+      type="button"
+      data-testid="show-my-hand"
+      onClick={onShow}
+      style={{
+        flex: "none",
+        height: "3.6em",
+        borderRadius: radius.control,
+        border: 0,
+        background: color.pillGradient,
+        color: color.pillInk,
+        boxShadow: shadow.pill,
+        fontFamily: font.body,
+        fontSize: fontSize.lg,
+        fontWeight: 700,
+      }}
+    >
+      Show my hand
+    </button>
   );
 }
 
@@ -455,6 +509,12 @@ export function Hand({
             caption="You folded — cards are in the muck."
           />
         )}
+        {view.canShow && view.winners !== null && (
+          <ShowMyHandButton onShow={intent?.show ?? noAction} />
+        )}
+        {intent?.rejection != null && (
+          <RejectionNotice rejection={intent.rejection} />
+        )}
       </div>
     );
   }
@@ -479,7 +539,11 @@ export function Hand({
         shotClockSeconds={shotClockSeconds}
       />
       {view.yourHoleCards ? (
-        <HoleCardsRegion cards={view.yourHoleCards} actions={actions} />
+        <HoleCardsRegion
+          cards={view.yourHoleCards}
+          sealed={isAllIn(view)}
+          actions={actions}
+        />
       ) : (
         <HoleCardsRegion
           cards={null}

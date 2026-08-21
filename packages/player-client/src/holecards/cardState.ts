@@ -29,6 +29,7 @@ export type CardEvent =
   | { readonly type: "TAPPED" }
   | { readonly type: "DOUBLE_TAPPED" }
   | { readonly type: "PENDING_RESOLVED"; readonly hasCards: boolean }
+  | { readonly type: "SEALED" }
   | { readonly type: "SHOWDOWN_REVEAL" };
 
 function idle(presentation: Presentation): CardState {
@@ -39,6 +40,7 @@ function survivesLock(event: CardEvent): boolean {
   switch (event.type) {
     case "DEALT":
     case "CARDS_GONE":
+    case "SEALED":
     case "SHOWDOWN_REVEAL":
     case "TURN_FINISHED":
       return true;
@@ -50,12 +52,15 @@ function survivesLock(event: CardEvent): boolean {
 export function initialCardState({
   hasCards,
   locked,
+  sealed,
 }: {
   readonly hasCards: boolean;
   readonly locked: boolean;
+  readonly sealed: boolean;
 }): CardState {
   if (!hasCards) return idle("Absent");
   if (locked) return { ...idle("Revealed"), locked: true };
+  if (sealed) return { ...idle("FaceDown"), locked: true };
   return idle("FaceDown");
 }
 
@@ -160,6 +165,12 @@ export function reduce(state: CardState, event: CardEvent): CardState {
     case "PENDING_RESOLVED":
       if (state.presentation !== "Leaving") return state;
       return idle(event.hasCards ? "FaceDown" : "Absent");
+
+    case "SEALED":
+      if (state.presentation === "Absent" || state.presentation === "Leaving") {
+        return state;
+      }
+      return { ...idle("FaceDown"), locked: true };
 
     case "SHOWDOWN_REVEAL":
       if (state.presentation === "Absent" || state.presentation === "Leaving") {

@@ -159,6 +159,11 @@ export function App() {
   }, [roomCode, seatId, seatToken, dropSeat, clearRoom]);
 
   const intent = useActionIntent(send);
+  const allIn =
+    handView?.phase === "betting" &&
+    (handView.seats.find((snapshot) => snapshot.seatId === handView.yourSeatId)
+      ?.allIn ??
+      false);
 
   const handleJoin = useCallback(
     (code: string) => {
@@ -237,7 +242,7 @@ export function App() {
             intent={intent}
           />
         )}
-        {handView !== null && handView.phase === "betting" && (
+        {handView !== null && handView.phase === "betting" && !allIn && (
           <ActionBar
             legalActions={intent.legalActions}
             pendingAction={intent.pendingAction}
@@ -246,6 +251,7 @@ export function App() {
             onCheck={intent.check}
             onCall={intent.call}
             onRaise={intent.raise}
+            onAllIn={intent.allIn}
           />
         )}
       </>

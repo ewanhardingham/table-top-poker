@@ -156,8 +156,8 @@ describe("Seats", () => {
       board: [],
       toAct: [0],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: false },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
       ],
     };
     const html = renderToStaticMarkup(
@@ -192,7 +192,7 @@ describe("Seats", () => {
       street: "flop",
       board: [],
       toAct: [0],
-      seats: [{ seatId: 0, folded: false }],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
     };
     const html = renderToStaticMarkup(
       <Seats
@@ -242,8 +242,8 @@ describe("Seats", () => {
       board: [],
       toAct: [1],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: false },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
       ],
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
@@ -289,8 +289,8 @@ describe("Seats", () => {
       board: [],
       toAct: [0],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: true },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: true, allIn: false },
       ],
     };
     const html = renderToStaticMarkup(
@@ -496,9 +496,9 @@ describe("Seats", () => {
       board: [],
       toAct: [3],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: false },
-        { seatId: 3, folded: false },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
+        { seatId: 3, folded: false, allIn: false },
       ],
     };
     const html = renderToStaticMarkup(
@@ -529,8 +529,8 @@ describe("Seats", () => {
       board: [],
       toAct: [1],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: false },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
       ],
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
@@ -596,8 +596,8 @@ describe("Seats", () => {
       board: [],
       toAct: [0],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 2, folded: true },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 2, folded: true, allIn: false },
       ],
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
@@ -654,9 +654,9 @@ const threeHanded: Extract<TableView, { phase: "betting" }> = {
   board: [],
   toAct: [0],
   seats: [
-    { seatId: 3, folded: false },
-    { seatId: 0, folded: false },
-    { seatId: 1, folded: false },
+    { seatId: 3, folded: false, allIn: false },
+    { seatId: 0, folded: false, allIn: false },
+    { seatId: 1, folded: false, allIn: false },
   ],
 };
 
@@ -723,8 +723,8 @@ describe("Seats: position markers", () => {
         board: [],
         toAct: [0],
         seats: [
-          { seatId: 0, folded: false },
-          { seatId: 1, folded: false },
+          { seatId: 0, folded: false, allIn: false },
+          { seatId: 1, folded: false, allIn: false },
         ],
       } satisfies TableView,
     ],
@@ -1163,8 +1163,8 @@ describe("Seats to-act glow", () => {
       board: [],
       toAct: [1],
       seats: [
-        { seatId: 0, folded: false },
-        { seatId: 1, folded: false },
+        { seatId: 0, folded: false, allIn: false },
+        { seatId: 1, folded: false, allIn: false },
       ],
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
