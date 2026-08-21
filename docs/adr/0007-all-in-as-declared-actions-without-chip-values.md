@@ -68,7 +68,9 @@ Consequent rule changes:
   rather than a single winner (ADR-0008).
 - `legalActions` stays the single source of truth: it gains the two actions and
   the `facingBet` predicate that already separates `check` from `call` now also
-  decides which all-in labels a client shows.
+  decides which all-in labels a client shows. (Refined in #253 — `legalActions`
+  now reads the Seats as well as the street: an all-in call needs a bet to
+  match, and either raise needs a Seat left able to answer it.)
 - The client paces the automatic run-out itself; `boardDeal.ts` already stages
   the board, so three streets emitted at once still read as three beats.
 - A misdeclaration is not recoverable. There is no undo, and adding one would be

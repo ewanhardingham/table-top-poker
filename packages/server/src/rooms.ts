@@ -3,6 +3,7 @@ import { handStartContextFor } from "@table-top-poker/recording";
 import type { RoomOperation } from "@table-top-poker/recording";
 import {
   apply,
+  canStillAct,
   createInitialState,
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
@@ -540,7 +541,7 @@ export class RoomStore {
       hand?.status === "betting" &&
       hand.ring.includes(seatId) &&
       player !== undefined &&
-      !player.folded
+      canStillAct(player)
     ) {
       const transaction = this.#stageSeatRelease(room, seatId, "evict");
       return transaction === undefined ? {} : { transaction };

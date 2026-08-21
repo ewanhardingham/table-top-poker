@@ -126,12 +126,15 @@ stack, as one of two Actions: an *all-in call*, which does not reopen the
 betting, or an *all-in raise*, which requeues every other live Seat exactly
 as a raise does (ADR-0007). Both retire the Seat from the betting for the
 rest of the Hand; neither carries a chip amount. A Player who covers a shove
-and wants to keep acting simply calls. The Player Device offers one wide
-"All in" while no Seat has shoved, and splits it into "All-in call" and
-"All-in raise" once another Seat is all in — the fork only means something
-against chips already committed. Both take a confirm press, and once the Seat
-is all in its Action bar goes away and its Hole cards are *sealed* — held,
-inert, and still face-down until the table's Reveal.
+and wants to keep acting simply calls. `legalActions` offers each arm only
+where it means something: an *all-in call* needs a bet to match, and either
+raise needs a Seat left able to answer it — against a table already all in
+there is nothing to raise into, so only the call stands. The Player Device
+offers one wide "All in" while no Seat has shoved and splits it into
+"All-in call" and "All-in raise" once another Seat is all in, showing whichever
+arms are legal. Both take a confirm press, and once the Seat is all in its
+Action bar goes away and its Hole cards are *sealed* — held, inert, and still
+face-down until the table's Reveal.
 _Avoid_: Treating all-in as a folded Seat — an all-in Seat is live, keeps its
 claim on the pot, and is revealed at Showdown. Side pots stay a
 physical-chips problem the humans settle at the table.

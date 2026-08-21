@@ -1035,6 +1035,28 @@ describe("RoomStore", () => {
         expect(room.engine?.hand?.status).toBe("complete");
       });
 
+      it("frees an all-in seat's claim, which no fold can release", () => {
+        const store = new RoomStore();
+        const room = roomWithClaimedSeats(store, 3);
+        commitDispatch(store, room.code, "table", "startHand");
+        const shover = store.currentActor(room.code);
+        if (shover === undefined) throw new Error("expected a current actor");
+        commitDispatch(store, room.code, shover, "allInRaise");
+        if (room.engine?.hand?.status !== "betting") {
+          throw new Error("expected the hand to still be live");
+        }
+        expect(room.engine.hand.players.get(shover)?.allIn).toBe(true);
+
+        const result = commitEviction(store, room.code, shover);
+
+        expect(result.transaction).toBeUndefined();
+        expect(room.seats[shover]).toMatchObject({
+          claimed: false,
+          token: null,
+        });
+        expect(room.engine.hand.players.get(shover)?.folded).toBe(false);
+      });
+
       it("frees a claimed seat via evictSeat regardless of connection status", () => {
         const store = new RoomStore();
         const room = roomWithClaimedSeats(store, 3);

@@ -73,7 +73,6 @@ describe("view: legalActions", () => {
       "fold",
       "check",
       "raise",
-      "allInCall",
       "allInRaise",
     ]);
 

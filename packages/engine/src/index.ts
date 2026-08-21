@@ -43,6 +43,7 @@ export type {
   Street,
   Suit,
 } from "./types.js";
+export { canStillAct } from "./table.js";
 export { view } from "./view.js";
 export type {
   PlayerShowdownView,

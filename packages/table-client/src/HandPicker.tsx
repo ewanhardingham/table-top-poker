@@ -85,6 +85,7 @@ function outcomeText(hand: HandSummary, seats: readonly SeatView[]): string {
   if (outcome.kind === "folded-out") {
     return `${seatLabel(outcome.winner, seats)} wins — everyone folded`;
   }
+  if (outcome.winners.length === 0) return "Waiting on the reveal";
   const { names, verb, description } = showdownVerdict(
     outcome.winners,
     outcome.reveals,

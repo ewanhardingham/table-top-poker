@@ -29,24 +29,12 @@ export function otherSeatIsAllIn(
   return seats.some((seat) => seat.seatId !== yourSeatId && seat.allIn);
 }
 
-/**
- * An all-in call only means something against chips already in front of you,
- * so the split arm needs a live bet as well as a shove to have happened.
- */
-function offerable(
-  action: AllInAction,
-  legalActions: readonly ActionType[],
-): boolean {
-  if (!legalActions.includes(action)) return false;
-  return action === "allInCall" ? legalActions.includes("call") : true;
-}
-
 export function allInChoices(
   legalActions: readonly ActionType[],
   facingAllIn: boolean,
 ): readonly AllInChoice[] {
   const offered = facingAllIn ? SPLIT : WHOLE;
-  return offered.filter((choice) => offerable(choice.action, legalActions));
+  return offered.filter((choice) => legalActions.includes(choice.action));
 }
 
 export interface AllInPress {

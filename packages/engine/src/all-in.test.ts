@@ -45,7 +45,7 @@ function started(seats: number[], seed: string): EngineState {
 }
 
 describe("all-in legality", () => {
-  it("offers both all-ins wherever raise is legal, facing a bet or not", () => {
+  it("offers the all-in call only where there is a bet to match", () => {
     const state = started([0, 1, 2], "legality");
     const hand = betting(state);
 
@@ -60,7 +60,6 @@ describe("all-in legality", () => {
       "fold",
       "check",
       "raise",
-      "allInCall",
       "allInRaise",
     ]);
   });
