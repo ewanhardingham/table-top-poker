@@ -16,15 +16,20 @@ const named: readonly SeatView[] = seats.map((seat) =>
 
 const card = (rank: Card["rank"]): Card => ({ rank, suit: "clubs" });
 
-const showdown = (winners: number[]): HandEvent => ({
-  type: "ShowdownReached",
+const winnersDeclared = (winners: number[]): HandEvent => ({
+  type: "WinnersDeclared",
   winners,
-  results: [0, 1].map((seatId) => ({
+});
+
+const holeCardsShown = (seatId: number): HandEvent => ({
+  type: "HoleCardsShown",
+  result: {
     seatId,
+    holeCards: [card("2"), card("3")],
     rank: 1,
     bestHand: [card("2"), card("3"), card("4"), card("5"), card("6")],
     description: "a straight",
-  })),
+  },
 });
 
 describe("captionFor", () => {
@@ -68,15 +73,17 @@ describe("captionFor", () => {
     );
   });
 
-  it("names a showdown's winner and their hand", () => {
-    expect(captionFor(showdown([1]), named)).toBe(
-      "Showdown — Ada wins with a straight",
-    );
+  it("names the seat turning its hand over and what it holds", () => {
+    expect(captionFor(holeCardsShown(1), named)).toBe("Ada shows a straight");
+  });
+
+  it("names a showdown's winner", () => {
+    expect(captionFor(winnersDeclared([1]), named)).toBe("Ada wins");
   });
 
   it("names both halves of a split pot", () => {
-    expect(captionFor(showdown([0, 1]), named)).toBe(
-      "Showdown — Seat 1 and Ada split with a straight",
+    expect(captionFor(winnersDeclared([0, 1]), named)).toBe(
+      "Seat 1 and Ada split",
     );
   });
 
@@ -89,7 +96,9 @@ describe("captionFor", () => {
       { type: "StreetClosed", street: "preflop" },
       { type: "BoardDealt", street: "flop", cards: [card("2")] },
       { type: "HandFoldedOut", winner: 1 },
-      showdown([1]),
+      { type: "ShowdownReached", contestants: [0, 1] },
+      holeCardsShown(1),
+      winnersDeclared([1]),
       { type: "HandComplete" },
     ];
 

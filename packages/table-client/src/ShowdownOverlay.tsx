@@ -278,7 +278,7 @@ export function ShowdownOverlay({
   onNextHand,
   onViewTable,
 }: ShowdownOverlayProps) {
-  const winnerIds = new Set(view.winners);
+  const winnerIds = new Set(view.winners ?? []);
   const winners = view.results.filter((result) => winnerIds.has(result.seatId));
   const rest = view.results.filter((result) => !winnerIds.has(result.seatId));
   const { stageRef, contentRef, scale } = useFitToBox();

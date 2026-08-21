@@ -1110,6 +1110,20 @@ describe("RoomStore", () => {
       return room;
     }
 
+    /** Checks the Hand down to Showdown, calling only where a check is illegal. */
+    function playToShowdown(store: RoomStore, code: string): void {
+      commitDispatch(store, code, "table", "startHand");
+      for (let step = 0; step < MAX_ACTIONS_TO_SHOWDOWN; step++) {
+        const actor = store.currentActor(code);
+        if (actor === undefined) return;
+        const checked = commitDispatch(store, code, actor, "check");
+        if ("reason" in checked) commitDispatch(store, code, actor, "call");
+      }
+      throw new Error("hand never reached showdown");
+    }
+
+    const MAX_ACTIONS_TO_SHOWDOWN = 16;
+
     function stagedDispatch(
       store: RoomStore,
       code: string,
@@ -1281,6 +1295,45 @@ describe("RoomStore", () => {
         command: rejected.command,
         outcome: rejected.rejection,
       });
+    });
+
+    it("takes reveal from the table and stamps a seat on it", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      playToShowdown(store, room.code);
+
+      const revealed = commitDispatch(store, room.code, "table", "reveal");
+
+      if (!("steps" in revealed)) throw new Error("expected a transaction");
+      expect(revealed.command).toEqual({ type: "reveal", seatId: 0 });
+      expect(revealed.steps.map((step) => step.event.type)).toContain(
+        "WinnersDeclared",
+      );
+    });
+
+    it("refuses reveal from a player and show from the table", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      playToShowdown(store, room.code);
+
+      expect(store.dispatch(room.code, 0, "reveal")).toEqual({
+        error: "not-permitted",
+      });
+      expect(store.dispatch(room.code, "table", "show")).toEqual({
+        error: "not-permitted",
+      });
+    });
+
+    it("shows a player's own hand on their own command", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      playToShowdown(store, room.code);
+      commitDispatch(store, room.code, "table", "reveal");
+
+      const shown = commitDispatch(store, room.code, 1, "show");
+
+      if (!("steps" in shown)) throw new Error("expected a transaction");
+      expect(shown.command).toEqual({ type: "show", seatId: 1 });
     });
 
     it("has no operation for a refusal the engine never ruled on", () => {

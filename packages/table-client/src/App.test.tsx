@@ -69,6 +69,7 @@ const showdownHand: TableView = {
     { rank: "7", suit: "diamonds" },
     { rank: "9", suit: "clubs" },
   ],
+  contestants: [0, 1],
   winners: [0],
   results: [
     {

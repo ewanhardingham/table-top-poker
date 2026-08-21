@@ -7,6 +7,8 @@ export const ClientCommandSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("call") }),
   z.strictObject({ type: z.literal("raise") }),
   z.strictObject({ type: z.literal("nextHand") }),
+  z.strictObject({ type: z.literal("reveal") }),
+  z.strictObject({ type: z.literal("show") }),
   z.strictObject({ type: z.literal("sitOut") }),
   z.strictObject({ type: z.literal("sitIn") }),
 ]);

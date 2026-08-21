@@ -9,7 +9,13 @@ import {
   rotateFromButton,
   smallBlindSeat,
 } from "./table.js";
-import type { BettingHandState, EngineState, HandEvent } from "./types.js";
+import type {
+  BettingHandState,
+  Contestant,
+  EngineState,
+  HandEvent,
+  ShowdownCompleteHandState,
+} from "./types.js";
 import { must } from "./util.js";
 
 function asBetting(state: EngineState): BettingHandState {
@@ -21,6 +27,14 @@ function asBetting(state: EngineState): BettingHandState {
 
 function seatState(hand: BettingHandState, seat: number) {
   return must(hand.players.get(seat), `unknown seat ${String(seat)}`);
+}
+
+function asAwaitingShowdown(state: EngineState): ShowdownCompleteHandState {
+  const hand = state.hand;
+  if (hand?.status !== "complete" || hand.reason !== "showdown") {
+    throw new Error("expected a hand at showdown");
+  }
+  return hand;
 }
 
 function resolvedBlinds(hand: BettingHandState) {
@@ -53,6 +67,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           ),
           toAct: [],
           raiseOccurred: false,
+          lastAggressor: null,
         },
       };
     }
@@ -99,9 +114,13 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
         ? requeueAfterRaise(hand.ring, players, event.seatId)
         : hand.toAct.filter((seat) => seat !== event.seatId);
 
+      const lastAggressor = reopensBetting(event.action)
+        ? event.seatId
+        : hand.lastAggressor;
+
       return {
         ...state,
-        hand: { ...hand, players, raiseOccurred, toAct },
+        hand: { ...hand, players, raiseOccurred, toAct, lastAggressor },
       };
     }
 
@@ -116,6 +135,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           ...hand,
           street: event.street,
           board: [...hand.board, ...event.cards],
+          lastAggressor: null,
         },
       };
     }
@@ -137,13 +157,17 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
 
     case "ShowdownReached": {
       const hand = asBetting(state);
-      const results = event.results.map((result) => ({
-        ...result,
-        holeCards: must(
-          seatState(hand, result.seatId).holeCards,
-          "a live seat at showdown always has hole cards",
-        ),
-      }));
+      const contestants: Contestant[] = event.contestants.map((seatId) => {
+        const seat = seatState(hand, seatId);
+        return {
+          seatId,
+          holeCards: must(
+            seat.holeCards,
+            "a live seat at showdown always has hole cards",
+          ),
+          allIn: seat.allIn,
+        };
+      });
       return {
         ...state,
         hand: {
@@ -153,10 +177,28 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           button: hand.button,
           ...resolvedBlinds(hand),
           board: hand.board,
-          results,
-          winners: event.winners,
+          contestants,
+          lastAggressor: hand.lastAggressor,
+          results: [],
+          winners: null,
         },
       };
+    }
+
+    case "HoleCardsShown": {
+      const hand = asAwaitingShowdown(state);
+      if (hand.results.some((shown) => shown.seatId === event.result.seatId)) {
+        return state;
+      }
+      return {
+        ...state,
+        hand: { ...hand, results: [...hand.results, event.result] },
+      };
+    }
+
+    case "WinnersDeclared": {
+      const hand = asAwaitingShowdown(state);
+      return { ...state, hand: { ...hand, winners: event.winners } };
     }
 
     case "HandComplete": {

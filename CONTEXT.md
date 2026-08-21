@@ -84,8 +84,10 @@ to their Device at deal time (not fetched later at reveal).
 
 **Hole-card reveal**:
 Turning a Player's own Hole cards persistently face-up on their own Device.
-Local presentation only: it does not change poker visibility, server state, or
-Showdown. Distinct from the Showdown reveal, which is a Hand event.
+Local presentation only: it does not change poker visibility or server state,
+and it never publishes a Hand. Distinct from a *Showdown show*, which is a
+Command the Player sends deliberately, and from the table's *Reveal*, which
+turns the compulsory Hands over for the whole room.
 
 **Hole-card peek**:
 Temporarily lifting a corner of a Player's own Hole cards to read them, closing
@@ -161,9 +163,26 @@ preflop but last on every subsequent street — the standard heads-up
 reversal.
 
 **Showdown**:
-The state where all live hands (still in the Hand after River closes) are
-ranked, the winner(s) declared, and ties reported as splits. Skipped
-entirely when a Hand ends early by fold-out — no reveal in that case.
+The state where the Hands still live after River closes are ranked, the
+winner(s) declared, and ties reported as splits. Skipped entirely when a Hand
+ends early by fold-out. Reaching it does not publish anything: the Hand rests
+until the table reveals (ADR-0008).
+
+**Contestant**:
+A Seat that reached Showdown, shown or not. Every view names the contestants;
+only a Seat that has shown appears in `results`, so holding a `RevealedResult`
+is proof the cards are public.
+
+**Showdown show**:
+Publishing a contestant's Hole cards to the whole room, irreversibly. Two
+Commands produce it. The table's `reveal` turns over the compulsory set — the
+River's last aggressor plus every all-in Seat, or the winning Seat when that
+set is empty — and publishes the winners. Every other contestant may then
+`show`, in any order, on their own Device. Both are idempotent: a second press
+changes nothing and is not an error. The window closes when the table deals
+the next Hand, which mucks whatever was not shown.
+_Avoid_: Confusing a show with *Hole-card reveal*, which stays local to one
+Device and can be undone.
 
 **Pot**:
 The physical chips in the middle of the table — a spoken/table term only.
@@ -331,10 +350,12 @@ Seats dealt in, which folding never reduces.
    RIVER (a Street)      — 1 board card dealt, betting round
         │ street closes (last-aggressor logic)
         ▼
-   SHOWDOWN               — live hands ranked, winner(s) declared,
-        │                   ties reported as splits
+   SHOWDOWN               — contestants named, nothing published;
+        │                   the table's Reveal turns over the
+        │                   compulsory Hands and declares winners
         ▼
-   HAND_COMPLETE           — winning hand shown on the table; a
+   HAND_COMPLETE           — shown hands rest on the table while any
+        │                    other contestant may still show; a
         │                    "Next hand" button appears
         ▼
 [Room: seated, awaiting hand]  (button rotates)
@@ -342,7 +363,7 @@ Seats dealt in, which folding never reduces.
 
 **Early-out**: from any betting Street, if a fold drops live players to 1,
 the Hand transitions directly to HAND_COMPLETE — Showdown is skipped, no
-remaining board cards are dealt, no hands are revealed. All-in Seats count as
+remaining board cards are dealt, no hands are shown. All-in Seats count as
 live here, so a Seat that has shoved cannot be folded out of a pot it has
 already bought a claim to (ADR-0007).
 

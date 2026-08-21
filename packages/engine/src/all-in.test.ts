@@ -194,7 +194,9 @@ describe("all-in and the automatic run-out", () => {
 
     const final = showdown(playAll(state, [{ type: "allInCall", seatId: 1 }]));
     expect(final.board).toHaveLength(5);
-    expect(final.results.map((result) => result.seatId)).toEqual([1, 0]);
+    expect(final.contestants.map((contestant) => contestant.seatId)).toEqual([
+      1, 0,
+    ]);
   });
 
   it("still opens the flop normally when two seats can act", () => {
@@ -251,7 +253,9 @@ describe("all-in and fold-out", () => {
     ]);
 
     const final = showdown(playAll(state, [{ type: "fold", seatId: 2 }]));
-    expect(final.results.map((result) => result.seatId).sort()).toEqual([0, 3]);
+    expect(
+      final.contestants.map((contestant) => contestant.seatId).sort(),
+    ).toEqual([0, 3]);
   });
 
   it("still folds out a hand where only one seat is left unfolded", () => {

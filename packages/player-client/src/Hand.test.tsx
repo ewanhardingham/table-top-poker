@@ -241,7 +241,7 @@ describe("Hand", () => {
   });
 
   describe("showdown", () => {
-    const showdownView: PlayerView = {
+    const shownTable = {
       phase: "showdown",
       button: 0,
       smallBlind: 1,
@@ -254,6 +254,7 @@ describe("Hand", () => {
         { rank: "9", suit: "diamonds" },
         { rank: "4", suit: "spades" },
       ],
+      contestants: [0, 1],
       results: [
         {
           seatId: 0,
@@ -289,11 +290,22 @@ describe("Hand", () => {
         },
       ],
       winners: [0],
-    };
+    } as const;
+
+    function showdownViewFor(seatId: number): PlayerView {
+      const yourResult =
+        shownTable.results.find((result) => result.seatId === seatId) ?? null;
+      return {
+        ...shownTable,
+        yourSeatId: seatId,
+        yourResult,
+        canShow: false,
+      };
+    }
 
     it("shows the winner's own hole cards and a win banner, never an opponent's cards", () => {
       const html = renderToStaticMarkup(
-        <Hand view={showdownView} seatId={0} />,
+        <Hand view={showdownViewFor(0)} seatId={0} />,
       );
 
       expect(html).toMatch(/data-testid="hand"[^>]*data-phase="showdown"/);
@@ -307,7 +319,7 @@ describe("Hand", () => {
 
     it("hands the pair to showdown locked, so it renders revealed and inert", () => {
       const html = renderToStaticMarkup(
-        <Hand view={showdownView} seatId={0} />,
+        <Hand view={showdownViewFor(0)} seatId={0} />,
       );
 
       expect(html).toContain('data-presentation="Revealed"');
@@ -316,7 +328,7 @@ describe("Hand", () => {
 
     it("shows the loser's own hole cards and a loss banner naming the winner", () => {
       const html = renderToStaticMarkup(
-        <Hand view={showdownView} seatId={1} />,
+        <Hand view={showdownViewFor(1)} seatId={1} />,
       );
 
       expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="loss"/);
@@ -329,7 +341,7 @@ describe("Hand", () => {
 
     it("reads a fold message and shows no hole cards for a seat that folded before showdown", () => {
       const html = renderToStaticMarkup(
-        <Hand view={showdownView} seatId={2} />,
+        <Hand view={showdownViewFor(2)} seatId={2} />,
       );
 
       expect(html).toMatch(/data-testid="no-hole-cards"/);
@@ -452,8 +464,12 @@ describe("Hand", () => {
           bigBlind: 2,
           dealtSeatCount: 3,
           board: [],
+          contestants: [0, 1],
           results: [],
           winners: [1],
+          yourSeatId: 0,
+          yourResult: null,
+          canShow: true,
         },
       ],
       [

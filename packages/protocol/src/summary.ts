@@ -8,7 +8,7 @@ export type BettingShape =
   | { readonly kind: "one-raise" }
   | { readonly kind: "raise-war"; readonly raises: number };
 
-/** One seat's showdown hand; sourced only from `ShowdownReached`, so it widens no visibility. */
+/** One seat's showdown hand; sourced only from `HoleCardsShown`, so it widens no visibility. */
 export interface ShowdownReveal {
   readonly seatId: SeatId;
   readonly bestHand: readonly [Card, Card, Card, Card, Card];
@@ -19,6 +19,7 @@ export type HandOutcome =
   | { readonly kind: "folded-out"; readonly winner: SeatId }
   | {
       readonly kind: "showdown";
+      readonly contestants: readonly SeatId[];
       readonly winners: readonly SeatId[];
       readonly reveals: readonly ShowdownReveal[];
     };
@@ -121,13 +122,30 @@ export function summarise(
       case "ShowdownReached":
         outcome = {
           kind: "showdown",
-          winners: [...event.winners],
-          reveals: event.results.map(({ seatId, bestHand, description }) => ({
-            seatId,
-            bestHand: [...bestHand] as [Card, Card, Card, Card, Card],
-            description,
-          })),
+          contestants: [...event.contestants],
+          winners: [],
+          reveals: [],
         };
+        break;
+      case "HoleCardsShown": {
+        if (outcome?.kind !== "showdown") break;
+        const { seatId, bestHand, description } = event.result;
+        outcome = {
+          ...outcome,
+          reveals: [
+            ...outcome.reveals,
+            {
+              seatId,
+              bestHand: [...bestHand] as [Card, Card, Card, Card, Card],
+              description,
+            },
+          ],
+        };
+        break;
+      }
+      case "WinnersDeclared":
+        if (outcome?.kind !== "showdown") break;
+        outcome = { ...outcome, winners: [...event.winners] };
         break;
       default:
         break;

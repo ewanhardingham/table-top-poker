@@ -138,12 +138,20 @@ function bannerFor(
   }
 
   if (view.phase === "showdown") {
-    const iWon = view.winners.includes(seatId);
+    const winners = view.winners;
+    if (winners === null) {
+      return {
+        kicker: "Showdown",
+        text: "Waiting for the table to turn the hands over",
+        tone: "idle",
+      };
+    }
+    const iWon = winners.includes(seatId);
     const winnerResult = view.results.find(
-      (result) => result.seatId === view.winners[0],
+      (result) => result.seatId === winners[0],
     );
     if (iWon) {
-      const label = view.winners.length > 1 ? "You split the pot" : "You win";
+      const label = winners.length > 1 ? "You split the pot" : "You win";
       return {
         kicker: "Hand complete",
         text: winnerResult
@@ -152,13 +160,13 @@ function bannerFor(
         tone: "win",
       };
     }
-    const winnerNames = view.winners
+    const winnerNames = winners
       .map((winner) => seatLabel(winner, seats))
       .join(" & ");
     const winClause = winnerResult
       ? `${winnerNames} wins with ${winnerResult.description}`
       : `${winnerNames} wins`;
-    const myResult = view.results.find((result) => result.seatId === seatId);
+    const myResult = view.yourResult;
     const yourClause = myResult
       ? ` — you had ${myResult.description}`
       : " — you folded earlier";
@@ -412,7 +420,7 @@ export function Hand({
   }
 
   if (view.phase === "showdown") {
-    const myResult = view.results.find((result) => result.seatId === seatId);
+    const myResult = view.yourResult;
     return (
       <div
         data-testid="hand"

@@ -21,7 +21,9 @@ export type Command =
   | { type: "startHand"; seatId: SeatId; seed: string }
   | { type: ActionType; seatId: SeatId }
   | { type: "evict"; seatId: SeatId }
-  | { type: "nextHand"; seatId: SeatId; seed: string };
+  | { type: "nextHand"; seatId: SeatId; seed: string }
+  | { type: "reveal"; seatId: SeatId }
+  | { type: "show"; seatId: SeatId };
 
 export type HandEvent =
   | { type: "HandStarted"; seed: string; button: SeatId }
@@ -34,16 +36,9 @@ export type HandEvent =
   | { type: "StreetClosed"; street: Street }
   | { type: "BoardDealt"; street: "flop" | "turn" | "river"; cards: Card[] }
   | { type: "HandFoldedOut"; winner: SeatId }
-  | {
-      type: "ShowdownReached";
-      results: {
-        seatId: SeatId;
-        rank: HandRank;
-        bestHand: [Card, Card, Card, Card, Card];
-        description: string;
-      }[];
-      winners: SeatId[];
-    }
+  | { type: "ShowdownReached"; contestants: SeatId[] }
+  | { type: "HoleCardsShown"; result: RevealedResult }
+  | { type: "WinnersDeclared"; winners: SeatId[] }
   | { type: "HandComplete" };
 
 export type RejectionReason =
@@ -51,7 +46,8 @@ export type RejectionReason =
   | "action-not-legal"
   | "hand-not-in-progress"
   | "hand-already-in-progress"
-  | "stale-next-hand";
+  | "stale-next-hand"
+  | "not-at-showdown";
 
 export interface Rejection {
   readonly type: "Rejection";
@@ -75,6 +71,7 @@ export interface BettingHandState {
   readonly players: ReadonlyMap<SeatId, SeatHandState>;
   readonly toAct: readonly SeatId[];
   readonly raiseOccurred: boolean;
+  readonly lastAggressor: SeatId | null;
 }
 
 export interface ShowdownResult {
@@ -86,6 +83,12 @@ export interface ShowdownResult {
 
 export interface RevealedResult extends ShowdownResult {
   readonly holeCards: readonly [Card, Card];
+}
+
+export interface Contestant {
+  readonly seatId: SeatId;
+  readonly holeCards: readonly [Card, Card];
+  readonly allIn: boolean;
 }
 
 export interface HandPositions {
@@ -107,8 +110,10 @@ export interface ShowdownCompleteHandState extends HandPositions {
   readonly reason: "showdown";
   readonly seed: string;
   readonly board: readonly Card[];
+  readonly contestants: readonly Contestant[];
+  readonly lastAggressor: SeatId | null;
   readonly results: readonly RevealedResult[];
-  readonly winners: readonly SeatId[];
+  readonly winners: readonly SeatId[] | null;
 }
 
 export type CompleteHandState =

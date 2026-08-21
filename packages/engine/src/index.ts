@@ -25,6 +25,7 @@ export type {
   Card,
   Command,
   CompleteHandState,
+  Contestant,
   EngineState,
   FoldedOutCompleteHandState,
   HandEvent,
@@ -43,4 +44,9 @@ export type {
   Suit,
 } from "./types.js";
 export { view } from "./view.js";
-export type { PlayerView, TableView } from "./view.js";
+export type {
+  PlayerShowdownView,
+  PlayerView,
+  ShowdownView,
+  TableView,
+} from "./view.js";

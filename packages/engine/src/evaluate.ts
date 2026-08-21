@@ -1,7 +1,13 @@
 import { categorize } from "./poker/categorize.js";
 import { describe } from "./poker/describe.js";
 import { scoreOf } from "./poker/score.js";
-import type { Card, HandRank, SeatId } from "./types.js";
+import type {
+  Card,
+  Contestant,
+  HandRank,
+  RevealedResult,
+  SeatId,
+} from "./types.js";
 
 export interface HandEvaluation {
   readonly rank: HandRank;
@@ -15,6 +21,23 @@ export function evaluate(cards: readonly Card[]): HandEvaluation {
     rank: scoreOf(category, tiebreak),
     bestHand,
     description: describe(category, tiebreak),
+  };
+}
+
+export function revealedResultFor(
+  board: readonly Card[],
+  contestant: Contestant,
+): RevealedResult {
+  const { rank, bestHand, description } = evaluate([
+    ...contestant.holeCards,
+    ...board,
+  ]);
+  return {
+    seatId: contestant.seatId,
+    holeCards: contestant.holeCards,
+    rank,
+    bestHand,
+    description,
   };
 }
 

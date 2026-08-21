@@ -75,6 +75,7 @@ const showdown: HandSummary = {
   bettingShape: { kind: "one-raise" },
   outcome: {
     kind: "showdown",
+    contestants: [0, 1],
     winners: [0],
     reveals: [
       {

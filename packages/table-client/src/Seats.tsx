@@ -78,15 +78,11 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
     view?.phase === "betting"
       ? view.seats.find((s) => s.seatId === seat.id)
       : undefined;
-  const showdownResult =
-    view?.phase === "showdown"
-      ? view.results.find((r) => r.seatId === seat.id)
-      : undefined;
   const participatedInCurrentHand =
     view?.phase === "betting"
       ? handSeat !== undefined
       : view?.phase === "showdown"
-        ? showdownResult !== undefined
+        ? view.contestants.includes(seat.id)
         : view?.phase === "folded-out"
           ? view.winner === seat.id
           : false;

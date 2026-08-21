@@ -73,10 +73,13 @@ function foldedOut(winner: SeatId): HandEvent[] {
 function showdown(seats: readonly SeatId[], winners: SeatId[]): HandEvent[] {
   return [
     { type: "StreetClosed", street: "river" },
-    {
-      type: "ShowdownReached",
-      results: seats.map((seatId) => ({
+    { type: "ShowdownReached", contestants: [...seats] },
+    { type: "HandComplete" },
+    ...seats.map((seatId): HandEvent => ({
+      type: "HoleCardsShown",
+      result: {
         seatId,
+        holeCards: [FLOP[0], FLOP[1]] as [Card, Card],
         rank: winners.includes(seatId) ? 2 : 1,
         bestHand: [...FLOP, ...TURN, ...RIVER] as [
           Card,
@@ -86,10 +89,9 @@ function showdown(seats: readonly SeatId[], winners: SeatId[]): HandEvent[] {
           Card,
         ],
         description: `seat ${String(seatId)}'s hand`,
-      })),
-      winners,
-    },
-    { type: "HandComplete" },
+      },
+    })),
+    { type: "WinnersDeclared", winners },
   ];
 }
 
@@ -286,6 +288,7 @@ describe("summarise", () => {
       );
       expect(summary.outcome).toEqual({
         kind: "showdown",
+        contestants: [0, 1],
         winners: [1],
         reveals: [
           {

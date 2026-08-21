@@ -83,6 +83,7 @@ describe("Board", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      contestants: [0, 1],
       board: [
         { rank: "A", suit: "spades" },
         { rank: "K", suit: "hearts" },
@@ -165,6 +166,7 @@ describe("Board", () => {
       bigBlind: 2,
       dealtSeatCount: 3,
       board,
+      contestants: [0, 1],
       winners: [0],
       results: [],
     };
