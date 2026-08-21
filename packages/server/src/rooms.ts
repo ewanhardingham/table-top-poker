@@ -29,6 +29,8 @@ import {
   type ShotClockSettings,
   type SittingOutReason,
   type SoundSettings,
+  DEFAULT_SHOWDOWN_OVERLAY,
+  type ShowdownOverlaySettings,
 } from "@table-top-poker/protocol";
 import { generateRoomCode } from "./room-code.js";
 
@@ -55,6 +57,7 @@ export interface Room {
   turnEndsAt: number | null;
   pendingShotClock: ShotClockSettings | null;
   soundSettings: SoundSettings;
+  showdownOverlay: ShowdownOverlaySettings;
   shotClockSettings: ShotClockSettings;
 }
 
@@ -406,6 +409,7 @@ export class RoomStore {
       turnEndsAt: null,
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
+      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
     };
     return {
@@ -608,6 +612,16 @@ export class RoomStore {
     if (!room) return { error: "room-not-found" };
     room.soundSettings = settings;
     return room.soundSettings;
+  }
+
+  changeShowdownOverlay(
+    code: string,
+    settings: ShowdownOverlaySettings,
+  ): ShowdownOverlaySettings | { error: "room-not-found" } {
+    const room = this.#rooms.get(code);
+    if (!room) return { error: "room-not-found" };
+    room.showdownOverlay = settings;
+    return room.showdownOverlay;
   }
 
   changeShotClockSettings(
@@ -815,6 +829,7 @@ export function toRoomView(room: Room): RoomView {
     pendingShotClock: room.pendingShotClock,
     soundSettings: room.soundSettings,
     shotClockSettings: room.shotClockSettings,
+    showdownOverlay: room.showdownOverlay,
     seats: room.seats.map((seat) => {
       const reason = sittingOutReason(room, seat.id);
       return {

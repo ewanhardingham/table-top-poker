@@ -1,5 +1,6 @@
 import {
   DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_OVERLAY,
   DEFAULT_SOUND_SETTINGS,
   type HandSummary,
   type TableReplayPosition,
@@ -67,6 +68,7 @@ describe("useTableStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,
@@ -96,6 +98,7 @@ describe("useTableStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,
@@ -128,6 +131,7 @@ describe("useTableStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [],
     });
     expect(useTableStore.getState().recordingStopped).toBe(true);
@@ -140,6 +144,7 @@ describe("useTableStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,

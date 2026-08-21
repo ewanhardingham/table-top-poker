@@ -1,9 +1,11 @@
 import type {
   ActionType,
+  SeatId,
   SeatView,
   TableView,
 } from "@table-top-poker/protocol";
 import {
+  Card,
   color,
   font,
   positionMarkerColor,
@@ -15,6 +17,11 @@ import {
 } from "@table-top-poker/ui-shared";
 import { AnimatePresence, motion } from "motion/react";
 import { actionVerb, type SeatActionLabels } from "./actionWords.js";
+import {
+  ordinal,
+  rankShowdownHands,
+  type RankedShowdownHand,
+} from "./showdownRanking.js";
 import { posFor } from "./table/posFor.js";
 
 export interface SeatsProps {
@@ -71,6 +78,119 @@ interface SeatVisual {
   readonly isWinner: boolean;
   readonly avatarBackground: string;
   readonly avatarColor: string;
+}
+
+const SHOWDOWN_CARD_SCALE = "clamp(0.34rem, 1.1vh, 0.55rem)";
+
+interface ShowdownSeat {
+  readonly hand: RankedShowdownHand | null;
+  readonly isWinner: boolean;
+  readonly splitting: boolean;
+}
+
+function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
+  const bySeat = new Map<SeatId, ShowdownSeat>();
+  if (view?.phase !== "showdown") return bySeat;
+
+  const winners = view.winners ?? [];
+  const ranked = new Map(
+    rankShowdownHands(view.results).map((hand) => [hand.result.seatId, hand]),
+  );
+  for (const seatId of view.contestants) {
+    bySeat.set(seatId, {
+      hand: ranked.get(seatId) ?? null,
+      isWinner: winners.includes(seatId),
+      splitting: winners.length > 1,
+    });
+  }
+  return bySeat;
+}
+
+function ShowdownHand({
+  seatId,
+  showdown,
+}: {
+  readonly seatId: SeatId;
+  readonly showdown: ShowdownSeat;
+}) {
+  const testId = `seat-pod-${String(seatId)}-showdown`;
+  const { hand, isWinner, splitting } = showdown;
+
+  return (
+    <div
+      data-testid={testId}
+      data-shown={hand !== null}
+      data-winner={isWinner}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "0.3em",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: "0.18em",
+          padding: "0.2em",
+          borderRadius: "0.4em",
+          fontSize: SHOWDOWN_CARD_SCALE,
+          border: `1px solid ${isWinner ? color.winBorder : "transparent"}`,
+          background: isWinner ? color.winPlate : undefined,
+        }}
+      >
+        {hand === null ? (
+          <>
+            <Card faceDown />
+            <Card faceDown />
+          </>
+        ) : (
+          hand.result.holeCards.map((card, index) => (
+            <Card key={index} rank={card.rank} suit={card.suit} />
+          ))
+        )}
+      </div>
+      {hand !== null && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.4em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <span
+            data-testid={`${testId}-rank`}
+            style={{
+              padding: "0.15em 0.45em",
+              borderRadius: "999px",
+              fontFamily: font.mono,
+              fontSize: "0.55em",
+              fontWeight: 700,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              background: isWinner ? color.winBright : color.controlFill,
+              color: isWinner ? color.pillInk : color.textMuted,
+            }}
+          >
+            {ordinal(hand.place)}
+          </span>
+          <span
+            data-testid={`${testId}-verdict`}
+            style={{
+              fontSize: "0.6em",
+              fontWeight: 600,
+              color: isWinner ? color.winText : color.textDim,
+            }}
+          >
+            {isWinner
+              ? `${hand.result.description} — ${splitting ? "splits" : "wins"}`
+              : hand.result.description}
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
@@ -143,10 +263,13 @@ export function Seats({
   onSeatClick,
   actionLabels,
 }: SeatsProps) {
+  const showdown = showdownSeats(view);
+
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
       {seats.map((seat) => {
         const visual = deriveSeat(seat, view);
+        const seatShowdown = showdown.get(seat.id);
         const acted = visual.isActor ? undefined : actionLabels?.get(seat.id);
         const pos = posFor(seat.id, seats.length);
         const isTopRow = pos.top < 50;
@@ -375,6 +498,9 @@ export function Seats({
               cursor: seat.claimed && onSeatClick ? "pointer" : undefined,
             }}
           >
+            {seatShowdown && !isTopRow && (
+              <ShowdownHand seatId={seat.id} showdown={seatShowdown} />
+            )}
             <motion.div
               data-testid={`seat-pod-${String(seat.id)}-surface`}
               animate={{
@@ -421,6 +547,9 @@ export function Seats({
             >
               {podContent}
             </motion.div>
+            {seatShowdown && isTopRow && (
+              <ShowdownHand seatId={seat.id} showdown={seatShowdown} />
+            )}
             <AnimatePresence>
               {visual.isActor ? (
                 <motion.div

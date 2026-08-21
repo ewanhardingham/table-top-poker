@@ -308,7 +308,7 @@ describe("Seats", () => {
     expect(html).not.toContain('data-testid="seat-pod-0-disconnected"');
   });
 
-  it("reveals nothing on the felt at showdown — no hole cards, hand, or winner mark", () => {
+  it("tables a shown hand on the seat plate with its rank badge and verdict", () => {
     const view: TableView = {
       phase: "showdown",
       button: 0,
@@ -344,10 +344,13 @@ describe("Seats", () => {
       ],
     };
     const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
-    expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-winner="false"/);
-    expect(html).not.toContain("hole-cards");
-    expect(html).not.toContain('data-testid="seat-pod-0-hand"');
-    expect(html).not.toContain("Pair of Aces");
+    expect(html).toMatch(
+      /data-testid="seat-pod-0-showdown"[^>]*data-shown="true"/,
+    );
+    expect(html).toContain('data-testid="seat-pod-0-showdown-rank"');
+    expect(html).toContain("1st");
+    expect(html).toContain("Pair of Aces — wins");
+    expect(html).not.toContain('data-testid="seat-pod-1-showdown"');
   });
 
   it("keeps a revealed player in-hand when they sit out for the next hand", () => {
@@ -838,5 +841,118 @@ describe("Seats: action labels", () => {
     );
 
     expect(styleOf(html, "seat-pod-3-action")).toContain("rotate(180deg)");
+  });
+});
+
+describe("Seats at showdown", () => {
+  const board: TableView & { phase: "showdown" } = {
+    phase: "showdown",
+    button: 0,
+    smallBlind: 1,
+    bigBlind: 2,
+    dealtSeatCount: 4,
+    board: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "hearts" },
+      { rank: "2", suit: "clubs" },
+      { rank: "7", suit: "diamonds" },
+      { rank: "9", suit: "clubs" },
+    ],
+    contestants: [0, 1],
+    winners: null,
+    results: [],
+  };
+
+  function shown(seatId: number, rank: number, description: string) {
+    return {
+      seatId,
+      rank,
+      description,
+      holeCards: [
+        { rank: "A", suit: "clubs" },
+        { rank: "3", suit: "hearts" },
+      ],
+      bestHand: [
+        { rank: "A", suit: "spades" },
+        { rank: "A", suit: "clubs" },
+        { rank: "K", suit: "hearts" },
+        { rank: "9", suit: "clubs" },
+        { rank: "7", suit: "diamonds" },
+      ],
+    } as const;
+  }
+
+  it("sits two card backs on a contestant who has not shown", () => {
+    const html = renderToStaticMarkup(<Seats seats={seats} view={board} />);
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-0-showdown"[^>]*data-shown="false"/,
+    );
+    expect(html).toMatch(
+      /data-testid="seat-pod-1-showdown"[^>]*data-shown="false"/,
+    );
+    expect(html).not.toContain('data-testid="seat-pod-0-showdown-rank"');
+    expect(html).not.toContain('data-testid="seat-pod-2-showdown"');
+  });
+
+  it("keeps a concealing seat in the hand it played", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats}
+        view={{
+          ...board,
+          winners: [0],
+          results: [shown(0, 30, "Pair of Aces")],
+        }}
+      />,
+    );
+
+    expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-status="in-hand"/);
+    expect(html).toMatch(
+      /data-testid="seat-pod-1-showdown"[^>]*data-shown="false"/,
+    );
+  });
+
+  it("gives tied hands one shared badge and calls the split", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats}
+        view={{
+          ...board,
+          contestants: [0, 1, 2],
+          winners: [0, 1],
+          results: [
+            shown(0, 30, "Pair of Aces"),
+            shown(1, 30, "Pair of Aces"),
+            shown(2, 10, "Ace high"),
+          ],
+        }}
+      />,
+    );
+
+    expect(html).toContain("Pair of Aces — splits");
+    const places = [...html.matchAll(/showdown-rank"[^>]*>([^<]+)</g)].map(
+      (match) => match[1],
+    );
+    expect(places).toEqual(["1st", "1st", "2nd"]);
+  });
+
+  it("pushes each tabled hand toward the table centre", () => {
+    const view = {
+      ...board,
+      contestants: [0, 3],
+      winners: [0],
+      results: [shown(0, 30, "Pair of Aces"), shown(3, 10, "Ace high")],
+    };
+    const html = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+
+    const bottomRow = html.indexOf('data-testid="seat-pod-0-showdown"');
+    const bottomPlate = html.indexOf('data-testid="seat-pod-0-surface"');
+    const topRow = html.indexOf('data-testid="seat-pod-3-showdown"');
+    const topPlate = html.indexOf('data-testid="seat-pod-3-surface"');
+
+    expect(bottomRow).toBeGreaterThan(-1);
+    expect(bottomRow).toBeLessThan(bottomPlate);
+    expect(topRow).toBeGreaterThan(topPlate);
   });
 });

@@ -62,3 +62,55 @@ describe("ReplayStage", () => {
     expect(html).toContain('data-phase="betting"');
   });
 });
+
+describe("ReplayStage at showdown", () => {
+  const showdown: TableView = {
+    phase: "showdown",
+    button: 0,
+    smallBlind: 1,
+    bigBlind: 2,
+    dealtSeatCount: 4,
+    board: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "hearts" },
+      { rank: "2", suit: "clubs" },
+      { rank: "7", suit: "diamonds" },
+      { rank: "9", suit: "clubs" },
+    ],
+    contestants: [0, 1],
+    winners: [0],
+    results: [
+      {
+        seatId: 0,
+        rank: 30,
+        description: "Pair of Aces",
+        holeCards: [
+          { rank: "A", suit: "clubs" },
+          { rank: "3", suit: "hearts" },
+        ],
+        bestHand: [
+          { rank: "A", suit: "spades" },
+          { rank: "A", suit: "clubs" },
+          { rank: "K", suit: "hearts" },
+          { rank: "9", suit: "clubs" },
+          { rank: "7", suit: "diamonds" },
+        ],
+      },
+    ],
+  };
+
+  it("replays the shown hand and leaves the mucked one face down", () => {
+    const html = renderToStaticMarkup(
+      <ReplayStage view={showdown} seats={seats} actionLabels={new Map()} />,
+    );
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-0-showdown"[^>]*data-shown="true"/,
+    );
+    expect(html).toContain("Pair of Aces — wins");
+    expect(html).toMatch(
+      /data-testid="seat-pod-1-showdown"[^>]*data-shown="false"/,
+    );
+    expect(html).not.toContain('data-testid="seat-pod-2-showdown"');
+  });
+});

@@ -107,6 +107,19 @@ function enterRoom(
   };
 }
 
+function enableShowdownOverlay() {
+  store.overrides = {
+    ...store.overrides,
+    showdownOverlay: { enabled: true },
+  };
+}
+
+const awaitingReveal: TableView = {
+  ...showdownHand,
+  winners: null,
+  results: [],
+};
+
 describe("App", () => {
   afterEach(() => {
     store.overrides = {};
@@ -203,6 +216,7 @@ describe("App", () => {
 
   it("renders the showdown reveal overlay at showdown, gating Next hand on player count", () => {
     enterRoom(2, showdownHand);
+    enableShowdownOverlay();
     const html = renderToStaticMarkup(<App />);
 
     expect(html).toContain('data-testid="showdown-overlay"');
@@ -216,12 +230,37 @@ describe("App", () => {
 
   it("disables the overlay's Next hand once the table drops below two players", () => {
     enterRoom(1, showdownHand);
+    enableShowdownOverlay();
     const html = renderToStaticMarkup(<App />);
 
     expect(html).toMatch(
       /data-testid="showdown-next-hand-button"[^>]*disabled/,
     );
     expect(html).toContain('data-testid="showdown-next-hand-blocked-hint"');
+  });
+
+  it("plays showdown on the seats, with no overlay, unless the house rule is on", () => {
+    enterRoom(2, showdownHand);
+    const html = renderToStaticMarkup(<App />);
+
+    expect(html).not.toContain('data-testid="showdown-overlay"');
+    expect(html).not.toContain('data-testid="view-showdown-button"');
+    expect(html).toContain('data-testid="seat-pod-0-showdown"');
+    expect(html).toContain('data-testid="next-hand-button"');
+  });
+
+  it("puts Reveal where Next hand goes until the table has revealed", () => {
+    enterRoom(2, awaitingReveal);
+    const revealing = renderToStaticMarkup(<App />);
+
+    expect(revealing).toContain('data-testid="reveal-button"');
+    expect(revealing).not.toContain('data-testid="next-hand-button"');
+
+    enterRoom(2, showdownHand);
+    const revealed = renderToStaticMarkup(<App />);
+
+    expect(revealed).not.toContain('data-testid="reveal-button"');
+    expect(revealed).toContain('data-testid="next-hand-button"');
   });
 
   it("does not render the overlay for a fold-out ending", () => {
