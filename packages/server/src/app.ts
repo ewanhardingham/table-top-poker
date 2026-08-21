@@ -480,6 +480,16 @@ export async function buildApp(
       });
   }
 
+  /**
+   * The showing window outlives `HandComplete` (ADR-0008), so the picker row is
+   * re-derived and re-sent as each Hand is turned over.
+   */
+  const RESUMMARISES: ReadonlySet<HandEvent["type"]> = new Set([
+    "HandComplete",
+    "HoleCardsShown",
+    "WinnersDeclared",
+  ]);
+
   /** Summarises a hand only once seen whole, and never once recording stopped. */
   function accumulateHandSummary(
     code: string,
@@ -487,6 +497,7 @@ export async function buildApp(
   ): void {
     for (const step of transaction.steps) {
       if (step.event.type === "HandStarted") {
+        handsInProgress.delete(code);
         const handOrdinal = (handsStarted.get(code) ?? 0) + 1;
         handsStarted.set(code, handOrdinal);
         handsInProgress.set(code, {
@@ -499,9 +510,8 @@ export async function buildApp(
       const inProgress = handsInProgress.get(code);
       if (inProgress === undefined) continue;
       inProgress.events.push(step.event);
-      if (step.event.type !== "HandComplete") continue;
+      if (!RESUMMARISES.has(step.event.type)) continue;
 
-      handsInProgress.delete(code);
       if (roomRecordings.hasStopped(code)) continue;
       let summary: HandSummary;
       try {
@@ -519,7 +529,11 @@ export async function buildApp(
         continue;
       }
       const summaries = handSummaries.get(code) ?? [];
-      summaries.push(summary);
+      const existing = summaries.findIndex(
+        (listed) => listed.handOrdinal === summary.handOrdinal,
+      );
+      if (existing === -1) summaries.push(summary);
+      else summaries[existing] = summary;
       handSummaries.set(code, summaries);
       sendToTables(code, { type: "hand-summary", summary });
     }

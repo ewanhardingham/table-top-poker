@@ -15,17 +15,12 @@ function joinNames(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${String(names.at(-1))}`;
 }
 
-function showdownCaption(
-  event: Extract<HandEvent, { type: "ShowdownReached" }>,
+function winnersCaption(
+  event: Extract<HandEvent, { type: "WinnersDeclared" }>,
   seats: readonly SeatView[],
 ): string {
-  const { names, verb, description } = showdownVerdict(
-    event.winners,
-    event.results,
-    seats,
-  );
-  const hand = description === undefined ? "" : ` with ${description}`;
-  return `Showdown — ${joinNames(names)} ${verb}${hand}`;
+  const { names, verb } = showdownVerdict(event.winners, [], seats);
+  return `${joinNames(names)} ${verb}`;
 }
 
 /** The beat just landed on — see Caption in `CONTEXT.md`. */
@@ -51,7 +46,11 @@ export function captionFor(
     case "HandFoldedOut":
       return `${seatLabel(event.winner, seats)} wins, everyone else folded`;
     case "ShowdownReached":
-      return showdownCaption(event, seats);
+      return "Showdown";
+    case "HoleCardsShown":
+      return `${seatLabel(event.result.seatId, seats)} shows ${event.result.description}`;
+    case "WinnersDeclared":
+      return winnersCaption(event, seats);
     case "HandComplete":
       return "Hand complete";
   }

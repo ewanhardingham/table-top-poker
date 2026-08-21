@@ -1,3 +1,4 @@
+import { revealedResultFor } from "./evaluate.js";
 import { bigBlindSeat, legalActions, smallBlindSeat } from "./table.js";
 import type {
   ActionType,
@@ -24,11 +25,21 @@ interface FoldedOutView extends HandPositions {
   readonly winner: SeatId;
 }
 
-interface ShowdownView extends HandPositions {
+export interface ShowdownView extends HandPositions {
   readonly phase: "showdown";
   readonly board: readonly Card[];
+  /** Every Seat that reached showdown, shown or not — see ADR-0008. */
+  readonly contestants: readonly SeatId[];
+  /** Shown Seats only, in the order they were turned over. */
   readonly results: readonly RevealedResult[];
-  readonly winners: readonly SeatId[];
+  /** Null until the table reveals: the Hand rests before it resolves. */
+  readonly winners: readonly SeatId[] | null;
+}
+
+export interface PlayerShowdownView extends ShowdownView {
+  readonly yourSeatId: SeatId;
+  readonly yourResult: RevealedResult | null;
+  readonly canShow: boolean;
 }
 
 export interface PlayerViewBetting extends HandPositions {
@@ -53,7 +64,7 @@ export interface TableViewBetting extends HandPositions {
 }
 
 export type PlayerView =
-  NoHandView | PlayerViewBetting | FoldedOutView | ShowdownView;
+  NoHandView | PlayerViewBetting | FoldedOutView | PlayerShowdownView;
 
 export type TableView =
   NoHandView | TableViewBetting | FoldedOutView | ShowdownView;
@@ -95,15 +106,30 @@ export function view(
   }
 
   if (hand.status === "complete") {
-    return {
+    const showdownView: ShowdownView = {
       phase: "showdown",
       button: hand.button,
       smallBlind: hand.smallBlind,
       bigBlind: hand.bigBlind,
       dealtSeatCount: hand.dealtSeatCount,
       board: hand.board,
-      winners: hand.winners,
+      contestants: hand.contestants.map((contestant) => contestant.seatId),
       results: hand.results,
+      winners: hand.winners,
+    };
+    if (seatId === "table") return showdownView;
+
+    const yours = hand.contestants.find(
+      (contestant) => contestant.seatId === seatId,
+    );
+    return {
+      ...showdownView,
+      yourSeatId: seatId,
+      yourResult:
+        yours === undefined ? null : revealedResultFor(hand.board, yours),
+      canShow:
+        yours !== undefined &&
+        !hand.results.some((shown) => shown.seatId === seatId),
     };
   }
 

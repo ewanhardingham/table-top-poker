@@ -1,5 +1,5 @@
 import { apply } from "./apply.js";
-import { evaluate, winnersOf } from "./evaluate.js";
+import { revealedResultFor, winnersOf } from "./evaluate.js";
 import {
   actingSeats,
   canStillAct,
@@ -15,13 +15,14 @@ import {
 import type {
   ActionType,
   BettingHandState,
-  Card,
   Command,
   EngineState,
   HandEvent,
   Rejection,
   RejectionReason,
+  RevealedResult,
   SeatId,
+  ShowdownCompleteHandState,
 } from "./types.js";
 import { must } from "./util.js";
 
@@ -66,7 +67,78 @@ export function decide(
 
     case "evict":
       return decideEviction(state, command);
+
+    case "reveal":
+      return decideReveal(state, command);
+
+    case "show":
+      return decideShow(state, command);
   }
+}
+
+function awaitingShowdown(
+  state: EngineState,
+): ShowdownCompleteHandState | null {
+  const hand = state.hand;
+  if (hand?.status !== "complete" || hand.reason !== "showdown") return null;
+  return hand;
+}
+
+/**
+ * The river's last aggressor and every all-in Seat, or the winning Seat when
+ * that set is empty — see ADR-0008.
+ */
+function compelledToShow(
+  hand: ShowdownCompleteHandState,
+  results: readonly RevealedResult[],
+): readonly SeatId[] {
+  const compelled = hand.contestants
+    .filter(
+      (contestant) =>
+        contestant.allIn || contestant.seatId === hand.lastAggressor,
+    )
+    .map((contestant) => contestant.seatId);
+  return compelled.length > 0 ? compelled : winnersOf(results);
+}
+
+function decideReveal(
+  state: EngineState,
+  command: Extract<Command, { type: "reveal" }>,
+): HandEvent[] | Rejection {
+  const hand = awaitingShowdown(state);
+  if (hand === null) return reject("not-at-showdown", command);
+  if (hand.winners !== null) return [];
+
+  const results = hand.contestants.map((contestant) =>
+    revealedResultFor(hand.board, contestant),
+  );
+  const compelled = new Set(compelledToShow(hand, results));
+  const shows: HandEvent[] = results
+    .filter((result) => compelled.has(result.seatId))
+    .map((result) => ({ type: "HoleCardsShown", result }));
+
+  return [...shows, { type: "WinnersDeclared", winners: winnersOf(results) }];
+}
+
+function decideShow(
+  state: EngineState,
+  command: Extract<Command, { type: "show" }>,
+): HandEvent[] | Rejection {
+  const hand = awaitingShowdown(state);
+  if (hand === null) return reject("not-at-showdown", command);
+
+  const contestant = hand.contestants.find(
+    (candidate) => candidate.seatId === command.seatId,
+  );
+  if (contestant === undefined) return reject("not-at-showdown", command);
+  if (hand.results.some((shown) => shown.seatId === command.seatId)) return [];
+
+  return [
+    {
+      type: "HoleCardsShown",
+      result: revealedResultFor(hand.board, contestant),
+    },
+  ];
 }
 
 function beginHand(state: EngineState, seed: string): HandEvent[] {
@@ -267,27 +339,9 @@ function finishAtShowdown(
   scratch: EngineState,
   events: HandEvent[],
 ): HandEvent[] {
-  const hand = asBetting(scratch);
-  const results = liveSeats(hand).map((seatId) => {
-    const holeCards = must(
-      hand.players.get(seatId)?.holeCards,
-      "a live seat at showdown always has hole cards",
-    );
-    const { rank, bestHand, description } = evaluate([
-      ...holeCards,
-      ...hand.board,
-    ]);
-    return {
-      seatId,
-      rank,
-      bestHand: [...bestHand] as [Card, Card, Card, Card, Card],
-      description,
-    };
-  });
   const showdownReached: HandEvent = {
     type: "ShowdownReached",
-    results,
-    winners: winnersOf(results),
+    contestants: liveSeats(asBetting(scratch)),
   };
   events.push(showdownReached);
   const afterShowdown = apply(scratch, showdownReached);

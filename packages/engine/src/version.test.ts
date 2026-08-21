@@ -7,7 +7,7 @@ describe("ENGINE_LOG_VERSION", () => {
     expect(ENGINE_LOG_VERSION).toBeGreaterThan(0);
   });
 
-  it("uses the next version for the corrected preflop action order", () => {
-    expect(ENGINE_LOG_VERSION).toBe(4);
+  it("uses the next version for showdown visibility as engine state", () => {
+    expect(ENGINE_LOG_VERSION).toBe(5);
   });
 });

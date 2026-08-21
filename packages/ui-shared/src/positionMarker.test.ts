@@ -75,6 +75,7 @@ describe("positionMarkerFor", () => {
           phase: "showdown",
           ...headsUp,
           board: [],
+          contestants: [0, 1],
           results: [],
           winners: [0],
         },

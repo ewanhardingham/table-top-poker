@@ -132,7 +132,11 @@ export type SeatCommandType = Exclude<ClientCommandType, "sitOut" | "sitIn">;
 const TABLE_ONLY_COMMANDS: ReadonlySet<SeatCommandType> = new Set([
   "startHand",
   "nextHand",
+  "reveal",
 ]);
+
+/** The table has no Seat of its own; a table-originated Command still needs one stamped. */
+const TABLE_SEAT_ID = 0;
 
 function makeSeats(seatCount: number): Seat[] {
   return Array.from({ length: seatCount }, (_, id) => ({
@@ -222,11 +226,17 @@ function remapCompletedEngineState(
     hand: {
       ...hand,
       button: map(hand.button),
+      contestants: hand.contestants.map((contestant) => ({
+        ...contestant,
+        seatId: map(contestant.seatId),
+      })),
+      lastAggressor:
+        hand.lastAggressor === null ? null : map(hand.lastAggressor),
       results: hand.results.map((result) => ({
         ...result,
         seatId: map(result.seatId),
       })),
-      winners: hand.winners.map(map),
+      winners: hand.winners === null ? null : hand.winners.map(map),
     },
   };
 }
@@ -793,6 +803,7 @@ export class RoomStore {
     if (type === "startHand" || type === "nextHand") {
       return { type, seatId: 0, seed: this.#generateSeed() };
     }
+    if (type === "reveal") return { type, seatId: TABLE_SEAT_ID };
     return { type, seatId: identity as SeatId };
   }
 }

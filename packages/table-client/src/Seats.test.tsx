@@ -322,6 +322,7 @@ describe("Seats", () => {
         { rank: "7", suit: "diamonds" },
         { rank: "9", suit: "clubs" },
       ],
+      contestants: [0],
       winners: [0],
       results: [
         {
@@ -363,6 +364,7 @@ describe("Seats", () => {
         { rank: "7", suit: "diamonds" },
         { rank: "9", suit: "clubs" },
       ],
+      contestants: [2],
       winners: [2],
       results: [
         {
@@ -714,6 +716,7 @@ describe("Seats: position markers", () => {
         ...headsUpPositions,
         phase: "showdown",
         board: [],
+        contestants: [0, 1],
         winners: [0],
         results: [],
       } satisfies TableView,

@@ -31,6 +31,8 @@ const WEIGHTS: Record<HandEvent["type"], number> = {
   BoardDealt: 1600,
   HandFoldedOut: 2400,
   ShowdownReached: 3200,
+  HoleCardsShown: 1600,
+  WinnersDeclared: 2400,
   HandComplete: 2000,
 };
 

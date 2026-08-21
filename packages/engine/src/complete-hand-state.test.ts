@@ -35,10 +35,11 @@ describe("CompleteHandState carries how the hand ended", () => {
     if (state.hand?.status !== "complete") throw new Error("expected complete");
     expect(state.hand.reason).toBe("showdown");
     if (state.hand.reason === "showdown") {
-      expect(state.hand.results).toHaveLength(2);
-      expect(state.hand.winners.length).toBeGreaterThan(0);
-      for (const result of state.hand.results) {
-        expect(result.holeCards).toHaveLength(2);
+      expect(state.hand.contestants).toHaveLength(2);
+      expect(state.hand.results).toEqual([]);
+      expect(state.hand.winners).toBeNull();
+      for (const contestant of state.hand.contestants) {
+        expect(contestant.holeCards).toHaveLength(2);
       }
     }
   });

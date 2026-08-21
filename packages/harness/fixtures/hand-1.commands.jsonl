@@ -13,3 +13,5 @@
 {"type":"check","seatId":2}
 {"type":"raise","seatId":0}
 {"type":"call","seatId":2}
+{"type":"reveal","seatId":0}
+{"type":"show","seatId":2}

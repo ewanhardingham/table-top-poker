@@ -56,8 +56,7 @@ describe("a full hand, 3 seats, start to showdown", () => {
     const showdown = riverEvents.find((e) => e.type === "ShowdownReached");
     expect(showdown).toBeDefined();
     if (showdown?.type === "ShowdownReached") {
-      expect(showdown.results.map((r) => r.seatId).sort()).toEqual([0, 2]);
-      expect(showdown.winners).toEqual([2]);
+      expect([...showdown.contestants].sort()).toEqual([0, 2]);
     }
     expect(riverEvents.at(-1)?.type).toBe("HandComplete");
   });

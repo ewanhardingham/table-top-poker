@@ -1400,7 +1400,7 @@ describe("hand command dispatch over WebSocket", () => {
         if (message.type !== "hand-update") continue;
         const v = message.view;
         if (
-          "yourSeatId" in v &&
+          "yourHoleCards" in v &&
           v.yourSeatId === seatId &&
           v.yourHoleCards !== null
         ) {
@@ -2827,7 +2827,7 @@ describe("presence and reconnection", () => {
       throw new Error("expected a view-snapshot");
     }
     const view = snapshot.view;
-    if (!("yourSeatId" in view) || toAct !== 0) {
+    if (!("yourHoleCards" in view) || toAct !== 0) {
       return;
     }
     expect(view.yourHoleCards).toBeNull();

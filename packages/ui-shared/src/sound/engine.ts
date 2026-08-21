@@ -105,6 +105,8 @@ export function createSoundEngine(
       case "StreetStarted":
       case "StreetClosed":
       case "ShowdownReached":
+      case "HoleCardsShown":
+      case "WinnersDeclared":
       case "HandFoldedOut":
       case "HandComplete":
         break;

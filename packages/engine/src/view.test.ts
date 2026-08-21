@@ -229,9 +229,11 @@ function assertNoLeak(
   dealtCards: ReadonlyMap<SeatId, readonly [Card, Card]>,
   seats: readonly SeatId[],
 ): void {
-  const revealed = new Set<SeatId>();
+  const shown = new Set<SeatId>();
+  const contestants = new Set<SeatId>();
   if (state.hand?.status === "complete" && state.hand.reason === "showdown") {
-    for (const result of state.hand.results) revealed.add(result.seatId);
+    for (const result of state.hand.results) shown.add(result.seatId);
+    for (const c of state.hand.contestants) contestants.add(c.seatId);
   }
 
   const viewers: (SeatId | "table")[] = [...seats, "table"];
@@ -242,21 +244,15 @@ function assertNoLeak(
     const cardKeys = new Set(cardsInView.map((c) => `${c.rank}${c.suit}`));
 
     for (const [seatId, cards] of dealtCards) {
-      const isRevealed = revealed.has(seatId);
-      const isLiveOwner =
+      const isOwner =
         v === seatId &&
-        state.hand?.status === "betting" &&
-        !must(state.hand.players.get(seatId)).folded;
+        (state.hand?.status === "betting"
+          ? !must(state.hand.players.get(seatId)).folded
+          : contestants.has(seatId));
 
       for (const card of cards) {
         const present = cardKeys.has(`${card.rank}${card.suit}`);
-        if (isRevealed) {
-          expect(present).toBe(true);
-        } else if (isLiveOwner) {
-          expect(present).toBe(true);
-        } else {
-          expect(present).toBe(false);
-        }
+        expect(present).toBe(shown.has(seatId) || isOwner);
       }
     }
   }
@@ -304,6 +300,16 @@ describe("property: view never leaks a hole card it isn't entitled to", () => {
                 ? "check"
                 : action;
             const result = decide(state, { type: legal, seatId: actor });
+            if (!Array.isArray(result)) continue;
+            for (const event of result) state = apply(state, event);
+            assertNoLeak(state, dealtCards, seats);
+          }
+
+          for (const command of [
+            { type: "reveal", seatId: firstPlayer },
+            ...seats.map((seatId) => ({ type: "show", seatId }) as const),
+          ] as const) {
+            const result = decide(state, command);
             if (!Array.isArray(result)) continue;
             for (const event of result) state = apply(state, event);
             assertNoLeak(state, dealtCards, seats);
