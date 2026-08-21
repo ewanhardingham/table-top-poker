@@ -109,10 +109,23 @@ _Avoid_: Treating the Muck as storage, or as somewhere a Hand can be read
 back from — a fold is final, and nothing is kept.
 
 **Action**:
-A completed poker decision for a Seat — fold, check, call, or raise — whether
-chosen by its Player or synthesized by the server when the Seat cannot act.
-Logged as an Event. Distinct from *to act* / the *Actor* (see below), which is
-about whose turn it is, not a decision that has happened.
+A completed poker decision for a Seat — fold, check, call, raise, all-in call
+or all-in raise — whether chosen by its Player or synthesized by the server
+when the Seat cannot act. Logged as an Event. Distinct from *to act* / the
+*Actor* (see below), which is about whose turn it is, not a decision that has
+happened.
+
+**All in**:
+A Seat that has put its last chips in and can take no further Action this
+Hand. Declared by the Player, who is the only party that knows their own
+stack, as one of two Actions: an *all-in call*, which does not reopen the
+betting, or an *all-in raise*, which requeues every other live Seat exactly
+as a raise does (ADR-0007). Both retire the Seat from the betting for the
+rest of the Hand; neither carries a chip amount. A Player who covers a shove
+and wants to keep acting simply calls.
+_Avoid_: Treating all-in as a folded Seat — an all-in Seat is live, keeps its
+claim on the pot, and is revealed at Showdown. Side pots stay a
+physical-chips problem the humans settle at the table.
 
 **Actor**:
 The Player whose turn it currently is. A derived property of Hand state,
@@ -329,7 +342,14 @@ Seats dealt in, which folding never reduces.
 
 **Early-out**: from any betting Street, if a fold drops live players to 1,
 the Hand transitions directly to HAND_COMPLETE — Showdown is skipped, no
-remaining board cards are dealt, no hands are revealed.
+remaining board cards are dealt, no hands are revealed. All-in Seats count as
+live here, so a Seat that has shoved cannot be folded out of a pot it has
+already bought a claim to (ADR-0007).
+
+**Run-out**: once fewer than two Seats can still act, the remaining Streets
+deal without opening — board cards arrive, no betting round starts — through
+the River and on to Showdown. There is no turn to take with nothing to bet
+against.
 
 **Street closure**: a Street ends once every live Player has acted since
 the most recent bet or raise and none still owes a response
