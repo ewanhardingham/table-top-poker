@@ -92,7 +92,8 @@ const SHOWDOWN_LABEL_WIDTH = "8.5rem";
 const treatmentScale: Record<ShowdownTreatment, string> = {
   current: SHOWDOWN_CARD_SCALE,
   stack: "clamp(0.85rem, 2.6vh, 1.25rem)",
-  fan: "clamp(1rem, 3.1vh, 1.5rem)",
+  /** Sized off the plate it tucks behind: 5.8em of fan across 100% of the Seat. */
+  fan: "15cqw",
   inline: "clamp(0.95rem, 2.9vh, 1.4rem)",
 };
 
@@ -185,8 +186,10 @@ function ShowdownHand({
         fontWeight: 700,
         letterSpacing: "0.12em",
         textTransform: "uppercase",
-        background: isWinner ? color.winBright : color.controlFill,
-        color: isWinner ? color.pillInk : color.textMuted,
+        background: isWinner ? color.winBright : color.seatTabledBackground,
+        border: `1px solid ${isWinner ? color.winBright : color.seatTabledBorder}`,
+        color: isWinner ? color.pillInk : color.textBright,
+        boxShadow: shadow.card,
       }}
     >
       {ordinal(hand.place)}
@@ -232,40 +235,49 @@ function ShowdownHand({
         style={{
           position: "relative",
           fontSize: scale,
-          width: "5.9em",
-          height: "5.4em",
+          width: "100%",
+          height: "5.6em",
           cursor: "default",
         }}
       >
-        {faces.map((card, index) => (
-          <div
-            key={index}
-            style={{
-              position: "absolute",
-              left: index === 0 ? 0 : "2.3em",
-              top: index === 0 ? "0.25em" : 0,
-              transform: `rotate(${String(index === 0 ? -8 : 7)}deg)`,
-              filter: `drop-shadow(${shadow.card})`,
-            }}
-          >
-            {card === null ? (
-              <Card faceDown />
-            ) : (
-              <Card rank={card.rank} suit={card.suit} />
-            )}
-          </div>
-        ))}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            width: "6.26em",
+            height: "5.6em",
+          }}
+        >
+          {faces.map((card, index) => (
+            <div
+              key={index}
+              style={{
+                position: "absolute",
+                left: index === 0 ? "0.33em" : "2.43em",
+                top: index === 0 ? "0.3em" : 0,
+                transform: `rotate(${String(index === 0 ? -8 : 7)}deg)`,
+                filter: `drop-shadow(${shadow.card})`,
+              }}
+            >
+              {card === null ? (
+                <Card faceDown />
+              ) : (
+                <Card rank={card.rank} suit={card.suit} />
+              )}
+            </div>
+          ))}
+        </div>
         {(badge || outcomeChip) && (
           <span
             style={{
               position: "absolute",
               left: "50%",
-              top: "-0.55em",
+              top: "-0.5em",
               transform: "translateX(-50%)",
               display: "flex",
               gap: "0.25em",
-              boxShadow: shadow.card,
-              borderRadius: "999px",
+              whiteSpace: "nowrap",
             }}
           >
             {badge}
@@ -647,16 +659,25 @@ export function Seats({
           >
             {seatShowdown && hungTabled && (
               <div
-                style={{
-                  position: "absolute",
-                  left: "50%",
-                  zIndex: 0,
-                  ...(isTopRow ? { top: "100%" } : { bottom: "100%" }),
-                  transform:
-                    showdownTreatment === "fan"
-                      ? `translateX(-50%) translateY(${isTopRow ? "-62%" : "62%"})`
-                      : `translateX(-50%) translateY(${isTopRow ? "0.4em" : "-0.4em"})`,
-                }}
+                style={
+                  showdownTreatment === "fan"
+                    ? {
+                        position: "absolute",
+                        left: 0,
+                        right: 0,
+                        zIndex: 0,
+                        containerType: "inline-size",
+                        ...(isTopRow ? { top: "100%" } : { bottom: "100%" }),
+                        transform: `translateY(${isTopRow ? "-62%" : "62%"})`,
+                      }
+                    : {
+                        position: "absolute",
+                        left: "50%",
+                        zIndex: 0,
+                        ...(isTopRow ? { top: "100%" } : { bottom: "100%" }),
+                        transform: `translateX(-50%) translateY(${isTopRow ? "0.4em" : "-0.4em"})`,
+                      }
+                }
               >
                 <ShowdownHand
                   seatId={seat.id}
