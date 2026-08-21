@@ -5,6 +5,7 @@ import {
   isHandLive,
   MIN_SEAT_COUNT,
   type ShotClockSettings,
+  type ShowdownOverlaySettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   changeSeatCount,
   changeShotClockSettings,
+  changeShowdownOverlay,
   changeSoundSettings,
   createRoom,
   addBots,
@@ -91,6 +93,7 @@ export function App() {
   const pendingShotClock = useTableStore((state) => state.pendingShotClock);
   const soundSettings = useTableStore((state) => state.soundSettings);
   const shotClockSettings = useTableStore((state) => state.shotClockSettings);
+  const showdownOverlay = useTableStore((state) => state.showdownOverlay);
   const testMode = useTableStore((state) => state.testMode);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
@@ -128,6 +131,8 @@ export function App() {
 
   const [showdownCollapsed, setShowdownCollapsed] = useState(false);
   const atShowdown = handView?.phase === "showdown";
+  const awaitingReveal =
+    handView?.phase === "showdown" && handView.winners === null;
   useEffect(() => {
     if (!atShowdown) setShowdownCollapsed(false);
   }, [atShowdown]);
@@ -204,6 +209,16 @@ export function App() {
     [roomCode],
   );
 
+  const handleChangeShowdownOverlay = useCallback(
+    (next: ShowdownOverlaySettings) => {
+      if (roomCode === null) return;
+      changeShowdownOverlay(roomCode, next).catch((error: unknown) => {
+        console.error(error);
+      });
+    },
+    [roomCode],
+  );
+
   const handleChangeShotClockSettings = useCallback(
     async (next: ShotClockSettings): Promise<void> => {
       if (roomCode === null) return;
@@ -220,6 +235,10 @@ export function App() {
   const handleNextHand = useCallback(() => {
     void unlockAudio();
     send({ type: "nextHand" });
+  }, [send]);
+
+  const handleReveal = useCallback(() => {
+    send({ type: "reveal" });
   }, [send]);
 
   const handleSelectHand = useCallback(
@@ -370,9 +389,11 @@ export function App() {
                 handInProgress={isHandLive(handView)}
                 soundSettings={soundSettings}
                 shotClockSettings={shotClockSettings}
+                showdownOverlay={showdownOverlay}
                 onApply={handleChangeSeatCount}
                 onApplyShotClock={handleChangeShotClockSettings}
                 onChangeSoundSettings={handleChangeSoundSettings}
+                onChangeShowdownOverlay={handleChangeShowdownOverlay}
                 onClose={() => {
                   setSettingsOpen(false);
                 }}
@@ -383,9 +404,11 @@ export function App() {
                 canStartHand={canStartHand}
                 handComplete={handComplete}
                 canDealNextHand={enoughPlayers}
-                atShowdown={atShowdown}
+                atShowdown={atShowdown && showdownOverlay.enabled}
+                awaitingReveal={awaitingReveal}
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
+                onReveal={handleReveal}
                 onEndSession={handleEndSession}
                 testMode={testMode}
                 onAddBot={handleAddBot}
@@ -407,12 +430,14 @@ export function App() {
                 }}
               />
             )}
-            {handView?.phase === "showdown" && (
+            {handView?.phase === "showdown" && showdownOverlay.enabled && (
               <ShowdownOverlay
                 view={handView}
                 seats={seats}
                 collapsed={showdownCollapsed}
                 canDealNextHand={enoughPlayers}
+                awaitingReveal={awaitingReveal}
+                onReveal={handleReveal}
                 onNextHand={handleNextHand}
                 onViewTable={() => {
                   setShowdownCollapsed(true);

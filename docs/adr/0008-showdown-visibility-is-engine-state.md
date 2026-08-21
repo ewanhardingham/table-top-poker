@@ -3,7 +3,9 @@
 ## Status
 
 Accepted. Depends on [ADR-0007](0007-all-in-as-declared-actions-without-chip-values.md)
-for the all-in actions this decision compels to show.
+for the all-in actions this decision compels to show. The rank badge in
+"Showdown happens on the table, not over it" was dropped while building it —
+see [Amendments](#amendments). The rest stands.
 
 ## Context
 
@@ -45,8 +47,9 @@ which mucks whatever was not shown.
 plate, oriented toward the table centre, with the verdict and a rank badge —
 hands are ranked best-first with ties sharing a badge, listing shown hands only,
 because with side pots (ADR-0007) "who won" has more than one answer and the
-humans settle the chips. Card backs sit above an unshown Seat while the window is
-open and vanish when the hand closes. `ShowdownOverlay` survives as a house rule,
+humans settle the chips (rank badge dropped — see [Amendments](#amendments)).
+Card backs sit above an unshown Seat while the window is open and vanish when the
+hand closes. `ShowdownOverlay` survives as a house rule,
 defaulting off and persisted per-room. A player's own device shows only their own
 hand and the verdict: the table is the shared surface.
 
@@ -71,3 +74,21 @@ hand and the verdict: the table is the shared surface.
 - Six or more shown hands cluster at the table centre and may force smaller cards
   than the overlay used. This is a layout risk to test at 6–8 seats, not a reason
   to keep the overlay as the primary surface.
+
+## Amendments
+
+### The rank badge is dropped; only the winner is badged (#252)
+
+Ranking the shown hands is unsound in the visibility model this ADR itself
+establishes. `results` holds shown hands only, so a winner who was never
+compelled to show is absent from it, and the best *shown* hand — a loser — takes
+first place. The table then reads "1st" on one Seat and "wins" on another. Even
+where every winner shows, ordinals read as finishing places to the room rather
+than as an ordering of the hands in front of them.
+
+The Seat plate carries the verdict alone: `wins`, or `splits` where the winners
+are more than one, and nothing on a Seat that did not win. The cards stay the
+result and the room reads them, which was already this ADR's rule for the hand's
+*description*. Ordering the hands for the humans who settle the chips is left to
+the cards themselves; when side pots (ADR-0007) arrive and "who won" needs more
+than one answer, that answer is a decision of its own, not an ordinal.

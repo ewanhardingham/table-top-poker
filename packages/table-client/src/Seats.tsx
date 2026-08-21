@@ -1,9 +1,12 @@
 import type {
   ActionType,
+  RevealedResult,
+  SeatId,
   SeatView,
   TableView,
 } from "@table-top-poker/protocol";
 import {
+  Card,
   color,
   font,
   positionMarkerColor,
@@ -71,6 +74,180 @@ interface SeatVisual {
   readonly isWinner: boolean;
   readonly avatarBackground: string;
   readonly avatarColor: string;
+}
+
+/** Sized off the Seat plate the fan tucks behind, which is the size container. */
+const FAN_SCALE = "12.5cqw";
+const FAN_WIDTH = "6.26em";
+const FAN_HEIGHT = "5.6em";
+
+/**
+ * The fan's near edge sits this far inside the plate, measured off the plate so
+ * it can never fall below it. At FAN_SCALE the plate is about half a card tall,
+ * so what clears it is the readable top half.
+ */
+const FAN_TUCK = "8%";
+
+interface ShowdownSeat {
+  readonly hand: RevealedResult | null;
+  readonly isWinner: boolean;
+  readonly splitting: boolean;
+}
+
+function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
+  const bySeat = new Map<SeatId, ShowdownSeat>();
+  if (view?.phase !== "showdown") return bySeat;
+
+  const winners = view.winners ?? [];
+  const shown = new Map(
+    view.results.map((result) => [result.seatId, result] as const),
+  );
+  for (const seatId of view.contestants) {
+    bySeat.set(seatId, {
+      hand: shown.get(seatId) ?? null,
+      isWinner: winners.includes(seatId),
+      splitting: winners.length > 1,
+    });
+  }
+  return bySeat;
+}
+/**
+ * The Hand a Seat made is never spelled out and never placed — the cards are
+ * the result and the room reads them. Only the outcome is the engine's to say.
+ */
+function outcomeOf(showdown: ShowdownSeat): string | null {
+  if (!showdown.isWinner) return null;
+  return showdown.splitting ? "splits" : "wins";
+}
+
+/**
+ * The outcome rides the Seat plate rather than the cards: a chip laid over a
+ * tabled Hand covers the corner index that has to stay readable.
+ */
+function ShowdownBadges({
+  seatId,
+  showdown,
+  isTopRow,
+}: {
+  readonly seatId: SeatId;
+  readonly showdown: ShowdownSeat;
+  readonly isTopRow: boolean;
+}) {
+  const testId = `seat-pod-${String(seatId)}-showdown`;
+  const outcome = outcomeOf(showdown);
+  if (outcome === null) return null;
+
+  return (
+    <div
+      data-testid={`${testId}-badges`}
+      data-flipped={isTopRow}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: "0.3em",
+        transform: isTopRow ? "rotate(180deg)" : undefined,
+      }}
+    >
+      <span
+        data-testid={`${testId}-verdict`}
+        style={{
+          flex: "none",
+          padding: "0.2em 0.5em",
+          borderRadius: "999px",
+          fontFamily: font.mono,
+          fontSize: "0.58rem",
+          fontWeight: 700,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          whiteSpace: "nowrap",
+          lineHeight: 1.35,
+          textAlign: "center",
+          background: color.winPlate,
+          border: `1px solid ${color.winBorder}`,
+          color: color.winBright,
+        }}
+      >
+        {outcome}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * The Hand fans out of the plate on the table-centre side, its near edge tucked
+ * behind the Seat so only the readable end of the cards shows. A contestant who
+ * has not shown fans two backs while the window is open, and lays nothing down
+ * once the Hand closes — a muck keeps nothing.
+ *
+ * Which half clears the plate decides the stacking: the bottom row shows the
+ * cards' top corner indices, the top row their mirrored bottom ones, so the
+ * overlap has to fall the other way round or it buries the under card's only
+ * index.
+ */
+function ShowdownHand({
+  seatId,
+  hand,
+  isWinner,
+  isTopRow,
+}: {
+  readonly seatId: SeatId;
+  readonly hand: RevealedResult | null;
+  readonly isWinner: boolean;
+  readonly isTopRow: boolean;
+}) {
+  const faces = hand === null ? [null, null] : [...hand.holeCards];
+
+  return (
+    <div
+      data-testid={`seat-pod-${String(seatId)}-showdown`}
+      data-shown={hand !== null}
+      data-winner={isWinner}
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        zIndex: 0,
+        containerType: "inline-size",
+        cursor: "default",
+        ...(isTopRow ? { top: FAN_TUCK } : { bottom: FAN_TUCK }),
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          margin: "0 auto",
+          fontSize: FAN_SCALE,
+          width: FAN_WIDTH,
+          height: FAN_HEIGHT,
+        }}
+      >
+        {faces.map((card, index) => (
+          <div
+            key={index}
+            data-testid={`seat-pod-${String(seatId)}-showdown-card-${String(index)}`}
+            style={{
+              position: "absolute",
+              left: index === 0 ? "0.33em" : "2.43em",
+              top: index === 0 ? "0.3em" : 0,
+              zIndex: isTopRow === (index === 0) ? 1 : 0,
+              transform: `rotate(${String(index === 0 ? -8 : 7)}deg)`,
+              filter: `drop-shadow(${shadow.card})`,
+            }}
+          >
+            {card === null ? (
+              <Card faceDown />
+            ) : (
+              <Card rank={card.rank} suit={card.suit} />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
@@ -143,11 +320,15 @@ export function Seats({
   onSeatClick,
   actionLabels,
 }: SeatsProps) {
+  const showdown = showdownSeats(view);
+
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
       {seats.map((seat) => {
         const visual = deriveSeat(seat, view);
+        const seatShowdown = showdown.get(seat.id);
         const acted = visual.isActor ? undefined : actionLabels?.get(seat.id);
+        const tabledHand = seatShowdown?.hand ?? null;
         const pos = posFor(seat.id, seats.length);
         const isTopRow = pos.top < 50;
         const flipDegrees = isTopRow ? 180 : 0;
@@ -344,6 +525,72 @@ export function Seats({
           </div>
         );
 
+        /**
+         * The Seat plate keeps the anchor `posFor` gave it, and a tabled Hand
+         * is hung off it rather than laid in the pod's flow, so cards are
+         * additive and never push a plate off the felt.
+         */
+        const plate = (
+          <div
+            data-testid={`seat-pod-${String(seat.id)}-surface`}
+            className={visual.isActor ? "seat-actor-glow" : undefined}
+            style={{
+              boxShadow: shadow.seatResting,
+              position: "relative",
+              zIndex: 1,
+              borderRadius: "1em",
+              padding: "0.5em",
+              display: "flex",
+              flexDirection: seatShowdown
+                ? isTopRow
+                  ? "row-reverse"
+                  : "row"
+                : "column",
+              alignItems: "center",
+              gap: seatShowdown ? "0.7em" : "0.4em",
+              minWidth: seatShowdown ? "12.5em" : undefined,
+              justifyContent: "center",
+              background: seatShowdown
+                ? visual.isWinner
+                  ? `linear-gradient(${color.seatWinnerBackground},${color.seatWinnerBackground}),${color.seatTabledBackground}`
+                  : color.seatTabledBackground
+                : visual.isWinner
+                  ? color.seatWinnerBackground
+                  : visual.isActor
+                    ? color.seatActorBackground
+                    : visual.status === "sitting-out"
+                      ? color.seatSittingOutBackground
+                      : "transparent",
+              border: `1px solid ${
+                seatShowdown && !visual.isWinner
+                  ? color.seatTabledBorder
+                  : visual.isWinner
+                    ? color.seatWinnerBorder
+                    : visual.isActor
+                      ? color.accent
+                      : visual.status === "sitting-out"
+                        ? color.seatSittingOutBorder
+                        : "transparent"
+              }`,
+              opacity:
+                visual.status === "folded"
+                  ? 0.34
+                  : visual.status === "sitting-out"
+                    ? 0.82
+                    : 1,
+            }}
+          >
+            {seatShowdown && (
+              <ShowdownBadges
+                seatId={seat.id}
+                showdown={seatShowdown}
+                isTopRow={isTopRow}
+              />
+            )}
+            {podContent}
+          </div>
+        );
+
         return (
           <div
             key={seat.id}
@@ -375,52 +622,19 @@ export function Seats({
               cursor: seat.claimed && onSeatClick ? "pointer" : undefined,
             }}
           >
-            <motion.div
-              data-testid={`seat-pod-${String(seat.id)}-surface`}
-              animate={{
-                boxShadow: visual.isActor
-                  ? [...shadow.seatActorGlow]
-                  : shadow.seatResting,
-              }}
-              transition={
-                visual.isActor
-                  ? { duration: 1.7, repeat: Infinity, ease: "easeInOut" }
-                  : { duration: 0.3 }
-              }
-              style={{
-                position: "relative",
-                borderRadius: "1em",
-                padding: "0.5em",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "0.4em",
-                background: visual.isWinner
-                  ? color.seatWinnerBackground
-                  : visual.isActor
-                    ? color.seatActorBackground
-                    : visual.status === "sitting-out"
-                      ? color.seatSittingOutBackground
-                      : "transparent",
-                border: `1px solid ${
-                  visual.isWinner
-                    ? color.seatWinnerBorder
-                    : visual.isActor
-                      ? color.accent
-                      : visual.status === "sitting-out"
-                        ? color.seatSittingOutBorder
-                        : "transparent"
-                }`,
-                opacity:
-                  visual.status === "folded"
-                    ? 0.34
-                    : visual.status === "sitting-out"
-                      ? 0.82
-                      : 1,
-              }}
-            >
-              {podContent}
-            </motion.div>
+            {seatShowdown ? (
+              <div style={{ position: "relative", display: "flex" }}>
+                <ShowdownHand
+                  seatId={seat.id}
+                  hand={tabledHand}
+                  isWinner={seatShowdown.isWinner}
+                  isTopRow={isTopRow}
+                />
+                {plate}
+              </div>
+            ) : (
+              plate
+            )}
             <AnimatePresence>
               {visual.isActor ? (
                 <motion.div

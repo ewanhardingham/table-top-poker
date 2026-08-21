@@ -65,6 +65,9 @@ export const color = {
   seatWinnerBorder: "rgba(250,234,231,.7)",
   seatWinnerBackground: "rgba(250,234,231,.14)",
   seatActorBackground: "rgba(20,7,8,.72)",
+  /** Opaque: a tabled Hand sits behind the plate, which must stay readable. */
+  seatTabledBackground: "#2a1013",
+  seatTabledBorder: "rgba(255,255,255,.14)",
   buttonMarker: "#faf6f0",
   blindSmallMarker: "#5aa9f0",
   blindBigMarker: "#f2c14e",

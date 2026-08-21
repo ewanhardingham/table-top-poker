@@ -82,6 +82,28 @@ export type ChangeSoundSettingsRequest = z.infer<
 export type SoundSettingsChangeError =
   "room-not-found" | "invalid-request-body";
 
+/** ADR-0008: the Seat-anchored Showdown is the default; the overlay is the fallback. */
+export interface ShowdownOverlaySettings {
+  readonly enabled: boolean;
+}
+
+export const DEFAULT_SHOWDOWN_OVERLAY: ShowdownOverlaySettings = {
+  enabled: false,
+};
+
+export const ShowdownOverlaySettingsSchema = z.strictObject({
+  enabled: z.boolean(),
+});
+
+export const ChangeShowdownOverlayRequestSchema = ShowdownOverlaySettingsSchema;
+
+export type ChangeShowdownOverlayRequest = z.infer<
+  typeof ChangeShowdownOverlayRequestSchema
+>;
+
+export type ShowdownOverlayChangeError =
+  "room-not-found" | "invalid-request-body";
+
 export const MIN_SHOT_CLOCK_SECONDS = 5;
 export const MAX_SHOT_CLOCK_SECONDS = 600;
 
@@ -163,6 +185,7 @@ export interface RoomView {
   readonly pendingShotClock: ShotClockSettings | null;
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
+  readonly showdownOverlay: ShowdownOverlaySettings;
 }
 
 export interface RoomViewMessage {

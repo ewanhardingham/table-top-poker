@@ -80,6 +80,8 @@ function render(
       seats={seats}
       collapsed={false}
       canDealNextHand
+      awaitingReveal={false}
+      onReveal={() => undefined}
       onNextHand={() => undefined}
       onViewTable={() => undefined}
       {...props}
@@ -141,6 +143,8 @@ describe("ShowdownOverlay", () => {
         seats={[seat(1, "Devin")]}
         collapsed={false}
         canDealNextHand
+        awaitingReveal={false}
+        onReveal={() => undefined}
         onNextHand={() => undefined}
         onViewTable={() => undefined}
       />,

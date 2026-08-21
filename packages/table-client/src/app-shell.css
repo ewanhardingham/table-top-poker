@@ -67,3 +67,24 @@ body {
 .showdown-win-glow {
   animation: showdown-win-pulse 2s ease-in-out infinite;
 }
+
+/* The Seat plate's to-act glow. A CSS animation rather than an animated
+ * box-shadow so it ends the moment the Seat stops being the actor. The colour
+ * is ui-shared's `color.accent` (#e5443c), hard-coded here for the keyframe. */
+@keyframes seat-actor-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(229, 68, 60, 0.95),
+      0 0 34px 6px rgba(229, 68, 60, 0.3);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(255, 120, 110, 1),
+      0 0 54px 14px rgba(229, 68, 60, 0.5);
+  }
+}
+
+.seat-actor-glow {
+  animation: seat-actor-pulse 1.7s ease-in-out infinite;
+}
