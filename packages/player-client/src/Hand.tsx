@@ -421,6 +421,9 @@ export function Hand({
 
   if (view.phase === "showdown") {
     const myResult = view.yourResult;
+    const iHaveShown = view.results.some(
+      (result) => result.seatId === view.yourSeatId,
+    );
     return (
       <div
         data-testid="hand"
@@ -442,7 +445,7 @@ export function Hand({
         {myResult ? (
           <HoleCardsRegion
             cards={myResult.holeCards}
-            locked
+            locked={iHaveShown}
             actions={actions}
           />
         ) : (
