@@ -974,7 +974,8 @@ describe("Seats at showdown", () => {
     expect(html).toMatch(
       /data-testid="seat-pod-1-showdown"[^>]*data-winner="true"/,
     );
-    expect(html).toContain("not shown — wins");
+    expect(html).toContain("wins");
+    expect(html).toContain('data-testid="seat-pod-1-showdown-verdict"');
     expect(html).not.toContain('data-testid="seat-pod-1-showdown-rank"');
     expect(html).not.toContain("Pair of Aces");
   });

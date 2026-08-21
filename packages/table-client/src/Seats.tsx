@@ -120,15 +120,88 @@ function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
   }
   return bySeat;
 }
-
 /**
  * The Hand a Seat made is never spelled out — the cards are the result and the
  * room reads them. Only the ordering and the outcome are the engine's to say.
  */
 function outcomeOf(showdown: ShowdownSeat): string | null {
   if (!showdown.isWinner) return null;
-  const outcome = showdown.splitting ? "splits" : "wins";
-  return showdown.hand === null ? `not shown — ${outcome}` : outcome;
+  return showdown.splitting ? "splits" : "wins";
+}
+
+/**
+ * The place and the outcome ride the Seat plate rather than the cards: a chip
+ * laid over a tabled Hand covers the corner index that has to stay readable.
+ */
+function ShowdownBadges({
+  seatId,
+  showdown,
+  big,
+}: {
+  readonly seatId: SeatId;
+  readonly showdown: ShowdownSeat;
+  readonly big: boolean;
+}) {
+  const testId = `seat-pod-${String(seatId)}-showdown`;
+  const { hand, isWinner } = showdown;
+  const outcome = outcomeOf(showdown);
+  if (hand === null && outcome === null) return null;
+
+  const chip = {
+    flex: "none" as const,
+    padding: big ? "0.2em 0.5em" : "0.15em 0.45em",
+    borderRadius: "999px",
+    fontFamily: font.mono,
+    fontSize: big ? "0.58rem" : "0.55rem",
+    fontWeight: 700,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase" as const,
+    whiteSpace: "nowrap" as const,
+    lineHeight: 1.35,
+  };
+
+  return (
+    <div
+      data-testid={`${testId}-badges`}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        gap: "0.3em",
+      }}
+    >
+      {hand !== null && (
+        <span
+          data-testid={`${testId}-rank`}
+          style={{
+            ...chip,
+            textAlign: "center",
+            background: isWinner ? color.winBright : color.controlFill,
+            border: `1px solid ${
+              isWinner ? color.winBright : color.seatTabledBorder
+            }`,
+            color: isWinner ? color.pillInk : color.textBright,
+          }}
+        >
+          {ordinal(hand.place)}
+        </span>
+      )}
+      {outcome !== null && (
+        <span
+          data-testid={`${testId}-verdict`}
+          style={{
+            ...chip,
+            textAlign: "center",
+            background: color.winPlate,
+            border: `1px solid ${color.winBorder}`,
+            color: color.winBright,
+          }}
+        >
+          {outcome}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function ShowdownHand({
@@ -149,52 +222,6 @@ function ShowdownHand({
     hand === null
       ? [null, null]
       : [hand.result.holeCards[0], hand.result.holeCards[1]];
-
-  const outcome = outcomeOf(showdown);
-
-  const outcomeChip = outcome !== null && (
-    <span
-      data-testid={`${testId}-verdict`}
-      style={{
-        flex: "none",
-        padding: big ? "0.2em 0.55em" : "0.15em 0.45em",
-        borderRadius: "999px",
-        fontFamily: font.mono,
-        fontSize: big ? "0.58rem" : "0.53rem",
-        fontWeight: 700,
-        letterSpacing: "0.12em",
-        textTransform: "uppercase",
-        whiteSpace: "nowrap",
-        background: color.winPlate,
-        border: `1px solid ${color.winBorder}`,
-        color: color.winBright,
-      }}
-    >
-      {outcome}
-    </span>
-  );
-
-  const badge = hand !== null && (
-    <span
-      data-testid={`${testId}-rank`}
-      style={{
-        flex: "none",
-        padding: big ? "0.2em 0.55em" : "0.15em 0.45em",
-        borderRadius: "999px",
-        fontFamily: font.mono,
-        fontSize: big ? "0.6rem" : "0.55rem",
-        fontWeight: 700,
-        letterSpacing: "0.12em",
-        textTransform: "uppercase",
-        background: isWinner ? color.winBright : color.seatTabledBackground,
-        border: `1px solid ${isWinner ? color.winBright : color.seatTabledBorder}`,
-        color: isWinner ? color.pillInk : color.textBright,
-        boxShadow: shadow.card,
-      }}
-    >
-      {ordinal(hand.place)}
-    </span>
-  );
 
   const flatCards = (
     <div
@@ -268,22 +295,6 @@ function ShowdownHand({
             </div>
           ))}
         </div>
-        {(badge || outcomeChip) && (
-          <span
-            style={{
-              position: "absolute",
-              left: "50%",
-              top: "-0.5em",
-              transform: "translateX(-50%)",
-              display: "flex",
-              gap: "0.25em",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {badge}
-            {outcomeChip}
-          </span>
-        )}
       </div>
     );
   }
@@ -301,18 +312,7 @@ function ShowdownHand({
         }}
       >
         {flatCards}
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.25rem",
-            minWidth: 0,
-            alignItems: "flex-start",
-          }}
-        >
-          {badge}
-          {outcomeChip}
-        </div>
+        <ShowdownBadges seatId={seatId} showdown={showdown} big={big} />
       </div>
     );
   }
@@ -330,12 +330,7 @@ function ShowdownHand({
       }}
     >
       {flatCards}
-      {(badge || outcomeChip) && (
-        <div style={{ display: "flex", alignItems: "center", gap: "0.35em" }}>
-          {badge}
-          {outcomeChip}
-        </div>
-      )}
+      <ShowdownBadges seatId={seatId} showdown={showdown} big={big} />
     </div>
   );
 }
@@ -711,9 +706,14 @@ export function Seats({
                 borderRadius: "1em",
                 padding: "0.5em",
                 display: "flex",
-                flexDirection: inlineTabled && seatShowdown ? "row" : "column",
+                flexDirection: seatShowdown && platedTabled ? "row" : "column",
                 alignItems: "center",
-                gap: inlineTabled && seatShowdown ? "0.7em" : "0.4em",
+                gap: seatShowdown && platedTabled ? "0.7em" : "0.4em",
+                minWidth:
+                  seatShowdown && showdownTreatment === "fan"
+                    ? "12.5em"
+                    : undefined,
+                justifyContent: "center",
                 background:
                   seatShowdown && platedTabled
                     ? visual.isWinner
@@ -745,6 +745,9 @@ export function Seats({
                       : 1,
               }}
             >
+              {seatShowdown && showdownTreatment === "fan" && (
+                <ShowdownBadges seatId={seat.id} showdown={seatShowdown} big />
+              )}
               {seatShowdown && inlineTabled && !isTopRow && (
                 <ShowdownHand
                   seatId={seat.id}
