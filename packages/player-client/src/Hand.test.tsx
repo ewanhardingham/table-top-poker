@@ -2,7 +2,7 @@ import type { PlayerView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Hand } from "./Hand.js";
+import { Hand, revealWouldShow } from "./Hand.js";
 
 describe("Hand", () => {
   it("shows a waiting state before any hand has started", () => {
@@ -393,7 +393,25 @@ describe("Hand", () => {
       expect(html).toContain('aria-disabled="false"');
     });
 
-    it("offers Show my hand once the table has revealed and this seat has not shown", () => {
+    it("arms the reveal to publish only inside the showing window", () => {
+      const contestant = {
+        ...shownTable,
+        results: [shownTable.results[0]],
+        winners: [0] as readonly number[],
+        yourSeatId: 1,
+        yourResult: shownTable.results[1],
+        canShow: true,
+      } satisfies PlayerView;
+
+      expect(revealWouldShow(contestant)).toBe(true);
+      expect(
+        revealWouldShow({ ...contestant, winners: null, results: [] }),
+      ).toBe(false);
+      expect(revealWouldShow({ ...contestant, canShow: false })).toBe(false);
+      expect(revealWouldShow(showdownViewFor(0))).toBe(false);
+    });
+
+    it("has no separate show control — the reveal gesture is the show", () => {
       const concealing: PlayerView = {
         ...shownTable,
         results: [shownTable.results[0]],
@@ -404,8 +422,8 @@ describe("Hand", () => {
       };
       const html = renderToStaticMarkup(<Hand view={concealing} seatId={1} />);
 
-      expect(html).toContain('data-testid="show-my-hand"');
-      expect(html).toContain("Show my hand");
+      expect(html).not.toContain('data-testid="show-my-hand"');
+      expect(html).toContain('aria-disabled="false"');
     });
 
     it("says why a show did not go through, on the screen that offered it", () => {
@@ -437,28 +455,6 @@ describe("Hand", () => {
 
       expect(html).toContain('data-testid="action-rejection"');
       expect(html).toContain("There&#x27;s no hand of yours to show.");
-    });
-
-    it("withholds Show my hand until the table's reveal", () => {
-      const resting: PlayerView = {
-        ...shownTable,
-        results: [],
-        winners: null,
-        yourSeatId: 1,
-        yourResult: shownTable.results[1],
-        canShow: true,
-      };
-      const html = renderToStaticMarkup(<Hand view={resting} seatId={1} />);
-
-      expect(html).not.toContain('data-testid="show-my-hand"');
-    });
-
-    it("drops Show my hand once the hand has been shown", () => {
-      const html = renderToStaticMarkup(
-        <Hand view={showdownViewFor(1)} seatId={1} />,
-      );
-
-      expect(html).not.toContain('data-testid="show-my-hand"');
     });
 
     it("never puts another seat's shown cards on a player's phone", () => {

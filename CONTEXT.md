@@ -84,10 +84,12 @@ to their Device at deal time (not fetched later at reveal).
 
 **Hole-card reveal**:
 Turning a Player's own Hole cards persistently face-up on their own Device.
-Local presentation only: it does not change poker visibility or server state,
-and it never publishes a Hand. Distinct from a *Showdown show*, which is a
-Command the Player sends deliberately, and from the table's *Reveal*, which
-turns the compulsory Hands over for the whole room.
+Local presentation for the whole Hand: it does not change poker visibility or
+server state. The one exception is the Showdown showing window, where the same
+gesture *is* the *Showdown show* and publishes the Hand to the room (#253).
+The window opens the Player's cards face-down for exactly this reason, so the
+reveal that publishes is always a deliberate one. Distinct from the table's
+*Reveal*, which turns the compulsory Hands over for the whole room.
 
 **Hole-card peek**:
 Temporarily lifting a corner of a Player's own Hole cards to read them, closing
@@ -124,10 +126,12 @@ stack, as one of two Actions: an *all-in call*, which does not reopen the
 betting, or an *all-in raise*, which requeues every other live Seat exactly
 as a raise does (ADR-0007). Both retire the Seat from the betting for the
 rest of the Hand; neither carries a chip amount. A Player who covers a shove
-and wants to keep acting simply calls. On the Player Device both all-in
-buttons take a confirm press, and once the Seat is all in its Action bar goes
-away and its Hole cards are *sealed* — held, inert, and still face-down until
-the table's Reveal.
+and wants to keep acting simply calls. The Player Device offers one wide
+"All in" while no Seat has shoved, and splits it into "All-in call" and
+"All-in raise" once another Seat is all in — the fork only means something
+against chips already committed. Both take a confirm press, and once the Seat
+is all in its Action bar goes away and its Hole cards are *sealed* — held,
+inert, and still face-down until the table's Reveal.
 _Avoid_: Treating all-in as a folded Seat — an all-in Seat is live, keeps its
 claim on the pot, and is revealed at Showdown. Side pots stay a
 physical-chips problem the humans settle at the table.
@@ -181,9 +185,11 @@ Publishing a contestant's Hole cards to the whole room, irreversibly. Two
 Commands produce it. The table's `reveal` turns over the compulsory set — the
 River's last aggressor plus every all-in Seat, or the winning Seat when that
 set is empty — and publishes the winners. Every other contestant may then
-`show`, in any order, on their own Device, through a "Show my hand" button
-that appears only once the Reveal has landed and disappears once used. Both
-are idempotent: a second press changes nothing and is not an error. The window closes when the table deals
+`show`, in any order, on their own Device, by revealing their Hole cards with
+the ordinary reveal gesture while the window is open — there is no separate
+control. Both are idempotent: a second press changes nothing and is not an
+error. A Seat's verdict is withheld from the table until that Seat's cards are
+public, so `wins` never sits over two face-down cards. The window closes when the table deals
 the next Hand, which mucks whatever was not shown.
 _Avoid_: Confusing a show with *Hole-card reveal*, which stays local to one
 Device and can be undone.

@@ -79,7 +79,7 @@ export function AllInRow({ choices, armed, pending, onPress }: AllInRowProps) {
                 opacity: 0.72,
               }}
             >
-              {isArmed ? choice.label : "no way back"}
+              {isArmed ? choice.label : "put in stack"}
             </span>
           </button>
         );

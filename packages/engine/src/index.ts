@@ -47,6 +47,7 @@ export { view } from "./view.js";
 export type {
   PlayerShowdownView,
   PlayerView,
+  SeatSnapshot,
   ShowdownView,
   TableView,
 } from "./view.js";

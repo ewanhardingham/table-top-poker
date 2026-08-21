@@ -4,8 +4,10 @@
 
 Accepted. Depends on [ADR-0007](0007-all-in-as-declared-actions-without-chip-values.md)
 for the all-in actions this decision compels to show. The rank badge in
-"Showdown happens on the table, not over it" was dropped while building it —
-see [Amendments](#amendments). The rest stands.
+"Showdown happens on the table, not over it" was dropped while building it, the
+player's separate show button was dropped in favour of the reveal gesture, and
+the verdict now waits for the cards — see [Amendments](#amendments). The rest
+stands.
 
 ## Context
 
@@ -60,7 +62,8 @@ hand and the verdict: the table is the shared surface.
   explicit button, because irreversible publication should not ride on the
   gesture used all hand for a private, freely reversible peek. `CONTEXT.md` gains
   *Showdown show* and amends *Hole-card reveal*, whose current text states that
-  reveal never affects Showdown.
+  reveal never affects Showdown. (Superseded — see
+  [Amendments](#amendments).)
 - `RejectionReason` gains `not-at-showdown`. Repeat presses of `reveal` and
   `show` are idempotent no-ops — a shared table screen will be double-pressed,
   and that is not an error.
@@ -92,3 +95,31 @@ result and the room reads them, which was already this ADR's rule for the hand's
 *description*. Ordering the hands for the humans who settle the chips is left to
 the cards themselves; when side pots (ADR-0007) arrive and "who won" needs more
 than one answer, that answer is a decision of its own, not an ordinal.
+
+### The reveal gesture is the show; the separate button is dropped (#253)
+
+The explicit "Show my hand" button was redundant next to the gesture beside it.
+A player at showdown who turns their own cards face-up has, in the room, shown
+their hand — a device that answers that act by keeping the cards private and
+asking them to press a second control is arguing with what they just did.
+
+So inside the showing window the reveal gesture *is* the `show`: a committed
+flip face-up publishes the hand and locks it face-up. The peek does not, because
+a peek is transient and closes itself. Nor does a pair that merely happened to
+be face-up when the window opened: opening the window returns the pair
+face-down, so the reveal that publishes is always an act taken with the window
+already open. Outside the window — every other moment of the hand — reveal stays
+exactly as local as this ADR's Consequences say it is.
+
+This reverses the "separate, explicit button" consequence above. The reasoning
+it was based on stands as a *description of the risk*: publication is
+irreversible and the gesture is used all hand for a reversible peek. The
+window-opening reset is what answers that risk, in place of a second control.
+
+### The verdict waits for the cards (#253)
+
+`wins` was derived from `winners` alone, so a winning Seat that was never
+compelled to show wore the badge over two face-down cards — the table announcing
+a hand it could not see. The verdict now requires the Seat to be in `results`.
+A winner who has not shown is simply unbadged until they do, which is also the
+room's own convention: you do not collect on a hand you have not tabled.

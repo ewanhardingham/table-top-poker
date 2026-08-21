@@ -3,6 +3,7 @@ import { unlockAudio } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActionBar } from "./ActionBar.js";
 import { claimSeat, joinRoom, leaveSeat } from "./api/rooms.js";
+import { otherSeatIsAllIn } from "./actions/allIn.js";
 import { useActionIntent } from "./actions/useActionIntent.js";
 import { claimErrorCode } from "./claimError.js";
 import { Hand } from "./Hand.js";
@@ -251,6 +252,7 @@ export function App() {
             onCheck={intent.check}
             onCall={intent.call}
             onRaise={intent.raise}
+            facingAllIn={otherSeatIsAllIn(handView.seats, handView.yourSeatId)}
             onAllIn={intent.allIn}
           />
         )}

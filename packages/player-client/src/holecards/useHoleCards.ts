@@ -13,6 +13,7 @@ import {
 import {
   initialCardState,
   reduce,
+  revealPublishes,
   type CardEvent,
   type CardState,
 } from "./cardState.js";
@@ -161,6 +162,9 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     }
   }, [state.presentation, bend]);
 
+  const latestActions = useRef(props.actions);
+  latestActions.current = props.actions;
+
   const prevPresentation = useRef(state.presentation);
   useEffect(() => {
     const from = prevPresentation.current;
@@ -168,6 +172,9 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
     prevPresentation.current = to;
     if (to === "Turning" || (from === "Revealed" && to === "FaceDown")) {
       playRevealFlip();
+    }
+    if (revealPublishes(from, to, latestActions.current.showLegal)) {
+      latestActions.current.show();
     }
   }, [state.presentation]);
 

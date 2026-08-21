@@ -25,6 +25,7 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn={false}
       />,
     );
 
@@ -45,6 +46,7 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn={false}
       />,
     );
 
@@ -64,6 +66,7 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn={false}
       />,
     );
 
@@ -73,7 +76,7 @@ describe("ActionBar", () => {
     expect(html).toContain("put in more");
   });
 
-  it("offers the all-in fork alongside the four ordinary actions", () => {
+  it("offers one wide all-in alongside the four ordinary actions", () => {
     const html = renderToStaticMarkup(
       <ActionBar
         legalActions={["fold", "call", "raise", "allInCall", "allInRaise"]}
@@ -84,6 +87,26 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn={false}
+      />,
+    );
+
+    expect(html).toContain("All in");
+    expect(html).not.toContain("All-in call");
+  });
+
+  it("splits the all-in once another seat has shoved", () => {
+    const html = renderToStaticMarkup(
+      <ActionBar
+        legalActions={["fold", "call", "raise", "allInCall", "allInRaise"]}
+        pendingAction={null}
+        rejection={null}
+        onFold={noop}
+        onCheck={noop}
+        onCall={noop}
+        onRaise={noop}
+        onAllIn={noop}
+        facingAllIn
       />,
     );
 
@@ -102,6 +125,7 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn={false}
       />,
     );
 
@@ -119,6 +143,7 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn
       />,
     );
 
@@ -139,6 +164,7 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn={false}
       />,
     );
 
@@ -164,6 +190,7 @@ describe("ActionBar", () => {
         onCall={noop}
         onRaise={noop}
         onAllIn={noop}
+        facingAllIn={false}
       />,
     );
 

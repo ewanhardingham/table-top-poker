@@ -965,7 +965,7 @@ describe("Seats at showdown", () => {
     expect(html).not.toContain('data-testid="seat-pod-2-showdown-badges"');
   });
 
-  it("names a winner who was never compelled to show", () => {
+  it("withholds the verdict from a winner who has not shown — the cards carry it", () => {
     const html = renderToStaticMarkup(
       <Seats
         seats={seats}
@@ -981,9 +981,26 @@ describe("Seats at showdown", () => {
     expect(html).toMatch(
       /data-testid="seat-pod-1-showdown"[^>]*data-shown="false"/,
     );
+    expect(html).not.toContain("wins");
+    expect(html).not.toContain('data-testid="seat-pod-1-showdown-verdict"');
+  });
+
+  it("names the winner as soon as they show", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats}
+        view={{
+          ...board,
+          contestants: [0, 1],
+          winners: [1],
+          results: [shown(0, 10, "Ace high"), shown(1, 30, "Pair of Aces")],
+        }}
+      />,
+    );
+
     expect(html).toContain("wins");
     expect(html).toContain('data-testid="seat-pod-1-showdown-verdict"');
-    expect(html).not.toContain("Pair of Aces");
+    expect(html).not.toContain('data-testid="seat-pod-0-showdown-verdict"');
   });
 
   it("never spells out the hand a seat made — the cards are the result", () => {
@@ -1082,7 +1099,11 @@ describe("Seats at showdown", () => {
           ...board,
           contestants: [0, 1, 2],
           winners: [2],
-          results: [shown(0, 30, "Pair of Aces"), shown(1, 10, "Ace high")],
+          results: [
+            shown(0, 30, "Pair of Aces"),
+            shown(1, 10, "Ace high"),
+            shown(2, 40, "Two pair"),
+          ],
         }}
       />,
     );

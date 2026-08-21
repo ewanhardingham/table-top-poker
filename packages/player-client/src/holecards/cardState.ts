@@ -74,6 +74,18 @@ function settled(state: CardState): CardState {
   };
 }
 
+/**
+ * A committed flip face-up is the Showdown show (ADR-0008 amendment, #253) —
+ * the peek is not, and neither is a pair already face-up when the window opened.
+ */
+export function revealPublishes(
+  from: Presentation,
+  to: Presentation,
+  showLegal: boolean,
+): boolean {
+  return showLegal && from !== "Turning" && to === "Turning";
+}
+
 export function releaseCommitsFold(state: CardState): boolean {
   return state.recognizer === "FoldDragging" && state.armed;
 }

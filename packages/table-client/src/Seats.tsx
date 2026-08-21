@@ -105,7 +105,7 @@ function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
   for (const seatId of view.contestants) {
     bySeat.set(seatId, {
       hand: shown.get(seatId) ?? null,
-      isWinner: winners.includes(seatId),
+      isWinner: winners.includes(seatId) && shown.has(seatId),
       splitting: winners.length > 1,
     });
   }
@@ -113,7 +113,8 @@ function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
 }
 /**
  * The Hand a Seat made is never spelled out and never placed — the cards are
- * the result and the room reads them. Only the outcome is the engine's to say.
+ * the result and the room reads them. Only the outcome is the engine's to say,
+ * and only once the Seat's cards are public to say it over (#253).
  */
 function outcomeOf(showdown: ShowdownSeat): string | null {
   if (!showdown.isWinner) return null;

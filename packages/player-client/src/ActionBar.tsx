@@ -25,6 +25,7 @@ export interface ActionBarProps {
   readonly onCheck: () => void;
   readonly onCall: () => void;
   readonly onRaise: () => void;
+  readonly facingAllIn: boolean;
   readonly onAllIn: (action: AllInAction) => void;
 }
 
@@ -82,6 +83,7 @@ export function ActionBar({
   onCheck,
   onCall,
   onRaise,
+  facingAllIn,
   onAllIn,
 }: ActionBarProps) {
   const handlers: Record<OfferedAction, () => void> = {
@@ -91,7 +93,7 @@ export function ActionBar({
     raise: onRaise,
   };
   const [armedAllIn, setArmedAllIn] = useState<AllInAction | null>(null);
-  const choices = allInChoices(legalActions);
+  const choices = allInChoices(legalActions, facingAllIn);
 
   const offer = legalActions.join(",");
   useEffect(() => {
