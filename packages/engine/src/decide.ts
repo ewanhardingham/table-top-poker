@@ -126,6 +126,7 @@ function decideShow(
 ): HandEvent[] | Rejection {
   const hand = awaitingShowdown(state);
   if (hand === null) return reject("not-at-showdown", command);
+  if (hand.winners === null) return reject("not-at-showdown", command);
 
   const contestant = hand.contestants.find(
     (candidate) => candidate.seatId === command.seatId,

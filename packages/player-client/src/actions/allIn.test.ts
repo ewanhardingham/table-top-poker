@@ -26,9 +26,15 @@ describe("allInChoices", () => {
     ]);
   });
 
-  it("drops the call arm when the shove has already been retired, leaving nothing to match", () => {
-    expect(allInChoices([...noBet], true)).toEqual([
-      { action: "allInRaise", label: "All-in raise" },
+  it("drops the call arm when the engine offers no all-in call to make", () => {
+    expect(
+      allInChoices(["fold", "check", "raise", "allInRaise"], true),
+    ).toEqual([{ action: "allInRaise", label: "All-in raise" }]);
+  });
+
+  it("drops the raise arm once nobody is left to answer a raise", () => {
+    expect(allInChoices(["fold", "call", "allInCall"], true)).toEqual([
+      { action: "allInCall", label: "All-in call" },
     ]);
   });
 

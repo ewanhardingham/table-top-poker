@@ -157,7 +157,8 @@ describe("reveal turns over exactly the compulsory set", () => {
     const state = reveal(
       headsUpAt([
         { type: "call", seatId: 0 },
-        { type: "allInCall", seatId: 1 },
+        { type: "allInRaise", seatId: 1 },
+        { type: "call", seatId: 0 },
       ]),
     );
     expect(shownSeats(state)).toContain(1);
@@ -224,6 +225,14 @@ describe("show", () => {
     const outcome = play(state, { type: "show", seatId: 1 });
     if (!("rejection" in outcome)) throw new Error("expected a rejection");
     expect(outcome.rejection.reason).toBe("not-at-showdown");
+  });
+
+  it("is rejected before the table has revealed — the hand rests first", () => {
+    const resting = headsUpAt(raisedOnTheRiver);
+    const outcome = play(resting, { type: "show", seatId: 1 });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("not-at-showdown");
+    expect(shownSeats(resting)).toEqual([]);
   });
 
   it("is rejected once the hand has closed", () => {

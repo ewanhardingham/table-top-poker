@@ -101,13 +101,27 @@ export function facingBet(
   );
 }
 
+/**
+ * A raise needs someone left to answer it and an all-in call needs chips to
+ * match, so both arms are conditional: see ADR-0007 and issue #253.
+ */
 export function legalActions(
-  hand: Pick<BettingHandState, "street" | "ring" | "button" | "raiseOccurred">,
+  hand: Pick<
+    BettingHandState,
+    "street" | "ring" | "button" | "raiseOccurred" | "players"
+  >,
   actorSeat: SeatId,
 ): ActionType[] {
-  return facingBet(hand, actorSeat)
-    ? ["fold", "call", "raise", "allInCall", "allInRaise"]
-    : ["fold", "check", "raise", "allInCall", "allInRaise"];
+  const facing = facingBet(hand, actorSeat);
+  const answerable = hand.ring.some(
+    (seat) => seat !== actorSeat && canStillAct(must(hand.players.get(seat))),
+  );
+
+  const actions: ActionType[] = ["fold", facing ? "call" : "check"];
+  if (answerable) actions.push("raise");
+  if (facing) actions.push("allInCall");
+  if (answerable) actions.push("allInRaise");
+  return actions;
 }
 
 export function requeueAfterRaise(

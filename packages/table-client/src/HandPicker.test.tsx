@@ -161,6 +161,29 @@ describe("HandPicker", () => {
     expect(html).toContain("Seat 1 wins — Pair of aces");
   });
 
+  it("says the hand is awaiting its reveal rather than naming nobody", () => {
+    const resting: HandSummary = {
+      ...showdown,
+      outcome: {
+        kind: "showdown",
+        contestants: [0, 1],
+        winners: [],
+        reveals: [],
+      },
+    };
+    const html = renderToStaticMarkup(
+      <HandPicker
+        summaries={[resting]}
+        seats={[seat(0), seat(1)]}
+        onSelectHand={noop}
+        onClose={noop}
+      />,
+    );
+
+    expect(html).toContain("Waiting on the reveal");
+    expect(html).not.toMatch(/>\s*wins/);
+  });
+
   it("shows an empty state when no hands have completed", () => {
     const html = renderToStaticMarkup(
       <HandPicker
