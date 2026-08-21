@@ -20,8 +20,10 @@ rules exist only to keep legality mirroring the physical chips without a value:
   also their "option" (it's the last of the preflop lap).
 - `legalActions` is the **single source of truth** for action legality, consumed
   by both `decide` (enforcement) and `view` (the client's `legalActions` field)
-  so the two can never drift. Fold and raise are always legal; check and call
-  are mutually exclusive and follow `facingBet`.
+  so the two can never drift. Fold, raise and both all-ins are always legal;
+  check and call are mutually exclusive and follow `facingBet`. Clients read the
+  same `facingBet` predicate to decide whether to offer the all-in pair or a
+  single "All in" (ADR-0007).
 
 ## Positions and action order
 
@@ -42,7 +44,25 @@ rules exist only to keep legality mirroring the physical chips without a value:
   special machinery: every street closes the same way, when `toAct` drains.
 - `requeueAfterRaise`: after a raise, every *other* live seat gets one more turn
   in position order starting after the raiser; the raiser isn't re-added, so the
-  street closes when the queue drains.
+  street closes when the queue drains. All-in seats are skipped, which is also
+  what keeps an `allInRaise` from requeueing itself.
+
+## All-in and the run-out
+
+`allInCall` and `allInRaise` mark the seat `allIn` and retire it from the
+betting; they differ only in whether they reopen it (ADR-0007). Three predicates
+in `table.ts` carry the distinction:
+
+- `canAct`/`actingSeats`: unfolded *and* not all-in — who a street may open on,
+  and who `requeueAfterRaise` may requeue.
+- `liveSeats`: unfolded, all-in included — who the fold-out check counts and who
+  is ranked at showdown. A shover therefore cannot be folded out.
+- `reopensBetting`/`isAllIn`: the two facts `apply` needs from an action.
+
+When a street closes with fewer than two acting seats, `decide` runs the board
+out: the remaining `BoardDealt` events with no `StreetStarted`, through the
+river and on to `ShowdownReached`. Because `hand.street` no longer advances
+during a run-out, `streetOf` reads the street from the board length instead.
 
 ## `apply` details
 
