@@ -408,6 +408,9 @@ export function Seats({
    */
   const hungTabled =
     showdownTreatment === "stack" || showdownTreatment === "fan";
+  /** A Hand that touches the plate makes it opaque, or the Seat is unreadable. */
+  const platedTabled =
+    showdownTreatment === "fan" || showdownTreatment === "inline";
 
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
@@ -690,21 +693,28 @@ export function Seats({
                 flexDirection: inlineTabled && seatShowdown ? "row" : "column",
                 alignItems: "center",
                 gap: inlineTabled && seatShowdown ? "0.7em" : "0.4em",
-                background: visual.isWinner
-                  ? color.seatWinnerBackground
-                  : visual.isActor
-                    ? color.seatActorBackground
-                    : visual.status === "sitting-out"
-                      ? color.seatSittingOutBackground
-                      : "transparent",
+                background:
+                  seatShowdown && platedTabled
+                    ? visual.isWinner
+                      ? `linear-gradient(${color.seatWinnerBackground},${color.seatWinnerBackground}),${color.seatTabledBackground}`
+                      : color.seatTabledBackground
+                    : visual.isWinner
+                      ? color.seatWinnerBackground
+                      : visual.isActor
+                        ? color.seatActorBackground
+                        : visual.status === "sitting-out"
+                          ? color.seatSittingOutBackground
+                          : "transparent",
                 border: `1px solid ${
-                  visual.isWinner
-                    ? color.seatWinnerBorder
-                    : visual.isActor
-                      ? color.accent
-                      : visual.status === "sitting-out"
-                        ? color.seatSittingOutBorder
-                        : "transparent"
+                  seatShowdown && platedTabled && !visual.isWinner
+                    ? color.seatTabledBorder
+                    : visual.isWinner
+                      ? color.seatWinnerBorder
+                      : visual.isActor
+                        ? color.accent
+                        : visual.status === "sitting-out"
+                          ? color.seatSittingOutBorder
+                          : "transparent"
                 }`,
                 opacity:
                   visual.status === "folded"

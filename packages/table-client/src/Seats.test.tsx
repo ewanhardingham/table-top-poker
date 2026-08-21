@@ -1026,6 +1026,26 @@ describe("Seats at showdown", () => {
     expect(onSeatClick).not.toHaveBeenCalled();
   });
 
+  it("fills the plate opaque when a tabled hand sits behind it", () => {
+    const view = {
+      ...board,
+      winners: [0],
+      results: [shown(0, 30, "Pair of Aces")],
+    };
+
+    const behind = renderToStaticMarkup(
+      <Seats seats={seats} view={view} showdownTreatment="fan" />,
+    );
+    expect(styleOf(behind, "seat-pod-1-surface")).toContain(
+      color.seatTabledBackground,
+    );
+
+    const clear = renderToStaticMarkup(<Seats seats={seats} view={view} />);
+    expect(styleOf(clear, "seat-pod-1-surface")).not.toContain(
+      color.seatTabledBackground,
+    );
+  });
+
   it("pushes each tabled hand toward the table centre", () => {
     const view = {
       ...board,
