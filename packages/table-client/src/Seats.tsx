@@ -81,6 +81,7 @@ interface SeatVisual {
 }
 
 const SHOWDOWN_CARD_SCALE = "clamp(0.34rem, 1.1vh, 0.55rem)";
+const SHOWDOWN_LABEL_WIDTH = "8.5rem";
 
 interface ShowdownSeat {
   readonly hand: RankedShowdownHand | null;
@@ -106,6 +107,15 @@ function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
   return bySeat;
 }
 
+function verdictOf(showdown: ShowdownSeat): string | null {
+  const { hand, isWinner, splitting } = showdown;
+  const outcome = splitting ? "splits" : "wins";
+  if (hand === null) return isWinner ? `Not shown — ${outcome}` : null;
+  return isWinner
+    ? `${hand.result.description} — ${outcome}`
+    : hand.result.description;
+}
+
 function ShowdownHand({
   seatId,
   showdown,
@@ -114,18 +124,24 @@ function ShowdownHand({
   readonly showdown: ShowdownSeat;
 }) {
   const testId = `seat-pod-${String(seatId)}-showdown`;
-  const { hand, isWinner, splitting } = showdown;
+  const { hand, isWinner } = showdown;
+  const verdict = verdictOf(showdown);
 
   return (
     <div
       data-testid={testId}
       data-shown={hand !== null}
       data-winner={isWinner}
+      onClick={(event) => {
+        event.stopPropagation();
+      }}
       style={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         gap: "0.3em",
+        maxWidth: SHOWDOWN_LABEL_WIDTH,
+        cursor: "default",
       }}
     >
       <div
@@ -150,42 +166,49 @@ function ShowdownHand({
           ))
         )}
       </div>
-      {hand !== null && (
+      {verdict !== null && (
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: "0.4em",
-            whiteSpace: "nowrap",
+            maxWidth: "100%",
+            minWidth: 0,
           }}
         >
-          <span
-            data-testid={`${testId}-rank`}
-            style={{
-              padding: "0.15em 0.45em",
-              borderRadius: "999px",
-              fontFamily: font.mono,
-              fontSize: "0.55em",
-              fontWeight: 700,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              background: isWinner ? color.winBright : color.controlFill,
-              color: isWinner ? color.pillInk : color.textMuted,
-            }}
-          >
-            {ordinal(hand.place)}
-          </span>
+          {hand !== null && (
+            <span
+              data-testid={`${testId}-rank`}
+              style={{
+                flex: "none",
+                padding: "0.15em 0.45em",
+                borderRadius: "999px",
+                fontFamily: font.mono,
+                fontSize: "0.55rem",
+                fontWeight: 700,
+                letterSpacing: "0.12em",
+                textTransform: "uppercase",
+                background: isWinner ? color.winBright : color.controlFill,
+                color: isWinner ? color.pillInk : color.textMuted,
+              }}
+            >
+              {ordinal(hand.place)}
+            </span>
+          )}
           <span
             data-testid={`${testId}-verdict`}
+            title={verdict}
             style={{
-              fontSize: "0.6em",
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              fontSize: "0.62rem",
               fontWeight: 600,
               color: isWinner ? color.winText : color.textDim,
             }}
           >
-            {isWinner
-              ? `${hand.result.description} — ${splitting ? "splits" : "wins"}`
-              : hand.result.description}
+            {verdict}
           </span>
         </div>
       )}

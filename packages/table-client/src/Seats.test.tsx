@@ -1,9 +1,27 @@
 import type { SeatView, TableView } from "@table-top-poker/protocol";
 import { color } from "@table-top-poker/ui-shared";
+/* eslint-disable @typescript-eslint/no-deprecated -- React 19's DOM-free component test renderer is deprecated but remains the available interaction harness here. */
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { act, create } from "react-test-renderer";
+import { describe, expect, it, vi } from "vitest";
 import { Seats } from "./Seats.js";
+
+(
+  globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
+).IS_REACT_ACT_ENVIRONMENT = true;
+
+interface StoppableClickNode {
+  readonly props: {
+    readonly onClick?: (event: { stopPropagation: () => void }) => void;
+  };
+}
+
+interface ClickableTree {
+  readonly root: {
+    findByProps(props: Record<string, unknown>): StoppableClickNode;
+  };
+}
 
 const seats: SeatView[] = [
   {
@@ -935,6 +953,74 @@ describe("Seats at showdown", () => {
       (match) => match[1],
     );
     expect(places).toEqual(["1st", "1st", "2nd"]);
+  });
+
+  it("names a winner who was never compelled to show", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats}
+        view={{
+          ...board,
+          contestants: [0, 1],
+          winners: [1],
+          results: [shown(0, 30, "Pair of Aces")],
+        }}
+      />,
+    );
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-1-showdown"[^>]*data-winner="true"/,
+    );
+    expect(html).toContain("Not shown — wins");
+    expect(html).not.toContain('data-testid="seat-pod-1-showdown-rank"');
+    expect(html).toContain("Pair of Aces");
+    expect(html).not.toContain("Pair of Aces — wins");
+  });
+
+  it("bounds the verdict label so it cannot reach a neighbouring seat", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={seats}
+        view={{
+          ...board,
+          winners: [0],
+          results: [
+            shown(0, 30, "Straight flush, king high"),
+            shown(1, 10, "Ace high"),
+          ],
+        }}
+      />,
+    );
+
+    expect(styleOf(html, "seat-pod-0-showdown")).toContain("max-width:8.5rem");
+    expect(styleOf(html, "seat-pod-0-showdown-verdict")).toContain(
+      "text-overflow:ellipsis",
+    );
+  });
+
+  it("keeps a tap on a tabled hand out of the seat menu", () => {
+    const onSeatClick = vi.fn();
+    const view = {
+      ...board,
+      winners: [0],
+      results: [shown(0, 30, "Pair of Aces")],
+    };
+    let renderer!: ClickableTree;
+    act(() => {
+      renderer = create(
+        <Seats seats={seats} view={view} onSeatClick={onSeatClick} />,
+      );
+    });
+
+    const stopPropagation = vi.fn();
+    act(() => {
+      renderer.root
+        .findByProps({ "data-testid": "seat-pod-0-showdown" })
+        .props.onClick?.({ stopPropagation });
+    });
+
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(onSeatClick).not.toHaveBeenCalled();
   });
 
   it("pushes each tabled hand toward the table centre", () => {
