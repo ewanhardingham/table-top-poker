@@ -2,8 +2,9 @@ import { apply } from "./apply.js";
 import { evaluate, winnersOf } from "./evaluate.js";
 import {
   actingSeats,
-  canAct,
+  canStillAct,
   dealCommunityCards,
+  facingBet,
   dealHoleCards,
   initialToAct,
   legalActions,
@@ -21,7 +22,6 @@ import type {
   Rejection,
   RejectionReason,
   SeatId,
-  Street,
 } from "./types.js";
 import { must } from "./util.js";
 
@@ -127,7 +127,7 @@ function decideEviction(
     return reject("hand-not-in-progress", command);
   }
   const player = state.hand.players.get(command.seatId);
-  if (player === undefined || !canAct(player)) {
+  if (player === undefined || !canStillAct(player)) {
     return reject("action-not-legal", command);
   }
 
@@ -164,7 +164,7 @@ function decideActionEvents(
     return events;
   }
 
-  if (asBetting(scratch).toAct.length > 0) {
+  if (stillOwesADecision(asBetting(scratch))) {
     return events;
   }
 
@@ -181,11 +181,11 @@ function decideActionEvents(
 
   scratch = dealNextStreet(state, scratch, events);
 
-  if (actingSeats(asBetting(scratch)).length < MIN_SEATS_TO_OPEN_A_STREET) {
+  const opened = asBetting(scratch);
+  if (!canOpenABettingRound(opened)) {
     return runOut(state, scratch, events);
   }
 
-  const opened = asBetting(scratch);
   const nextToAct = initialToAct(
     opened.ring,
     actingSeats(opened),
@@ -194,7 +194,7 @@ function decideActionEvents(
   );
   const streetStarted: HandEvent = {
     type: "StreetStarted",
-    street: streetOf(opened.board.length),
+    street: opened.street,
     actor: must(nextToAct[0], "a fresh street always has a first actor"),
   };
   events.push(streetStarted);
@@ -203,7 +203,19 @@ function decideActionEvents(
   return events;
 }
 
-const MIN_SEATS_TO_OPEN_A_STREET = 2;
+const MIN_SEATS_TO_BET = 2;
+
+function canOpenABettingRound(hand: BettingHandState): boolean {
+  return actingSeats(hand).length >= MIN_SEATS_TO_BET;
+}
+
+function stillOwesADecision(hand: BettingHandState): boolean {
+  if (hand.toAct.length === 0) return false;
+  return (
+    canOpenABettingRound(hand) ||
+    hand.toAct.some((seat) => facingBet(hand, seat))
+  );
+}
 
 function asBetting(state: EngineState): BettingHandState {
   if (state.hand?.status !== "betting") {
@@ -219,7 +231,7 @@ function dealNextStreet(
 ): EngineState {
   const hand = asBetting(scratch);
   const nextStreet = must(
-    nextStreetOf(streetOf(hand.board.length)),
+    nextStreetOf(hand.street),
     "a non-river street always has a next street",
   );
   const cards = dealCommunityCards(
@@ -239,33 +251,17 @@ function dealNextStreet(
 
 const FLOP_CARDS = 3;
 
-const STREET_BY_BOARD_LENGTH: Record<number, Street> = {
-  0: "preflop",
-  3: "flop",
-  4: "turn",
-  5: "river",
-};
-
-function streetOf(boardLength: number): Street {
-  return must(
-    STREET_BY_BOARD_LENGTH[boardLength],
-    `no street has ${String(boardLength)} board cards`,
-  );
-}
-
 function runOut(
   state: EngineState,
   scratch: EngineState,
   events: HandEvent[],
 ): HandEvent[] {
   let current = scratch;
-  while (asBetting(current).board.length < FULL_BOARD) {
+  while (asBetting(current).street !== "river") {
     current = dealNextStreet(state, current, events);
   }
   return finishAtShowdown(current, events);
 }
-
-const FULL_BOARD = 5;
 
 function finishAtShowdown(
   scratch: EngineState,

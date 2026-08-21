@@ -53,16 +53,23 @@ rules exist only to keep legality mirroring the physical chips without a value:
 betting; they differ only in whether they reopen it (ADR-0007). Three predicates
 in `table.ts` carry the distinction:
 
-- `canAct`/`actingSeats`: unfolded *and* not all-in — who a street may open on,
+- `canStillAct`/`actingSeats`: unfolded *and* not all-in — who a street may open on,
   and who `requeueAfterRaise` may requeue.
 - `liveSeats`: unfolded, all-in included — who the fold-out check counts and who
   is ranked at showdown. A shover therefore cannot be folded out.
 - `reopensBetting`/`isAllIn`: the two facts `apply` needs from an action.
 
-When a street closes with fewer than two acting seats, `decide` runs the board
-out: the remaining `BoardDealt` events with no `StreetStarted`, through the
-river and on to `ShowdownReached`. Because `hand.street` no longer advances
-during a run-out, `streetOf` reads the street from the board length instead.
+`canOpenABettingRound` (fewer than two acting seats) drives both halves of the
+run-out. A street that closes without it deals the remaining `BoardDealt`
+events with no `StreetStarted`, through the river and on to `ShowdownReached`.
+A street *already* open ends the moment nobody left in `toAct` faces a bet
+(`stillOwesADecision`), so the last deep seat is never asked to check against
+opponents who cannot answer — while a lone seat that *does* face a shove still
+gets its fold-or-call.
+
+`BoardDealt` advances `hand.street`, so a run-out's intermediate states never
+pair a five-card board with a stale `preflop`, and `StreetStarted` only
+confirms the street the board already moved to.
 
 ## `apply` details
 

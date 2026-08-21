@@ -1,6 +1,6 @@
 import {
   bigBlindSeat,
-  canAct,
+  canStillAct,
   initialToAct,
   isAllIn,
   nextButtonAfter,
@@ -69,7 +69,9 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
 
     case "StreetStarted": {
       const hand = asBetting(state);
-      const acting = hand.ring.filter((seat) => canAct(seatState(hand, seat)));
+      const acting = hand.ring.filter((seat) =>
+        canStillAct(seatState(hand, seat)),
+      );
       const toAct = initialToAct(hand.ring, acting, hand.button, event.street);
       return {
         ...state,
@@ -110,7 +112,11 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
       const hand = asBetting(state);
       return {
         ...state,
-        hand: { ...hand, board: [...hand.board, ...event.cards] },
+        hand: {
+          ...hand,
+          street: event.street,
+          board: [...hand.board, ...event.cards],
+        },
       };
     }
 

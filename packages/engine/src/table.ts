@@ -3,6 +3,7 @@ import type {
   ActionType,
   BettingHandState,
   Card,
+  SeatHandState,
   SeatId,
   Street,
 } from "./types.js";
@@ -33,13 +34,12 @@ export function liveSeats(hand: BettingHandState): SeatId[] {
 }
 
 export function actingSeats(hand: BettingHandState): SeatId[] {
-  return hand.ring.filter((seat) => canAct(seatState(hand, seat)));
+  return hand.ring.filter((seat) => canStillAct(seatState(hand, seat)));
 }
 
-export function canAct(seat: {
-  readonly folded: boolean;
-  readonly allIn: boolean;
-}): boolean {
+export function canStillAct(
+  seat: Pick<SeatHandState, "folded" | "allIn">,
+): boolean {
   return !seat.folded && !seat.allIn;
 }
 
@@ -112,17 +112,14 @@ export function legalActions(
 
 export function requeueAfterRaise(
   ring: readonly SeatId[],
-  players: ReadonlyMap<
-    SeatId,
-    { readonly folded: boolean; readonly allIn: boolean }
-  >,
+  players: ReadonlyMap<SeatId, Pick<SeatHandState, "folded" | "allIn">>,
   raiser: SeatId,
 ): SeatId[] {
   const idx = ring.indexOf(raiser);
   const result: SeatId[] = [];
   for (let step = 1; step < ring.length; step++) {
     const candidate = must(ring[(idx + step) % ring.length]);
-    if (canAct(must(players.get(candidate)))) {
+    if (canStillAct(must(players.get(candidate)))) {
       result.push(candidate);
     }
   }

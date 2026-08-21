@@ -348,8 +348,9 @@ already bought a claim to (ADR-0007).
 
 **Run-out**: once fewer than two Seats can still act, the remaining Streets
 deal without opening — board cards arrive, no betting round starts — through
-the River and on to Showdown. There is no turn to take with nothing to bet
-against.
+the River and on to Showdown. A Street already open ends as soon as nobody
+left to act faces a bet, for the same reason: there is no turn to take with
+nothing to bet against. A Seat facing a shove still gets its fold-or-call.
 
 **Street closure**: a Street ends once every live Player has acted since
 the most recent bet or raise and none still owes a response

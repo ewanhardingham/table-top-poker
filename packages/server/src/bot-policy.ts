@@ -2,7 +2,6 @@ import type { ActionType } from "@table-top-poker/protocol";
 
 export type BotRng = () => number;
 
-/** Bots stay off the all-ins until a human client can declare one. */
 const BOT_ACTIONS = ["fold", "check", "call", "raise"] as const;
 
 export type BotAction = (typeof BOT_ACTIONS)[number];

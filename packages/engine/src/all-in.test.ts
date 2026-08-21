@@ -150,6 +150,17 @@ describe("all-in and the betting queue", () => {
 });
 
 describe("all-in and the automatic run-out", () => {
+  it("still asks a lone deep seat to answer a shove", () => {
+    const state = started([0, 1], "lone-seat-answers");
+
+    const tail = events(state, { type: "allInRaise", seatId: 0 });
+
+    expect(typesOf(tail)).toEqual(["ActionTaken"]);
+    expect(
+      betting(playAll(state, [{ type: "allInRaise", seatId: 0 }])).toAct,
+    ).toEqual([1]);
+  });
+
   it("deals every remaining street without opening it when only one seat can act", () => {
     let state = started([0, 1, 2], "run-out");
     state = playAll(state, [
@@ -215,7 +226,7 @@ describe("all-in and fold-out", () => {
     expect(tail.some((event) => event.type === "ShowdownReached")).toBe(true);
   });
 
-  it("runs the board out when the last deep seat's opponent folds a later street", () => {
+  it("closes the turn without a lone check when the last opponent folds", () => {
     let state = started([0, 1, 2, 3], "turn-fold");
     state = playAll(state, [
       { type: "allInRaise", seatId: 3 },
@@ -228,13 +239,18 @@ describe("all-in and fold-out", () => {
     ]);
     expect(betting(state).street).toBe("turn");
 
-    state = playAll(state, [
-      { type: "fold", seatId: 1 },
-      { type: "fold", seatId: 2 },
-    ]);
-    expect(betting(state).toAct).toEqual([0]);
+    state = playAll(state, [{ type: "fold", seatId: 1 }]);
+    expect(betting(state).toAct).toEqual([2, 0]);
 
-    const final = showdown(playAll(state, [{ type: "check", seatId: 0 }]));
+    expect(typesOf(events(state, { type: "fold", seatId: 2 }))).toEqual([
+      "ActionTaken",
+      "StreetClosed",
+      "BoardDealt",
+      "ShowdownReached",
+      "HandComplete",
+    ]);
+
+    const final = showdown(playAll(state, [{ type: "fold", seatId: 2 }]));
     expect(final.results.map((result) => result.seatId).sort()).toEqual([0, 3]);
   });
 
