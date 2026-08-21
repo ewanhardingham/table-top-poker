@@ -124,7 +124,10 @@ stack, as one of two Actions: an *all-in call*, which does not reopen the
 betting, or an *all-in raise*, which requeues every other live Seat exactly
 as a raise does (ADR-0007). Both retire the Seat from the betting for the
 rest of the Hand; neither carries a chip amount. A Player who covers a shove
-and wants to keep acting simply calls.
+and wants to keep acting simply calls. On the Player Device both all-in
+buttons take a confirm press, and once the Seat is all in its Action bar goes
+away and its Hole cards are *sealed* — held, inert, and still face-down until
+the table's Reveal.
 _Avoid_: Treating all-in as a folded Seat — an all-in Seat is live, keeps its
 claim on the pot, and is revealed at Showdown. Side pots stay a
 physical-chips problem the humans settle at the table.
@@ -178,8 +181,9 @@ Publishing a contestant's Hole cards to the whole room, irreversibly. Two
 Commands produce it. The table's `reveal` turns over the compulsory set — the
 River's last aggressor plus every all-in Seat, or the winning Seat when that
 set is empty — and publishes the winners. Every other contestant may then
-`show`, in any order, on their own Device. Both are idempotent: a second press
-changes nothing and is not an error. The window closes when the table deals
+`show`, in any order, on their own Device, through a "Show my hand" button
+that appears only once the Reveal has landed and disappears once used. Both
+are idempotent: a second press changes nothing and is not an error. The window closes when the table deals
 the next Hand, which mucks whatever was not shown.
 _Avoid_: Confusing a show with *Hole-card reveal*, which stays local to one
 Device and can be undone.

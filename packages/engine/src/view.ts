@@ -13,6 +13,7 @@ import type {
 export interface SeatSnapshot {
   readonly seatId: SeatId;
   readonly folded: boolean;
+  readonly allIn: boolean;
 }
 
 interface NoHandView {
@@ -136,6 +137,7 @@ export function view(
   const seats: SeatSnapshot[] = [...hand.players].map(([seat, seatState]) => ({
     seatId: seat,
     folded: seatState.folded,
+    allIn: seatState.allIn,
   }));
 
   const tableView: TableViewBetting = {

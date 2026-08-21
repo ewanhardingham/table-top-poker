@@ -24,6 +24,7 @@ describe("ActionBar", () => {
         onCheck={noop}
         onCall={noop}
         onRaise={noop}
+        onAllIn={noop}
       />,
     );
 
@@ -43,6 +44,7 @@ describe("ActionBar", () => {
         onCheck={noop}
         onCall={noop}
         onRaise={noop}
+        onAllIn={noop}
       />,
     );
 
@@ -61,6 +63,7 @@ describe("ActionBar", () => {
         onCheck={noop}
         onCall={noop}
         onRaise={noop}
+        onAllIn={noop}
       />,
     );
 
@@ -68,6 +71,61 @@ describe("ActionBar", () => {
     expect(html).toContain("no bet");
     expect(html).toContain("match");
     expect(html).toContain("put in more");
+  });
+
+  it("offers the all-in fork alongside the four ordinary actions", () => {
+    const html = renderToStaticMarkup(
+      <ActionBar
+        legalActions={["fold", "call", "raise", "allInCall", "allInRaise"]}
+        pendingAction={null}
+        rejection={null}
+        onFold={noop}
+        onCheck={noop}
+        onCall={noop}
+        onRaise={noop}
+        onAllIn={noop}
+      />,
+    );
+
+    expect(html).toContain("All-in call");
+    expect(html).toContain("All-in raise");
+  });
+
+  it("leaves the all-in row out when it is not the player's turn", () => {
+    const html = renderToStaticMarkup(
+      <ActionBar
+        legalActions={[]}
+        pendingAction={null}
+        rejection={null}
+        onFold={noop}
+        onCheck={noop}
+        onCall={noop}
+        onRaise={noop}
+        onAllIn={noop}
+      />,
+    );
+
+    expect(html).not.toContain('data-testid="all-in-row"');
+  });
+
+  it("attributes a rejected all-in to the all-in row", () => {
+    const html = renderToStaticMarkup(
+      <ActionBar
+        legalActions={["fold", "call", "raise", "allInCall", "allInRaise"]}
+        pendingAction={null}
+        rejection={{ action: "allInRaise", reason: "not-your-turn" }}
+        onFold={noop}
+        onCheck={noop}
+        onCall={noop}
+        onRaise={noop}
+        onAllIn={noop}
+      />,
+    );
+
+    expect(html).toMatch(
+      /data-testid="action-rejection"[^>]*data-rejected-action="allInRaise"/,
+    );
+    expect(html).toContain("It&#x27;s not your turn yet.");
   });
 
   it("shows the rejection reason inline", () => {
@@ -80,6 +138,7 @@ describe("ActionBar", () => {
         onCheck={noop}
         onCall={noop}
         onRaise={noop}
+        onAllIn={noop}
       />,
     );
 
@@ -104,6 +163,7 @@ describe("ActionBar", () => {
         onCheck={noop}
         onCall={noop}
         onRaise={noop}
+        onAllIn={noop}
       />,
     );
 

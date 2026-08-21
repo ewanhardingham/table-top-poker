@@ -23,7 +23,7 @@ describe("legalActionsFromView", () => {
       street: "preflop",
       board: [],
       toAct: [0],
-      seats: [{ seatId: 0, folded: false }],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
       yourSeatId: 0,
       yourHoleCards: null,
       legalActions: ["fold", "check", "raise"],

@@ -8,7 +8,11 @@ describe("ClientCommandSchema", () => {
     "check",
     "call",
     "raise",
+    "allInCall",
+    "allInRaise",
     "nextHand",
+    "reveal",
+    "show",
     "sitOut",
     "sitIn",
   ])("accepts a bare %s command", (type) => {

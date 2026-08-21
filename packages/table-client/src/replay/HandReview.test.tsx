@@ -72,9 +72,9 @@ function bettingView(board: readonly Card[]): TableView {
     board,
     toAct: [1],
     seats: [
-      { seatId: 0, folded: false },
-      { seatId: 1, folded: false },
-      { seatId: 2, folded: false },
+      { seatId: 0, folded: false, allIn: false },
+      { seatId: 1, folded: false, allIn: false },
+      { seatId: 2, folded: false, allIn: false },
     ],
   };
 }

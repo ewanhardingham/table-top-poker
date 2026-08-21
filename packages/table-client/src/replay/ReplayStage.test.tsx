@@ -28,7 +28,11 @@ const view: TableView = {
     { rank: "2", suit: "clubs" },
   ],
   toAct: [1],
-  seats: seats.map((seat) => ({ seatId: seat.id, folded: false })),
+  seats: seats.map((seat) => ({
+    seatId: seat.id,
+    folded: false,
+    allIn: false,
+  })),
 };
 
 describe("ReplayStage", () => {

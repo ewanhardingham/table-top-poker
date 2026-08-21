@@ -135,6 +135,30 @@ describe("view: folded seats", () => {
   });
 });
 
+describe("view: all-in seats", () => {
+  it("marks the all-in seat in every viewer's seat snapshots", () => {
+    let state = onTheFlopThreeWay();
+    if (state.hand?.status !== "betting") throw new Error("expected betting");
+    const shover = must(state.hand.toAct[0]);
+    state = playAll(state, [{ type: "allInRaise", seatId: shover }]);
+
+    const viewers: readonly (SeatId | "table")[] = [0, 1, "table"];
+    for (const viewer of viewers) {
+      const seen =
+        viewer === "table" ? view(state, viewer) : view(state, viewer);
+      if (seen.phase !== "betting") throw new Error("expected betting phase");
+      expect(seen.seats).toContainEqual({
+        seatId: shover,
+        folded: false,
+        allIn: true,
+      });
+      for (const snapshot of seen.seats) {
+        if (snapshot.seatId !== shover) expect(snapshot.allIn).toBe(false);
+      }
+    }
+  });
+});
+
 describe("view: table view", () => {
   it("sees no hole card pre-showdown, even with a board dealt", () => {
     const state = onTheFlopThreeWay();

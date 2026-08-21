@@ -14,6 +14,8 @@ import { useHoleCards } from "./useHoleCards.js";
 export interface HoleCardPairProps {
   readonly cards: readonly [CardType, CardType] | null;
   readonly locked: boolean;
+  /** All-in: inert, but still face-down until the table's Reveal. */
+  readonly sealed: boolean;
   readonly actions: CardActions;
 }
 
