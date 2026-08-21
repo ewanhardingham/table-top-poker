@@ -1,6 +1,8 @@
 import { apply } from "./apply.js";
 import { evaluate, winnersOf } from "./evaluate.js";
 import {
+  actingSeats,
+  canAct,
   dealCommunityCards,
   dealHoleCards,
   initialToAct,
@@ -19,6 +21,7 @@ import type {
   Rejection,
   RejectionReason,
   SeatId,
+  Street,
 } from "./types.js";
 import { must } from "./util.js";
 
@@ -57,6 +60,8 @@ export function decide(
     case "check":
     case "call":
     case "raise":
+    case "allInCall":
+    case "allInRaise":
       return decideAction(state, command);
 
     case "evict":
@@ -122,7 +127,7 @@ function decideEviction(
     return reject("hand-not-in-progress", command);
   }
   const player = state.hand.players.get(command.seatId);
-  if (player === undefined || player.folded) {
+  if (player === undefined || !canAct(player)) {
     return reject("action-not-legal", command);
   }
 
@@ -134,10 +139,7 @@ function decideActionEvents(
   seatId: SeatId,
   action: ActionType,
 ): HandEvent[] {
-  const hand = state.hand;
-  if (hand?.status !== "betting") {
-    throw new Error("expected a betting hand while resolving an action");
-  }
+  const hand = asBetting(state);
   const events: HandEvent[] = [];
 
   const actionTaken: HandEvent = {
@@ -147,9 +149,8 @@ function decideActionEvents(
   };
   events.push(actionTaken);
   let scratch = apply(state, actionTaken);
-  const handAfterAction = scratch.hand as BettingHandState;
 
-  const live = liveSeats(handAfterAction);
+  const live = liveSeats(asBetting(scratch));
   if (live.length === 1) {
     const foldedOut: HandEvent = {
       type: "HandFoldedOut",
@@ -163,7 +164,7 @@ function decideActionEvents(
     return events;
   }
 
-  if (handAfterAction.toAct.length > 0) {
+  if (asBetting(scratch).toAct.length > 0) {
     return events;
   }
 
@@ -175,45 +176,57 @@ function decideActionEvents(
   scratch = apply(scratch, streetClosed);
 
   if (hand.street === "river") {
-    const results = live.map((seatId) => {
-      const holeCards = must(
-        handAfterAction.players.get(seatId)?.holeCards,
-        "a live seat at showdown always has hole cards",
-      );
-      const { rank, bestHand, description } = evaluate([
-        ...holeCards,
-        ...handAfterAction.board,
-      ]);
-      return {
-        seatId,
-        rank,
-        bestHand: [...bestHand] as [Card, Card, Card, Card, Card],
-        description,
-      };
-    });
-    const showdownReached: HandEvent = {
-      type: "ShowdownReached",
-      results,
-      winners: winnersOf(results),
-    };
-    events.push(showdownReached);
-    scratch = apply(scratch, showdownReached);
-    const handComplete: HandEvent = { type: "HandComplete" };
-    events.push(handComplete);
-    apply(scratch, handComplete);
-    return events;
+    return finishAtShowdown(scratch, events);
   }
 
+  scratch = dealNextStreet(state, scratch, events);
+
+  if (actingSeats(asBetting(scratch)).length < MIN_SEATS_TO_OPEN_A_STREET) {
+    return runOut(state, scratch, events);
+  }
+
+  const opened = asBetting(scratch);
+  const nextToAct = initialToAct(
+    opened.ring,
+    actingSeats(opened),
+    opened.button,
+    opened.street,
+  );
+  const streetStarted: HandEvent = {
+    type: "StreetStarted",
+    street: streetOf(opened.board.length),
+    actor: must(nextToAct[0], "a fresh street always has a first actor"),
+  };
+  events.push(streetStarted);
+  apply(scratch, streetStarted);
+
+  return events;
+}
+
+const MIN_SEATS_TO_OPEN_A_STREET = 2;
+
+function asBetting(state: EngineState): BettingHandState {
+  if (state.hand?.status !== "betting") {
+    throw new Error("expected a betting hand while resolving an action");
+  }
+  return state.hand;
+}
+
+function dealNextStreet(
+  state: EngineState,
+  scratch: EngineState,
+  events: HandEvent[],
+): EngineState {
+  const hand = asBetting(scratch);
   const nextStreet = must(
-    nextStreetOf(hand.street),
+    nextStreetOf(streetOf(hand.board.length)),
     "a non-river street always has a next street",
   );
-  const count = nextStreet === "flop" ? 3 : 1;
   const cards = dealCommunityCards(
     hand.seed,
     state.seats.length,
     hand.board.length,
-    count,
+    nextStreet === "flop" ? FLOP_CARDS : 1,
   );
   const boardDealt: HandEvent = {
     type: "BoardDealt",
@@ -221,21 +234,69 @@ function decideActionEvents(
     cards,
   };
   events.push(boardDealt);
-  scratch = apply(scratch, boardDealt);
+  return apply(scratch, boardDealt);
+}
 
-  const nextToAct = initialToAct(
-    handAfterAction.ring,
-    live,
-    hand.button,
-    nextStreet,
+const FLOP_CARDS = 3;
+
+const STREET_BY_BOARD_LENGTH: Record<number, Street> = {
+  0: "preflop",
+  3: "flop",
+  4: "turn",
+  5: "river",
+};
+
+function streetOf(boardLength: number): Street {
+  return must(
+    STREET_BY_BOARD_LENGTH[boardLength],
+    `no street has ${String(boardLength)} board cards`,
   );
-  const streetStarted: HandEvent = {
-    type: "StreetStarted",
-    street: nextStreet,
-    actor: must(nextToAct[0], "a fresh street always has a first actor"),
-  };
-  events.push(streetStarted);
-  apply(scratch, streetStarted);
+}
 
+function runOut(
+  state: EngineState,
+  scratch: EngineState,
+  events: HandEvent[],
+): HandEvent[] {
+  let current = scratch;
+  while (asBetting(current).board.length < FULL_BOARD) {
+    current = dealNextStreet(state, current, events);
+  }
+  return finishAtShowdown(current, events);
+}
+
+const FULL_BOARD = 5;
+
+function finishAtShowdown(
+  scratch: EngineState,
+  events: HandEvent[],
+): HandEvent[] {
+  const hand = asBetting(scratch);
+  const results = liveSeats(hand).map((seatId) => {
+    const holeCards = must(
+      hand.players.get(seatId)?.holeCards,
+      "a live seat at showdown always has hole cards",
+    );
+    const { rank, bestHand, description } = evaluate([
+      ...holeCards,
+      ...hand.board,
+    ]);
+    return {
+      seatId,
+      rank,
+      bestHand: [...bestHand] as [Card, Card, Card, Card, Card],
+      description,
+    };
+  });
+  const showdownReached: HandEvent = {
+    type: "ShowdownReached",
+    results,
+    winners: winnersOf(results),
+  };
+  events.push(showdownReached);
+  const afterShowdown = apply(scratch, showdownReached);
+  const handComplete: HandEvent = { type: "HandComplete" };
+  events.push(handComplete);
+  apply(afterShowdown, handComplete);
   return events;
 }

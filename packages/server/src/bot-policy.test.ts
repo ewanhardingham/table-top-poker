@@ -8,9 +8,9 @@ import {
   shouldSitIn,
   shouldSitOut,
 } from "./bot-policy.js";
-import type { ActionType } from "@table-top-poker/protocol";
+import type { BotAction } from "./bot-policy.js";
 
-const actionTypes: ActionType[] = ["fold", "check", "call", "raise"];
+const actionTypes: BotAction[] = ["fold", "check", "call", "raise"];
 const greatestRollBelowOne = 0.9999999999999999;
 
 const legalActionsArb = fc.subarray(actionTypes, { minLength: 1 });
@@ -35,7 +35,7 @@ describe("chooseBotAction", () => {
 
   it("keeps a facing bet alive while reaching call, fold, and raise", () => {
     const legalActions = ["fold", "call", "raise"] as const;
-    const reached = new Set<ActionType>();
+    const reached = new Set<BotAction>();
     let folds = 0;
     let calls = 0;
     for (let i = 0; i < 10_000; i++) {
@@ -72,11 +72,29 @@ describe("chooseBotAction", () => {
 
   it("leaves every supplied action reachable", () => {
     const legalActions = ["fold", "check", "raise"] as const;
-    const reached = new Set<ActionType>();
+    const reached = new Set<BotAction>();
     for (let i = 0; i < 10_000; i++) {
       reached.add(chooseBotAction(legalActions, () => (i + 0.5) / 10_000));
     }
     expect(reached).toEqual(new Set(legalActions));
+  });
+
+  it("never declares an all-in, however the RNG falls", () => {
+    const legalActions = [
+      "fold",
+      "call",
+      "raise",
+      "allInCall",
+      "allInRaise",
+    ] as const;
+    for (let i = 0; i < 1000; i++) {
+      const action = chooseBotAction(legalActions, () => (i + 0.5) / 1000);
+      expect(actionTypes).toContain(action);
+    }
+  });
+
+  it("rejects a legal-action list with nothing a bot will play", () => {
+    expect(() => chooseBotAction(["allInRaise"], () => 0)).toThrow(RangeError);
   });
 
   it("rejects an empty legal-action list", () => {

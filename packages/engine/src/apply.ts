@@ -1,7 +1,10 @@
 import {
   bigBlindSeat,
+  canAct,
   initialToAct,
+  isAllIn,
   nextButtonAfter,
+  reopensBetting,
   requeueAfterRaise,
   rotateFromButton,
   smallBlindSeat,
@@ -45,7 +48,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           players: new Map(
             state.seats.map((seat) => [
               seat,
-              { holeCards: null, folded: false },
+              { holeCards: null, folded: false, allIn: false },
             ]),
           ),
           toAct: [],
@@ -66,8 +69,8 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
 
     case "StreetStarted": {
       const hand = asBetting(state);
-      const live = hand.ring.filter((seat) => !seatState(hand, seat).folded);
-      const toAct = initialToAct(hand.ring, live, hand.button, event.street);
+      const acting = hand.ring.filter((seat) => canAct(seatState(hand, seat)));
+      const toAct = initialToAct(hand.ring, acting, hand.button, event.street);
       return {
         ...state,
         hand: {
@@ -82,16 +85,17 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
     case "ActionTaken": {
       const hand = asBetting(state);
       const players = new Map(hand.players);
+      const prior = seatState(hand, event.seatId);
       if (event.action === "fold") {
-        const prior = seatState(hand, event.seatId);
         players.set(event.seatId, { ...prior, folded: true });
+      } else if (isAllIn(event.action)) {
+        players.set(event.seatId, { ...prior, allIn: true });
       }
-      const raiseOccurred = hand.raiseOccurred || event.action === "raise";
+      const raiseOccurred = hand.raiseOccurred || reopensBetting(event.action);
 
-      const toAct =
-        event.action === "raise"
-          ? requeueAfterRaise(hand.ring, players, event.seatId)
-          : hand.toAct.filter((seat) => seat !== event.seatId);
+      const toAct = reopensBetting(event.action)
+        ? requeueAfterRaise(hand.ring, players, event.seatId)
+        : hand.toAct.filter((seat) => seat !== event.seatId);
 
       return {
         ...state,

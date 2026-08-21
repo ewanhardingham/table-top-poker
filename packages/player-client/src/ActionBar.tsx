@@ -22,14 +22,16 @@ export interface ActionBarProps {
 
 const ACTIONS = ["fold", "check", "call", "raise"] as const;
 
-const LABELS: Record<ActionType, string> = {
+type OfferedAction = (typeof ACTIONS)[number];
+
+const LABELS: Record<OfferedAction, string> = {
   fold: "Fold",
   check: "Check",
   call: "Call",
   raise: "Raise",
 };
 
-const SUB_LABELS: Record<ActionType, string> = {
+const SUB_LABELS: Record<OfferedAction, string> = {
   fold: "muck",
   check: "no bet",
   call: "match",
@@ -48,7 +50,7 @@ const primaryToneStyle: CSSProperties = {
   color: color.textBright,
 };
 
-const toneStyle: Record<ActionType, CSSProperties> = {
+const toneStyle: Record<OfferedAction, CSSProperties> = {
   fold: {
     border: "1px solid rgba(232,139,125,.42)",
     background: "rgba(232,139,125,.13)",
@@ -82,7 +84,7 @@ export function ActionBar({
   onCall,
   onRaise,
 }: ActionBarProps) {
-  const handlers: Record<ActionType, () => void> = {
+  const handlers: Record<OfferedAction, () => void> = {
     fold: onFold,
     check: onCheck,
     call: onCall,

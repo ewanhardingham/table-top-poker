@@ -14,6 +14,8 @@ export interface ActionIntent {
   readonly raise: () => void;
 }
 
+type SendableAction = Extract<ClientCommand["type"], ActionType>;
+
 export function canAct(
   legalActions: readonly ActionType[],
   pendingAction: ActionType | null,
@@ -33,7 +35,7 @@ export function useActionIntent(
   const legalActions = legalActionsFromView(handView);
 
   const act = useCallback(
-    (action: ActionType) => {
+    (action: SendableAction) => {
       if (!canAct(legalActions, pendingAction, action)) return;
       sendStarted(action);
       send({ type: action });

@@ -9,4 +9,6 @@ export const actionVerb: Record<ActionType, string> = {
   check: "checked",
   call: "called",
   raise: "raised",
+  allInCall: "all in",
+  allInRaise: "all in",
 };

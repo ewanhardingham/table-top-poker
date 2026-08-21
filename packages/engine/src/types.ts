@@ -12,7 +12,8 @@ export type SeatId = number;
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 
-export type ActionType = "fold" | "check" | "call" | "raise";
+export type ActionType =
+  "fold" | "check" | "call" | "raise" | "allInCall" | "allInRaise";
 
 export type HandRank = number;
 
@@ -61,6 +62,7 @@ export interface Rejection {
 export interface SeatHandState {
   readonly holeCards: readonly [Card, Card] | null;
   readonly folded: boolean;
+  readonly allIn: boolean;
 }
 
 export interface BettingHandState {
