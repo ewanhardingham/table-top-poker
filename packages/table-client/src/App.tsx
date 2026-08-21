@@ -285,6 +285,16 @@ export function App() {
               seats={seats}
               onClose={handleBackToHands}
             />
+            {showJoinPanel && (
+              <JoinPanel
+                roomCode={roomCode}
+                joinUrl={joinUrl}
+                qrCodeDataUrl={qrCodeDataUrl}
+                lobbyHint={lobbyHint}
+                dismissable={handInProgress}
+                onDismiss={toggleJoin}
+              />
+            )}
           </div>
         ) : (
           <div style={feltSurfaceStyle}>
