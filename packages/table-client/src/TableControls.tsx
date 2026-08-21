@@ -46,6 +46,8 @@ export interface TableControlsProps {
   readonly testMode?: boolean;
   readonly onAddBot?: () => void;
   readonly atShowdown?: boolean;
+  readonly awaitingReveal?: boolean;
+  readonly onReveal?: () => void;
   readonly onViewShowdown?: () => void;
   readonly placement?: TableControlsPlacement;
   readonly onReviewHands?: () => void;
@@ -61,6 +63,8 @@ export function TableControls({
   testMode = false,
   onAddBot,
   atShowdown = false,
+  awaitingReveal = false,
+  onReveal,
   onViewShowdown,
   placement = "rail",
   onReviewHands,
@@ -80,7 +84,15 @@ export function TableControls({
           Deal hand
         </PillButton>
       )}
-      {atShowdown ? (
+      {awaitingReveal ? (
+        <PillButton
+          data-testid="reveal-button"
+          onClick={onReveal}
+          style={actionButtonStyle}
+        >
+          Reveal
+        </PillButton>
+      ) : atShowdown ? (
         <PillButton
           data-testid="view-showdown-button"
           onClick={onViewShowdown}

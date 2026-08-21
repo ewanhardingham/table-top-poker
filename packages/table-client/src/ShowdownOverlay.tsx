@@ -57,6 +57,8 @@ export interface ShowdownOverlayProps {
   readonly seats: readonly SeatView[];
   readonly collapsed: boolean;
   readonly canDealNextHand: boolean;
+  readonly awaitingReveal: boolean;
+  readonly onReveal: () => void;
   readonly onNextHand: () => void;
   readonly onViewTable: () => void;
 }
@@ -191,10 +193,14 @@ function OverlayPlayer({
 
 function OverlayButtons({
   canDealNextHand,
+  awaitingReveal,
+  onReveal,
   onNextHand,
   onViewTable,
 }: {
   readonly canDealNextHand: boolean;
+  readonly awaitingReveal: boolean;
+  readonly onReveal: () => void;
   readonly onNextHand: () => void;
   readonly onViewTable: () => void;
 }) {
@@ -236,29 +242,34 @@ function OverlayButtons({
         </button>
         <button
           type="button"
-          data-testid="showdown-next-hand-button"
-          disabled={!canDealNextHand}
-          onClick={onNextHand}
+          data-testid={
+            awaitingReveal
+              ? "showdown-reveal-button"
+              : "showdown-next-hand-button"
+          }
+          disabled={!awaitingReveal && !canDealNextHand}
+          onClick={awaitingReveal ? onReveal : onNextHand}
           style={{
             padding: "0.7rem 2.2rem",
             borderRadius: "999px",
             border: "none",
-            cursor: canDealNextHand ? "pointer" : "not-allowed",
+            cursor:
+              awaitingReveal || canDealNextHand ? "pointer" : "not-allowed",
             background: color.pillGradient,
             color: color.pillInk,
             fontFamily: font.display,
             fontSize: "1rem",
             fontWeight: 800,
             letterSpacing: "0.04em",
-            opacity: canDealNextHand ? 1 : 0.5,
+            opacity: awaitingReveal || canDealNextHand ? 1 : 0.5,
             boxShadow:
               "0 16px 40px -14px rgba(229,68,60,.6), inset 0 1px 0 rgba(255,255,255,.5)",
           }}
         >
-          Next hand →
+          {awaitingReveal ? "Reveal" : "Next hand →"}
         </button>
       </div>
-      {!canDealNextHand && (
+      {!awaitingReveal && !canDealNextHand && (
         <div
           data-testid="showdown-next-hand-blocked-hint"
           style={{ fontSize: "0.8rem", color: color.textDim }}
@@ -275,6 +286,8 @@ export function ShowdownOverlay({
   seats,
   collapsed,
   canDealNextHand,
+  awaitingReveal,
+  onReveal,
   onNextHand,
   onViewTable,
 }: ShowdownOverlayProps) {
@@ -397,6 +410,8 @@ export function ShowdownOverlay({
 
               <OverlayButtons
                 canDealNextHand={canDealNextHand}
+                awaitingReveal={awaitingReveal}
+                onReveal={onReveal}
                 onNextHand={onNextHand}
                 onViewTable={onViewTable}
               />

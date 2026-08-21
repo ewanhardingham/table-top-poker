@@ -1,6 +1,7 @@
 import {
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_OVERLAY,
   ENGINE_LOG_VERSION,
   legalActions,
   DEFAULT_SOUND_SETTINGS,
@@ -201,6 +202,7 @@ describe("rooms HTTP routes", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: unclaimedSeats(),
     });
   });
@@ -278,6 +280,71 @@ describe("GET /config", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ testMode: true });
+  });
+});
+
+describe("POST /rooms/:code/showdown-overlay", () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    app = await buildApp({ recordings: testRecordings() });
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  async function createRoom(): Promise<string> {
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
+    return created.json<RoomCreatedBody>().code;
+  }
+
+  it("starts off and persists the room's choice", async () => {
+    const code = await createRoom();
+    const before = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/join`,
+    });
+    expect(before.json<RoomView>().showdownOverlay).toEqual({
+      enabled: false,
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/showdown-overlay`,
+      payload: { enabled: true },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ enabled: true });
+
+    const joined = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/join`,
+    });
+    expect(joined.json<RoomView>().showdownOverlay).toEqual({ enabled: true });
+  });
+
+  it("rejects a malformed body", async () => {
+    const code = await createRoom();
+    const response = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/showdown-overlay`,
+      payload: { enabled: "yes" },
+    });
+    expect(response.statusCode).toBe(400);
+  });
+
+  it("404s an unknown room", async () => {
+    const response = await app.inject({
+      method: "POST",
+      url: "/rooms/ZZZZ/showdown-overlay",
+      payload: { enabled: true },
+    });
+    expect(response.statusCode).toBe(404);
   });
 });
 
@@ -1272,6 +1339,7 @@ describe("WebSocket upgrade", () => {
         pendingShotClock: null,
         soundSettings: DEFAULT_SOUND_SETTINGS,
         shotClockSettings: DEFAULT_SHOT_CLOCK,
+        showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
         seats: unclaimedSeats(),
       },
     });

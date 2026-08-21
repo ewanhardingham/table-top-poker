@@ -4,6 +4,7 @@ import {
   AddBotsRequestSchema,
   ChangeSeatCountRequestSchema,
   ChangeShotClockRequestSchema,
+  ChangeShowdownOverlayRequestSchema,
   ChangeSoundSettingsRequestSchema,
   ClaimSeatRequestSchema,
   LeaveSeatRequestSchema,
@@ -982,6 +983,27 @@ export async function buildApp(
     }
     return result;
   });
+
+  app.post<RoomCodeRoute>(
+    "/rooms/:code/showdown-overlay",
+    async (request, reply) => {
+      const body = ChangeShowdownOverlayRequestSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: "invalid-request-body" });
+      }
+      const room = findRoomOrReject(rooms, request.params.code, reply);
+      if (!room) return;
+      const result = await enqueue(room.code, () => {
+        const settings = rooms.changeShowdownOverlay(room.code, body.data);
+        if (!("error" in settings)) broadcastRoomView(room.code);
+        return settings;
+      });
+      if ("error" in result) {
+        return reply.code(404).send({ error: result.error });
+      }
+      return result;
+    },
+  );
 
   app.post<RoomCodeRoute>("/rooms/:code/shot-clock", async (request, reply) => {
     const body = ChangeShotClockRequestSchema.safeParse(request.body);

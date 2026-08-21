@@ -38,6 +38,37 @@ describe("TableControls", () => {
     expect(html).toContain('data-testid="next-hand-button"');
   });
 
+  it("swaps Next hand for Reveal until the table has revealed", () => {
+    const awaiting = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete
+        canDealNextHand
+        awaitingReveal
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onReveal={noop}
+      />,
+    );
+    expect(awaiting).toContain('data-testid="reveal-button"');
+    expect(awaiting).not.toContain('data-testid="next-hand-button"');
+
+    const revealed = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete
+        canDealNextHand
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+        onReveal={noop}
+      />,
+    );
+    expect(revealed).not.toContain('data-testid="reveal-button"');
+    expect(revealed).toContain('data-testid="next-hand-button"');
+  });
+
   it("swaps Next hand for View showdown at showdown", () => {
     const html = renderToStaticMarkup(
       <TableControls

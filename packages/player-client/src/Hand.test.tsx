@@ -326,6 +326,22 @@ describe("Hand", () => {
       expect(html).toContain('aria-disabled="true"');
     });
 
+    it("keeps an unshown contestant's own cards face down and still peekable", () => {
+      const concealing: PlayerView = {
+        ...shownTable,
+        results: [],
+        winners: null,
+        yourSeatId: 1,
+        yourResult: shownTable.results[1],
+        canShow: true,
+      };
+      const html = renderToStaticMarkup(<Hand view={concealing} seatId={1} />);
+
+      expect(html).toContain('data-presentation="FaceDown"');
+      expect(html).not.toContain('data-presentation="Revealed"');
+      expect(html).toContain('aria-disabled="false"');
+    });
+
     it("shows the loser's own hole cards and a loss banner naming the winner", () => {
       const html = renderToStaticMarkup(
         <Hand view={showdownViewFor(1)} seatId={1} />,
