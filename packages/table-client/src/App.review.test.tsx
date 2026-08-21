@@ -236,6 +236,28 @@ describe("App hand review", () => {
     expect(badge.props.children).toContain("hand 3");
   });
 
+  it("shows the room-code overlay when opened during replay", () => {
+    inRoom(completeHand);
+    useTableStore.setState({
+      review: {
+        status: "ready",
+        handOrdinal: 3,
+        positions: [{ event: null, view: { phase: "no-hand", button: 0 } }],
+      },
+    });
+
+    const renderer = render();
+
+    click(renderer, "join-code-toggle");
+
+    expect(
+      renderer.root.findAllByProps({ "data-testid": "join-code-toggle" }),
+    ).toHaveLength(0);
+    expect(
+      renderer.root.findByProps({ "data-testid": "join-panel" }),
+    ).toBeDefined();
+  });
+
   it("takes the name back down when the review closes", () => {
     inRoom(completeHand);
 
