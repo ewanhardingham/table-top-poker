@@ -24,12 +24,17 @@ import {
 } from "./showdownRanking.js";
 import { posFor } from "./table/posFor.js";
 
+/** PROTOTYPE scaffolding — remove with `src/prototype/`. See #252 feedback. */
+export type ShowdownTreatment = "current" | "stack" | "fan" | "inline";
+
 export interface SeatsProps {
   readonly seats: readonly SeatView[];
   readonly view: TableView | null;
   readonly shotClockSeconds?: number;
   readonly onSeatClick?: (seatId: number) => void;
   readonly actionLabels?: SeatActionLabels;
+  /** PROTOTYPE scaffolding — remove with `src/prototype/`. */
+  readonly showdownTreatment?: ShowdownTreatment;
 }
 
 const slotPillStyle = {
@@ -83,6 +88,14 @@ interface SeatVisual {
 const SHOWDOWN_CARD_SCALE = "clamp(0.34rem, 1.1vh, 0.55rem)";
 const SHOWDOWN_LABEL_WIDTH = "8.5rem";
 
+/** PROTOTYPE scaffolding — remove with `src/prototype/`. */
+const treatmentScale: Record<ShowdownTreatment, string> = {
+  current: SHOWDOWN_CARD_SCALE,
+  stack: "clamp(0.85rem, 2.6vh, 1.25rem)",
+  fan: "clamp(1rem, 3.1vh, 1.5rem)",
+  inline: "clamp(0.95rem, 2.9vh, 1.4rem)",
+};
+
 interface ShowdownSeat {
   readonly hand: RankedShowdownHand | null;
   readonly isWinner: boolean;
@@ -119,86 +132,57 @@ function verdictOf(showdown: ShowdownSeat): string | null {
 function ShowdownHand({
   seatId,
   showdown,
+  treatment,
 }: {
   readonly seatId: SeatId;
   readonly showdown: ShowdownSeat;
+  readonly treatment: ShowdownTreatment;
 }) {
   const testId = `seat-pod-${String(seatId)}-showdown`;
   const { hand, isWinner } = showdown;
   const verdict = verdictOf(showdown);
+  const scale = treatmentScale[treatment];
+  const big = treatment !== "current";
 
-  return (
-    <div
-      data-testid={testId}
-      data-shown={hand !== null}
-      data-winner={isWinner}
-      onClick={(event) => {
-        event.stopPropagation();
-      }}
+  const faces =
+    hand === null
+      ? [null, null]
+      : [hand.result.holeCards[0], hand.result.holeCards[1]];
+
+  const badge = hand !== null && (
+    <span
+      data-testid={`${testId}-rank`}
       style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.3em",
-        maxWidth: SHOWDOWN_LABEL_WIDTH,
-        cursor: "default",
+        flex: "none",
+        padding: big ? "0.2em 0.55em" : "0.15em 0.45em",
+        borderRadius: "999px",
+        fontFamily: font.mono,
+        fontSize: big ? "0.6rem" : "0.55rem",
+        fontWeight: 700,
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        background: isWinner ? color.winBright : color.controlFill,
+        color: isWinner ? color.pillInk : color.textMuted,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          gap: "0.18em",
-          padding: "0.2em",
-          borderRadius: "0.4em",
-          fontSize: SHOWDOWN_CARD_SCALE,
-          border: `1px solid ${isWinner ? color.winBorder : "transparent"}`,
-          background: isWinner ? color.winPlate : undefined,
-        }}
-      >
-        {hand === null ? (
-          <>
-            <Card faceDown />
-            <Card faceDown />
-          </>
-        ) : (
-          hand.result.holeCards.map((card, index) => (
-            <Card key={index} rank={card.rank} suit={card.suit} />
-          ))
-        )}
-      </div>
-      {verdict !== null && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.4em",
-            maxWidth: "100%",
-            minWidth: 0,
-          }}
-        >
-          {hand !== null && (
-            <span
-              data-testid={`${testId}-rank`}
-              style={{
-                flex: "none",
-                padding: "0.15em 0.45em",
-                borderRadius: "999px",
-                fontFamily: font.mono,
-                fontSize: "0.55rem",
-                fontWeight: 700,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                background: isWinner ? color.winBright : color.controlFill,
-                color: isWinner ? color.pillInk : color.textMuted,
-              }}
-            >
-              {ordinal(hand.place)}
-            </span>
-          )}
-          <span
-            data-testid={`${testId}-verdict`}
-            title={verdict}
-            style={{
+      {ordinal(hand.place)}
+    </span>
+  );
+
+  const label = verdict !== null && (
+    <span
+      data-testid={`${testId}-verdict`}
+      title={verdict}
+      style={
+        big
+          ? {
+              textAlign: treatment === "inline" ? "left" : "center",
+              lineHeight: 1.25,
+              fontSize: "0.72rem",
+              fontWeight: 600,
+              color: isWinner ? color.winText : color.textDim,
+            }
+          : {
               minWidth: 0,
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -206,11 +190,157 @@ function ShowdownHand({
               fontSize: "0.62rem",
               fontWeight: 600,
               color: isWinner ? color.winText : color.textDim,
+            }
+      }
+    >
+      {verdict}
+    </span>
+  );
+
+  const flatCards = (
+    <div
+      style={{
+        display: "flex",
+        gap: big ? "0.15em" : "0.18em",
+        padding: "0.2em",
+        borderRadius: "0.4em",
+        fontSize: scale,
+        border: `1px solid ${isWinner ? color.winBorder : "transparent"}`,
+        background: isWinner ? color.winPlate : undefined,
+      }}
+    >
+      {faces.map((card, index) =>
+        card === null ? (
+          <Card key={index} faceDown />
+        ) : (
+          <Card key={index} rank={card.rank} suit={card.suit} />
+        ),
+      )}
+    </div>
+  );
+
+  const wrapper = {
+    "data-testid": testId,
+    "data-shown": hand !== null,
+    "data-winner": isWinner,
+    "data-treatment": treatment,
+    onClick: (event: { stopPropagation: () => void }) => {
+      event.stopPropagation();
+    },
+  };
+
+  if (treatment === "fan") {
+    return (
+      <div
+        {...wrapper}
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "0.3rem",
+          maxWidth: "12rem",
+          cursor: "default",
+        }}
+      >
+        <div style={{ position: "relative", fontSize: scale, height: "5.4em" }}>
+          {faces.map((card, index) => (
+            <div
+              key={index}
+              style={{
+                position: "absolute",
+                left: index === 0 ? 0 : "2.2em",
+                top: index === 0 ? "0.25em" : 0,
+                transform: `rotate(${String(index === 0 ? -7 : 6)}deg)`,
+                filter: `drop-shadow(${shadow.card})`,
+              }}
+            >
+              {card === null ? (
+                <Card faceDown />
+              ) : (
+                <Card rank={card.rank} suit={card.suit} />
+              )}
+            </div>
+          ))}
+          <div style={{ width: "5.7em", height: "5.4em" }} />
+          {hand !== null && (
+            <span
+              style={{
+                position: "absolute",
+                right: "-0.7em",
+                bottom: "0.1em",
+                boxShadow: shadow.card,
+              }}
+            >
+              {badge}
+            </span>
+          )}
+        </div>
+        {label}
+      </div>
+    );
+  }
+
+  if (treatment === "inline") {
+    return (
+      <div
+        {...wrapper}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.6rem",
+          maxWidth: "13rem",
+          cursor: "default",
+        }}
+      >
+        {flatCards}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.25rem",
+            minWidth: 0,
+          }}
+        >
+          {badge}
+          {label}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      {...wrapper}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: big ? "0.35rem" : "0.3em",
+        maxWidth: big ? "11rem" : SHOWDOWN_LABEL_WIDTH,
+        cursor: "default",
+      }}
+    >
+      {flatCards}
+      {big ? (
+        <>
+          {badge}
+          {label}
+        </>
+      ) : (
+        verdict !== null && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4em",
+              maxWidth: "100%",
+              minWidth: 0,
             }}
           >
-            {verdict}
-          </span>
-        </div>
+            {badge}
+            {label}
+          </div>
+        )
       )}
     </div>
   );
@@ -285,8 +415,10 @@ export function Seats({
   shotClockSeconds = 90,
   onSeatClick,
   actionLabels,
+  showdownTreatment = "current",
 }: SeatsProps) {
   const showdown = showdownSeats(view);
+  const inlineTabled = showdownTreatment === "inline";
 
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
@@ -521,8 +653,12 @@ export function Seats({
               cursor: seat.claimed && onSeatClick ? "pointer" : undefined,
             }}
           >
-            {seatShowdown && !isTopRow && (
-              <ShowdownHand seatId={seat.id} showdown={seatShowdown} />
+            {seatShowdown && !inlineTabled && !isTopRow && (
+              <ShowdownHand
+                seatId={seat.id}
+                showdown={seatShowdown}
+                treatment={showdownTreatment}
+              />
             )}
             <motion.div
               data-testid={`seat-pod-${String(seat.id)}-surface`}
@@ -541,9 +677,9 @@ export function Seats({
                 borderRadius: "1em",
                 padding: "0.5em",
                 display: "flex",
-                flexDirection: "column",
+                flexDirection: inlineTabled && seatShowdown ? "row" : "column",
                 alignItems: "center",
-                gap: "0.4em",
+                gap: inlineTabled && seatShowdown ? "0.7em" : "0.4em",
                 background: visual.isWinner
                   ? color.seatWinnerBackground
                   : visual.isActor
@@ -568,10 +704,28 @@ export function Seats({
                       : 1,
               }}
             >
+              {seatShowdown && inlineTabled && !isTopRow && (
+                <ShowdownHand
+                  seatId={seat.id}
+                  showdown={seatShowdown}
+                  treatment={showdownTreatment}
+                />
+              )}
               {podContent}
+              {seatShowdown && inlineTabled && isTopRow && (
+                <ShowdownHand
+                  seatId={seat.id}
+                  showdown={seatShowdown}
+                  treatment={showdownTreatment}
+                />
+              )}
             </motion.div>
-            {seatShowdown && isTopRow && (
-              <ShowdownHand seatId={seat.id} showdown={seatShowdown} />
+            {seatShowdown && !inlineTabled && isTopRow && (
+              <ShowdownHand
+                seatId={seat.id}
+                showdown={seatShowdown}
+                treatment={showdownTreatment}
+              />
             )}
             <AnimatePresence>
               {visual.isActor ? (
