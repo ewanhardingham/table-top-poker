@@ -301,17 +301,25 @@ left open can never swallow the Board.
 
 **Scrub**:
 The table's replay transport: a timeline the width of the felt, ticked once
-per Replay position and chaptered by Street, draggable to any position.
+per Replay position and chaptered by Segment, draggable to any position.
 Autoplay is a secondary toggle, not the primary mode.
 _Avoid_: Calling it playback — getting to a moment is the point, not
 watching the Hand through.
 
+**Segment**:
+The stretch of a Hand a replay position belongs to: one of the four Streets,
+or Showdown. Showdown is not a Street — no betting round opens there — but it
+is a place a viewer wants to jump to, so the Scrub treats it as one more
+Segment after the River.
+
 **Chapter**:
-A Street's landmark on the Scrub, seeking to the position that Street opens
+A Segment's landmark on the Scrub, seeking to the position that Segment opens
 on. For every Street after preflop that is its `BoardDealt`, not its
 `StreetStarted`: the engine's cascade emits `StreetClosed → BoardDealt →
 StreetStarted`, so anchoring on the Street start lands after the cards
-appeared and the viewer never sees them arrive. Chapters are the navigation
+appeared and the viewer never sees them arrive. Showdown anchors on
+`ShowdownReached`, where the contestants are named. A folded-out Hand reaches
+no Showdown and so offers no such Chapter. Chapters are the navigation
 contract; the per-position ticks beside them are a visual affordance that
 may collapse on an unusually long Hand.
 
