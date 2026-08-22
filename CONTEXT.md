@@ -321,6 +321,8 @@ the live "To act" pill uses. Folded back out of the Event stream: the table
 view's Seats carry only `folded`, so the view at a position cannot supply
 them. Cleared at each new Street, on the same boundary a Chapter anchors to —
 once the Turn is out, "Seat 4 called" is about a Street nobody is looking at.
+Cleared again when the betting ends, at Showdown or a fold-out: the reveals
+and the verdict are what the felt is saying then.
 Raise is orange rather than accent red, which belongs to the clock, and Call
 is the one cool fill on an otherwise warm felt.
 _Avoid_: Showing one beside a "To act" pill. They share a slot, and the

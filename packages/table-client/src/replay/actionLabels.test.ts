@@ -89,6 +89,24 @@ describe("actionLabelsAt", () => {
     expect([...labels.entries()]).toEqual([[1, "check"]]);
   });
 
+  it("clears every label once the hand reaches showdown", () => {
+    const positions = positionsFor([
+      ...preflop,
+      { type: "ShowdownReached", contestants: [1, 2] },
+    ]);
+
+    expect(actionLabelsAt(positions, preflop.length + 1).size).toBe(0);
+  });
+
+  it("clears every label once the hand is folded out", () => {
+    const positions = positionsFor([
+      ...preflop,
+      { type: "HandFoldedOut", winner: 2 },
+    ]);
+
+    expect(actionLabelsAt(positions, preflop.length + 1).size).toBe(0);
+  });
+
   it("survives a position past the end of the hand", () => {
     const labels = actionLabelsAt(positionsFor(preflop), 99);
 
