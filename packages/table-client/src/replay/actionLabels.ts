@@ -17,6 +17,10 @@ export function actionLabelsAt(
 
   for (const { event } of positions.slice(1, position + 1)) {
     if (event === null) continue;
+    if (event.type === "ShowdownReached" || event.type === "HandFoldedOut") {
+      labels.clear();
+      continue;
+    }
     const next = streetOf(event, street);
     if (next !== street) labels.clear();
     street = next;
