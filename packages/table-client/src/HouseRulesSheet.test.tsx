@@ -1,6 +1,5 @@
 import {
   DEFAULT_SHOT_CLOCK,
-  DEFAULT_SHOWDOWN_OVERLAY,
   DEFAULT_SOUND_SETTINGS,
   type SeatView,
 } from "@table-top-poker/protocol";
@@ -100,10 +99,8 @@ function renderSheet(
       seats={seats.slice(0, 4)}
       handInProgress
       soundSettings={DEFAULT_SOUND_SETTINGS}
-      showdownOverlay={DEFAULT_SHOWDOWN_OVERLAY}
       onApply={noop}
       onChangeSoundSettings={noop}
-      onChangeShowdownOverlay={noop}
       onClose={noop}
       {...overrides}
     />
@@ -150,29 +147,6 @@ async function settleReactUpdates(): Promise<void> {
 }
 
 describe("HouseRulesSheet", () => {
-  it("offers the showdown overlay as a house rule, off by default", () => {
-    const html = renderToStaticMarkup(renderSheet());
-
-    expect(html).toContain('data-testid="showdown-settings"');
-    expect(html).toMatch(
-      /aria-checked="false"[^>]*data-testid="showdown-overlay-toggle"/,
-    );
-  });
-
-  it("reports a showdown overlay change straight away", () => {
-    const onChangeShowdownOverlay = vi.fn();
-    let renderer!: TestRenderer;
-    act(() => {
-      renderer = create(renderSheet({ onChangeShowdownOverlay }));
-    });
-
-    act(() => {
-      findNode(renderer, "showdown-overlay-toggle").props.onClick?.();
-    });
-
-    expect(onChangeShowdownOverlay).toHaveBeenCalledWith({ enabled: true });
-  });
-
   it("shows the chosen house-rules surface and a repack preview", () => {
     const html = renderToStaticMarkup(
       <HouseRulesSheet
@@ -182,10 +156,8 @@ describe("HouseRulesSheet", () => {
         seats={seats}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
-        showdownOverlay={DEFAULT_SHOWDOWN_OVERLAY}
         onApply={noop}
         onChangeSoundSettings={noop}
-        onChangeShowdownOverlay={noop}
         onClose={noop}
       />,
     );
@@ -206,10 +178,8 @@ describe("HouseRulesSheet", () => {
         seats={seats}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
-        showdownOverlay={DEFAULT_SHOWDOWN_OVERLAY}
         onApply={noop}
         onChangeSoundSettings={noop}
-        onChangeShowdownOverlay={noop}
         onClose={noop}
       />,
     );
@@ -230,10 +200,8 @@ describe("HouseRulesSheet", () => {
         seats={seats.slice(0, 4)}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
-        showdownOverlay={DEFAULT_SHOWDOWN_OVERLAY}
         onApply={noop}
         onChangeSoundSettings={noop}
-        onChangeShowdownOverlay={noop}
         onClose={noop}
       />,
     );
@@ -255,10 +223,8 @@ describe("HouseRulesSheet", () => {
           actions: true,
           notifications: true,
         }}
-        showdownOverlay={DEFAULT_SHOWDOWN_OVERLAY}
         onApply={noop}
         onChangeSoundSettings={noop}
-        onChangeShowdownOverlay={noop}
         onClose={noop}
       />,
     );
@@ -289,10 +255,8 @@ describe("HouseRulesSheet", () => {
           actions: true,
           notifications: true,
         }}
-        showdownOverlay={DEFAULT_SHOWDOWN_OVERLAY}
         onApply={noop}
         onChangeSoundSettings={noop}
-        onChangeShowdownOverlay={noop}
         onClose={noop}
       />,
     );
@@ -314,11 +278,9 @@ describe("HouseRulesSheet", () => {
         seats={seats.slice(0, 4)}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
-        showdownOverlay={DEFAULT_SHOWDOWN_OVERLAY}
         onApply={noop}
         onApplyShotClock={noop}
         onChangeSoundSettings={noop}
-        onChangeShowdownOverlay={noop}
         onClose={noop}
       />,
     );

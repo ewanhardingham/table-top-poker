@@ -2,7 +2,6 @@ import type {
   RoomView,
   SeatCountChange,
   ShotClockSettings,
-  ShowdownOverlaySettings,
   SoundSettings,
 } from "@table-top-poker/protocol";
 
@@ -123,21 +122,4 @@ export async function changeShotClockSettings(
     );
   }
   return (await response.json()) as ShotClockSettings;
-}
-
-export async function changeShowdownOverlay(
-  code: string,
-  settings: ShowdownOverlaySettings,
-): Promise<ShowdownOverlaySettings> {
-  const response = await fetch(`/rooms/${code}/showdown-overlay`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(settings),
-  });
-  if (!response.ok) {
-    throw new Error(
-      `failed to change showdown overlay: ${String(response.status)}`,
-    );
-  }
-  return (await response.json()) as ShowdownOverlaySettings;
 }
