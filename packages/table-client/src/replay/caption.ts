@@ -49,6 +49,8 @@ export function captionFor(
       return "Showdown";
     case "HoleCardsShown":
       return `${seatLabel(event.result.seatId, seats)} shows ${event.result.description}`;
+    case "HoleCardsMucked":
+      return `${seatLabel(event.seatId, seats)} mucks`;
     case "WinnersDeclared":
       return winnersCaption(event, seats);
     case "HandComplete":

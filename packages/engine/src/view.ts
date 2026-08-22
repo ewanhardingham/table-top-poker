@@ -28,19 +28,27 @@ interface FoldedOutView extends HandPositions {
 
 export interface ShowdownView extends HandPositions {
   readonly phase: "showdown";
+  readonly turnEndsAt: number | null;
   readonly board: readonly Card[];
   /** Every Seat that reached showdown, shown or not — see ADR-0008. */
   readonly contestants: readonly SeatId[];
   /** Shown Seats only, in the order they were turned over. */
   readonly results: readonly RevealedResult[];
-  /** Null until the table reveals: the Hand rests before it resolves. */
+  /** Contestants still owing a show or a muck, head first — see ADR-0009. */
+  readonly queue: readonly SeatId[];
+  /** Declined: distinct from a contestant who has simply not shown yet. */
+  readonly mucked: readonly SeatId[];
+  /** Null until the queue empties: the Hand rests before it resolves. */
   readonly winners: readonly SeatId[] | null;
 }
 
 export interface PlayerShowdownView extends ShowdownView {
   readonly yourSeatId: SeatId;
   readonly yourResult: RevealedResult | null;
+  /** It is your turn in the showing window. */
   readonly canShow: boolean;
+  /** Your turn, and some hand is already face-up to discharge the compulsion. */
+  readonly canMuck: boolean;
 }
 
 export interface PlayerViewBetting extends HandPositions {
@@ -109,6 +117,7 @@ export function view(
   if (hand.status === "complete") {
     const showdownView: ShowdownView = {
       phase: "showdown",
+      turnEndsAt,
       button: hand.button,
       smallBlind: hand.smallBlind,
       bigBlind: hand.bigBlind,
@@ -116,6 +125,8 @@ export function view(
       board: hand.board,
       contestants: hand.contestants.map((contestant) => contestant.seatId),
       results: hand.results,
+      queue: hand.queue,
+      mucked: hand.mucked,
       winners: hand.winners,
     };
     if (seatId === "table") return showdownView;
@@ -123,14 +134,16 @@ export function view(
     const yours = hand.contestants.find(
       (contestant) => contestant.seatId === seatId,
     );
+    const canShow = hand.winners === null && hand.queue[0] === seatId;
     return {
       ...showdownView,
       yourSeatId: seatId,
       yourResult:
-        yours === undefined ? null : revealedResultFor(hand.board, yours),
-      canShow:
-        yours !== undefined &&
-        !hand.results.some((shown) => shown.seatId === seatId),
+        yours === undefined || hand.mucked.includes(seatId)
+          ? null
+          : revealedResultFor(hand.board, yours),
+      canShow,
+      canMuck: canShow && hand.results.length > 0,
     };
   }
 

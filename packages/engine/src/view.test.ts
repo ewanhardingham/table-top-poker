@@ -254,9 +254,11 @@ function assertNoLeak(
 ): void {
   const shown = new Set<SeatId>();
   const contestants = new Set<SeatId>();
+  const mucked = new Set<SeatId>();
   if (state.hand?.status === "complete" && state.hand.reason === "showdown") {
     for (const result of state.hand.results) shown.add(result.seatId);
     for (const c of state.hand.contestants) contestants.add(c.seatId);
+    for (const seatId of state.hand.mucked) mucked.add(seatId);
   }
 
   const viewers: (SeatId | "table")[] = [...seats, "table"];
@@ -271,7 +273,7 @@ function assertNoLeak(
         v === seatId &&
         (state.hand?.status === "betting"
           ? !must(state.hand.players.get(seatId)).folded
-          : contestants.has(seatId));
+          : contestants.has(seatId) && !mucked.has(seatId));
 
       for (const card of cards) {
         const present = cardKeys.has(`${card.rank}${card.suit}`);
@@ -329,8 +331,8 @@ describe("property: view never leaks a hole card it isn't entitled to", () => {
           }
 
           for (const command of [
-            { type: "reveal", seatId: firstPlayer },
             ...seats.map((seatId) => ({ type: "show", seatId }) as const),
+            ...seats.map((seatId) => ({ type: "muck", seatId }) as const),
           ] as const) {
             const result = decide(state, command);
             if (!Array.isArray(result)) continue;

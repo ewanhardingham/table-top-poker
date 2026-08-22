@@ -38,23 +38,22 @@ describe("TableControls", () => {
     expect(html).toContain('data-testid="next-hand-button"');
   });
 
-  it("swaps Next hand for Reveal until the table has revealed", () => {
+  it("withholds Next hand while the showing window is open", () => {
     const awaiting = renderToStaticMarkup(
       <TableControls
         canStartHand={false}
         handComplete
         canDealNextHand
-        awaitingReveal
+        awaitingShowdown
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}
-        onReveal={noop}
       />,
     );
-    expect(awaiting).toContain('data-testid="reveal-button"');
+    expect(awaiting).toContain('data-testid="showdown-in-progress-hint"');
     expect(awaiting).not.toContain('data-testid="next-hand-button"');
 
-    const revealed = renderToStaticMarkup(
+    const closed = renderToStaticMarkup(
       <TableControls
         canStartHand={false}
         handComplete
@@ -62,11 +61,26 @@ describe("TableControls", () => {
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}
-        onReveal={noop}
       />,
     );
-    expect(revealed).not.toContain('data-testid="reveal-button"');
-    expect(revealed).toContain('data-testid="next-hand-button"');
+    expect(closed).not.toContain('data-testid="showdown-in-progress-hint"');
+    expect(closed).toContain('data-testid="next-hand-button"');
+  });
+
+  it("surfaces the engine's reason when the table deals too early", () => {
+    const html = renderToStaticMarkup(
+      <TableControls
+        canStartHand={false}
+        handComplete
+        canDealNextHand
+        awaitingShowdown
+        rejectionHint="The hands are still being turned over"
+        onStartHand={noop}
+        onNextHand={noop}
+        onEndSession={noop}
+      />,
+    );
+    expect(html).toContain("The hands are still being turned over");
   });
 
   it("shows neither deal control mid-hand", () => {

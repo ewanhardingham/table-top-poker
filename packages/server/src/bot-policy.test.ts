@@ -2,6 +2,7 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   chooseBotAction,
+  chooseShowdownAction,
   DEFAULT_BOT_ACTION_WEIGHTS,
   DEFAULT_SIT_IN_PROBABILITY,
   DEFAULT_SIT_OUT_PROBABILITY,
@@ -166,5 +167,16 @@ describe("sit-out/in rolls", () => {
   it("rejects probabilities outside the unit interval", () => {
     expect(() => shouldSitOut(() => 0, -0.01)).toThrow(RangeError);
     expect(() => shouldSitIn(() => 0, 1.01)).toThrow(RangeError);
+  });
+});
+
+describe("chooseShowdownAction", () => {
+  it("shows when compelled, whatever the roll says", () => {
+    expect(chooseShowdownAction(true, () => 0.99)).toBe("show");
+  });
+
+  it("leans heavily on showing when free to muck", () => {
+    expect(chooseShowdownAction(false, () => 0.5)).toBe("show");
+    expect(chooseShowdownAction(false, () => 0.99)).toBe("muck");
   });
 });

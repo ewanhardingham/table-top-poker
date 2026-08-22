@@ -8,8 +8,11 @@ import { eventsForPropChange, eventsForVisibility } from "./viewEvents.js";
 const actions: CardActions = {
   foldLegal: false,
   checkLegal: false,
+  showdownOpen: false,
   showLegal: false,
+  muckLegal: false,
   pending: false,
+  muck: () => undefined,
   fold: () => undefined,
   check: () => undefined,
   show: () => undefined,
@@ -283,27 +286,37 @@ describe("eventsForPropChange", () => {
   });
 
   describe("the showing window opening", () => {
-    const showable: CardActions = { ...actions, showLegal: true };
+    const open: CardActions = { ...actions, showdownOpen: true };
 
-    it("returns the pair face-down, so the reveal that publishes is deliberate", () => {
+    it("returns every contestant's pair face-down as the window opens", () => {
       expect(
         eventsForPropChange(
           props({ cards: queenJack }),
-          props({ cards: queenJack, actions: showable }),
+          props({ cards: queenJack, actions: open }),
           revealed,
         ),
       ).toEqual([{ type: "RESET" }]);
     });
 
+    it("does not reset again when the turn merely reaches this seat", () => {
+      expect(
+        eventsForPropChange(
+          props({ cards: queenJack, actions: open }),
+          props({ cards: queenJack, actions: { ...open, showLegal: true } }),
+          revealed,
+        ),
+      ).toEqual([]);
+    });
+
     it("produces nothing while the window is unchanged", () => {
-      const open = props({ cards: queenJack, actions: showable });
-      expect(eventsForPropChange(open, { ...open }, revealed)).toEqual([]);
+      const during = props({ cards: queenJack, actions: open });
+      expect(eventsForPropChange(during, { ...during }, revealed)).toEqual([]);
     });
 
     it("produces nothing when the window closes", () => {
       expect(
         eventsForPropChange(
-          props({ cards: queenJack, actions: showable }),
+          props({ cards: queenJack, actions: open }),
           props({ cards: queenJack }),
           revealed,
         ),

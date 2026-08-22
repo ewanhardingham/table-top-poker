@@ -42,6 +42,9 @@ export function useWebSocket(
   const addHandSummary = useTableStore((state) => state.addHandSummary);
   const receiveReplay = useTableStore((state) => state.receiveReplay);
   const failReview = useTableStore((state) => state.failReview);
+  const setCommandRejection = useTableStore(
+    (state) => state.setCommandRejection,
+  );
   const socketRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -93,11 +96,11 @@ export function useWebSocket(
           addHandSummary(message.summary);
         } else if (message.type === "hand-replay") {
           receiveReplay(message.handOrdinal, message.positions);
-        } else if (
-          message.type === "command-rejected" &&
-          message.reason === "hand-unavailable"
-        ) {
-          failReview();
+        } else if (message.type === "command-rejected") {
+          if (message.reason === "hand-unavailable") failReview();
+          else if (message.reason === "showdown-unresolved") {
+            setCommandRejection(message.reason);
+          }
         } else if (message.type === "room-ended") {
           optionsRef.current.onRoomEnded?.();
         } else if (message.type === "recording-stopped") {
@@ -124,6 +127,7 @@ export function useWebSocket(
     addHandSummary,
     receiveReplay,
     failReview,
+    setCommandRejection,
   ]);
 
   const send = useCallback((message: ClientCommand | ReplayRequest) => {

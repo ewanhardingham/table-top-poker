@@ -54,7 +54,7 @@ describe("hand-1 fixture: replay through the engine", () => {
     let state = createInitialState([0, 1, 2]);
     for (const event of events) state = apply(state, event);
 
-    expect(ENGINE_LOG_VERSION).toBe(5);
+    expect(ENGINE_LOG_VERSION).toBe(6);
     if (state.hand?.status !== "complete") throw new Error("expected complete");
     expect(state.hand.button).toBe(0);
     expect(state.hand.smallBlind).toBe(1);

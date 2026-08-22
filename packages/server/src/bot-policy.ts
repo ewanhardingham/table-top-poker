@@ -63,6 +63,20 @@ export function chooseBotAction(
   throw new Error("chooseBotAction lost its supplied legal action");
 }
 
+export const DEFAULT_BOT_SHOW_PROBABILITY = 0.85;
+
+export type BotShowdownAction = "show" | "muck";
+
+/** Weighted heavily toward showing; a compelled head has no choice at all. */
+export function chooseShowdownAction(
+  compelled: boolean,
+  rng: BotRng = Math.random,
+  probability: number = DEFAULT_BOT_SHOW_PROBABILITY,
+): BotShowdownAction {
+  if (compelled) return "show";
+  return rollBelow(rng, probability) ? "show" : "muck";
+}
+
 function rollBelow(rng: BotRng, probability: number): boolean {
   assertProbability(probability);
   return unitRandom(rng) < probability;

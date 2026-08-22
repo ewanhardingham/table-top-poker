@@ -319,6 +319,8 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
         dispatchFromPointer(effect.event);
       } else if (effect.action === "check") {
         props.actions.check();
+      } else if (effect.action === "muck") {
+        props.actions.muck();
       } else {
         props.actions.fold();
       }
@@ -364,7 +366,7 @@ export function useHoleCards(props: HoleCardPairProps): HoleCards {
         active,
         { x: event.clientX, y: event.clientY },
         {
-          foldLegal: props.actions.foldLegal,
+          foldLegal: props.actions.foldLegal || props.actions.muckLegal,
           foldThresholdPx: foldThreshold(window.innerHeight),
         },
       );

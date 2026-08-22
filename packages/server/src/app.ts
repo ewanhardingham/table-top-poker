@@ -4,6 +4,7 @@ import {
   AddBotsRequestSchema,
   ChangeSeatCountRequestSchema,
   ChangeShotClockRequestSchema,
+  ChangeShowdownClockRequestSchema,
   ChangeSoundSettingsRequestSchema,
   ClaimSeatRequestSchema,
   LeaveSeatRequestSchema,
@@ -33,6 +34,7 @@ import type { WebSocket } from "ws";
 import { ActionClock } from "./action-clock.js";
 import {
   chooseBotAction,
+  chooseShowdownAction,
   shouldSitIn,
   shouldSitOut,
   unitRandom,
@@ -49,6 +51,7 @@ import {
   type EvictSeatResult,
   type Room,
   RoomStore,
+  type SeatCommandType,
   toRoomView,
 } from "./rooms.js";
 import { RoomRecordings, type PausedRoom } from "./room-recordings.js";
@@ -79,6 +82,8 @@ export interface BuildAppOptions {
   readonly now?: () => Date;
   /** Overridable for tests only; production runs `ActionClock`'s 90s default. */
   readonly actionClockMs?: number;
+  /** Overridable for tests only; production reads the room's showdown clock. */
+  readonly showdownClockMs?: number;
   readonly actionClock?: ActionClock;
   readonly pingIntervalMs?: number;
   readonly missedPongLimit?: number;
@@ -661,15 +666,24 @@ export async function buildApp(
     return changed;
   }
 
+  function botSeatAt(code: string, actor: SeatId | undefined): boolean {
+    if (actor === undefined) return false;
+    const seat = rooms.get(code)?.seats[actor];
+    return seat?.claimed === true && seat.bot === true;
+  }
+
+  /**
+   * A bot in the showing queue would otherwise wedge the room, so it resolves
+   * on its own turn — after the usual delay, never instantly (ADR-0009).
+   */
   function scheduleBotAction(code: string): void {
     clearBotActionTimer(code);
     if (!testMode) return;
 
-    const room = rooms.get(code);
-    const actor = rooms.currentActor(code);
-    if (room === undefined || actor === undefined) return;
-    const seat = room.seats[actor];
-    if (!seat?.claimed || seat.bot !== true) return;
+    const betting = rooms.currentActor(code);
+    const showing = rooms.showdownActor(code);
+    const actor = betting ?? showing;
+    if (!botSeatAt(code, actor) || actor === undefined) return;
 
     const timer = setTimeout(
       () => {
@@ -677,21 +691,14 @@ export async function buildApp(
         enqueueDetached(code, async () => {
           if (roomRecordings.isPaused(code)) return;
           const currentRoom = rooms.get(code);
-          if (!currentRoom || rooms.currentActor(code) !== actor) return;
-          const currentSeat = currentRoom.seats[actor];
-          if (!currentSeat?.claimed || currentSeat.bot !== true) return;
-          const engine = currentRoom.engine;
-          if (engine?.hand?.status !== "betting") return;
+          if (!currentRoom || !botSeatAt(code, actor)) return;
 
-          const actorView = view(engine, actor);
-          if (
-            actorView.phase !== "betting" ||
-            actorView.legalActions.length === 0
-          ) {
-            return;
-          }
+          const action =
+            betting === undefined
+              ? botShowdownAction(code, actor)
+              : botBettingAction(currentRoom, actor);
+          if (action === null) return;
 
-          const action = chooseBotAction(actorView.legalActions, botRng);
           const result = rooms.dispatch(code, actor, action);
           if (!("commit" in result)) {
             rescheduleActionClock(code);
@@ -706,27 +713,54 @@ export async function buildApp(
     botActionTimers.set(code, timer);
   }
 
+  function botBettingAction(room: Room, actor: SeatId): SeatCommandType | null {
+    if (rooms.currentActor(room.code) !== actor) return null;
+    const engine = room.engine;
+    if (engine?.hand?.status !== "betting") return null;
+    const actorView = view(engine, actor);
+    if (actorView.phase !== "betting" || actorView.legalActions.length === 0) {
+      return null;
+    }
+    return chooseBotAction(actorView.legalActions, botRng);
+  }
+
+  function botShowdownAction(
+    code: string,
+    actor: SeatId,
+  ): SeatCommandType | null {
+    if (rooms.showdownActor(code) !== actor) return null;
+    return chooseShowdownAction(rooms.showdownCompelled(code), botRng);
+  }
+
+  /**
+   * One scheduler for both clocks: the betting turn's, which the room may turn
+   * off, and the showing window's, which it may not — see ADR-0009. Expiry is
+   * an ordinary Command, so the engine keeps no notion of time.
+   */
   function rescheduleActionClock(
     code: string,
     policy: ActionClockPolicy = "reschedule",
   ): void {
     const room = rooms.get(code);
-    const actor = rooms.currentActor(code);
-    if (room === undefined || actor === undefined) {
+    if (room === undefined) {
       cancelActionClock(code);
       return;
     }
 
-    const { enabled, seconds } = room.shotClockSettings;
-    if (!enabled) {
+    const betting = rooms.currentActor(code);
+    const showing = rooms.showdownActor(code);
+    const actor = betting ?? showing;
+    if (actor === undefined) {
       cancelActionClock(code);
       return;
     }
 
-    const fullInterval =
-      options.actionClock === undefined && options.actionClockMs !== undefined
-        ? options.actionClockMs
-        : seconds * 1000;
+    if (betting !== undefined && !room.shotClockSettings.enabled) {
+      cancelActionClock(code);
+      return;
+    }
+
+    const fullInterval = clockIntervalMs(room, betting !== undefined);
     const preserved = policy === "preserve" ? room.turnEndsAt : null;
     const timeoutMs =
       preserved === null
@@ -739,20 +773,15 @@ export async function buildApp(
         if (roomRecordings.isPaused(code)) return;
         const currentRoom = rooms.get(code);
         if (currentRoom?.revision !== scheduledAt) return;
-        if (rooms.currentActor(code) !== actor) {
+        if ((rooms.currentActor(code) ?? rooms.showdownActor(code)) !== actor) {
           rescheduleActionClock(code);
           return;
         }
 
-        const actorView =
-          currentRoom.engine === null
-            ? undefined
-            : view(currentRoom.engine, actor);
         const action =
-          actorView?.phase === "betting" &&
-          actorView.legalActions.includes("check")
-            ? "check"
-            : "fold";
+          betting === undefined
+            ? expiryShowdownAction(code)
+            : expiryBettingAction(currentRoom, actor);
         const result = rooms.dispatch(code, actor, action);
         if ("commit" in result) {
           await publishDispatch(code, result);
@@ -761,6 +790,33 @@ export async function buildApp(
         rescheduleActionClock(code);
       });
     });
+  }
+
+  function clockIntervalMs(room: Room, betting: boolean): number {
+    if (betting) {
+      return options.actionClock === undefined &&
+        options.actionClockMs !== undefined
+        ? options.actionClockMs
+        : room.shotClockSettings.seconds * 1000;
+    }
+    return options.actionClock === undefined &&
+      options.showdownClockMs !== undefined
+      ? options.showdownClockMs
+      : room.showdownClockSettings.seconds * 1000;
+  }
+
+  function expiryBettingAction(room: Room, actor: SeatId): SeatCommandType {
+    const actorView =
+      room.engine === null ? undefined : view(room.engine, actor);
+    return actorView?.phase === "betting" &&
+      actorView.legalActions.includes("check")
+      ? "check"
+      : "fold";
+  }
+
+  /** The one place cards are turned over for a player: a compelled head shows. */
+  function expiryShowdownAction(code: string): SeatCommandType {
+    return rooms.showdownCompelled(code) ? "show" : "muck";
   }
 
   /** The one place the live path and a resuming Retry both settle through. */
@@ -1004,6 +1060,32 @@ export async function buildApp(
     }
     return result;
   });
+
+  app.post<RoomCodeRoute>(
+    "/rooms/:code/showdown-clock",
+    async (request, reply) => {
+      const body = ChangeShowdownClockRequestSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: "invalid-request-body" });
+      }
+      const room = findRoomOrReject(rooms, request.params.code, reply);
+      if (!room) return;
+      const result = await enqueue(room.code, () => {
+        const settings = rooms.changeShowdownClockSettings(
+          room.code,
+          body.data,
+        );
+        if (!("error" in settings)) broadcastRoomView(room.code);
+        return settings;
+      });
+      if ("error" in result) {
+        return reply
+          .code(result.error === "room-not-found" ? 404 : 400)
+          .send({ error: result.error });
+      }
+      return result;
+    },
+  );
 
   app.get<RoomCodeRoute>("/join/:code", (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);

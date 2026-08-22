@@ -58,6 +58,9 @@ const completeHand: TableView = {
 
 const showdownHand: TableView = {
   phase: "showdown",
+  turnEndsAt: null,
+  queue: [],
+  mucked: [],
   button: 0,
   smallBlind: 1,
   bigBlind: 2,
@@ -107,10 +110,11 @@ function enterRoom(
   };
 }
 
-const awaitingReveal: TableView = {
+const openWindow: TableView = {
   ...showdownHand,
   winners: null,
   results: [],
+  queue: [0, 1],
 };
 
 describe("App", () => {
@@ -215,18 +219,18 @@ describe("App", () => {
     expect(html).toContain('data-testid="next-hand-button"');
   });
 
-  it("puts Reveal where Next hand goes until the table has revealed", () => {
-    enterRoom(2, awaitingReveal);
-    const revealing = renderToStaticMarkup(<App />);
+  it("withholds Next hand while the showing window is open", () => {
+    enterRoom(2, openWindow);
+    const showing = renderToStaticMarkup(<App />);
 
-    expect(revealing).toContain('data-testid="reveal-button"');
-    expect(revealing).not.toContain('data-testid="next-hand-button"');
+    expect(showing).toContain('data-testid="showdown-in-progress-hint"');
+    expect(showing).not.toContain('data-testid="next-hand-button"');
 
     enterRoom(2, showdownHand);
-    const revealed = renderToStaticMarkup(<App />);
+    const closed = renderToStaticMarkup(<App />);
 
-    expect(revealed).not.toContain('data-testid="reveal-button"');
-    expect(revealed).toContain('data-testid="next-hand-button"');
+    expect(closed).not.toContain('data-testid="showdown-in-progress-hint"');
+    expect(closed).toContain('data-testid="next-hand-button"');
   });
 
   it("banners a fold-out ending", () => {

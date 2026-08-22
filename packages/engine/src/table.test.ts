@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createInitialState } from "./room.js";
-import { legalActions } from "./table.js";
+import { legalActions, showingOrder } from "./table.js";
 import { playAll } from "./test-utils.js";
 import { must } from "./util.js";
 
@@ -80,5 +80,41 @@ describe("legalActions", () => {
       "call",
       "allInCall",
     ]);
+  });
+});
+
+describe("showingOrder", () => {
+  const contestants = (
+    seats: readonly number[],
+    allIn: readonly number[] = [],
+  ) => seats.map((seatId) => ({ seatId, allIn: allIn.includes(seatId) }));
+
+  // Button 0, so the ring runs 1, 2, 3, 0 — clockwise from its left.
+  const ring = [1, 2, 3, 0];
+
+  it("starts at the river's last aggressor and runs clockwise, wrapping", () => {
+    expect(showingOrder(ring, contestants([0, 1, 2, 3]), 3)).toEqual([
+      3, 0, 1, 2,
+    ]);
+  });
+
+  it("starts left of the button when the river checked through", () => {
+    expect(showingOrder(ring, contestants([0, 1, 2, 3]), null)).toEqual([
+      1, 2, 3, 0,
+    ]);
+  });
+
+  it("skips a folded seat while keeping the rest in order", () => {
+    expect(showingOrder(ring, contestants([0, 2, 3]), null)).toEqual([2, 3, 0]);
+  });
+
+  it("leaves all-in seats out, and falls back when the aggressor is one", () => {
+    expect(showingOrder(ring, contestants([0, 1, 2, 3], [3]), 3)).toEqual([
+      1, 2, 0,
+    ]);
+  });
+
+  it("empties when every contestant is all-in", () => {
+    expect(showingOrder(ring, contestants([0, 1], [0, 1]), 1)).toEqual([]);
   });
 });

@@ -102,6 +102,10 @@ export function createSoundEngine(
         }
         break;
 
+      case "HoleCardsMucked":
+        if (surface === "player" && event.seatId === seatId) playCue("fold");
+        break;
+
       case "StreetStarted":
       case "StreetClosed":
       case "ShowdownReached":

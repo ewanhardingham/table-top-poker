@@ -1,6 +1,7 @@
 import {
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_CLOCK,
   ENGINE_LOG_VERSION,
   legalActions,
   DEFAULT_SOUND_SETTINGS,
@@ -201,6 +202,7 @@ describe("rooms HTTP routes", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
       seats: unclaimedSeats(),
     });
   });
@@ -1272,6 +1274,7 @@ describe("WebSocket upgrade", () => {
         pendingShotClock: null,
         soundSettings: DEFAULT_SOUND_SETTINGS,
         shotClockSettings: DEFAULT_SHOT_CLOCK,
+        showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
         seats: unclaimedSeats(),
       },
     });
@@ -2112,6 +2115,172 @@ describe("room recording", () => {
       seat0.close();
       seat1.close();
       await app.close();
+    }
+  });
+});
+
+describe("showdown clock", () => {
+  const SHOWDOWN_CLOCK_MS = 200;
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({
+      rooms,
+      recordings: testRecordings(),
+      showdownClockMs: SHOWDOWN_CLOCK_MS,
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  function connect(query: string): {
+    socket: WebSocket;
+    messages: ServerMessage[];
+  } {
+    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/ws?${query}`);
+    const messages: ServerMessage[] = [];
+    socket.on("message", (data: Buffer) => {
+      messages.push(JSON.parse(data.toString()) as ServerMessage);
+    });
+    return { socket, messages };
+  }
+
+  async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+  }
+
+  async function settle(ms = 10): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function headsUpAtShowdown(): Promise<{
+    room: ReturnType<RoomStore["create"]>;
+    table: { socket: WebSocket; messages: ServerMessage[] };
+    seats: Map<number, WebSocket>;
+  }> {
+    const room = rooms.create(2);
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seats = new Map<number, WebSocket>();
+    for (const seatId of [0, 1]) {
+      const claim = rooms.claimSeat(room.code, seatId, `P${String(seatId)}`);
+      if (!("seat" in claim)) throw new Error("expected a claimed seat");
+      const conn = connect(
+        `room=${room.code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
+      );
+      await opened(conn.socket);
+      seats.set(seatId, conn.socket);
+    }
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    for (let step = 0; step < 16; step++) {
+      const actor = rooms.currentActor(room.code);
+      if (actor === undefined) break;
+      const socket = seats.get(actor);
+      if (socket === undefined) throw new Error("expected the actor's socket");
+      socket.send(JSON.stringify({ type: "call" }));
+      await settle();
+      if (rooms.currentActor(room.code) === actor) {
+        socket.send(JSON.stringify({ type: "check" }));
+        await settle();
+      }
+    }
+    if (rooms.showdownActor(room.code) === undefined) {
+      throw new Error("hand never reached an open showing window");
+    }
+    return { room, table, seats };
+  }
+
+  function showdownEvents(messages: ServerMessage[]) {
+    return messages
+      .filter((m) => m.type === "hand-update")
+      .map((m) => m.event)
+      .filter(
+        (e) => e.type === "HoleCardsShown" || e.type === "HoleCardsMucked",
+      );
+  }
+
+  it("shows a compelled head when the clock elapses, then mucks the rest", async () => {
+    const { room, table, seats } = await headsUpAtShowdown();
+    try {
+      const head = rooms.showdownActor(room.code);
+      expect(rooms.showdownCompelled(room.code)).toBe(true);
+
+      await settle(SHOWDOWN_CLOCK_MS + 60);
+      expect(showdownEvents(table.messages)).toEqual([
+        expect.objectContaining({ type: "HoleCardsShown" }),
+      ]);
+      expect(rooms.showdownActor(room.code)).not.toBe(head);
+
+      await settle(SHOWDOWN_CLOCK_MS + 60);
+      expect(showdownEvents(table.messages)).toEqual([
+        expect.objectContaining({ type: "HoleCardsShown" }),
+        expect.objectContaining({ type: "HoleCardsMucked" }),
+      ]);
+      expect(rooms.showdownActor(room.code)).toBeUndefined();
+    } finally {
+      table.socket.close();
+      for (const socket of seats.values()) socket.close();
+    }
+  });
+
+  it("runs even though the shot clock is off — it cannot be disabled", async () => {
+    const { room, table, seats } = await headsUpAtShowdown();
+    try {
+      expect(room.shotClockSettings.enabled).toBe(false);
+      expect(room.turnEndsAt).toEqual(expect.any(Number));
+
+      const views = table.messages
+        .filter(
+          (
+            message,
+          ): message is Extract<ServerMessage, { type: "hand-update" }> =>
+            message.type === "hand-update" && message.view.phase === "showdown",
+        )
+        .map((message) => message.view);
+      expect(views.length).toBeGreaterThan(0);
+      expect(
+        views.every(
+          (view) => view.phase === "showdown" && view.turnEndsAt !== null,
+        ),
+      ).toBe(true);
+    } finally {
+      table.socket.close();
+      for (const socket of seats.values()) socket.close();
+    }
+  });
+
+  it("holds the next hand until the window closes", async () => {
+    const { room, table, seats } = await headsUpAtShowdown();
+    try {
+      table.socket.send(JSON.stringify({ type: "nextHand" }));
+      await settle();
+
+      expect(
+        table.messages.filter((m) => m.type === "command-rejected"),
+      ).toEqual([{ type: "command-rejected", reason: "showdown-unresolved" }]);
+      expect(rooms.showdownActor(room.code)).toBeDefined();
+    } finally {
+      table.socket.close();
+      for (const socket of seats.values()) socket.close();
     }
   });
 });

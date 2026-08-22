@@ -19,6 +19,8 @@ export function rejectionCopy(
       return "That hand has already moved on.";
     case "not-at-showdown":
       return "There's no hand of yours to show.";
+    case "showdown-unresolved":
+      return "The hands are still being turned over.";
     case "invalid-command":
       return "That didn't go through — try again.";
     case "room-not-found":

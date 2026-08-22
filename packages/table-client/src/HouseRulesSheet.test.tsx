@@ -1,5 +1,6 @@
 import {
   DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   type SeatView,
 } from "@table-top-poker/protocol";
@@ -86,6 +87,8 @@ const shotClockProps = {
   pendingShotClock: null,
   shotClockSettings: DEFAULT_SHOT_CLOCK,
   onApplyShotClock: noop,
+  showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
+  onApplyShowdownClock: noop,
 };
 
 function renderSheet(
@@ -275,11 +278,13 @@ describe("HouseRulesSheet", () => {
         pendingSeatCount={null}
         pendingShotClock={{ enabled: true, seconds: 30 }}
         shotClockSettings={DEFAULT_SHOT_CLOCK}
+        showdownClockSettings={DEFAULT_SHOWDOWN_CLOCK}
         seats={seats.slice(0, 4)}
         handInProgress
         soundSettings={DEFAULT_SOUND_SETTINGS}
         onApply={noop}
         onApplyShotClock={noop}
+        onApplyShowdownClock={noop}
         onChangeSoundSettings={noop}
         onClose={noop}
       />,
@@ -392,5 +397,15 @@ describe("HouseRulesSheet", () => {
     act(() => {
       renderer.unmount();
     });
+  });
+});
+
+describe("HouseRulesSheet showdown clock", () => {
+  it("offers seconds with no way to turn the clock off", () => {
+    const html = renderToStaticMarkup(renderSheet());
+
+    expect(html).toContain('data-testid="showdown-clock-settings"');
+    expect(html).toContain('data-testid="showdown-clock-seconds"');
+    expect(html).not.toContain('data-testid="showdown-clock-toggle"');
   });
 });

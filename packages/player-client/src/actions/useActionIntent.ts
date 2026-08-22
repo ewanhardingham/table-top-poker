@@ -15,6 +15,7 @@ export interface ActionIntent {
   readonly raise: () => void;
   readonly allIn: (action: AllInAction) => void;
   readonly show: () => void;
+  readonly muck: () => void;
 }
 
 type SendableAction = Extract<ClientCommand["type"], ActionType>;
@@ -67,6 +68,9 @@ export function useActionIntent(
     },
     show: () => {
       send({ type: "show" });
+    },
+    muck: () => {
+      send({ type: "muck" });
     },
   };
 }

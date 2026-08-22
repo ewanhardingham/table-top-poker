@@ -26,9 +26,15 @@ const armedFold = session({
 
 const tap = session({ classification: null });
 
-const open: Pick<CardActions, "foldLegal" | "checkLegal" | "pending"> = {
+type PlanActions = Pick<
+  CardActions,
+  "foldLegal" | "checkLegal" | "muckLegal" | "pending"
+>;
+
+const open: PlanActions = {
   foldLegal: true,
   checkLegal: true,
+  muckLegal: false,
   pending: false,
 };
 
@@ -241,5 +247,41 @@ describe("planFinish — the tap window closes on any non-tap ending (§5)", () 
     });
 
     expect(plan.nextTapWindow).toBeNull();
+  });
+});
+
+describe("planFinish — Muck", () => {
+  const showdown: PlanActions = {
+    foldLegal: false,
+    checkLegal: false,
+    muckLegal: true,
+    pending: false,
+  };
+
+  it("sends a muck for the same armed upward drag that folds", () => {
+    const plan = planFinish({
+      end: endGesture(armedFold, { cancelled: false }),
+      actions: showdown,
+      presentation: "FaceDown",
+      tapWindow: null,
+      now: 1000,
+    });
+
+    expect(sent(plan.effects)).toEqual(["muck"]);
+    expect(plan.leaving).toEqual({ faceUp: false });
+  });
+
+  it("disarms rather than mucking while the compulsion stands", () => {
+    const plan = planFinish({
+      end: endGesture(armedFold, { cancelled: false }),
+      actions: { ...showdown, muckLegal: false },
+      presentation: "FaceDown",
+      tapWindow: null,
+      now: 1000,
+    });
+
+    expect(sent(plan.effects)).toEqual([]);
+    expect(dispatched(plan.effects)).toContain("FOLD_DISARMED");
+    expect(plan.leaving).toBeNull();
   });
 });

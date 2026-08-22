@@ -11,8 +11,8 @@ describe("ClientCommandSchema", () => {
     "allInCall",
     "allInRaise",
     "nextHand",
-    "reveal",
     "show",
+    "muck",
     "sitOut",
     "sitIn",
   ])("accepts a bare %s command", (type) => {
@@ -23,6 +23,12 @@ describe("ClientCommandSchema", () => {
   it("rejects an unknown command type", () => {
     const result = ClientCommandSchema.safeParse({ type: "advance" });
     expect(result.success).toBe(false);
+  });
+
+  it("no longer accepts the table's deleted reveal command", () => {
+    expect(ClientCommandSchema.safeParse({ type: "reveal" }).success).toBe(
+      false,
+    );
   });
 
   it("rejects a client-supplied seatId or seed", () => {

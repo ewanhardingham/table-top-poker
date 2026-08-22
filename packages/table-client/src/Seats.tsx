@@ -24,6 +24,7 @@ export interface SeatsProps {
   readonly seats: readonly SeatView[];
   readonly view: TableView | null;
   readonly shotClockSeconds?: number;
+  readonly showdownClockSeconds?: number;
   readonly onSeatClick?: (seatId: number) => void;
   readonly actionLabels?: SeatActionLabels;
 }
@@ -88,8 +89,13 @@ const FAN_HEIGHT = "5.6em";
  */
 const FAN_TUCK = "8%";
 
+/** The room gets the "clock's running" beat without a permanent timer on screen. */
+const SHOWDOWN_CLOCK_VISIBLE_SECONDS = 5;
+
 interface ShowdownSeat {
   readonly hand: RevealedResult | null;
+  /** Declined, and so laying nothing down: distinct from not shown yet. */
+  readonly mucked: boolean;
   readonly isWinner: boolean;
   readonly splitting: boolean;
 }
@@ -105,6 +111,7 @@ function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
   for (const seatId of view.contestants) {
     bySeat.set(seatId, {
       hand: shown.get(seatId) ?? null,
+      mucked: view.mucked.includes(seatId),
       isWinner: winners.includes(seatId) && shown.has(seatId),
       splitting: winners.length > 1,
     });
@@ -189,14 +196,17 @@ function ShowdownBadges({
 function ShowdownHand({
   seatId,
   hand,
+  mucked,
   isWinner,
   isTopRow,
 }: {
   readonly seatId: SeatId;
   readonly hand: RevealedResult | null;
+  readonly mucked: boolean;
   readonly isWinner: boolean;
   readonly isTopRow: boolean;
 }) {
+  if (mucked) return null;
   const faces = hand === null ? [null, null] : [...hand.holeCards];
 
   return (
@@ -307,7 +317,12 @@ function deriveSeat(seat: SeatView, view: TableView | null): SeatVisual {
   return {
     status,
     marker: positionMarkerFor(seat.id, view),
-    isActor: view?.phase === "betting" && view.toAct[0] === seat.id,
+    isActor:
+      view?.phase === "betting"
+        ? view.toAct[0] === seat.id
+        : view?.phase === "showdown" && view.winners === null
+          ? view.queue[0] === seat.id
+          : false,
     isWinner,
     avatarBackground,
     avatarColor,
@@ -318,6 +333,7 @@ export function Seats({
   seats,
   view,
   shotClockSeconds = 90,
+  showdownClockSeconds = 30,
   onSeatClick,
   actionLabels,
 }: SeatsProps) {
@@ -346,6 +362,16 @@ export function Seats({
                 variant="number"
                 testId="seat-shot-clock"
                 numberPosition="bottom-right"
+              />
+            ) : null}
+            {visual.isActor && view?.phase === "showdown" ? (
+              <ShotClock
+                turnEndsAt={view.turnEndsAt}
+                durationSeconds={showdownClockSeconds}
+                variant="number"
+                testId="seat-showdown-clock"
+                numberPosition="bottom-right"
+                showWithinSeconds={SHOWDOWN_CLOCK_VISIBLE_SECONDS}
               />
             ) : null}
             <div
@@ -628,6 +654,7 @@ export function Seats({
                 <ShowdownHand
                   seatId={seat.id}
                   hand={tabledHand}
+                  mucked={seatShowdown.mucked}
                   isWinner={seatShowdown.isWinner}
                   isTopRow={isTopRow}
                 />

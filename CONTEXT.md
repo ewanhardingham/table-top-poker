@@ -87,9 +87,8 @@ Turning a Player's own Hole cards persistently face-up on their own Device.
 Local presentation for the whole Hand: it does not change poker visibility or
 server state. The one exception is the Showdown showing window, where the same
 gesture *is* the *Showdown show* and publishes the Hand to the room (#253).
-The window opens the Player's cards face-down for exactly this reason, so the
-reveal that publishes is always a deliberate one. Distinct from the table's
-*Reveal*, which turns the compulsory Hands over for the whole room.
+Every contestant's pair opens the window face-down for exactly this reason, so
+the reveal that publishes is always a deliberate one.
 
 **Hole-card peek**:
 Temporarily lifting a corner of a Player's own Hole cards to read them, closing
@@ -134,7 +133,7 @@ offers one wide "All in" while no Seat has shoved and splits it into
 "All-in call" and "All-in raise" once another Seat is all in, showing whichever
 arms are legal. Both take a confirm press, and once the Seat is all in its
 Action bar goes away and its Hole cards are *sealed* — held, inert, and still
-face-down until the table's Reveal.
+face-down until the showing window opens, which tables them at once.
 _Avoid_: Treating all-in as a folded Seat — an all-in Seat is live, keeps its
 claim on the pot, and is revealed at Showdown. Side pots stay a
 physical-chips problem the humans settle at the table.
@@ -175,8 +174,8 @@ reversal.
 **Showdown**:
 The state where the Hands still live after River closes are ranked, the
 winner(s) declared, and ties reported as splits. Skipped entirely when a Hand
-ends early by fold-out. Reaching it does not publish anything: the Hand rests
-until the table reveals (ADR-0008).
+ends early by fold-out. River close opens the showing window by itself; the
+Hand rests until every contestant has shown or mucked (ADR-0009).
 
 **Contestant**:
 A Seat that reached Showdown, shown or not. Every view names the contestants;
@@ -184,18 +183,45 @@ only a Seat that has shown appears in `results`, so holding a `RevealedResult`
 is proof the cards are public.
 
 **Showdown show**:
-Publishing a contestant's Hole cards to the whole room, irreversibly. Two
-Commands produce it. The table's `reveal` turns over the compulsory set — the
-River's last aggressor plus every all-in Seat, or the winning Seat when that
-set is empty — and publishes the winners. Every other contestant may then
-`show`, in any order, on their own Device, by revealing their Hole cards with
-the ordinary reveal gesture while the window is open — there is no separate
-control. Both are idempotent: a second press changes nothing and is not an
-error. A Seat's verdict is withheld from the table until that Seat's cards are
-public, so `wins` never sits over two face-down cards. The window closes when the table deals
-the next Hand, which mucks whatever was not shown.
+Publishing a contestant's Hole cards to the whole room, irreversibly, with the
+`show` Command. A Player sends it by revealing their Hole cards with the
+ordinary reveal gesture on their own Device — there is no separate control —
+and only on their turn at the head of the *Showing order*. Every all-in
+contestant is shown by the engine as the window opens: their Hands were decided
+streets ago and they have no decision to make. A Seat's verdict is withheld
+from the table until that Seat's cards are public, so `wins` never sits over
+two face-down cards.
 _Avoid_: Confusing a show with *Hole-card reveal*, which stays local to one
 Device and can be undone.
+
+**Muck**:
+Declining to show at Showdown, with the `muck` Command — the same upward
+fold-drag that folds during betting. Mucking forfeits: winners are computed
+over shown Hands only, so a mucked winning Hand takes nothing. Barred while no
+Hand is yet face-up, since a Pot must never be settled with nothing tabled; the
+first Hand face-up discharges that compulsion for everyone left, including a
+Seat holding the best Hand. A mucked Seat is carried separately from an unshown
+one: *declined* and *not shown yet* are different states and the table tells
+them apart.
+_Avoid_: Reading a Muck as a fold — a mucked contestant reached Showdown, and
+its Seat is still in `contestants`.
+
+**Showing order**:
+The queue of contestants owing a show or a muck, head first. Set as the window
+opens: the River's last aggressor first, or the first live Seat left of the
+Button when the River checked through, then clockwise. All-in contestants never
+queue. Only the head may show or muck; anyone else is rejected. The window
+closes when the queue empties, which is when the winners are published and when
+`nextHand` and `startHand` stop being rejected.
+
+**Showdown clock**:
+The per-Room House rule bounding each turn in the *Showing order*, in seconds
+and defaulting to 30. Unlike the *Shot clock* it cannot be turned off: with
+showing ordered, one locked phone blocks every Player behind it. It reuses the
+Shot clock's scheduler and `turnEndsAt`. Expiry mucks the head — or shows them
+where they are compelled, which is the one place cards are turned over on a
+Player's behalf. The engine holds no clock: an expiry is an ordinary Command the
+server issues, so it lands in the recording and replays as an ordinary act.
 
 **Pot**:
 The physical chips in the middle of the table — a spoken/table term only.
@@ -363,13 +389,12 @@ Seats dealt in, which folding never reduces.
    RIVER (a Street)      — 1 board card dealt, betting round
         │ street closes (last-aggressor logic)
         ▼
-   SHOWDOWN               — contestants named, nothing published;
-        │                   the table's Reveal turns over the
-        │                   compulsory Hands and declares winners
+   SHOWDOWN               — contestants named, all-in Hands tabled,
+        │                   the rest queued to show or muck in turn
         ▼
-   HAND_COMPLETE           — shown hands rest on the table while any
-        │                    other contestant may still show; a
-        │                    "Next hand" button appears
+   HAND_COMPLETE           — the showing window runs on a clock; winners
+        │                    are published once the queue empties, and
+        │                    only then does "Next hand" appear
         ▼
 [Room: seated, awaiting hand]  (button rotates)
 ```

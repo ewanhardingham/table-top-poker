@@ -7,12 +7,14 @@ import {
   createInitialState,
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   decide,
   MAX_SEAT_COUNT,
   MAX_DISPLAY_NAME_LENGTH,
   MIN_SEAT_COUNT,
   ShotClockSettingsSchema,
+  ShowdownClockSettingsSchema,
   SeatCountSchema,
   type ClientCommandType,
   type Command,
@@ -28,6 +30,7 @@ import {
   type SeatCountChangeError,
   type SeatMove,
   type ShotClockSettings,
+  type ShowdownClockSettings,
   type SittingOutReason,
   type SoundSettings,
 } from "@table-top-poker/protocol";
@@ -57,6 +60,7 @@ export interface Room {
   pendingShotClock: ShotClockSettings | null;
   soundSettings: SoundSettings;
   shotClockSettings: ShotClockSettings;
+  showdownClockSettings: ShowdownClockSettings;
 }
 
 /** Staged, not yet joinable: Room creation is transactional with recording creation. */
@@ -133,11 +137,7 @@ export type SeatCommandType = Exclude<ClientCommandType, "sitOut" | "sitIn">;
 const TABLE_ONLY_COMMANDS: ReadonlySet<SeatCommandType> = new Set([
   "startHand",
   "nextHand",
-  "reveal",
 ]);
-
-/** The table has no Seat of its own; a table-originated Command still needs one stamped. */
-const TABLE_SEAT_ID = 0;
 
 function makeSeats(seatCount: number): Seat[] {
   return Array.from({ length: seatCount }, (_, id) => ({
@@ -237,6 +237,8 @@ function remapCompletedEngineState(
         ...result,
         seatId: map(result.seatId),
       })),
+      queue: hand.queue.map(map),
+      mucked: hand.mucked.map(map),
       winners: hand.winners === null ? null : hand.winners.map(map),
     },
   };
@@ -408,6 +410,7 @@ export class RoomStore {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
     };
     return {
       room,
@@ -441,6 +444,23 @@ export class RoomStore {
     const hand = this.#rooms.get(code)?.engine?.hand;
     if (hand?.status !== "betting") return undefined;
     return hand.toAct[0];
+  }
+
+  /** The head of the showing queue, while the window is open — see ADR-0009. */
+  showdownActor(code: string): SeatId | undefined {
+    const hand = this.#rooms.get(code)?.engine?.hand;
+    if (hand?.status !== "complete" || hand.reason !== "showdown") {
+      return undefined;
+    }
+    if (hand.winners !== null) return undefined;
+    return hand.queue[0];
+  }
+
+  /** Whether the head of the showing queue is barred from mucking. */
+  showdownCompelled(code: string): boolean {
+    const hand = this.#rooms.get(code)?.engine?.hand;
+    if (hand?.status !== "complete" || hand.reason !== "showdown") return false;
+    return hand.results.length === 0;
   }
 
   end(code: string): void {
@@ -625,6 +645,20 @@ export class RoomStore {
     return parsed.data;
   }
 
+  changeShowdownClockSettings(
+    code: string,
+    settings: ShowdownClockSettings,
+  ):
+    | ShowdownClockSettings
+    | { error: "room-not-found" | "invalid-showdown-clock" } {
+    const room = this.#rooms.get(code);
+    if (!room) return { error: "room-not-found" };
+    const parsed = ShowdownClockSettingsSchema.safeParse(settings);
+    if (!parsed.success) return { error: "invalid-showdown-clock" };
+    room.showdownClockSettings = parsed.data;
+    return parsed.data;
+  }
+
   isSittingOut(code: string, seatId: SeatId): boolean {
     const room = this.#rooms.get(code);
     return room ? isSittingOut(room, seatId) : false;
@@ -804,7 +838,6 @@ export class RoomStore {
     if (type === "startHand" || type === "nextHand") {
       return { type, seatId: 0, seed: this.#generateSeed() };
     }
-    if (type === "reveal") return { type, seatId: TABLE_SEAT_ID };
     return { type, seatId: identity as SeatId };
   }
 }
@@ -816,6 +849,7 @@ export function toRoomView(room: Room): RoomView {
     pendingShotClock: room.pendingShotClock,
     soundSettings: room.soundSettings,
     shotClockSettings: room.shotClockSettings,
+    showdownClockSettings: room.showdownClockSettings,
     seats: room.seats.map((seat) => {
       const reason = sittingOutReason(room, seat.id);
       return {

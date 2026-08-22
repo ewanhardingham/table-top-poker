@@ -5,6 +5,7 @@ import {
   isHandLive,
   MIN_SEAT_COUNT,
   type ShotClockSettings,
+  type ShowdownClockSettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   changeSeatCount,
   changeShotClockSettings,
+  changeShowdownClockSettings,
   changeSoundSettings,
   createRoom,
   addBots,
@@ -90,6 +92,9 @@ export function App() {
   const pendingShotClock = useTableStore((state) => state.pendingShotClock);
   const soundSettings = useTableStore((state) => state.soundSettings);
   const shotClockSettings = useTableStore((state) => state.shotClockSettings);
+  const showdownClockSettings = useTableStore(
+    (state) => state.showdownClockSettings,
+  );
   const testMode = useTableStore((state) => state.testMode);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
@@ -125,7 +130,8 @@ export function App() {
 
   const [handPickerOpen, setHandPickerOpen] = useState(false);
 
-  const awaitingReveal =
+  const commandRejection = useTableStore((state) => state.commandRejection);
+  const awaitingShowdown =
     handView?.phase === "showdown" && handView.winners === null;
   const handleSeatClick = useCallback((seatId: number) => {
     setMenuSeatId((current) => (current === seatId ? null : seatId));
@@ -208,6 +214,14 @@ export function App() {
     [roomCode],
   );
 
+  const handleChangeShowdownClockSettings = useCallback(
+    async (next: ShowdownClockSettings): Promise<void> => {
+      if (roomCode === null) return;
+      await changeShowdownClockSettings(roomCode, next);
+    },
+    [roomCode],
+  );
+
   const handleStartHand = useCallback(() => {
     void unlockAudio();
     send({ type: "startHand" });
@@ -216,10 +230,6 @@ export function App() {
   const handleNextHand = useCallback(() => {
     void unlockAudio();
     send({ type: "nextHand" });
-  }, [send]);
-
-  const handleReveal = useCallback(() => {
-    send({ type: "reveal" });
   }, [send]);
 
   const handleSelectHand = useCallback(
@@ -302,6 +312,7 @@ export function App() {
               seats={seats}
               view={handView}
               shotClockSeconds={shotClockSettings.seconds}
+              showdownClockSeconds={showdownClockSettings.seconds}
               onSeatClick={handleSeatClick}
             />
             {menuSeatId !== null && (
@@ -370,8 +381,10 @@ export function App() {
                 handInProgress={isHandLive(handView)}
                 soundSettings={soundSettings}
                 shotClockSettings={shotClockSettings}
+                showdownClockSettings={showdownClockSettings}
                 onApply={handleChangeSeatCount}
                 onApplyShotClock={handleChangeShotClockSettings}
+                onApplyShowdownClock={handleChangeShowdownClockSettings}
                 onChangeSoundSettings={handleChangeSoundSettings}
                 onClose={() => {
                   setSettingsOpen(false);
@@ -383,10 +396,14 @@ export function App() {
                 canStartHand={canStartHand}
                 handComplete={handComplete}
                 canDealNextHand={enoughPlayers}
-                awaitingReveal={awaitingReveal}
+                awaitingShowdown={awaitingShowdown}
+                rejectionHint={
+                  commandRejection === "showdown-unresolved"
+                    ? "The hands are still being turned over"
+                    : null
+                }
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
-                onReveal={handleReveal}
                 onEndSession={handleEndSession}
                 testMode={testMode}
                 onAddBot={handleAddBot}

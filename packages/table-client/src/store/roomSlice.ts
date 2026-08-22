@@ -1,9 +1,11 @@
 import {
   DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   type RoomView,
   type SeatView,
   type ShotClockSettings,
+  type ShowdownClockSettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import type { StateCreator } from "zustand";
@@ -17,6 +19,7 @@ export interface RoomSlice {
   readonly pendingShotClock: ShotClockSettings | null;
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
+  readonly showdownClockSettings: ShowdownClockSettings;
   /**
    * Latched true once "Continue without recording" resumes the Room —
    * never cleared while the Room lives, since recording never comes back
@@ -42,6 +45,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
   pendingShotClock: null,
   soundSettings: DEFAULT_SOUND_SETTINGS,
   shotClockSettings: DEFAULT_SHOT_CLOCK,
+  showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
   recordingStopped: false,
   setRoomCreated: ({ code, joinUrl, qrCodeDataUrl }) => {
     set({
@@ -60,6 +64,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
       pendingShotClock: view.pendingShotClock,
       soundSettings: view.soundSettings,
       shotClockSettings: view.shotClockSettings,
+      showdownClockSettings: view.showdownClockSettings,
     });
   },
   setRecordingStopped: () => {
@@ -75,6 +80,7 @@ export const createRoomSlice: StateCreator<RoomSlice> = (set) => ({
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
       recordingStopped: false,
     });
   },
