@@ -12,7 +12,7 @@ export interface ReplayTransportProps {
   readonly onSeek: (position: number) => void;
   readonly onScrubbingChange: (scrubbing: boolean) => void;
   readonly onTogglePlay: () => void;
-  readonly currentStreet: Chapter["street"] | null;
+  readonly currentSegment: Chapter["segment"] | null;
 }
 
 /** Past the ~44px touch-target floor at the table device's root size. */
@@ -36,7 +36,7 @@ export function ReplayTransport({
   onSeek,
   onScrubbingChange,
   onTogglePlay,
-  currentStreet,
+  currentSegment,
 }: ReplayTransportProps) {
   const total = beats.length;
   const trackRef = useRef<HTMLDivElement | null>(null);
@@ -97,10 +97,10 @@ export function ReplayTransport({
         <span style={{ flex: 1 }} />
         {chapters.map((chapter) => (
           <Chip
-            key={chapter.street}
-            active={currentStreet === chapter.street}
+            key={chapter.segment}
+            active={currentSegment === chapter.segment}
             label={`Seek to the ${chapter.label.toLowerCase()}`}
-            testId={`replay-chapter-${chapter.street}`}
+            testId={`replay-chapter-${chapter.segment}`}
             onClick={() => {
               onSeek(chapter.position);
             }}
@@ -150,15 +150,15 @@ export function ReplayTransport({
           <span
             key={beat.position}
             data-testid={`replay-tick-${String(beat.position)}`}
-            data-street-boundary={beat.isStreetBoundary}
+            data-segment-boundary={beat.isSegmentBoundary}
             style={{
               position: "absolute",
               left: `${String((beat.position / total) * 100)}%`,
               transform: "translateX(-50%)",
-              width: beat.isStreetBoundary ? "3px" : "2px",
-              height: beat.isStreetBoundary ? "2.2em" : "1.1em",
+              width: beat.isSegmentBoundary ? "3px" : "2px",
+              height: beat.isSegmentBoundary ? "2.2em" : "1.1em",
               borderRadius: "999px",
-              background: beat.isStreetBoundary
+              background: beat.isSegmentBoundary
                 ? color.textMuted
                 : "rgba(255,255,255,.34)",
             }}

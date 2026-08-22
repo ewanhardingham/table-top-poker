@@ -4,14 +4,17 @@ import type {
   TableReplayPosition,
 } from "@table-top-poker/protocol";
 
+/** A stretch of a Hand the Scrub can chapter — see Segment in `CONTEXT.md`. */
+export type Segment = Street | "showdown";
+
 /** One Event ordinal, dressed for the transport — see Replay position in `CONTEXT.md`. */
 export interface Beat {
   readonly position: number;
-  readonly street: Street | null;
+  readonly segment: Segment | null;
   /** How long autoplay holds here, in ms. */
   readonly weight: number;
   /** One flag for the heavier tick and the Chapter seek, so the two cannot drift apart. */
-  readonly isStreetBoundary: boolean;
+  readonly isSegmentBoundary: boolean;
 }
 
 export const streetLabel: Record<Street, string> = {
@@ -19,6 +22,11 @@ export const streetLabel: Record<Street, string> = {
   flop: "Flop",
   turn: "Turn",
   river: "River",
+};
+
+export const segmentLabel: Record<Segment, string> = {
+  ...streetLabel,
+  showdown: "Showdown",
 };
 
 /** Autoplay pacing: what changes the felt is held, bookkeeping goes past quickly. */
@@ -37,51 +45,52 @@ const WEIGHTS: Record<HandEvent["type"], number> = {
   HandComplete: 2000,
 };
 
-/** A beat belongs to the street it *shows* — see Chapter in `CONTEXT.md`. */
-export function streetOf(
+/** A beat belongs to the segment it *shows* — see Chapter in `CONTEXT.md`. */
+export function segmentOf(
   event: HandEvent,
-  current: Street | null,
-): Street | null {
+  current: Segment | null,
+): Segment | null {
   if (event.type === "StreetStarted" || event.type === "BoardDealt") {
     return event.street;
   }
+  if (event.type === "ShowdownReached") return "showdown";
   return current;
 }
 
 export function toBeats(
   positions: readonly TableReplayPosition[],
 ): readonly Beat[] {
-  let street: Street | null = null;
+  let segment: Segment | null = null;
   const beats: Beat[] = [];
 
   for (const [index, position] of positions.entries()) {
     const event = position.event;
     if (event === null) continue;
-    const previous = street;
-    street = streetOf(event, street);
+    const previous = segment;
+    segment = segmentOf(event, segment);
     beats.push({
       position: index,
-      street,
+      segment,
       weight: WEIGHTS[event.type],
-      isStreetBoundary: street !== null && street !== previous,
+      isSegmentBoundary: segment !== null && segment !== previous,
     });
   }
   return beats;
 }
 
 export interface Chapter {
-  readonly street: Street;
+  readonly segment: Segment;
   readonly label: string;
   /** The ordinal the chip seeks to. */
   readonly position: number;
 }
 
-/** The Scrub's street landmarks — see Chapter in `CONTEXT.md`. */
+/** The Scrub's landmarks — see Chapter in `CONTEXT.md`. */
 export function chaptersOf(beats: readonly Beat[]): readonly Chapter[] {
   return beats.flatMap((beat) => {
-    const street = beat.street;
-    if (!beat.isStreetBoundary || street === null) return [];
-    return [{ street, label: streetLabel[street], position: beat.position }];
+    const segment = beat.segment;
+    if (!beat.isSegmentBoundary || segment === null) return [];
+    return [{ segment, label: segmentLabel[segment], position: beat.position }];
   });
 }
 

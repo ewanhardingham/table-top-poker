@@ -11,13 +11,13 @@ export function positionAtRatio(ratio: number, total: number): number {
 
 /**
  * The ticks the track draws. Ticks are a visual affordance and may collapse on
- * a long hand; street boundaries never do, because chapters are the
+ * a long hand; segment boundaries never do, because chapters are the
  * navigation contract (#129 §6).
  */
 export function ticksFor(beats: readonly Beat[]): readonly Beat[] {
   if (beats.length <= MAX_TICKS) return beats;
   const stride = Math.ceil(beats.length / MAX_TICKS);
   return beats.filter(
-    (beat, index) => beat.isStreetBoundary || index % stride === 0,
+    (beat, index) => beat.isSegmentBoundary || index % stride === 0,
   );
 }

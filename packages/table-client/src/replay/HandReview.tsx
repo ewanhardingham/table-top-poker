@@ -18,7 +18,7 @@ export interface HandReviewProps {
 /**
  * One recorded hand, scrubbable. The whole hand is already in hand — the
  * server sends every position in one message — so the track can lay out its
- * ticks and street chapters before anything is touched (Phase 2 spec #129 §5).
+ * ticks and chapters before anything is touched (Phase 2 spec #129 §5).
  */
 export function HandReview({ review, seats, onClose }: HandReviewProps) {
   const positions = review.status === "ready" ? review.positions : [];
@@ -112,7 +112,7 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
         onSeek={setPosition}
         onScrubbingChange={changeScrubbing}
         onTogglePlay={togglePlay}
-        currentStreet={beatAt(beats, position)?.street ?? null}
+        currentSegment={beatAt(beats, position)?.segment ?? null}
       />
     </>
   );
