@@ -5,7 +5,7 @@ import { confirmsCheck, tapLanded, type TapWindow } from "./taps.js";
 
 export type FinishEffect =
   | { readonly kind: "dispatch"; readonly event: CardEvent }
-  | { readonly kind: "send"; readonly action: "check" | "fold" };
+  | { readonly kind: "send"; readonly action: "check" | "fold" | "muck" };
 
 export interface FinishPlan {
   readonly effects: readonly FinishEffect[];
@@ -16,7 +16,10 @@ export interface FinishPlan {
 
 export interface FinishInputs {
   readonly end: GestureEnd;
-  readonly actions: Pick<CardActions, "foldLegal" | "checkLegal" | "pending">;
+  readonly actions: Pick<
+    CardActions,
+    "foldLegal" | "checkLegal" | "muckLegal" | "pending"
+  >;
   readonly presentation: Presentation;
   readonly tapWindow: TapWindow;
   readonly now: number;
@@ -26,7 +29,8 @@ export function planFinish(inputs: FinishInputs): FinishPlan {
   const { end, actions, presentation, tapWindow, now } = inputs;
   const { events, commitsFold } = end;
 
-  const commits = commitsFold && actions.foldLegal && !actions.pending;
+  const commits =
+    commitsFold && (actions.foldLegal || actions.muckLegal) && !actions.pending;
 
   const effects: FinishEffect[] = [];
   let nextTapWindow: TapWindow = tapWindow;
@@ -60,7 +64,12 @@ export function planFinish(inputs: FinishInputs): FinishPlan {
   }
   if (!tapped) nextTapWindow = null;
 
-  if (commits) effects.push({ kind: "send", action: "fold" });
+  if (commits) {
+    effects.push({
+      kind: "send",
+      action: actions.foldLegal ? "fold" : "muck",
+    });
+  }
 
   return { effects, nextTapWindow, confirmCheck, leaving };
 }

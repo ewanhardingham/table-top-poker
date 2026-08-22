@@ -1,6 +1,7 @@
 import {
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_CLOCK,
   DEFAULT_SOUND_SETTINGS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
@@ -1146,6 +1147,12 @@ describe("RoomStore", () => {
 
     const MAX_ACTIONS_TO_SHOWDOWN = 16;
 
+    function headOfQueue(store: RoomStore, code: string): SeatId {
+      const head = store.showdownActor(code);
+      if (head === undefined) throw new Error("expected a showdown actor");
+      return head;
+    }
+
     function stagedDispatch(
       store: RoomStore,
       code: string,
@@ -1345,43 +1352,51 @@ describe("RoomStore", () => {
       });
     });
 
-    it("takes reveal from the table and stamps a seat on it", () => {
+    it("refuses show and muck from the table", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, [0, 1]);
       playToShowdown(store, room.code);
 
-      const revealed = commitDispatch(store, room.code, "table", "reveal");
-
-      if (!("steps" in revealed)) throw new Error("expected a transaction");
-      expect(revealed.command).toEqual({ type: "reveal", seatId: 0 });
-      expect(revealed.steps.map((step) => step.event.type)).toContain(
-        "WinnersDeclared",
-      );
-    });
-
-    it("refuses reveal from a player and show from the table", () => {
-      const store = new RoomStore();
-      const room = roomWithClaimedSeats(store, [0, 1]);
-      playToShowdown(store, room.code);
-
-      expect(store.dispatch(room.code, 0, "reveal")).toEqual({
-        error: "not-permitted",
-      });
       expect(store.dispatch(room.code, "table", "show")).toEqual({
         error: "not-permitted",
       });
+      expect(store.dispatch(room.code, "table", "muck")).toEqual({
+        error: "not-permitted",
+      });
     });
 
-    it("shows a player's own hand on their own command", () => {
+    it("shows the head of the queue's own hand on their own command", () => {
       const store = new RoomStore();
       const room = roomWithClaimedSeats(store, [0, 1]);
       playToShowdown(store, room.code);
-      commitDispatch(store, room.code, "table", "reveal");
+      const head = store.showdownActor(room.code);
+      if (head === undefined) throw new Error("expected a showdown actor");
 
-      const shown = commitDispatch(store, room.code, 1, "show");
+      const shown = commitDispatch(store, room.code, head, "show");
 
       if (!("steps" in shown)) throw new Error("expected a transaction");
-      expect(shown.command).toEqual({ type: "show", seatId: 1 });
+      expect(shown.command).toEqual({ type: "show", seatId: head });
+    });
+
+    it("mucks the last contestant and publishes the winners", () => {
+      const store = new RoomStore();
+      const room = roomWithClaimedSeats(store, [0, 1]);
+      playToShowdown(store, room.code);
+      commitDispatch(store, room.code, headOfQueue(store, room.code), "show");
+
+      const mucked = commitDispatch(
+        store,
+        room.code,
+        headOfQueue(store, room.code),
+        "muck",
+      );
+
+      if (!("steps" in mucked)) throw new Error("expected a transaction");
+      expect(mucked.steps.map((step) => step.event.type)).toEqual([
+        "HoleCardsMucked",
+        "WinnersDeclared",
+      ]);
+      expect(store.showdownActor(room.code)).toBeUndefined();
     });
 
     it("has no operation for a refusal the engine never ruled on", () => {
@@ -1455,6 +1470,7 @@ describe("toRoomView", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
       seats: [
         {
           id: 0,
@@ -1556,6 +1572,56 @@ describe("changeShotClockSettings", () => {
 
     expect(
       store.changeShotClockSettings("ZZZZ", {
+        enabled: true,
+        seconds: 30,
+      }),
+    ).toEqual({ error: "room-not-found" });
+  });
+});
+
+describe("changeShowdownClockSettings", () => {
+  it("applies a new duration at once", () => {
+    const store = new RoomStore();
+    const room = store.create();
+    const settings = { enabled: true, seconds: 45 } as const;
+
+    expect(store.changeShowdownClockSettings(room.code, settings)).toEqual(
+      settings,
+    );
+    expect(toRoomView(room).showdownClockSettings).toEqual(settings);
+  });
+
+  it("refuses to turn the clock off — the room would wedge", () => {
+    const store = new RoomStore();
+    const room = store.create();
+
+    expect(
+      store.changeShowdownClockSettings(room.code, {
+        enabled: false,
+        seconds: 30,
+      } as unknown as { enabled: true; seconds: number }),
+    ).toEqual({ error: "invalid-showdown-clock" });
+    expect(room.showdownClockSettings).toEqual(DEFAULT_SHOWDOWN_CLOCK);
+  });
+
+  it("rejects an invalid duration without changing the room", () => {
+    const store = new RoomStore();
+    const room = store.create();
+
+    expect(
+      store.changeShowdownClockSettings(room.code, {
+        enabled: true,
+        seconds: 4,
+      }),
+    ).toEqual({ error: "invalid-showdown-clock" });
+    expect(room.showdownClockSettings).toEqual(DEFAULT_SHOWDOWN_CLOCK);
+  });
+
+  it("reports an unknown room", () => {
+    const store = new RoomStore();
+
+    expect(
+      store.changeShowdownClockSettings("ZZZZ", {
         enabled: true,
         seconds: 30,
       }),

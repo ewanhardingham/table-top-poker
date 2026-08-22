@@ -1,1 +1,1 @@
-export const ENGINE_LOG_VERSION = 5;
+export const ENGINE_LOG_VERSION = 6;

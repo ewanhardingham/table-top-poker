@@ -57,17 +57,24 @@ no simulated pointer.
   - `SHOWDOWN_REVEAL` — showdown reached with this seat still live (story 48):
     inert and face-**up**.
   - `SEALED` — the seat declared all in (issue #253): inert and face-**down**,
-    because an all-in Hand is still private until the table's Reveal. It clears
-    the fold gesture with it, which is the point: an all-in Seat cannot fold.
+    because an all-in Hand is still private until the showing window opens. It
+    clears the fold gesture with it, which is the point: an all-in Seat cannot
+    fold.
 
 `revealPublishes(from, to, showLegal)` is the other predicate the hook reads off
 the lifecycle, alongside `releaseCommitsFold`. Inside the Showdown showing
 window a committed flip face-up **is** the `show` (ADR-0008's #253 amendment):
-entering `Turning` publishes the Hand. A peek does not — it never reaches
-`Turning` — and neither does a pair already face-up when the window opened,
-because `showLegal` rising emits `RESET` and puts it face-down first. That reset
-is the whole safeguard against publishing by accident, so it is load-bearing,
-not tidiness.
+entering `Turning` publishes the Hand, and only on this Seat's turn at the head
+of the queue (ADR-0009). A peek does not — it never reaches `Turning` — and
+neither does a pair already face-up when the window opened, because
+`showdownOpen` rising emits `RESET` for every contestant and puts it face-down
+first. That reset is the whole safeguard against publishing by accident, so it
+is load-bearing, not tidiness.
+
+`muckLegal` arms the same upward drag that folds during betting, and
+`planFinish` sends `muck` in place of `fold` when only it is legal. The two are
+never both legal — betting and Showdown do not overlap — so a single armed drag
+has exactly one meaning at any moment.
 
 `CardState`/`CardEvent` are intentionally **complete**: every event name the
 phase needs is declared even where an arm does not yet answer it, so later
@@ -215,7 +222,7 @@ The order encodes the two sequences that cost money:
   the `fold` send, so the pair is already flying to the muck when the Action
   goes and the departure is the player's own answer, not the server's (§7).
 
-Legality (`foldLegal`/`checkLegal`/`pending`) is for **arming and rendering
+Legality (`foldLegal`/`checkLegal`/`muckLegal`/`pending`) is for **arming and rendering
 only**. `canAct` inside `intent.fold`/`intent.check` stays the single gate on
 whether an Action is sent, so a stale flag can at worst arm a gesture `canAct`
 then refuses — never send one. `planFinish` re-samples fold legality (and

@@ -54,6 +54,9 @@ export function decide(
       if (state.hand?.status !== "complete") {
         return reject("stale-next-hand", command);
       }
+      if (awaitingShowdown(state)?.winners === null) {
+        return reject("showdown-unresolved", command);
+      }
       return beginHand(state, command.seed);
     }
 
@@ -68,11 +71,11 @@ export function decide(
     case "evict":
       return decideEviction(state, command);
 
-    case "reveal":
-      return decideReveal(state, command);
-
     case "show":
       return decideShow(state, command);
+
+    case "muck":
+      return decideMuck(state, command);
   }
 }
 
@@ -85,60 +88,59 @@ function awaitingShowdown(
 }
 
 /**
- * The river's last aggressor and every all-in Seat, or the winning Seat when
- * that set is empty — see ADR-0008.
+ * The showing window's gate: only its head may act, and only while it is open
+ * — see ADR-0009.
  */
-function compelledToShow(
-  hand: ShowdownCompleteHandState,
-  results: readonly RevealedResult[],
-): readonly SeatId[] {
-  const compelled = hand.contestants
-    .filter(
-      (contestant) =>
-        contestant.allIn || contestant.seatId === hand.lastAggressor,
-    )
-    .map((contestant) => contestant.seatId);
-  return compelled.length > 0 ? compelled : winnersOf(results);
+function headOfQueue(
+  state: EngineState,
+  command: Extract<Command, { type: "show" | "muck" }>,
+): ShowdownCompleteHandState | Rejection {
+  const hand = awaitingShowdown(state);
+  const head = hand?.winners === null ? hand.queue[0] : undefined;
+  if (hand === null || head === undefined) {
+    return reject("not-at-showdown", command);
+  }
+  if (head !== command.seatId) return reject("not-your-turn", command);
+  return hand;
 }
 
-function decideReveal(
-  state: EngineState,
-  command: Extract<Command, { type: "reveal" }>,
-): HandEvent[] | Rejection {
-  const hand = awaitingShowdown(state);
-  if (hand === null) return reject("not-at-showdown", command);
-  if (hand.winners !== null) return [];
-
-  const results = hand.contestants.map((contestant) =>
-    revealedResultFor(hand.board, contestant),
-  );
-  const compelled = new Set(compelledToShow(hand, results));
-  const shows: HandEvent[] = results
-    .filter((result) => compelled.has(result.seatId))
-    .map((result) => ({ type: "HoleCardsShown", result }));
-
-  return [...shows, { type: "WinnersDeclared", winners: winnersOf(results) }];
+/** The last contestant to resolve publishes the winners over the shown hands. */
+function closingWinners(
+  hand: ShowdownCompleteHandState,
+  shown: RevealedResult | null,
+): HandEvent[] {
+  if (hand.queue.length > 1) return [];
+  const results = shown === null ? hand.results : [...hand.results, shown];
+  return [{ type: "WinnersDeclared", winners: winnersOf(results) }];
 }
 
 function decideShow(
   state: EngineState,
   command: Extract<Command, { type: "show" }>,
 ): HandEvent[] | Rejection {
-  const hand = awaitingShowdown(state);
-  if (hand === null) return reject("not-at-showdown", command);
-  if (hand.winners === null) return reject("not-at-showdown", command);
+  const hand = headOfQueue(state, command);
+  if ("type" in hand) return hand;
 
-  const contestant = hand.contestants.find(
-    (candidate) => candidate.seatId === command.seatId,
+  const contestant = must(
+    hand.contestants.find((candidate) => candidate.seatId === command.seatId),
+    "the head of the showing queue is always a contestant",
   );
-  if (contestant === undefined) return reject("not-at-showdown", command);
-  if (hand.results.some((shown) => shown.seatId === command.seatId)) return [];
+  const result = revealedResultFor(hand.board, contestant);
+  return [{ type: "HoleCardsShown", result }, ...closingWinners(hand, result)];
+}
+
+/** Mucking is barred until some hand is face-up: see Compulsion in ADR-0009. */
+function decideMuck(
+  state: EngineState,
+  command: Extract<Command, { type: "muck" }>,
+): HandEvent[] | Rejection {
+  const hand = headOfQueue(state, command);
+  if ("type" in hand) return hand;
+  if (hand.results.length === 0) return reject("action-not-legal", command);
 
   return [
-    {
-      type: "HoleCardsShown",
-      result: revealedResultFor(hand.board, contestant),
-    },
+    { type: "HoleCardsMucked", seatId: command.seatId },
+    ...closingWinners(hand, null),
   ];
 }
 
@@ -336,6 +338,7 @@ function runOut(
   return finishAtShowdown(current, events);
 }
 
+/** The window opens with every all-in contestant already tabled — ADR-0009. */
 function finishAtShowdown(
   scratch: EngineState,
   events: HandEvent[],
@@ -345,9 +348,34 @@ function finishAtShowdown(
     contestants: liveSeats(asBetting(scratch)),
   };
   events.push(showdownReached);
-  const afterShowdown = apply(scratch, showdownReached);
+  let current = apply(scratch, showdownReached);
+
+  const opened = asShowdown(current);
+  for (const contestant of opened.contestants.filter((c) => c.allIn)) {
+    const shown: HandEvent = {
+      type: "HoleCardsShown",
+      result: revealedResultFor(opened.board, contestant),
+    };
+    events.push(shown);
+    current = apply(current, shown);
+  }
+
+  const settled = asShowdown(current);
+  if (settled.queue.length === 0) {
+    const declared: HandEvent = {
+      type: "WinnersDeclared",
+      winners: winnersOf(settled.results),
+    };
+    events.push(declared);
+    current = apply(current, declared);
+  }
+
   const handComplete: HandEvent = { type: "HandComplete" };
   events.push(handComplete);
-  apply(afterShowdown, handComplete);
+  apply(current, handComplete);
   return events;
+}
+
+function asShowdown(state: EngineState): ShowdownCompleteHandState {
+  return must(awaitingShowdown(state), "expected a hand at showdown");
 }

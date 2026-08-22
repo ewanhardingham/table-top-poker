@@ -70,6 +70,9 @@ describe("ReplayStage", () => {
 describe("ReplayStage at showdown", () => {
   const showdown: TableView = {
     phase: "showdown",
+    turnEndsAt: null,
+    queue: [],
+    mucked: [],
     button: 0,
     smallBlind: 1,
     bigBlind: 2,

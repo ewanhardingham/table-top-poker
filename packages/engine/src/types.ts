@@ -22,8 +22,8 @@ export type Command =
   | { type: ActionType; seatId: SeatId }
   | { type: "evict"; seatId: SeatId }
   | { type: "nextHand"; seatId: SeatId; seed: string }
-  | { type: "reveal"; seatId: SeatId }
-  | { type: "show"; seatId: SeatId };
+  | { type: "show"; seatId: SeatId }
+  | { type: "muck"; seatId: SeatId };
 
 export type HandEvent =
   | { type: "HandStarted"; seed: string; button: SeatId }
@@ -38,6 +38,7 @@ export type HandEvent =
   | { type: "HandFoldedOut"; winner: SeatId }
   | { type: "ShowdownReached"; contestants: SeatId[] }
   | { type: "HoleCardsShown"; result: RevealedResult }
+  | { type: "HoleCardsMucked"; seatId: SeatId }
   | { type: "WinnersDeclared"; winners: SeatId[] }
   | { type: "HandComplete" };
 
@@ -47,7 +48,8 @@ export type RejectionReason =
   | "hand-not-in-progress"
   | "hand-already-in-progress"
   | "stale-next-hand"
-  | "not-at-showdown";
+  | "not-at-showdown"
+  | "showdown-unresolved";
 
 export interface Rejection {
   readonly type: "Rejection";
@@ -113,6 +115,9 @@ export interface ShowdownCompleteHandState extends HandPositions {
   readonly contestants: readonly Contestant[];
   readonly lastAggressor: SeatId | null;
   readonly results: readonly RevealedResult[];
+  /** Contestants still owing a show or a muck, head first — see ADR-0009. */
+  readonly queue: readonly SeatId[];
+  readonly mucked: readonly SeatId[];
   readonly winners: readonly SeatId[] | null;
 }
 

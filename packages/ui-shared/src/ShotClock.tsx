@@ -9,6 +9,8 @@ export interface ShotClockProps {
   readonly variant: ShotClockVariant;
   readonly testId: string;
   readonly numberPosition?: "top-right" | "bottom-right";
+  /** Stays hidden until this many seconds remain; absent means always shown. */
+  readonly showWithinSeconds?: number;
 }
 
 export function shotClockColor(fraction: number): string {
@@ -46,12 +48,19 @@ export function ShotClock({
   variant,
   testId,
   numberPosition = "top-right",
+  showWithinSeconds,
 }: ShotClockProps) {
   const now = useNow();
   if (turnEndsAt === null) return null;
 
   const durationMs = Math.max(1, durationSeconds * 1000);
   const remainingMs = Math.max(0, turnEndsAt - now);
+  if (
+    showWithinSeconds !== undefined &&
+    remainingMs > showWithinSeconds * 1000
+  ) {
+    return null;
+  }
   const fraction = Math.max(0, Math.min(1, remainingMs / durationMs));
   const tint = shotClockColor(fraction);
   const seconds = Math.ceil(remainingMs / 1000);

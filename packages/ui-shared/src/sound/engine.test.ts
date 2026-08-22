@@ -434,3 +434,25 @@ describe("your-turn prompt", () => {
     expect(r.played.filter((c) => c === "yourTurn")).toEqual(["yourTurn"]);
   });
 });
+
+describe("muck", () => {
+  it("reuses the fold cue, on the mucking player's own phone only", () => {
+    const own = rig();
+    own.engine.onHandUpdate({
+      surface: "player",
+      seatId: 1,
+      event: { type: "HoleCardsMucked", seatId: 1 },
+      view: noHandView,
+    });
+    expect(own.played).toEqual(["fold"]);
+
+    const other = rig();
+    other.engine.onHandUpdate({
+      surface: "player",
+      seatId: 2,
+      event: { type: "HoleCardsMucked", seatId: 1 },
+      view: noHandView,
+    });
+    expect(other.played).toEqual([]);
+  });
+});

@@ -79,6 +79,9 @@ describe("Board", () => {
   it("shows only the community cards at showdown, suppressing the banner the overlay now owns", () => {
     const view: TableView = {
       phase: "showdown",
+      turnEndsAt: null,
+      queue: [],
+      mucked: [],
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -161,6 +164,9 @@ describe("Board", () => {
     };
     const showdown: TableView = {
       phase: "showdown",
+      turnEndsAt: null,
+      queue: [],
+      mucked: [],
       button: 0,
       smallBlind: 1,
       bigBlind: 2,

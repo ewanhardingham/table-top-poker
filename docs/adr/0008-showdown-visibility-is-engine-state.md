@@ -2,7 +2,15 @@
 
 ## Status
 
-Accepted. Depends on [ADR-0007](0007-all-in-as-declared-actions-without-chip-values.md)
+Superseded by [ADR-0009](0009-showing-in-turn-on-a-clock.md), which replaces
+the Decision section below: the window now opens at river close rather than on
+a table press, the `reveal` command is deleted, showing happens in queue order
+against a clock, and a contestant may muck. What stands is this ADR's thesis —
+that showdown visibility is engine state — and the reasoning in its Context for
+why. The text is left otherwise intact as the record of that, and of the
+`ShowdownOverlay`'s removal in #258.
+
+Previously: accepted. Depends on [ADR-0007](0007-all-in-as-declared-actions-without-chip-values.md)
 for the all-in actions this decision compels to show. The rank badge in
 "Showdown happens on the table, not over it" was dropped while building it, the
 player's separate show button was dropped in favour of the reveal gesture, the

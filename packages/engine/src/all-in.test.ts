@@ -176,6 +176,8 @@ describe("all-in and the automatic run-out", () => {
       "BoardDealt",
       "BoardDealt",
       "ShowdownReached",
+      "HoleCardsShown",
+      "HoleCardsShown",
       "HandComplete",
     ]);
   });
@@ -192,6 +194,8 @@ describe("all-in and the automatic run-out", () => {
     );
 
     const final = showdown(playAll(state, [{ type: "allInCall", seatId: 1 }]));
+    expect(final.queue).toEqual([]);
+    expect(final.winners).not.toBeNull();
     expect(final.board).toHaveLength(5);
     expect(final.contestants.map((contestant) => contestant.seatId)).toEqual([
       1, 0,
@@ -248,6 +252,7 @@ describe("all-in and fold-out", () => {
       "StreetClosed",
       "BoardDealt",
       "ShowdownReached",
+      "HoleCardsShown",
       "HandComplete",
     ]);
 

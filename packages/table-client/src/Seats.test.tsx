@@ -329,6 +329,9 @@ describe("Seats", () => {
   it("tables a shown hand on the seat plate with its rank badge, naming no hand", () => {
     const view: TableView = {
       phase: "showdown",
+      turnEndsAt: null,
+      queue: [],
+      mucked: [],
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -371,6 +374,9 @@ describe("Seats", () => {
   it("keeps a revealed player in-hand when they sit out for the next hand", () => {
     const view: TableView = {
       phase: "showdown",
+      turnEndsAt: null,
+      queue: [],
+      mucked: [],
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -733,6 +739,9 @@ describe("Seats: position markers", () => {
       {
         ...headsUpPositions,
         phase: "showdown",
+        turnEndsAt: null,
+        queue: [],
+        mucked: [],
         board: [],
         contestants: [0, 1],
         winners: [0],
@@ -862,6 +871,9 @@ describe("Seats: action labels", () => {
 describe("Seats at showdown", () => {
   const board: TableView & { phase: "showdown" } = {
     phase: "showdown",
+    turnEndsAt: null,
+    queue: [],
+    mucked: [],
     button: 0,
     smallBlind: 1,
     bigBlind: 2,
@@ -1196,5 +1208,89 @@ describe("Seats to-act glow", () => {
     expect(html).not.toMatch(
       /data-testid="seat-pod-0-surface"[^>]*class="seat-actor-glow"/,
     );
+  });
+});
+
+describe("Seats through the showing window", () => {
+  const window: TableView & { phase: "showdown" } = {
+    phase: "showdown",
+    turnEndsAt: Date.now() + 2000,
+    queue: [1],
+    mucked: [0],
+    button: 0,
+    smallBlind: 1,
+    bigBlind: 2,
+    dealtSeatCount: 2,
+    board: [],
+    contestants: [0, 1],
+    winners: null,
+    results: [],
+  };
+
+  const twoSeats = [
+    {
+      id: 0,
+      claimed: true,
+      sittingOut: false,
+      sittingOutReason: null,
+      disconnected: false,
+    },
+    {
+      id: 1,
+      claimed: true,
+      sittingOut: false,
+      sittingOutReason: null,
+      disconnected: false,
+    },
+  ] as const;
+
+  it("lays nothing down for a mucked seat, and card backs for one still to act", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={[...twoSeats]} view={window} />,
+    );
+
+    expect(html).not.toContain('data-testid="seat-pod-0-showdown-card-0"');
+    expect(html).toContain('data-testid="seat-pod-1-showdown-card-0"');
+  });
+
+  it("gives the head of the queue the betting turn's active treatment", () => {
+    const html = renderToStaticMarkup(
+      <Seats seats={[...twoSeats]} view={window} />,
+    );
+
+    expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-turn="true"/);
+    expect(html).toMatch(/data-testid="seat-pod-0"[^>]*data-turn="false"/);
+    expect(html).toContain('data-testid="seat-pod-1-to-act"');
+  });
+
+  it("holds the seat-plate clock back until the closing seconds", () => {
+    const early = renderToStaticMarkup(
+      <Seats
+        seats={[...twoSeats]}
+        view={{ ...window, turnEndsAt: Date.now() + 25_000 }}
+        showdownClockSeconds={30}
+      />,
+    );
+    expect(early).not.toContain('data-testid="seat-showdown-clock"');
+
+    const closing = renderToStaticMarkup(
+      <Seats
+        seats={[...twoSeats]}
+        view={{ ...window, turnEndsAt: Date.now() + 2000 }}
+        showdownClockSeconds={30}
+      />,
+    );
+    expect(closing).toContain('data-testid="seat-showdown-clock"');
+  });
+
+  it("drops the active treatment once the verdict lands", () => {
+    const html = renderToStaticMarkup(
+      <Seats
+        seats={[...twoSeats]}
+        view={{ ...window, winners: [1], queue: [] }}
+      />,
+    );
+
+    expect(html).toMatch(/data-testid="seat-pod-1"[^>]*data-turn="false"/);
   });
 });

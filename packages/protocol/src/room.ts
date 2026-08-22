@@ -106,6 +106,38 @@ export type ChangeShotClockRequest = z.infer<
   typeof ChangeShotClockRequestSchema
 >;
 
+export const MIN_SHOWDOWN_CLOCK_SECONDS = 5;
+export const MAX_SHOWDOWN_CLOCK_SECONDS = 600;
+
+/**
+ * `enabled` is fixed true: with showing ordered, one locked phone blocks every
+ * player behind it, so the clock is load-bearing rather than a preference —
+ * see ADR-0009.
+ */
+export interface ShowdownClockSettings {
+  readonly enabled: true;
+  readonly seconds: number;
+}
+
+export const DEFAULT_SHOWDOWN_CLOCK: ShowdownClockSettings = {
+  enabled: true,
+  seconds: 30,
+};
+
+export const ShowdownClockSettingsSchema = z.strictObject({
+  enabled: z.literal(true),
+  seconds: z
+    .int()
+    .min(MIN_SHOWDOWN_CLOCK_SECONDS)
+    .max(MAX_SHOWDOWN_CLOCK_SECONDS),
+});
+
+export const ChangeShowdownClockRequestSchema = ShowdownClockSettingsSchema;
+
+export type ChangeShowdownClockRequest = z.infer<
+  typeof ChangeShowdownClockRequestSchema
+>;
+
 export type HandStateSource = EngineState | PlayerView | TableView | null;
 
 export function isHandLive(source: HandStateSource): boolean {
@@ -163,6 +195,7 @@ export interface RoomView {
   readonly pendingShotClock: ShotClockSettings | null;
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
+  readonly showdownClockSettings: ShowdownClockSettings;
 }
 
 export interface RoomViewMessage {

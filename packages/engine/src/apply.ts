@@ -7,6 +7,7 @@ import {
   reopensBetting,
   requeueAfterRaise,
   rotateFromButton,
+  showingOrder,
   smallBlindSeat,
 } from "./table.js";
 import type {
@@ -180,6 +181,8 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           contestants,
           lastAggressor: hand.lastAggressor,
           results: [],
+          queue: showingOrder(hand.ring, contestants, hand.lastAggressor),
+          mucked: [],
           winners: null,
         },
       };
@@ -192,7 +195,24 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
       }
       return {
         ...state,
-        hand: { ...hand, results: [...hand.results, event.result] },
+        hand: {
+          ...hand,
+          results: [...hand.results, event.result],
+          queue: hand.queue.filter((seat) => seat !== event.result.seatId),
+        },
+      };
+    }
+
+    case "HoleCardsMucked": {
+      const hand = asAwaitingShowdown(state);
+      if (hand.mucked.includes(event.seatId)) return state;
+      return {
+        ...state,
+        hand: {
+          ...hand,
+          mucked: [...hand.mucked, event.seatId],
+          queue: hand.queue.filter((seat) => seat !== event.seatId),
+        },
       };
     }
 

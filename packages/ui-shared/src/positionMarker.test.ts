@@ -73,6 +73,9 @@ describe("positionMarkerFor", () => {
         "showdown",
         {
           phase: "showdown",
+          turnEndsAt: null,
+          queue: [],
+          mucked: [],
           ...headsUp,
           board: [],
           contestants: [0, 1],

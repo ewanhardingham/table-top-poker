@@ -131,6 +131,47 @@ describe("bot driver", () => {
     );
   });
 
+  it("resolves an all-bot showing window rather than wedging the room", async () => {
+    const rooms = new RoomStore();
+    const room = rooms.create(3);
+    rooms.addBots(room, 3);
+
+    app = await buildApp({
+      recordings: testRecordings(),
+      rooms,
+      testMode: true,
+      // Never rolls a muck: the compelled head shows and the rest follow.
+      botRng: () => 0.1,
+      botActionDelayMs: 1,
+      pingIntervalMs: 100_000,
+      showdownClockMs: 100_000,
+    });
+    const running = await openTable(app, room.code);
+    socket = running.socket;
+
+    socket.send(JSON.stringify({ type: "startHand" }));
+    await waitFor(
+      () => rooms.get(room.code)?.engine?.hand?.status === "complete",
+      "hand never completed",
+    );
+
+    const hand = rooms.get(room.code)?.engine?.hand;
+    if (hand?.status !== "complete")
+      throw new Error("expected a complete hand");
+    expect(hand.reason).toBe("showdown");
+
+    await waitForMessage(
+      running,
+      (message) =>
+        message.type === "hand-update" &&
+        message.event.type === "WinnersDeclared",
+    );
+    expect(rooms.showdownActor(room.code)).toBeUndefined();
+    expect(running.messages).not.toContainEqual(
+      expect.objectContaining({ type: "command-rejected" }),
+    );
+  });
+
   it("keeps a two-seat floor, reports cadence over WS, and deals a waiting bot next hand", async () => {
     app = await buildApp({
       recordings: testRecordings(),

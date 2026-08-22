@@ -33,16 +33,18 @@ export function eventsForPropChange(
     if (!prev.locked && next.locked) events.push({ type: "SHOWDOWN_REVEAL" });
   }
 
+  const couldCommit = (actions: HoleCardPairProps["actions"]) =>
+    actions.foldLegal || actions.muckLegal;
   if (
     next.cards !== null &&
-    prev.actions.foldLegal &&
-    !next.actions.foldLegal &&
+    couldCommit(prev.actions) &&
+    !couldCommit(next.actions) &&
     state.recognizer === "FoldDragging"
   ) {
     events.push({ type: "FOLD_DISARMED" });
   }
 
-  if (!prev.actions.showLegal && next.actions.showLegal) {
+  if (!prev.actions.showdownOpen && next.actions.showdownOpen) {
     events.push({ type: "RESET" });
   }
 

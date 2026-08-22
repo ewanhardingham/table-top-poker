@@ -1,11 +1,14 @@
 import {
   MAX_SEAT_COUNT,
   MAX_SHOT_CLOCK_SECONDS,
+  MAX_SHOWDOWN_CLOCK_SECONDS,
   MIN_SEAT_COUNT,
   MIN_SHOT_CLOCK_SECONDS,
+  MIN_SHOWDOWN_CLOCK_SECONDS,
   type SeatView,
   type SeatMove,
   type ShotClockSettings,
+  type ShowdownClockSettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
@@ -28,9 +31,13 @@ export interface HouseRulesSheetProps {
   readonly handInProgress: boolean;
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
+  readonly showdownClockSettings: ShowdownClockSettings;
   readonly onApply: (seatCount: number) => void | Promise<void>;
   readonly onApplyShotClock: (
     settings: ShotClockSettings,
+  ) => void | Promise<void>;
+  readonly onApplyShowdownClock: (
+    settings: ShowdownClockSettings,
   ) => void | Promise<void>;
   readonly onChangeSoundSettings: (next: SoundSettings) => void;
   readonly onClose: () => void;
@@ -79,20 +86,46 @@ export interface ShotClockSecondsDraft {
   readonly valid: boolean;
 }
 
-export function updateShotClockSecondsDraft(
+function updateSecondsDraft(
   draft: ShotClockSecondsDraft,
   input: string,
+  minimum: number,
+  maximum: number,
 ): ShotClockSecondsDraft {
   const seconds = Number(input);
   if (
     /^\d+$/.test(input) &&
     Number.isInteger(seconds) &&
-    seconds >= MIN_SHOT_CLOCK_SECONDS &&
-    seconds <= MAX_SHOT_CLOCK_SECONDS
+    seconds >= minimum &&
+    seconds <= maximum
   ) {
     return { input, seconds, valid: true };
   }
   return { ...draft, input, valid: false };
+}
+
+export function updateShotClockSecondsDraft(
+  draft: ShotClockSecondsDraft,
+  input: string,
+): ShotClockSecondsDraft {
+  return updateSecondsDraft(
+    draft,
+    input,
+    MIN_SHOT_CLOCK_SECONDS,
+    MAX_SHOT_CLOCK_SECONDS,
+  );
+}
+
+export function updateShowdownClockSecondsDraft(
+  draft: ShotClockSecondsDraft,
+  input: string,
+): ShotClockSecondsDraft {
+  return updateSecondsDraft(
+    draft,
+    input,
+    MIN_SHOWDOWN_CLOCK_SECONDS,
+    MAX_SHOWDOWN_CLOCK_SECONDS,
+  );
 }
 
 function Toggle({
@@ -181,8 +214,10 @@ export function HouseRulesSheet({
   handInProgress,
   soundSettings,
   shotClockSettings,
+  showdownClockSettings,
   onApply,
   onApplyShotClock,
+  onApplyShowdownClock,
   onChangeSoundSettings,
   onClose,
 }: HouseRulesSheetProps) {
@@ -205,6 +240,12 @@ export function HouseRulesSheet({
       String((pendingShotClock ?? shotClockSettings).seconds),
     ),
   );
+  const [showdownSecondsDraft, setShowdownSecondsDraft] = useState(() =>
+    updateShowdownClockSecondsDraft(
+      { input: "", seconds: showdownClockSettings.seconds, valid: true },
+      String(showdownClockSettings.seconds),
+    ),
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const shotClockChanged =
@@ -212,9 +253,14 @@ export function HouseRulesSheet({
       (pendingShotClock ?? shotClockSettings).enabled ||
     shotClockDraft.seconds !== (pendingShotClock ?? shotClockSettings).seconds;
   const shotClockIsQueued = pendingShotClock !== null || shotClockChanged;
+  const showdownClockChanged =
+    showdownSecondsDraft.valid &&
+    showdownSecondsDraft.seconds !== showdownClockSettings.seconds;
 
   async function applyHouseRules(): Promise<void> {
-    if (saving || !shotClockSecondsDraft.valid) return;
+    if (saving || !shotClockSecondsDraft.valid || !showdownSecondsDraft.valid) {
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     try {
@@ -224,6 +270,16 @@ export function HouseRulesSheet({
       if (shotClockChanged) {
         writes.push(
           Promise.resolve().then(() => onApplyShotClock(shotClockDraft)),
+        );
+      }
+      if (showdownClockChanged) {
+        writes.push(
+          Promise.resolve().then(() =>
+            onApplyShowdownClock({
+              enabled: true,
+              seconds: showdownSecondsDraft.seconds,
+            }),
+          ),
         );
       }
       const results = await Promise.allSettled(writes);
@@ -574,6 +630,84 @@ export function HouseRulesSheet({
           </div>
 
           <div
+            data-testid="showdown-clock-settings"
+            style={{
+              paddingTop: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 10,
+              borderTop: `1px solid ${color.mutedSurface}`,
+              marginTop: 20,
+            }}
+          >
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 20,
+                color: color.text,
+                fontSize: fontSize.lg,
+                fontWeight: 600,
+              }}
+            >
+              <span>Showdown clock</span>
+              <input
+                type="number"
+                min={MIN_SHOWDOWN_CLOCK_SECONDS}
+                max={MAX_SHOWDOWN_CLOCK_SECONDS}
+                step={1}
+                value={showdownSecondsDraft.input}
+                data-testid="showdown-clock-seconds"
+                aria-label="Showdown clock seconds"
+                disabled={saving}
+                onChange={(event) => {
+                  setShowdownSecondsDraft(
+                    updateShowdownClockSecondsDraft(
+                      showdownSecondsDraft,
+                      event.currentTarget.value,
+                    ),
+                  );
+                }}
+                style={{
+                  width: 92,
+                  padding: "9px 10px",
+                  borderRadius: 10,
+                  border: `1px solid ${color.border}`,
+                  background: color.controlFill,
+                  color: color.textBright,
+                  fontFamily: font.mono,
+                  fontSize: fontSize.md,
+                  textAlign: "right",
+                }}
+              />
+            </label>
+            <span
+              style={{
+                fontSize: fontSize.caption,
+                lineHeight: 1.45,
+                color: color.textDim,
+              }}
+            >
+              Seconds each player has to show or muck. Always on — one locked
+              phone would otherwise hold up the table.
+            </span>
+            {!showdownSecondsDraft.valid ? (
+              <span
+                data-testid="showdown-clock-validation"
+                role="alert"
+                style={{
+                  color: color.accentBright,
+                  fontSize: fontSize.caption,
+                }}
+              >
+                Enter a whole number from {String(MIN_SHOWDOWN_CLOCK_SECONDS)}{" "}
+                to {String(MAX_SHOWDOWN_CLOCK_SECONDS)} seconds.
+              </span>
+            ) : null}
+          </div>
+
+          <div
             style={{
               paddingTop: 20,
               display: "flex",
@@ -607,7 +741,11 @@ export function HouseRulesSheet({
             <PillButton
               data-testid="settings-done"
               aria-busy={saving}
-              disabled={saving || !shotClockSecondsDraft.valid}
+              disabled={
+                saving ||
+                !shotClockSecondsDraft.valid ||
+                !showdownSecondsDraft.valid
+              }
               onClick={() => {
                 void applyHouseRules();
               }}

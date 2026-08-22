@@ -28,5 +28,5 @@
 {"type":"ShowdownReached","contestants":[2,0]}
 {"type":"HandComplete"}
 {"type":"HoleCardsShown","result":{"seatId":0,"holeCards":[{"rank":"J","suit":"clubs"},{"rank":"7","suit":"hearts"}],"rank":3594375,"bestHand":[{"rank":"J","suit":"clubs"},{"rank":"10","suit":"hearts"},{"rank":"9","suit":"clubs"},{"rank":"8","suit":"clubs"},{"rank":"7","suit":"hearts"}],"description":"Straight, jack high"}}
+{"type":"HoleCardsMucked","seatId":2}
 {"type":"WinnersDeclared","winners":[0]}
-{"type":"HoleCardsShown","result":{"seatId":2,"holeCards":[{"rank":"9","suit":"spades"},{"rank":"2","suit":"clubs"}],"rank":1250655,"bestHand":[{"rank":"9","suit":"spades"},{"rank":"9","suit":"clubs"},{"rank":"10","suit":"hearts"},{"rank":"8","suit":"clubs"},{"rank":"7","suit":"diamonds"}],"description":"Pair of nines"}}

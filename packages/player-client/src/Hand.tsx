@@ -27,40 +27,69 @@ export interface HandProps {
   readonly seats?: readonly SeatView[];
   readonly connectionStatus?: ConnectionStatus;
   readonly shotClockSeconds?: number;
+  readonly showdownClockSeconds?: number;
   readonly intent?: ActionIntent;
 }
 
 const noAction = () => undefined;
 
+interface ShowdownTurn {
+  readonly showdownOpen: boolean;
+  readonly showLegal: boolean;
+  readonly muckLegal: boolean;
+}
+
+/** At Showdown the reveal gesture publishes: see ADR-0008's amendment for #253. */
+export function showdownTurn(view: PlayerView): ShowdownTurn {
+  if (view.phase !== "showdown" || view.winners !== null) {
+    return { showdownOpen: false, showLegal: false, muckLegal: false };
+  }
+  return {
+    showdownOpen: true,
+    showLegal: view.canShow,
+    muckLegal: view.canMuck,
+  };
+}
+
 function cardActionsFrom(
   intent: ActionIntent | undefined,
-  showLegal: boolean,
+  turn: ShowdownTurn,
 ): CardActions {
   if (intent === undefined) {
     return {
       foldLegal: false,
       checkLegal: false,
-      showLegal: false,
+      ...turn,
       pending: false,
       fold: noAction,
       check: noAction,
       show: noAction,
+      muck: noAction,
     };
   }
   return {
     foldLegal: intent.legalActions.includes("fold"),
     checkLegal: intent.legalActions.includes("check"),
-    showLegal,
+    ...turn,
     pending: intent.pendingAction !== null,
     fold: intent.fold,
     check: intent.check,
     show: intent.show,
+    muck: intent.muck,
   };
 }
 
-/** At Showdown the reveal gesture publishes: see ADR-0008's amendment for #253. */
-export function revealWouldShow(view: PlayerView): boolean {
-  return view.phase === "showdown" && view.canShow && view.winners !== null;
+/**
+ * A persistent prompt, not `coaching.ts`'s one-shot teaching: an experienced
+ * player still needs to be told whose turn it is. The muck line is left off
+ * when compelled — offering an option that will be rejected is worse than not
+ * offering it (ADR-0009).
+ */
+export function showdownPrompt(turn: ShowdownTurn): string | null {
+  if (!turn.showLegal) return null;
+  return turn.muckLegal
+    ? "Show your hand, or drag up to muck"
+    : "Show your hand";
 }
 
 type BannerTone = "turn" | "all-in" | "win" | "loss" | "idle" | "offline";
@@ -168,9 +197,17 @@ function bannerFor(
   if (view.phase === "showdown") {
     const winners = view.winners;
     if (winners === null) {
+      const prompt = showdownPrompt(showdownTurn(view));
+      if (prompt !== null) {
+        return { kicker: "Your turn", text: prompt, tone: "turn" };
+      }
+      const waitingOn = view.queue[0];
       return {
         kicker: "Showdown",
-        text: "Waiting for the table to turn the hands over",
+        text:
+          waitingOn === undefined
+            ? "Waiting for the hands to be turned over"
+            : `Waiting on ${seatLabel(waitingOn, seats)}`,
         tone: "idle",
       };
     }
@@ -358,12 +395,17 @@ function HoleCardsRegion({
   sealed = false,
   actions,
   caption,
+  clock,
 }: {
   readonly cards: readonly [CardType, CardType] | null;
   readonly locked?: boolean;
   readonly sealed?: boolean;
   readonly actions: CardActions;
   readonly caption?: string;
+  readonly clock?: {
+    readonly turnEndsAt: number | null;
+    readonly durationSeconds: number;
+  };
 }) {
   const absent = cards === null;
   return (
@@ -379,6 +421,14 @@ function HoleCardsRegion({
         textAlign: "center",
       }}
     >
+      {clock && clock.turnEndsAt !== null ? (
+        <ShotClock
+          turnEndsAt={clock.turnEndsAt}
+          durationSeconds={clock.durationSeconds}
+          variant="ring"
+          testId="showdown-shot-clock"
+        />
+      ) : null}
       <HoleCardPair
         cards={cards}
         locked={locked}
@@ -396,9 +446,11 @@ export function Hand({
   seats = [],
   connectionStatus = "connected",
   shotClockSeconds = 90,
+  showdownClockSeconds = 30,
   intent,
 }: HandProps) {
-  const actions = cardActionsFrom(intent, revealWouldShow(view));
+  const turn = showdownTurn(view);
+  const actions = cardActionsFrom(intent, turn);
 
   if (view.phase === "no-hand") {
     return (
@@ -489,12 +541,20 @@ export function Hand({
             cards={myResult.holeCards}
             locked={iHaveShown}
             actions={actions}
+            clock={{
+              turnEndsAt: turn.showLegal ? view.turnEndsAt : null,
+              durationSeconds: showdownClockSeconds,
+            }}
           />
         ) : (
           <HoleCardsRegion
             cards={null}
             actions={actions}
-            caption="You folded — cards are in the muck."
+            caption={
+              view.mucked.includes(seatId)
+                ? "You mucked — cards are in the muck."
+                : "You folded — cards are in the muck."
+            }
           />
         )}
         {intent?.rejection != null && (

@@ -2,6 +2,7 @@ import type {
   RoomView,
   SeatCountChange,
   ShotClockSettings,
+  ShowdownClockSettings,
   SoundSettings,
 } from "@table-top-poker/protocol";
 
@@ -122,4 +123,21 @@ export async function changeShotClockSettings(
     );
   }
   return (await response.json()) as ShotClockSettings;
+}
+
+export async function changeShowdownClockSettings(
+  code: string,
+  settings: ShowdownClockSettings,
+): Promise<ShowdownClockSettings> {
+  const response = await fetch(`/rooms/${code}/showdown-clock`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `failed to change showdown-clock settings: ${String(response.status)}`,
+    );
+  }
+  return (await response.json()) as ShowdownClockSettings;
 }

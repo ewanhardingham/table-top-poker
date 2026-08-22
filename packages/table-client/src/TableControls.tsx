@@ -45,8 +45,9 @@ export interface TableControlsProps {
   readonly onEndSession: () => void;
   readonly testMode?: boolean;
   readonly onAddBot?: () => void;
-  readonly awaitingReveal?: boolean;
-  readonly onReveal?: () => void;
+  /** The showing window is open: the room, not the table, closes it. */
+  readonly awaitingShowdown?: boolean;
+  readonly rejectionHint?: string | null;
   readonly placement?: TableControlsPlacement;
   readonly onReviewHands?: () => void;
 }
@@ -60,8 +61,8 @@ export function TableControls({
   onEndSession,
   testMode = false,
   onAddBot,
-  awaitingReveal = false,
-  onReveal,
+  awaitingShowdown = false,
+  rejectionHint = null,
   placement = "rail",
   onReviewHands,
 }: TableControlsProps) {
@@ -80,14 +81,10 @@ export function TableControls({
           Deal hand
         </PillButton>
       )}
-      {awaitingReveal ? (
-        <PillButton
-          data-testid="reveal-button"
-          onClick={onReveal}
-          style={actionButtonStyle}
-        >
-          Reveal
-        </PillButton>
+      {awaitingShowdown ? (
+        <div data-testid="showdown-in-progress-hint" style={hintStyle}>
+          {rejectionHint ?? "Waiting on the players to show or muck"}
+        </div>
       ) : (
         handComplete && (
           <div style={actionButtonStyle}>

@@ -2,7 +2,7 @@ import type { PlayerView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Hand, revealWouldShow } from "./Hand.js";
+import { Hand, showdownPrompt, showdownTurn } from "./Hand.js";
 
 describe("Hand", () => {
   it("shows a waiting state before any hand has started", () => {
@@ -294,6 +294,9 @@ describe("Hand", () => {
   describe("showdown", () => {
     const shownTable = {
       phase: "showdown",
+      turnEndsAt: null,
+      queue: [],
+      mucked: [],
       button: 0,
       smallBlind: 1,
       bigBlind: 2,
@@ -351,6 +354,7 @@ describe("Hand", () => {
         yourSeatId: seatId,
         yourResult,
         canShow: false,
+        canMuck: false,
       };
     }
 
@@ -385,6 +389,7 @@ describe("Hand", () => {
         yourSeatId: 1,
         yourResult: shownTable.results[1],
         canShow: true,
+        canMuck: false,
       };
       const html = renderToStaticMarkup(<Hand view={concealing} seatId={1} />);
 
@@ -393,22 +398,54 @@ describe("Hand", () => {
       expect(html).toContain('aria-disabled="false"');
     });
 
-    it("arms the reveal to publish only inside the showing window", () => {
+    it("arms the reveal to publish only on your turn in an open window", () => {
       const contestant = {
         ...shownTable,
         results: [shownTable.results[0]],
-        winners: [0] as readonly number[],
+        winners: null,
+        queue: [1] as readonly number[],
         yourSeatId: 1,
         yourResult: shownTable.results[1],
         canShow: true,
+        canMuck: true,
       } satisfies PlayerView;
 
-      expect(revealWouldShow(contestant)).toBe(true);
+      expect(showdownTurn(contestant)).toEqual({
+        showdownOpen: true,
+        showLegal: true,
+        muckLegal: true,
+      });
+      expect(showdownTurn({ ...contestant, winners: [0] }).showLegal).toBe(
+        false,
+      );
+      expect(showdownTurn({ ...contestant, canShow: false }).showLegal).toBe(
+        false,
+      );
+      expect(showdownTurn(showdownViewFor(0)).showdownOpen).toBe(false);
+    });
+
+    it("drops the muck line from the prompt while the compulsion stands", () => {
       expect(
-        revealWouldShow({ ...contestant, winners: null, results: [] }),
-      ).toBe(false);
-      expect(revealWouldShow({ ...contestant, canShow: false })).toBe(false);
-      expect(revealWouldShow(showdownViewFor(0))).toBe(false);
+        showdownPrompt({
+          showdownOpen: true,
+          showLegal: true,
+          muckLegal: true,
+        }),
+      ).toBe("Show your hand, or drag up to muck");
+      expect(
+        showdownPrompt({
+          showdownOpen: true,
+          showLegal: true,
+          muckLegal: false,
+        }),
+      ).toBe("Show your hand");
+      expect(
+        showdownPrompt({
+          showdownOpen: true,
+          showLegal: false,
+          muckLegal: false,
+        }),
+      ).toBeNull();
     });
 
     it("has no separate show control — the reveal gesture is the show", () => {
@@ -419,6 +456,7 @@ describe("Hand", () => {
         yourSeatId: 1,
         yourResult: shownTable.results[1],
         canShow: true,
+        canMuck: false,
       };
       const html = renderToStaticMarkup(<Hand view={concealing} seatId={1} />);
 
@@ -434,6 +472,7 @@ describe("Hand", () => {
         yourSeatId: 1,
         yourResult: shownTable.results[1],
         canShow: true,
+        canMuck: false,
       };
       const html = renderToStaticMarkup(
         <Hand
@@ -449,6 +488,7 @@ describe("Hand", () => {
             raise: () => undefined,
             allIn: () => undefined,
             show: () => undefined,
+            muck: () => undefined,
           }}
         />,
       );
@@ -599,6 +639,9 @@ describe("Hand", () => {
         "showdown",
         {
           phase: "showdown",
+          turnEndsAt: null,
+          queue: [],
+          mucked: [],
           button: 0,
           smallBlind: 1,
           bigBlind: 2,
@@ -610,6 +653,7 @@ describe("Hand", () => {
           yourSeatId: 0,
           yourResult: null,
           canShow: true,
+          canMuck: false,
         },
       ],
       [
@@ -671,5 +715,93 @@ describe("Hand", () => {
 
       expect(html).toContain("opacity:1");
     });
+  });
+});
+
+describe("Hand in the showing window", () => {
+  const yourResult = {
+    seatId: 1,
+    rank: 2,
+    description: "Pair of Kings",
+    holeCards: [
+      { rank: "K", suit: "clubs" },
+      { rank: "4", suit: "hearts" },
+    ],
+    bestHand: [
+      { rank: "K", suit: "hearts" },
+      { rank: "K", suit: "clubs" },
+      { rank: "A", suit: "spades" },
+      { rank: "9", suit: "diamonds" },
+      { rank: "4", suit: "spades" },
+    ],
+  } as const;
+
+  const yourTurn: PlayerView = {
+    phase: "showdown",
+    turnEndsAt: Date.now() + 4000,
+    button: 0,
+    smallBlind: 1,
+    bigBlind: 0,
+    dealtSeatCount: 2,
+    board: [],
+    contestants: [0, 1],
+    results: [],
+    queue: [1, 0],
+    mucked: [],
+    winners: null,
+    yourSeatId: 1,
+    yourResult,
+    canShow: true,
+    canMuck: false,
+  };
+
+  it("prompts without the muck line while the compulsion stands", () => {
+    const html = renderToStaticMarkup(<Hand view={yourTurn} seatId={1} />);
+
+    expect(html).toMatch(/data-testid="turn-banner"[^>]*data-tone="turn"/);
+    expect(html).toContain("Show your hand");
+    expect(html).not.toContain("drag up to muck");
+  });
+
+  it("offers the muck once some hand is face-up", () => {
+    const html = renderToStaticMarkup(
+      <Hand view={{ ...yourTurn, canMuck: true }} seatId={1} />,
+    );
+
+    expect(html).toContain("Show your hand, or drag up to muck");
+  });
+
+  it("rings the clock on the player's own cards while it is their turn", () => {
+    const html = renderToStaticMarkup(<Hand view={yourTurn} seatId={1} />);
+
+    expect(html).toContain('data-testid="showdown-shot-clock"');
+  });
+
+  it("carries no clock and no prompt behind the head of the queue", () => {
+    const waiting: PlayerView = {
+      ...yourTurn,
+      queue: [0, 1],
+      canShow: false,
+      canMuck: false,
+    };
+    const html = renderToStaticMarkup(<Hand view={waiting} seatId={1} />);
+
+    expect(html).not.toContain('data-testid="showdown-shot-clock"');
+    expect(html).not.toContain("Show your hand");
+    expect(html).toContain("Waiting on");
+  });
+
+  it("says the cards are mucked once this seat has declined", () => {
+    const mucked: PlayerView = {
+      ...yourTurn,
+      queue: [0],
+      mucked: [1],
+      yourResult: null,
+      canShow: false,
+      canMuck: false,
+    };
+    const html = renderToStaticMarkup(<Hand view={mucked} seatId={1} />);
+
+    expect(html).toContain("You mucked");
   });
 });

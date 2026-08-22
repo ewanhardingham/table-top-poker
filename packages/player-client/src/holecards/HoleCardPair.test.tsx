@@ -15,9 +15,12 @@ import type { CardActions } from "./ports.js";
 const actions: CardActions = {
   foldLegal: true,
   checkLegal: true,
+  showdownOpen: false,
   showLegal: false,
+  muckLegal: false,
   pending: false,
   fold: () => undefined,
+  muck: () => undefined,
   check: () => undefined,
   show: () => undefined,
 };

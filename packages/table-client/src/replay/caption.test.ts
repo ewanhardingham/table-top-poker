@@ -120,3 +120,11 @@ describe("captionFor", () => {
     }
   });
 });
+
+describe("captionFor a muck", () => {
+  it("says only what happened at the table, never why", () => {
+    expect(captionFor({ type: "HoleCardsMucked", seatId: 2 }, [])).toBe(
+      "Seat 3 mucks",
+    );
+  });
+});

@@ -4,6 +4,7 @@ import { decide } from "./decide.js";
 import { createInitialState } from "./room.js";
 import { play, playAll } from "./test-utils.js";
 import type { Command, EngineState, HandEvent, SeatId } from "./types.js";
+import { must } from "./util.js";
 import { view } from "./view.js";
 
 function playAndCollect(state: EngineState, commands: Command[]): HandEvent[] {
@@ -39,6 +40,12 @@ const raisedOnTheRiver: Command[] = [
   { type: "call", seatId: 1 },
 ];
 
+const bothAllInPreflop: Command[] = [
+  { type: "call", seatId: 0 },
+  { type: "allInRaise", seatId: 1 },
+  { type: "allInCall", seatId: 0 },
+];
+
 function headsUpAt(commands: Command[], seed = "s0"): EngineState {
   return playAll(createInitialState([0, 1]), [
     { type: "startHand", seatId: 0, seed },
@@ -52,10 +59,6 @@ function showdownState(state: EngineState) {
     throw new Error("expected a hand at showdown");
   }
   return hand;
-}
-
-function reveal(state: EngineState): EngineState {
-  return playAll(state, [{ type: "reveal", seatId: 0 }]);
 }
 
 function shownSeats(state: EngineState): SeatId[] {
@@ -102,7 +105,7 @@ describe("ShowdownReached", () => {
   });
 });
 
-describe("the hand rests before it resolves", () => {
+describe("the window opens at river close", () => {
   it("carries no hole cards, results or winners in any view", () => {
     const state = headsUpAt(checkedThroughToRiver);
 
@@ -110,144 +113,224 @@ describe("the hand rests before it resolves", () => {
     if (table.phase !== "showdown") throw new Error("expected showdown");
     expect(table.contestants).toEqual([1, 0]);
     expect(table.results).toEqual([]);
+    expect(table.mucked).toEqual([]);
     expect(table.winners).toBeNull();
     expect(JSON.stringify(table)).not.toContain("holeCards");
   });
 
-  it("still tells a player their own hand and that they may show", () => {
-    const player = view(headsUpAt(checkedThroughToRiver), 0);
-    if (player.phase !== "showdown") throw new Error("expected showdown");
-    expect(player.yourResult?.holeCards).toHaveLength(2);
-    expect(player.canShow).toBe(true);
+  it("queues the river's last aggressor first, then clockwise", () => {
+    expect(showdownState(headsUpAt(raisedOnTheRiver)).queue).toEqual([0, 1]);
   });
-});
 
-describe("reveal turns over exactly the compulsory set", () => {
-  it("compels the river's last aggressor", () => {
-    const state = reveal(headsUpAt(raisedOnTheRiver));
-    expect(shownSeats(state)).toEqual([0]);
-    expect(showdownState(state).winners).not.toBeNull();
+  it("queues from the first live seat left of the button with no aggressor", () => {
+    expect(showdownState(headsUpAt(checkedThroughToRiver)).queue).toEqual([
+      1, 0,
+    ]);
   });
 
   it("forgets an aggressor from an earlier street", () => {
-    const state = reveal(
-      headsUpAt([
-        { type: "call", seatId: 0 },
-        { type: "check", seatId: 1 },
-        { type: "check", seatId: 1 },
-        { type: "raise", seatId: 0 },
-        { type: "call", seatId: 1 },
-        { type: "check", seatId: 1 },
-        { type: "check", seatId: 0 },
-        { type: "check", seatId: 1 },
-        { type: "check", seatId: 0 },
-      ]),
-    );
-    expect(shownSeats(state)).toEqual(showdownState(state).winners);
+    const state = headsUpAt([
+      { type: "call", seatId: 0 },
+      { type: "check", seatId: 1 },
+      { type: "check", seatId: 1 },
+      { type: "raise", seatId: 0 },
+      { type: "call", seatId: 1 },
+      { type: "check", seatId: 1 },
+      { type: "check", seatId: 0 },
+      { type: "check", seatId: 1 },
+      { type: "check", seatId: 0 },
+    ]);
+    expect(showdownState(state).queue).toEqual([1, 0]);
   });
 
-  it("compels the winning seat when the river was checked through", () => {
-    const state = reveal(headsUpAt(checkedThroughToRiver));
-    const hand = showdownState(state);
-    expect(hand.winners).not.toBeNull();
-    expect(shownSeats(state)).toEqual(hand.winners);
+  it("tells a player it is their turn, and that they cannot yet muck", () => {
+    const player = view(headsUpAt(raisedOnTheRiver), 0);
+    if (player.phase !== "showdown") throw new Error("expected showdown");
+    expect(player.yourResult?.holeCards).toHaveLength(2);
+    expect(player.canShow).toBe(true);
+    expect(player.canMuck).toBe(false);
   });
 
-  it("compels every all-in seat", () => {
-    const state = reveal(
-      headsUpAt([
-        { type: "call", seatId: 0 },
-        { type: "allInRaise", seatId: 1 },
-        { type: "call", seatId: 0 },
-      ]),
-    );
-    expect(shownSeats(state)).toContain(1);
-  });
-
-  it("publishes winners over every contestant, shown or not", () => {
-    const state = reveal(headsUpAt(raisedOnTheRiver));
-    const hand = showdownState(state);
-    const ranked = [...hand.contestants].map((contestant) => contestant.seatId);
-    expect(hand.winners?.every((seat) => ranked.includes(seat))).toBe(true);
-  });
-
-  it("is an idempotent no-op when pressed again", () => {
-    const revealed = reveal(headsUpAt(raisedOnTheRiver));
-    const outcome = play(revealed, { type: "reveal", seatId: 0 });
-    if ("rejection" in outcome) throw new Error("expected a no-op");
-    expect(outcome.events).toEqual([]);
-  });
-
-  it("is rejected before the river closes", () => {
-    const state = headsUpAt([{ type: "call", seatId: 0 }]);
-    const outcome = play(state, { type: "reveal", seatId: 0 });
-    if (!("rejection" in outcome)) throw new Error("expected a rejection");
-    expect(outcome.rejection.reason).toBe("not-at-showdown");
+  it("leaves a contestant behind the head unable to act", () => {
+    const player = view(headsUpAt(raisedOnTheRiver), 1);
+    if (player.phase !== "showdown") throw new Error("expected showdown");
+    expect(player.canShow).toBe(false);
+    expect(player.canMuck).toBe(false);
   });
 });
 
-describe("show", () => {
-  it("lets any other contestant turn over, in any order", () => {
-    const revealed = reveal(headsUpAt(raisedOnTheRiver));
-    expect(shownSeats(revealed)).toEqual([0]);
-    const shown = playAll(revealed, [{ type: "show", seatId: 1 }]);
-    expect(shownSeats(shown)).toEqual([0, 1]);
+describe("all-in contestants are tabled as the window opens", () => {
+  it("shows them without queueing them, and publishes winners at once", () => {
+    const state = headsUpAt(bothAllInPreflop);
+    const hand = showdownState(state);
+    expect(hand.queue).toEqual([]);
+    expect([...shownSeats(state)].sort()).toEqual([0, 1]);
+    expect(hand.winners).not.toBeNull();
   });
 
-  it("cannot conceal a hand once shown", () => {
-    const shown = playAll(reveal(headsUpAt(raisedOnTheRiver)), [
-      { type: "show", seatId: 1 },
-    ]);
-    const outcome = play(shown, { type: "show", seatId: 1 });
-    if ("rejection" in outcome) throw new Error("expected a no-op");
-    expect(outcome.events).toEqual([]);
-    expect(shownSeats(shown)).toEqual([0, 1]);
-  });
-
-  it("is rejected from a seat that folded", () => {
+  it("frees the rest to muck when the last aggressor was all-in", () => {
     const state = playAll(createInitialState([0, 1, 2]), [
       { type: "startHand", seatId: 0, seed: "seed-1" },
       { type: "call", seatId: 0 },
       { type: "call", seatId: 1 },
-      { type: "raise", seatId: 2 },
-      { type: "call", seatId: 0 },
-      { type: "call", seatId: 1 },
+      { type: "check", seatId: 2 },
       { type: "check", seatId: 1 },
       { type: "check", seatId: 2 },
       { type: "check", seatId: 0 },
-      { type: "fold", seatId: 1 },
+      { type: "check", seatId: 1 },
       { type: "check", seatId: 2 },
       { type: "check", seatId: 0 },
-      { type: "check", seatId: 2 },
-      { type: "raise", seatId: 0 },
-      { type: "call", seatId: 2 },
+      { type: "check", seatId: 1 },
+      { type: "allInRaise", seatId: 2 },
+      { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
     ]);
-    const outcome = play(state, { type: "show", seatId: 1 });
+    const hand = showdownState(state);
+    expect(shownSeats(state)).toEqual([2]);
+    expect(hand.queue).not.toContain(2);
+    const player = view(state, must(hand.queue[0]));
+    if (player.phase !== "showdown") throw new Error("expected showdown");
+    expect(player.canMuck).toBe(true);
+  });
+});
+
+describe("show", () => {
+  it("publishes the head's hand and passes the turn on", () => {
+    const shown = playAll(headsUpAt(raisedOnTheRiver), [
+      { type: "show", seatId: 0 },
+    ]);
+    expect(shownSeats(shown)).toEqual([0]);
+    expect(showdownState(shown).queue).toEqual([1]);
+    expect(showdownState(shown).winners).toBeNull();
+  });
+
+  it("declares winners once the last contestant resolves", () => {
+    const shown = playAll(headsUpAt(raisedOnTheRiver), [
+      { type: "show", seatId: 0 },
+      { type: "show", seatId: 1 },
+    ]);
+    const hand = showdownState(shown);
+    expect(shownSeats(shown)).toEqual([0, 1]);
+    expect(hand.winners).not.toBeNull();
+  });
+
+  it("is rejected from a seat that is not the head of the queue", () => {
+    const outcome = play(headsUpAt(raisedOnTheRiver), {
+      type: "show",
+      seatId: 1,
+    });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("not-your-turn");
+  });
+
+  it("is rejected from a seat that folded", () => {
+    const outcome = play(headsUpAt(raisedOnTheRiver), {
+      type: "show",
+      seatId: 2,
+    });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("not-your-turn");
+  });
+
+  it("is rejected before the river closes", () => {
+    const outcome = play(headsUpAt([{ type: "call", seatId: 0 }]), {
+      type: "show",
+      seatId: 0,
+    });
     if (!("rejection" in outcome)) throw new Error("expected a rejection");
     expect(outcome.rejection.reason).toBe("not-at-showdown");
   });
 
-  it("is rejected before the table has revealed — the hand rests first", () => {
-    const resting = headsUpAt(raisedOnTheRiver);
-    const outcome = play(resting, { type: "show", seatId: 1 });
+  it("is rejected once the window has closed", () => {
+    const closed = playAll(headsUpAt(raisedOnTheRiver), [
+      { type: "show", seatId: 0 },
+      { type: "show", seatId: 1 },
+    ]);
+    const outcome = play(closed, { type: "show", seatId: 1 });
     if (!("rejection" in outcome)) throw new Error("expected a rejection");
     expect(outcome.rejection.reason).toBe("not-at-showdown");
-    expect(shownSeats(resting)).toEqual([]);
+  });
+});
+
+describe("muck", () => {
+  it("is refused from the head while no hand is face-up", () => {
+    const outcome = play(headsUpAt(raisedOnTheRiver), {
+      type: "muck",
+      seatId: 0,
+    });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("action-not-legal");
   });
 
-  it("is rejected once the hand has closed", () => {
-    const next = playAll(reveal(headsUpAt(raisedOnTheRiver)), [
+  it("is allowed once the first hand is face-up, and forfeits the pot", () => {
+    const shown = playAll(headsUpAt(raisedOnTheRiver), [
+      { type: "show", seatId: 0 },
+    ]);
+    const mucked = playAll(shown, [{ type: "muck", seatId: 1 }]);
+    const hand = showdownState(mucked);
+    expect(hand.mucked).toEqual([1]);
+    expect(hand.queue).toEqual([]);
+    expect(hand.winners).toEqual([0]);
+  });
+
+  it("is rejected from a seat that is not the head of the queue", () => {
+    const shown = playAll(headsUpAt(checkedThroughToRiver), [
+      { type: "show", seatId: 1 },
+    ]);
+    const outcome = play(shown, { type: "muck", seatId: 1 });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("not-your-turn");
+  });
+
+  it("takes a mucked hand out of the player's own view", () => {
+    const mucked = playAll(headsUpAt(raisedOnTheRiver), [
+      { type: "show", seatId: 0 },
+      { type: "muck", seatId: 1 },
+    ]);
+    const player = view(mucked, 1);
+    if (player.phase !== "showdown") throw new Error("expected showdown");
+    expect(player.yourResult).toBeNull();
+    expect(player.mucked).toEqual([1]);
+  });
+});
+
+describe("winners are the best shown hand", () => {
+  it("hands the pot to a losing hand that tabled when the best hand mucked", () => {
+    const shown = playAll(headsUpAt(checkedThroughToRiver), [
+      { type: "show", seatId: 1 },
+    ]);
+    const only = shownSeats(shown);
+    const closed = playAll(shown, [{ type: "muck", seatId: 0 }]);
+    expect(showdownState(closed).winners).toEqual(only);
+  });
+});
+
+describe("the window holds the next hand", () => {
+  it("rejects nextHand while the queue is unresolved", () => {
+    const outcome = play(headsUpAt(raisedOnTheRiver), {
+      type: "nextHand",
+      seatId: 0,
+      seed: "s1",
+    });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("showdown-unresolved");
+  });
+
+  it("deals once every contestant has shown or mucked", () => {
+    const closed = playAll(headsUpAt(raisedOnTheRiver), [
+      { type: "show", seatId: 0 },
+      { type: "muck", seatId: 1 },
       { type: "nextHand", seatId: 0, seed: "s1" },
     ]);
-    const outcome = play(next, { type: "show", seatId: 1 });
-    if (!("rejection" in outcome)) throw new Error("expected a rejection");
-    expect(outcome.rejection.reason).toBe("not-at-showdown");
+    expect(closed.hand?.status).toBe("betting");
   });
 });
 
 describe("an unshown seat leaks nothing derived from its cards", () => {
   it("appears in contestants and nowhere else, for the table or a rival", () => {
-    const state = reveal(headsUpAt(raisedOnTheRiver));
+    const state = playAll(headsUpAt(raisedOnTheRiver), [
+      { type: "show", seatId: 0 },
+    ]);
     const concealed = showdownState(state).contestants.find(
       (contestant) => !shownSeats(state).includes(contestant.seatId),
     );
@@ -266,23 +349,13 @@ describe("an unshown seat leaks nothing derived from its cards", () => {
   });
 });
 
-describe("the next hand closes the window", () => {
-  it("mucks whatever was not shown", () => {
-    const next = playAll(reveal(headsUpAt(raisedOnTheRiver)), [
-      { type: "nextHand", seatId: 0, seed: "s1" },
-    ]);
-    expect(next.hand?.status).toBe("betting");
-    const table = view(next, "table");
-    expect(table.phase).toBe("betting");
-  });
-});
-
 describe("replay reproduces exactly who showed", () => {
-  it("keeps a concealed hand concealed when the events are folded again", () => {
+  it("keeps a mucked hand mucked when the events are folded again", () => {
     const commands: Command[] = [
       { type: "startHand", seatId: 0, seed: "s0" },
       ...raisedOnTheRiver,
-      { type: "reveal", seatId: 0 },
+      { type: "show", seatId: 0 },
+      { type: "muck", seatId: 1 },
     ];
     const events = playAndCollect(createInitialState([0, 1]), commands);
 
@@ -290,6 +363,7 @@ describe("replay reproduces exactly who showed", () => {
     for (const event of events) replayed = apply(replayed, event);
 
     expect(shownSeats(replayed)).toEqual([0]);
+    expect(showdownState(replayed).mucked).toEqual([1]);
     expect(showdownState(replayed).winners).toEqual(
       showdownState(playAll(createInitialState([0, 1]), commands)).winners,
     );
