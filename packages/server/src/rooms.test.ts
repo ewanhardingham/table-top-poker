@@ -1,7 +1,6 @@
 import {
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
-  DEFAULT_SHOWDOWN_OVERLAY,
   DEFAULT_SOUND_SETTINGS,
   MAX_DISPLAY_NAME_LENGTH,
   MAX_SEAT_COUNT,
@@ -133,20 +132,6 @@ describe("RoomStore", () => {
 
     expect(room.shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
     expect(toRoomView(room).shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
-  });
-
-  it("creates a room with the showdown overlay off, and remembers a change", () => {
-    const store = new RoomStore();
-    const room = store.create();
-
-    expect(toRoomView(room).showdownOverlay).toEqual(DEFAULT_SHOWDOWN_OVERLAY);
-    expect(store.changeShowdownOverlay(room.code, { enabled: true })).toEqual({
-      enabled: true,
-    });
-    expect(toRoomView(room).showdownOverlay).toEqual({ enabled: true });
-    expect(store.changeShowdownOverlay("ZZZZ", { enabled: true })).toEqual({
-      error: "room-not-found",
-    });
   });
 
   it("creates a room with the seat count the creator chose", () => {
@@ -1470,7 +1455,6 @@ describe("toRoomView", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
-      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,

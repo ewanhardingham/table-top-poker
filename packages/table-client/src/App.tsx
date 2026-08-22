@@ -5,7 +5,6 @@ import {
   isHandLive,
   MIN_SEAT_COUNT,
   type ShotClockSettings,
-  type ShowdownOverlaySettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
@@ -19,7 +18,6 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   changeSeatCount,
   changeShotClockSettings,
-  changeShowdownOverlay,
   changeSoundSettings,
   createRoom,
   addBots,
@@ -36,7 +34,6 @@ import { SeatCountPicker } from "./SeatCountPicker.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
 import { Seats } from "./Seats.js";
-import { ShowdownOverlay } from "./ShowdownOverlay.js";
 import { SettingsToggle } from "./SettingsToggle.js";
 import { StatusBar } from "./StatusBar.js";
 import { TableControls } from "./TableControls.js";
@@ -93,7 +90,6 @@ export function App() {
   const pendingShotClock = useTableStore((state) => state.pendingShotClock);
   const soundSettings = useTableStore((state) => state.soundSettings);
   const shotClockSettings = useTableStore((state) => state.shotClockSettings);
-  const showdownOverlay = useTableStore((state) => state.showdownOverlay);
   const testMode = useTableStore((state) => state.testMode);
   const connectionStatus = useTableStore((state) => state.connectionStatus);
   const handView = useTableStore((state) => state.handView);
@@ -129,13 +125,8 @@ export function App() {
 
   const [handPickerOpen, setHandPickerOpen] = useState(false);
 
-  const [showdownCollapsed, setShowdownCollapsed] = useState(false);
-  const atShowdown = handView?.phase === "showdown";
   const awaitingReveal =
     handView?.phase === "showdown" && handView.winners === null;
-  useEffect(() => {
-    if (!atShowdown) setShowdownCollapsed(false);
-  }, [atShowdown]);
   const handleSeatClick = useCallback((seatId: number) => {
     setMenuSeatId((current) => (current === seatId ? null : seatId));
   }, []);
@@ -203,16 +194,6 @@ export function App() {
     (next: SoundSettings) => {
       if (roomCode === null) return;
       changeSoundSettings(roomCode, next).catch((error: unknown) => {
-        console.error(error);
-      });
-    },
-    [roomCode],
-  );
-
-  const handleChangeShowdownOverlay = useCallback(
-    (next: ShowdownOverlaySettings) => {
-      if (roomCode === null) return;
-      changeShowdownOverlay(roomCode, next).catch((error: unknown) => {
         console.error(error);
       });
     },
@@ -389,11 +370,9 @@ export function App() {
                 handInProgress={isHandLive(handView)}
                 soundSettings={soundSettings}
                 shotClockSettings={shotClockSettings}
-                showdownOverlay={showdownOverlay}
                 onApply={handleChangeSeatCount}
                 onApplyShotClock={handleChangeShotClockSettings}
                 onChangeSoundSettings={handleChangeSoundSettings}
-                onChangeShowdownOverlay={handleChangeShowdownOverlay}
                 onClose={() => {
                   setSettingsOpen(false);
                 }}
@@ -404,7 +383,6 @@ export function App() {
                 canStartHand={canStartHand}
                 handComplete={handComplete}
                 canDealNextHand={enoughPlayers}
-                atShowdown={atShowdown && showdownOverlay.enabled}
                 awaitingReveal={awaitingReveal}
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
@@ -412,9 +390,6 @@ export function App() {
                 onEndSession={handleEndSession}
                 testMode={testMode}
                 onAddBot={handleAddBot}
-                onViewShowdown={() => {
-                  setShowdownCollapsed(false);
-                }}
                 onReviewHands={() => {
                   setHandPickerOpen(true);
                 }}
@@ -427,20 +402,6 @@ export function App() {
                 onSelectHand={handleSelectHand}
                 onClose={() => {
                   setHandPickerOpen(false);
-                }}
-              />
-            )}
-            {handView?.phase === "showdown" && showdownOverlay.enabled && (
-              <ShowdownOverlay
-                view={handView}
-                seats={seats}
-                collapsed={showdownCollapsed}
-                canDealNextHand={enoughPlayers}
-                awaitingReveal={awaitingReveal}
-                onReveal={handleReveal}
-                onNextHand={handleNextHand}
-                onViewTable={() => {
-                  setShowdownCollapsed(true);
                 }}
               />
             )}

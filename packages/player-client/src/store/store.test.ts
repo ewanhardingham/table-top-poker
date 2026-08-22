@@ -1,6 +1,5 @@
 import {
   DEFAULT_SHOT_CLOCK,
-  DEFAULT_SHOWDOWN_OVERLAY,
   DEFAULT_SOUND_SETTINGS,
 } from "@table-top-poker/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -76,7 +75,6 @@ describe("usePlayerStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
-      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,
@@ -102,7 +100,6 @@ describe("usePlayerStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
-      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,
@@ -138,7 +135,6 @@ describe("usePlayerStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
-      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,
@@ -169,7 +165,6 @@ describe("usePlayerStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
-      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,
@@ -203,7 +198,6 @@ describe("usePlayerStore", () => {
       pendingShotClock: null,
       soundSettings: DEFAULT_SOUND_SETTINGS,
       shotClockSettings: DEFAULT_SHOT_CLOCK,
-      showdownOverlay: DEFAULT_SHOWDOWN_OVERLAY,
       seats: [
         {
           id: 0,

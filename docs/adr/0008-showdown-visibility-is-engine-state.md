@@ -5,9 +5,9 @@
 Accepted. Depends on [ADR-0007](0007-all-in-as-declared-actions-without-chip-values.md)
 for the all-in actions this decision compels to show. The rank badge in
 "Showdown happens on the table, not over it" was dropped while building it, the
-player's separate show button was dropped in favour of the reveal gesture, and
-the verdict now waits for the cards — see [Amendments](#amendments). The rest
-stands.
+player's separate show button was dropped in favour of the reveal gesture, the
+verdict now waits for the cards, and the `ShowdownOverlay` house rule was
+removed — see [Amendments](#amendments). The rest stands.
 
 ## Context
 
@@ -52,7 +52,8 @@ because with side pots (ADR-0007) "who won" has more than one answer and the
 humans settle the chips (rank badge dropped — see [Amendments](#amendments)).
 Card backs sit above an unshown Seat while the window is open and vanish when the
 hand closes. `ShowdownOverlay` survives as a house rule,
-defaulting off and persisted per-room. A player's own device shows only their own
+defaulting off and persisted per-room (since removed — see
+[Amendments](#amendments)). A player's own device shows only their own
 hand and the verdict: the table is the shared surface.
 
 ## Consequences
@@ -123,3 +124,12 @@ compelled to show wore the badge over two face-down cards — the table announci
 a hand it could not see. The verdict now requires the Seat to be in `results`.
 A winner who has not shown is simply unbadged until they do, which is also the
 room's own convention: you do not collect on a hand you have not tabled.
+
+### The `ShowdownOverlay` house rule is removed (#258)
+
+The overlay was kept as an off-by-default alternative view of a settled
+showdown. The showing window this ADR establishes is ordered, timed and live,
+with mucking in it, and the overlay has no notion of any of that. Teaching a
+second surface to render a phase it was not designed for buys nothing the Seat
+plates — the primary surface this ADR chose — do not already do, so it goes,
+along with its protocol settings, its room field and its endpoint.

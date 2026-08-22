@@ -6,7 +6,6 @@ import {
   type SeatView,
   type SeatMove,
   type ShotClockSettings,
-  type ShowdownOverlaySettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
@@ -29,13 +28,11 @@ export interface HouseRulesSheetProps {
   readonly handInProgress: boolean;
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
-  readonly showdownOverlay: ShowdownOverlaySettings;
   readonly onApply: (seatCount: number) => void | Promise<void>;
   readonly onApplyShotClock: (
     settings: ShotClockSettings,
   ) => void | Promise<void>;
   readonly onChangeSoundSettings: (next: SoundSettings) => void;
-  readonly onChangeShowdownOverlay: (next: ShowdownOverlaySettings) => void;
   readonly onClose: () => void;
 }
 
@@ -184,11 +181,9 @@ export function HouseRulesSheet({
   handInProgress,
   soundSettings,
   shotClockSettings,
-  showdownOverlay,
   onApply,
   onApplyShotClock,
   onChangeSoundSettings,
-  onChangeShowdownOverlay,
   onClose,
 }: HouseRulesSheetProps) {
   const [draft, setDraft] = useState(pendingSeatCount ?? seatCount);
@@ -483,38 +478,6 @@ export function HouseRulesSheet({
                 onChangeSoundSettings({ ...soundSettings, notifications });
               }}
             />
-          </div>
-
-          <div
-            data-testid="showdown-settings"
-            style={{
-              paddingTop: 20,
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              borderTop: `1px solid ${color.mutedSurface}`,
-              marginTop: 20,
-            }}
-          >
-            <Toggle
-              label="Showdown overlay"
-              checked={showdownOverlay.enabled}
-              disabled={saving}
-              testId="showdown-overlay-toggle"
-              onChange={(enabled) => {
-                onChangeShowdownOverlay({ enabled });
-              }}
-            />
-            <span
-              style={{
-                fontSize: fontSize.caption,
-                lineHeight: 1.45,
-                color: color.textDim,
-              }}
-            >
-              Off, showdown plays out on the seats. On, it takes the whole
-              screen.
-            </span>
           </div>
 
           <div

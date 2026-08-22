@@ -107,13 +107,6 @@ function enterRoom(
   };
 }
 
-function enableShowdownOverlay() {
-  store.overrides = {
-    ...store.overrides,
-    showdownOverlay: { enabled: true },
-  };
-}
-
 const awaitingReveal: TableView = {
   ...showdownHand,
   winners: null,
@@ -214,37 +207,10 @@ describe("App", () => {
     expect(html).not.toMatch(/data-testid="next-hand-button"[^>]*disabled/);
   });
 
-  it("renders the showdown reveal overlay at showdown, gating Next hand on player count", () => {
-    enterRoom(2, showdownHand);
-    enableShowdownOverlay();
-    const html = renderToStaticMarkup(<App />);
-
-    expect(html).toContain('data-testid="showdown-overlay"');
-    expect(html).toContain('data-testid="showdown-player-0"');
-    expect(html).not.toMatch(
-      /data-testid="showdown-next-hand-button"[^>]*disabled/,
-    );
-    expect(html).toContain('data-testid="view-showdown-button"');
-    expect(html).not.toContain('data-testid="next-hand-button"');
-  });
-
-  it("disables the overlay's Next hand once the table drops below two players", () => {
-    enterRoom(1, showdownHand);
-    enableShowdownOverlay();
-    const html = renderToStaticMarkup(<App />);
-
-    expect(html).toMatch(
-      /data-testid="showdown-next-hand-button"[^>]*disabled/,
-    );
-    expect(html).toContain('data-testid="showdown-next-hand-blocked-hint"');
-  });
-
-  it("plays showdown on the seats, with no overlay, unless the house rule is on", () => {
+  it("plays showdown on the seats", () => {
     enterRoom(2, showdownHand);
     const html = renderToStaticMarkup(<App />);
 
-    expect(html).not.toContain('data-testid="showdown-overlay"');
-    expect(html).not.toContain('data-testid="view-showdown-button"');
     expect(html).toContain('data-testid="seat-pod-0-showdown"');
     expect(html).toContain('data-testid="next-hand-button"');
   });
@@ -263,11 +229,10 @@ describe("App", () => {
     expect(revealed).toContain('data-testid="next-hand-button"');
   });
 
-  it("does not render the overlay for a fold-out ending", () => {
+  it("banners a fold-out ending", () => {
     enterRoom(2, completeHand);
     const html = renderToStaticMarkup(<App />);
 
-    expect(html).not.toContain('data-testid="showdown-overlay"');
     expect(html).toContain('data-testid="hand-complete-banner"');
   });
 
