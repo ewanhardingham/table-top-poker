@@ -777,6 +777,16 @@ describe("Hand in the showing window", () => {
     expect(html).toContain('data-testid="showdown-shot-clock"');
   });
 
+  it("sizes the ring by the room's showdown clock, not a default", () => {
+    const html = renderToStaticMarkup(
+      <Hand view={yourTurn} seatId={1} showdownClockSeconds={10} />,
+    );
+
+    // 4s left of 10 leaves the ring past the amber turn, not near-full.
+    expect(html).toContain('data-testid="showdown-shot-clock"');
+    expect(html).toContain("4");
+  });
+
   it("carries no clock and no prompt behind the head of the queue", () => {
     const waiting: PlayerView = {
       ...yourTurn,

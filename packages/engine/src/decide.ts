@@ -44,6 +44,9 @@ export function decide(
 ): HandEvent[] | Rejection {
   switch (command.type) {
     case "startHand": {
+      if (awaitingShowdown(state)?.winners === null) {
+        return reject("showdown-unresolved", command);
+      }
       if (state.hand !== null) {
         return reject("hand-already-in-progress", command);
       }
@@ -51,11 +54,11 @@ export function decide(
     }
 
     case "nextHand": {
-      if (state.hand?.status !== "complete") {
-        return reject("stale-next-hand", command);
-      }
       if (awaitingShowdown(state)?.winners === null) {
         return reject("showdown-unresolved", command);
+      }
+      if (state.hand?.status !== "complete") {
+        return reject("stale-next-hand", command);
       }
       return beginHand(state, command.seed);
     }
@@ -87,10 +90,7 @@ function awaitingShowdown(
   return hand;
 }
 
-/**
- * The showing window's gate: only its head may act, and only while it is open
- * — see ADR-0009.
- */
+/** The showing window's gate — see Showing order in `CONTEXT.md`. */
 function headOfQueue(
   state: EngineState,
   command: Extract<Command, { type: "show" | "muck" }>,
@@ -129,7 +129,6 @@ function decideShow(
   return [{ type: "HoleCardsShown", result }, ...closingWinners(hand, result)];
 }
 
-/** Mucking is barred until some hand is face-up: see Compulsion in ADR-0009. */
 function decideMuck(
   state: EngineState,
   command: Extract<Command, { type: "muck" }>,
@@ -338,7 +337,6 @@ function runOut(
   return finishAtShowdown(current, events);
 }
 
-/** The window opens with every all-in contestant already tabled — ADR-0009. */
 function finishAtShowdown(
   scratch: EngineState,
   events: HandEvent[],

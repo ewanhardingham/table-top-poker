@@ -13,6 +13,7 @@ import {
   ReplayRequestSchema,
   summarise,
   view,
+  type ActionType,
   type CommandRejectedMessage,
   type HandEvent,
   type HandSummary,
@@ -118,6 +119,13 @@ interface WsRoute {
 
 type SocketIdentity = SeatId | "table" | "lobby";
 type ActionClockPolicy = "reschedule" | "preserve";
+type ClockPhase = "betting" | "showing";
+
+interface ClockedActor {
+  readonly seatId: SeatId;
+  readonly phase: ClockPhase;
+}
+
 type BotActionDelay = number | readonly [number, number];
 
 const DEFAULT_BOT_ACTION_DELAY_MS: readonly [number, number] = [250, 750];
@@ -666,24 +674,33 @@ export async function buildApp(
     return changed;
   }
 
-  function botSeatAt(code: string, actor: SeatId | undefined): boolean {
-    if (actor === undefined) return false;
-    const seat = rooms.get(code)?.seats[actor];
+  /** Whoever the Room is waiting on, and which clock is therefore running. */
+  function clockedActor(code: string): ClockedActor | undefined {
+    const betting = rooms.currentActor(code);
+    if (betting !== undefined) return { seatId: betting, phase: "betting" };
+    const showing = rooms.showdownActor(code);
+    return showing === undefined
+      ? undefined
+      : { seatId: showing, phase: "showing" };
+  }
+
+  function stillActing(code: string, actor: ClockedActor): boolean {
+    const current = clockedActor(code);
+    return current?.seatId === actor.seatId && current.phase === actor.phase;
+  }
+
+  function isBotSeat(code: string, seatId: SeatId): boolean {
+    const seat = rooms.get(code)?.seats[seatId];
     return seat?.claimed === true && seat.bot === true;
   }
 
-  /**
-   * A bot in the showing queue would otherwise wedge the room, so it resolves
-   * on its own turn — after the usual delay, never instantly (ADR-0009).
-   */
+  /** A bot in the showing queue would otherwise wedge the room — see ADR-0009. */
   function scheduleBotAction(code: string): void {
     clearBotActionTimer(code);
     if (!testMode) return;
 
-    const betting = rooms.currentActor(code);
-    const showing = rooms.showdownActor(code);
-    const actor = betting ?? showing;
-    if (!botSeatAt(code, actor) || actor === undefined) return;
+    const actor = clockedActor(code);
+    if (actor === undefined || !isBotSeat(code, actor.seatId)) return;
 
     const timer = setTimeout(
       () => {
@@ -691,15 +708,13 @@ export async function buildApp(
         enqueueDetached(code, async () => {
           if (roomRecordings.isPaused(code)) return;
           const currentRoom = rooms.get(code);
-          if (!currentRoom || !botSeatAt(code, actor)) return;
+          if (!currentRoom || !isBotSeat(code, actor.seatId)) return;
+          if (!stillActing(code, actor)) return;
 
-          const action =
-            betting === undefined
-              ? botShowdownAction(code, actor)
-              : botBettingAction(currentRoom, actor);
+          const action = botAction(currentRoom, actor);
           if (action === null) return;
 
-          const result = rooms.dispatch(code, actor, action);
+          const result = rooms.dispatch(code, actor.seatId, action);
           if (!("commit" in result)) {
             rescheduleActionClock(code);
             scheduleBotAction(code);
@@ -713,54 +728,43 @@ export async function buildApp(
     botActionTimers.set(code, timer);
   }
 
-  function botBettingAction(room: Room, actor: SeatId): SeatCommandType | null {
-    if (rooms.currentActor(room.code) !== actor) return null;
-    const engine = room.engine;
-    if (engine?.hand?.status !== "betting") return null;
-    const actorView = view(engine, actor);
-    if (actorView.phase !== "betting" || actorView.legalActions.length === 0) {
-      return null;
+  function botAction(room: Room, actor: ClockedActor): SeatCommandType | null {
+    if (actor.phase === "showing") {
+      return chooseShowdownAction(rooms.showdownCompelled(room.code), botRng);
     }
-    return chooseBotAction(actorView.legalActions, botRng);
+    const legal = bettingActionsFor(room, actor.seatId);
+    return legal.length === 0 ? null : chooseBotAction(legal, botRng);
   }
 
-  function botShowdownAction(
-    code: string,
-    actor: SeatId,
-  ): SeatCommandType | null {
-    if (rooms.showdownActor(code) !== actor) return null;
-    return chooseShowdownAction(rooms.showdownCompelled(code), botRng);
+  function bettingActionsFor(
+    room: Room,
+    seatId: SeatId,
+  ): readonly ActionType[] {
+    if (room.engine?.hand?.status !== "betting") return [];
+    const actorView = view(room.engine, seatId);
+    return actorView.phase === "betting" ? actorView.legalActions : [];
   }
 
   /**
-   * One scheduler for both clocks: the betting turn's, which the room may turn
-   * off, and the showing window's, which it may not — see ADR-0009. Expiry is
-   * an ordinary Command, so the engine keeps no notion of time.
+   * One scheduler for both clocks; only the betting one may be turned off.
+   * Expiry is an ordinary Command, so the engine keeps no notion of time.
    */
   function rescheduleActionClock(
     code: string,
     policy: ActionClockPolicy = "reschedule",
   ): void {
     const room = rooms.get(code);
-    if (room === undefined) {
+    const actor = room === undefined ? undefined : clockedActor(code);
+    if (
+      room === undefined ||
+      actor === undefined ||
+      (actor.phase === "betting" && !room.shotClockSettings.enabled)
+    ) {
       cancelActionClock(code);
       return;
     }
 
-    const betting = rooms.currentActor(code);
-    const showing = rooms.showdownActor(code);
-    const actor = betting ?? showing;
-    if (actor === undefined) {
-      cancelActionClock(code);
-      return;
-    }
-
-    if (betting !== undefined && !room.shotClockSettings.enabled) {
-      cancelActionClock(code);
-      return;
-    }
-
-    const fullInterval = clockIntervalMs(room, betting !== undefined);
+    const fullInterval = clockIntervalMs(room, actor.phase);
     const preserved = policy === "preserve" ? room.turnEndsAt : null;
     const timeoutMs =
       preserved === null
@@ -773,16 +777,16 @@ export async function buildApp(
         if (roomRecordings.isPaused(code)) return;
         const currentRoom = rooms.get(code);
         if (currentRoom?.revision !== scheduledAt) return;
-        if ((rooms.currentActor(code) ?? rooms.showdownActor(code)) !== actor) {
+        if (!stillActing(code, actor)) {
           rescheduleActionClock(code);
           return;
         }
 
-        const action =
-          betting === undefined
-            ? expiryShowdownAction(code)
-            : expiryBettingAction(currentRoom, actor);
-        const result = rooms.dispatch(code, actor, action);
+        const result = rooms.dispatch(
+          code,
+          actor.seatId,
+          expiryAction(currentRoom, actor),
+        );
         if ("commit" in result) {
           await publishDispatch(code, result);
           return;
@@ -792,31 +796,28 @@ export async function buildApp(
     });
   }
 
-  function clockIntervalMs(room: Room, betting: boolean): number {
-    if (betting) {
-      return options.actionClock === undefined &&
-        options.actionClockMs !== undefined
-        ? options.actionClockMs
-        : room.shotClockSettings.seconds * 1000;
-    }
-    return options.actionClock === undefined &&
-      options.showdownClockMs !== undefined
-      ? options.showdownClockMs
-      : room.showdownClockSettings.seconds * 1000;
+  function clockIntervalMs(room: Room, phase: ClockPhase): number {
+    const override =
+      options.actionClock !== undefined
+        ? undefined
+        : phase === "betting"
+          ? options.actionClockMs
+          : options.showdownClockMs;
+    const seconds =
+      phase === "betting"
+        ? room.shotClockSettings.seconds
+        : room.showdownClockSettings.seconds;
+    return override ?? seconds * 1000;
   }
 
-  function expiryBettingAction(room: Room, actor: SeatId): SeatCommandType {
-    const actorView =
-      room.engine === null ? undefined : view(room.engine, actor);
-    return actorView?.phase === "betting" &&
-      actorView.legalActions.includes("check")
+  /** A compelled head is shown: the one place cards are turned over for a player. */
+  function expiryAction(room: Room, actor: ClockedActor): SeatCommandType {
+    if (actor.phase === "showing") {
+      return rooms.showdownCompelled(room.code) ? "show" : "muck";
+    }
+    return bettingActionsFor(room, actor.seatId).includes("check")
       ? "check"
       : "fold";
-  }
-
-  /** The one place cards are turned over for a player: a compelled head shows. */
-  function expiryShowdownAction(code: string): SeatCommandType {
-    return rooms.showdownCompelled(code) ? "show" : "muck";
   }
 
   /** The one place the live path and a resuming Retry both settle through. */

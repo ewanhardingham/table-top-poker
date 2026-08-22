@@ -115,7 +115,7 @@ export interface ShowdownCompleteHandState extends HandPositions {
   readonly contestants: readonly Contestant[];
   readonly lastAggressor: SeatId | null;
   readonly results: readonly RevealedResult[];
-  /** Contestants still owing a show or a muck, head first — see ADR-0009. */
+  /** See Showing order in `CONTEXT.md`. */
   readonly queue: readonly SeatId[];
   readonly mucked: readonly SeatId[];
   readonly winners: readonly SeatId[] | null;

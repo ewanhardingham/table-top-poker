@@ -109,11 +109,7 @@ export type ChangeShotClockRequest = z.infer<
 export const MIN_SHOWDOWN_CLOCK_SECONDS = 5;
 export const MAX_SHOWDOWN_CLOCK_SECONDS = 600;
 
-/**
- * `enabled` is fixed true: with showing ordered, one locked phone blocks every
- * player behind it, so the clock is load-bearing rather than a preference —
- * see ADR-0009.
- */
+/** `enabled` is fixed true — see Showdown clock in `CONTEXT.md`. */
 export interface ShowdownClockSettings {
   readonly enabled: true;
   readonly seconds: number;

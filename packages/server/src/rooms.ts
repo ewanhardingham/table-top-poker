@@ -30,6 +30,7 @@ import {
   type SeatCountChangeError,
   type SeatMove,
   type ShotClockSettings,
+  type ShowdownCompleteHandState,
   type ShowdownClockSettings,
   type SittingOutReason,
   type SoundSettings,
@@ -446,21 +447,22 @@ export class RoomStore {
     return hand.toAct[0];
   }
 
-  /** The head of the showing queue, while the window is open — see ADR-0009. */
+  /** The head of the showing queue, while the window is open. */
   showdownActor(code: string): SeatId | undefined {
-    const hand = this.#rooms.get(code)?.engine?.hand;
-    if (hand?.status !== "complete" || hand.reason !== "showdown") {
-      return undefined;
-    }
-    if (hand.winners !== null) return undefined;
-    return hand.queue[0];
+    const hand = this.#openShowdown(code);
+    return hand?.winners === null ? hand.queue[0] : undefined;
   }
 
   /** Whether the head of the showing queue is barred from mucking. */
   showdownCompelled(code: string): boolean {
+    return this.#openShowdown(code)?.results.length === 0;
+  }
+
+  #openShowdown(code: string): ShowdownCompleteHandState | undefined {
     const hand = this.#rooms.get(code)?.engine?.hand;
-    if (hand?.status !== "complete" || hand.reason !== "showdown") return false;
-    return hand.results.length === 0;
+    return hand?.status === "complete" && hand.reason === "showdown"
+      ? hand
+      : undefined;
   }
 
   end(code: string): void {

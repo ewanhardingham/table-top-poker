@@ -89,12 +89,10 @@ const FAN_HEIGHT = "5.6em";
  */
 const FAN_TUCK = "8%";
 
-/** The room gets the "clock's running" beat without a permanent timer on screen. */
 const SHOWDOWN_CLOCK_VISIBLE_SECONDS = 5;
 
 interface ShowdownSeat {
   readonly hand: RevealedResult | null;
-  /** Declined, and so laying nothing down: distinct from not shown yet. */
   readonly mucked: boolean;
   readonly isWinner: boolean;
   readonly splitting: boolean;

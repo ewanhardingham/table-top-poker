@@ -74,7 +74,7 @@ describe("TableControls", () => {
         handComplete
         canDealNextHand
         awaitingShowdown
-        rejectionHint="The hands are still being turned over"
+        dealRejected
         onStartHand={noop}
         onNextHand={noop}
         onEndSession={noop}

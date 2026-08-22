@@ -316,6 +316,16 @@ describe("the window holds the next hand", () => {
     expect(outcome.rejection.reason).toBe("showdown-unresolved");
   });
 
+  it("rejects startHand with the same reason the table surfaces", () => {
+    const outcome = play(headsUpAt(raisedOnTheRiver), {
+      type: "startHand",
+      seatId: 0,
+      seed: "s1",
+    });
+    if (!("rejection" in outcome)) throw new Error("expected a rejection");
+    expect(outcome.rejection.reason).toBe("showdown-unresolved");
+  });
+
   it("deals once every contestant has shown or mucked", () => {
     const closed = playAll(headsUpAt(raisedOnTheRiver), [
       { type: "show", seatId: 0 },

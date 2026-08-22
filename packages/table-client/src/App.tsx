@@ -397,11 +397,7 @@ export function App() {
                 handComplete={handComplete}
                 canDealNextHand={enoughPlayers}
                 awaitingShowdown={awaitingShowdown}
-                rejectionHint={
-                  commandRejection === "showdown-unresolved"
-                    ? "The hands are still being turned over"
-                    : null
-                }
+                dealRejected={commandRejection === "showdown-unresolved"}
                 onStartHand={handleStartHand}
                 onNextHand={handleNextHand}
                 onEndSession={handleEndSession}
