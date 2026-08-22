@@ -201,7 +201,7 @@ describe("HandReview", () => {
     expect(html).not.toContain(
       `data-testid="replay-tick-${String(events.length + 1)}"`,
     );
-    expect(html.match(/data-street-boundary="true"/g)).toHaveLength(2);
+    expect(html.match(/data-segment-boundary="true"/g)).toHaveLength(2);
   });
 
   it("offers a chapter for each street the hand reached, and no others", () => {

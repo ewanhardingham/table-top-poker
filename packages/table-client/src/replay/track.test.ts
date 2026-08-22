@@ -5,9 +5,9 @@ import { MAX_TICKS, positionAtRatio, ticksFor } from "./track.js";
 function beats(count: number, boundaries: readonly number[] = []): Beat[] {
   return Array.from({ length: count }, (_unused, index) => ({
     position: index + 1,
-    street: "preflop" as const,
+    segment: "preflop" as const,
     weight: 100,
-    isStreetBoundary: boundaries.includes(index + 1),
+    isSegmentBoundary: boundaries.includes(index + 1),
   }));
 }
 
@@ -53,7 +53,7 @@ describe("ticksFor", () => {
     }
     expect(
       drawn
-        .filter((tick) => tick.isStreetBoundary)
+        .filter((tick) => tick.isSegmentBoundary)
         .map((tick) => tick.position),
     ).toEqual(boundaries);
   });

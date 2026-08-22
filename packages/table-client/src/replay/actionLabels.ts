@@ -1,11 +1,10 @@
 import type {
   ActionType,
   SeatId,
-  Street,
   TableReplayPosition,
 } from "@table-top-poker/protocol";
 import type { SeatActionLabels } from "../actionWords.js";
-import { streetOf } from "./beats.js";
+import { segmentOf, type Segment } from "./beats.js";
 
 /** The Action labels at one position — see Action label in `CONTEXT.md`. */
 export function actionLabelsAt(
@@ -13,7 +12,7 @@ export function actionLabelsAt(
   position: number,
 ): SeatActionLabels {
   const labels = new Map<SeatId, ActionType>();
-  let street: Street | null = null;
+  let segment: Segment | null = null;
 
   for (const { event } of positions.slice(1, position + 1)) {
     if (event === null) continue;
@@ -21,9 +20,9 @@ export function actionLabelsAt(
       labels.clear();
       continue;
     }
-    const next = streetOf(event, street);
-    if (next !== street) labels.clear();
-    street = next;
+    const next = segmentOf(event, segment);
+    if (next !== segment) labels.clear();
+    segment = next;
     if (event.type === "ActionTaken") labels.set(event.seatId, event.action);
   }
   return labels;

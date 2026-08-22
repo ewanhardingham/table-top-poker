@@ -55,12 +55,12 @@ describe("toBeats", () => {
     );
   });
 
-  it("marks each street's first beat, which the track draws heavier", () => {
+  it("marks each segment's first beat, which the track draws heavier", () => {
     const beats = toBeats(positionsFor(toTheTurn));
 
     expect(
       beats
-        .filter((beat) => beat.isStreetBoundary)
+        .filter((beat) => beat.isSegmentBoundary)
         .map((beat) => beat.position),
     ).toEqual([3, 6, 10]);
   });
@@ -69,8 +69,8 @@ describe("toBeats", () => {
     const beats = toBeats(positionsFor(toTheTurn));
 
     // ordinal 5 is `StreetClosed preflop`, 6 is the flop's `BoardDealt`.
-    expect(beatAt(beats, 5)?.street).toBe("preflop");
-    expect(beatAt(beats, 6)?.street).toBe("flop");
+    expect(beatAt(beats, 5)?.segment).toBe("preflop");
+    expect(beatAt(beats, 6)?.segment).toBe("flop");
   });
 
   it("holds the beats that change the felt longer than the bookkeeping", () => {
@@ -90,13 +90,13 @@ describe("chaptersOf", () => {
     const chapters = chaptersOf(toBeats(positionsFor(toTheTurn)));
 
     expect(chapters).toEqual([
-      { street: "preflop", label: "Preflop", position: 3 },
-      { street: "flop", label: "Flop", position: 6 },
-      { street: "turn", label: "Turn", position: 10 },
+      { segment: "preflop", label: "Preflop", position: 3 },
+      { segment: "flop", label: "Flop", position: 6 },
+      { segment: "turn", label: "Turn", position: 10 },
     ]);
   });
 
-  it("offers only the streets the hand reached", () => {
+  it("offers only the segments the hand reached", () => {
     const walk: HandEvent[] = [
       { type: "HandStarted", seed: "s", button: 0 },
       { type: "StreetStarted", street: "preflop", actor: 1 },
@@ -106,16 +106,37 @@ describe("chaptersOf", () => {
     ];
 
     expect(chaptersOf(toBeats(positionsFor(walk)))).toEqual([
-      { street: "preflop", label: "Preflop", position: 2 },
+      { segment: "preflop", label: "Preflop", position: 2 },
     ]);
   });
 
-  it("names each street once, however many beats it holds", () => {
+  it("names each segment once, however many beats it holds", () => {
     const chapters = chaptersOf(toBeats(positionsFor(toTheTurn)));
 
-    expect(new Set(chapters.map((chapter) => chapter.street)).size).toBe(
+    expect(new Set(chapters.map((chapter) => chapter.segment)).size).toBe(
       chapters.length,
     );
+  });
+
+  it("chapters the showdown, which is no street but its own place to seek", () => {
+    const toShowdown: HandEvent[] = [
+      ...toTheTurn.slice(0, 5),
+      ...streetCascade("flop"),
+      ...streetCascade("turn"),
+      ...streetCascade("river"),
+      { type: "StreetClosed", street: "river" },
+      { type: "ShowdownReached", contestants: [1, 2] },
+      { type: "HandComplete" },
+    ];
+
+    const chapters = chaptersOf(toBeats(positionsFor(toShowdown)));
+
+    expect(chapters.at(-1)).toEqual({
+      segment: "showdown",
+      label: "Showdown",
+      position:
+        toShowdown.findIndex((event) => event.type === "ShowdownReached") + 1,
+    });
   });
 
   it("seeks each chapter to the beat the track draws heaviest", () => {
@@ -123,7 +144,7 @@ describe("chaptersOf", () => {
 
     expect(chaptersOf(beats).map((chapter) => chapter.position)).toEqual(
       beats
-        .filter((beat) => beat.isStreetBoundary)
+        .filter((beat) => beat.isSegmentBoundary)
         .map((beat) => beat.position),
     );
   });
