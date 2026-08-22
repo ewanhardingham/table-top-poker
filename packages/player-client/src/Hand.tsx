@@ -390,17 +390,12 @@ function HoleCardsRegion({
   sealed = false,
   actions,
   caption,
-  clock,
 }: {
   readonly cards: readonly [CardType, CardType] | null;
   readonly locked?: boolean;
   readonly sealed?: boolean;
   readonly actions: CardActions;
   readonly caption?: string;
-  readonly clock?: {
-    readonly turnEndsAt: number | null;
-    readonly durationSeconds: number;
-  };
 }) {
   const absent = cards === null;
   return (
@@ -416,14 +411,6 @@ function HoleCardsRegion({
         textAlign: "center",
       }}
     >
-      {clock && clock.turnEndsAt !== null ? (
-        <ShotClock
-          turnEndsAt={clock.turnEndsAt}
-          durationSeconds={clock.durationSeconds}
-          variant="ring"
-          testId="showdown-shot-clock"
-        />
-      ) : null}
       <HoleCardPair
         cards={cards}
         locked={locked}
@@ -528,18 +515,14 @@ export function Hand({
         <TurnBanner
           banner={bannerFor(view, connectionStatus, seatId, seats)}
           marker={positionMarkerFor(seatId, view)}
-          turnEndsAt={null}
-          shotClockSeconds={shotClockSeconds}
+          turnEndsAt={turn.showLegal ? view.turnEndsAt : null}
+          shotClockSeconds={showdownClockSeconds}
         />
         {myResult ? (
           <HoleCardsRegion
             cards={myResult.holeCards}
             locked={iHaveShown}
             actions={actions}
-            clock={{
-              turnEndsAt: turn.showLegal ? view.turnEndsAt : null,
-              durationSeconds: showdownClockSeconds,
-            }}
           />
         ) : (
           <HoleCardsRegion

@@ -771,10 +771,10 @@ describe("Hand in the showing window", () => {
     expect(html).toContain("Show your hand, or drag up to muck");
   });
 
-  it("rings the clock on the player's own cards while it is their turn", () => {
+  it("rings the clock in the turn banner while it is their turn", () => {
     const html = renderToStaticMarkup(<Hand view={yourTurn} seatId={1} />);
 
-    expect(html).toContain('data-testid="showdown-shot-clock"');
+    expect(html).toContain('data-testid="turn-banner-shot-clock"');
   });
 
   it("sizes the ring by the room's showdown clock, not a default", () => {
@@ -783,7 +783,7 @@ describe("Hand in the showing window", () => {
     );
 
     // 4s left of 10 leaves the ring past the amber turn, not near-full.
-    expect(html).toContain('data-testid="showdown-shot-clock"');
+    expect(html).toContain('data-testid="turn-banner-shot-clock"');
     expect(html).toContain("4");
   });
 
@@ -796,7 +796,7 @@ describe("Hand in the showing window", () => {
     };
     const html = renderToStaticMarkup(<Hand view={waiting} seatId={1} />);
 
-    expect(html).not.toContain('data-testid="showdown-shot-clock"');
+    expect(html).not.toContain('data-testid="turn-banner-shot-clock"');
     expect(html).not.toContain("Show your hand");
     expect(html).toContain("Waiting on");
   });
