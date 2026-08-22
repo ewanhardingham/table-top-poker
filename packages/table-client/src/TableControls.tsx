@@ -47,7 +47,8 @@ export interface TableControlsProps {
   readonly onAddBot?: () => void;
   /** The showing window is open: the room, not the table, closes it. */
   readonly awaitingShowdown?: boolean;
-  readonly rejectionHint?: string | null;
+  /** The engine refused a deal while the showing window was still open. */
+  readonly dealRejected?: boolean;
   readonly placement?: TableControlsPlacement;
   readonly onReviewHands?: () => void;
 }
@@ -62,7 +63,7 @@ export function TableControls({
   testMode = false,
   onAddBot,
   awaitingShowdown = false,
-  rejectionHint = null,
+  dealRejected = false,
   placement = "rail",
   onReviewHands,
 }: TableControlsProps) {
@@ -83,7 +84,9 @@ export function TableControls({
       )}
       {awaitingShowdown ? (
         <div data-testid="showdown-in-progress-hint" style={hintStyle}>
-          {rejectionHint ?? "Waiting on the players to show or muck"}
+          {dealRejected
+            ? "The hands are still being turned over"
+            : "Waiting on the players to show or muck"}
         </div>
       ) : (
         handComplete && (

@@ -184,11 +184,7 @@ export function dealCommunityCards(
   return deck.slice(start, start + count);
 }
 
-/**
- * The order contestants are asked to show or muck: the river's last aggressor
- * first, else the first live seat left of the button, then clockwise. All-in
- * contestants are tabled as the window opens and never queue — see ADR-0009.
- */
+/** See Showing order in `CONTEXT.md`. */
 export function showingOrder(
   ring: readonly SeatId[],
   contestants: readonly { seatId: SeatId; allIn: boolean }[],

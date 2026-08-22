@@ -34,9 +34,9 @@ export interface ShowdownView extends HandPositions {
   readonly contestants: readonly SeatId[];
   /** Shown Seats only, in the order they were turned over. */
   readonly results: readonly RevealedResult[];
-  /** Contestants still owing a show or a muck, head first — see ADR-0009. */
+  /** See Showing order in `CONTEXT.md`. */
   readonly queue: readonly SeatId[];
-  /** Declined: distinct from a contestant who has simply not shown yet. */
+  /** Declined — distinct from a contestant who has simply not shown yet. */
   readonly mucked: readonly SeatId[];
   /** Null until the queue empties: the Hand rests before it resolves. */
   readonly winners: readonly SeatId[] | null;
@@ -45,7 +45,6 @@ export interface ShowdownView extends HandPositions {
 export interface PlayerShowdownView extends ShowdownView {
   readonly yourSeatId: SeatId;
   readonly yourResult: RevealedResult | null;
-  /** It is your turn in the showing window. */
   readonly canShow: boolean;
   /** Your turn, and some hand is already face-up to discharge the compulsion. */
   readonly canMuck: boolean;

@@ -79,12 +79,7 @@ function cardActionsFrom(
   };
 }
 
-/**
- * A persistent prompt, not `coaching.ts`'s one-shot teaching: an experienced
- * player still needs to be told whose turn it is. The muck line is left off
- * when compelled — offering an option that will be rejected is worse than not
- * offering it (ADR-0009).
- */
+/** A persistent prompt, not `coaching.ts`'s one-shot teaching — see ADR-0009. */
 export function showdownPrompt(turn: ShowdownTurn): string | null {
   if (!turn.showLegal) return null;
   return turn.muckLegal

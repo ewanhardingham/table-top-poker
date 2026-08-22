@@ -33,6 +33,9 @@ export function App() {
   const connectionStatus = usePlayerStore((state) => state.connectionStatus);
   const hasEverConnected = usePlayerStore((state) => state.hasEverConnected);
   const shotClockSettings = usePlayerStore((state) => state.shotClockSettings);
+  const showdownClockSettings = usePlayerStore(
+    (state) => state.showdownClockSettings,
+  );
   const handView = usePlayerStore((state) => state.handView);
   const setRoomView = usePlayerStore((state) => state.setRoomView);
   const setJoinError = usePlayerStore((state) => state.setJoinError);
@@ -240,6 +243,7 @@ export function App() {
             seats={seats}
             connectionStatus={connectionStatus}
             shotClockSeconds={shotClockSettings.seconds}
+            showdownClockSeconds={showdownClockSettings.seconds}
             intent={intent}
           />
         )}
