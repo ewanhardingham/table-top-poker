@@ -1,5 +1,5 @@
-const feltGradient =
-  "linear-gradient(180deg,#6a1a1f 0%,#4b1317 42%,#2c0c0f 100%)";
+const feltMid = "#4b1317";
+const feltGradient = `linear-gradient(180deg,#6a1a1f 0%,${feltMid} 42%,#2c0c0f 100%)`;
 
 export const color = {
   background: "#0b0a09",
@@ -50,7 +50,9 @@ export const color = {
 
   cardFace: "linear-gradient(170deg,#fffdf7,#efe7d6)",
   cardBack: feltGradient,
+  cardBackBase: feltMid,
   cardBorder: "rgba(0,0,0,.2)",
+  cardEdge: "#eadcc3",
   suitRed: "#c0392b",
   suitBlack: "#151311",
 

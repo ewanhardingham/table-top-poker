@@ -1,4 +1,5 @@
 import {
+  CardBackPicker,
   PillButton,
   color,
   font,
@@ -105,6 +106,8 @@ export function PlayerMenu({
                 flexDirection: "column",
                 gap: 14,
                 padding: "18px 18px 24px",
+                overflowX: "hidden",
+                overflowY: "auto",
                 background: color.sideMenuGradient,
                 borderLeft: `1px solid ${color.borderStrong}`,
                 boxShadow: "-30px 0 80px -20px rgba(0,0,0,.8)",
@@ -203,6 +206,29 @@ export function MenuBody({
       >
         {sittingOut ? "Sit in" : "Sit out"}
       </button>
+
+      <div style={{ height: 1, background: color.border, margin: "2px 0" }} />
+
+      <section
+        data-testid="player-card-back-settings"
+        style={{ display: "flex", flexDirection: "column", gap: 10 }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: fontSize.md, fontWeight: 600 }}>
+            Card backs
+          </span>
+          <span
+            style={{
+              color: color.textDim,
+              fontSize: fontSize.sm,
+              lineHeight: 1.4,
+            }}
+          >
+            Changes cards on this device only.
+          </span>
+        </div>
+        <CardBackPicker />
+      </section>
 
       <div style={{ height: 1, background: color.border, margin: "2px 0" }} />
 

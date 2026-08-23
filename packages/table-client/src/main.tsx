@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { StoredCardBackDesignProvider } from "@table-top-poker/ui-shared";
 import { App } from "./App.js";
 import { fetchConfig } from "./api/rooms.js";
 import "./app-shell.css";
@@ -20,6 +21,8 @@ void fetchConfig()
 
 ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
-    <App />
+    <StoredCardBackDesignProvider storageKey="ttp:table-card-back">
+      <App />
+    </StoredCardBackDesignProvider>
   </React.StrictMode>,
 );

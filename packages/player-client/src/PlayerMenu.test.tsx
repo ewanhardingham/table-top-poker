@@ -58,6 +58,22 @@ describe("MenuBody", () => {
     expect(sittingOut).toContain("Sit in");
   });
 
+  it("offers all card backs as a device-only preference", () => {
+    const html = renderToStaticMarkup(
+      <MenuBody
+        sittingOut={false}
+        sitOutDisabled={false}
+        inLiveHand={false}
+        confirmingLeave={false}
+        {...bodyHandlers}
+      />,
+    );
+
+    expect(html).toContain('data-testid="player-card-back-settings"');
+    expect(html.match(/data-testid="card-back-option-/g)).toHaveLength(9);
+    expect(html).toContain("this device only");
+  });
+
   it("disables sit out when the socket is down, but never the leave action", () => {
     const html = renderToStaticMarkup(
       <MenuBody

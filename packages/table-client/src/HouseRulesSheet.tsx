@@ -12,6 +12,7 @@ import {
   type SoundSettings,
 } from "@table-top-poker/protocol";
 import {
+  CardBackPicker,
   Panel,
   PillButton,
   color,
@@ -314,6 +315,7 @@ export function HouseRulesSheet({
       <Panel
         style={{
           width: "min(660px, calc(100% - 32px))",
+          maxHeight: "calc(100% - 32px)",
           borderRadius: radius.panel,
           background: color.surfaceGradient,
           boxShadow: shadow.panel,
@@ -366,7 +368,15 @@ export function HouseRulesSheet({
           </button>
         </div>
 
-        <div style={{ padding: "6px 30px 24px" }}>
+        <div
+          style={{
+            padding: "6px 30px 24px",
+            flex: "1 1 auto",
+            minHeight: 0,
+            overflowX: "hidden",
+            overflowY: "auto",
+          }}
+        >
           <div
             style={{
               padding: "19px 0",
@@ -485,6 +495,40 @@ export function HouseRulesSheet({
           </div>
 
           <div
+            data-testid="card-back-settings"
+            style={{
+              paddingTop: 20,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              borderTop: `1px solid ${color.mutedSurface}`,
+              marginTop: 4,
+            }}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span
+                style={{
+                  fontSize: fontSize.lg,
+                  fontWeight: 600,
+                  color: color.text,
+                }}
+              >
+                Card backs
+              </span>
+              <span
+                style={{
+                  fontSize: fontSize.caption,
+                  lineHeight: 1.45,
+                  color: color.textDim,
+                }}
+              >
+                Changes cards on this table display only.
+              </span>
+            </div>
+            <CardBackPicker />
+          </div>
+
+          <div
             data-testid="sound-settings"
             style={{
               paddingTop: 20,
@@ -492,7 +536,7 @@ export function HouseRulesSheet({
               flexDirection: "column",
               gap: 16,
               borderTop: `1px solid ${color.mutedSurface}`,
-              marginTop: 4,
+              marginTop: 20,
             }}
           >
             <Toggle

@@ -6,6 +6,21 @@ export {
   suitSymbols,
 } from "./Card.js";
 export type { CardProps } from "./Card.js";
+export {
+  CARD_BACK_DESIGN_IDS,
+  CardBackDesignProvider,
+  CardBackPicker,
+  DEFAULT_CARD_BACK_DESIGN,
+  cardBackDesigns,
+  cardBackStyle,
+  isCardBackDesignId,
+  loadCardBackDesign,
+  saveCardBackDesign,
+  StoredCardBackDesignProvider,
+  useCardBackDesign,
+  useStoredCardBackDesign,
+} from "./cardBackDesign.js";
+export type { CardBackDesign, CardBackDesignId } from "./cardBackDesign.js";
 export { PillButton } from "./PillButton.js";
 export type {
   PillButtonProps,

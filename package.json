@@ -17,7 +17,7 @@
     "packages/ui-shared"
   ],
   "scripts": {
-    "build": "tsc --build tsconfig.json",
+    "build": "tsc --build tsconfig.json && node scripts/copy-ui-assets.mjs",
     "build:release": "bash scripts/build-release.sh",
     "clean": "tsc --build tsconfig.json --clean",
     "test": "vitest run",

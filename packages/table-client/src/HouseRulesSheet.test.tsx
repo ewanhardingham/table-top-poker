@@ -170,6 +170,9 @@ describe("HouseRulesSheet", () => {
     expect(html).toContain("Blair → Seat 2");
     expect(html).toContain("Casey → Seat 3");
     expect(html).toContain("Applies from the next hand");
+    expect(html).toContain('data-testid="card-back-settings"');
+    expect(html.match(/data-testid="card-back-option-/g)).toHaveLength(9);
+    expect(html).toContain("this table display only");
   });
 
   it("disables decrement at the no-eviction floor", () => {

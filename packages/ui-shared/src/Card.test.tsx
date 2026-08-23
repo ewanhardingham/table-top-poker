@@ -16,6 +16,7 @@ describe("Card", () => {
     expect(html).not.toContain("data-rank");
     expect(html).not.toContain("data-suit");
     expect(html).toContain('data-face-down="true"');
+    expect(html).toContain('data-card-back-design="deco"');
   });
 
   it("prints the index in both corners, the second rotated, as a real card is", () => {

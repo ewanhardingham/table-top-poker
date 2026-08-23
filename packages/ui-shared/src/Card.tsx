@@ -1,5 +1,6 @@
 import type { Rank, Suit } from "@table-top-poker/protocol";
 import type { CSSProperties } from "react";
+import { cardBackStyle, useCardBackDesign } from "./cardBackDesign.js";
 import { color, font, shadow } from "./theme.js";
 
 export type CardProps =
@@ -29,12 +30,19 @@ const baseStyle: CSSProperties = {
 };
 
 export function Card(props: CardProps) {
+  const cardBackDesign = useCardBackDesign();
   if (props.faceDown) {
     return (
       <div
         className="card card-back"
         data-face-down="true"
-        style={{ ...baseStyle, background: color.cardBack }}
+        data-card-back-design={cardBackDesign}
+        style={{
+          ...baseStyle,
+          ...cardBackStyle(cardBackDesign),
+          border: `1px solid ${color.cardBorder}`,
+          boxShadow: shadow.card,
+        }}
       />
     );
   }
