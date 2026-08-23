@@ -120,6 +120,9 @@ burnt (`CONTEXT.md`, Burn).
   or set to sit out).
 - A seat's `yourHoleCards` is null once folded; `legalActions` is populated only
   when it is that seat's turn (`toAct[0] === seatId`).
+- A `folded-out` view retains the community `board` already dealt before the
+  last opponent folded. The table keeps those cards in place, while each
+  player view continues to identify the winner in its own hand banner.
 
 ## Replay
 

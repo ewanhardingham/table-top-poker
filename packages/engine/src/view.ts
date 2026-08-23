@@ -23,6 +23,7 @@ interface NoHandView {
 
 interface FoldedOutView extends HandPositions {
   readonly phase: "folded-out";
+  readonly board: readonly Card[];
   readonly winner: SeatId;
 }
 
@@ -110,6 +111,7 @@ export function view(
       bigBlind: hand.bigBlind,
       dealtSeatCount: hand.dealtSeatCount,
       burnedCount: hand.burnedCount,
+      board: hand.board,
       winner: hand.winner,
     };
   }

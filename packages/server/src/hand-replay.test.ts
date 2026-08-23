@@ -175,17 +175,15 @@ describe("tableReplayOf", () => {
     );
   });
 
-  it("keeps a fold-out hand's board, which its terminal view cannot express", async () => {
+  it("keeps a fold-out hand's board in its terminal view", async () => {
     const replay = tableReplayOf(await record(foldOutOnTheTurn));
 
     if (replay.status !== "replayed") throw new Error(replay.diagnostic);
-    expect(replay.positions.at(-1)?.view.phase).toBe("folded-out");
-    // The final view has no board at all, so the four cards the table
-    // watched land are only reachable from the positions before it.
-    const boards = replay.positions.flatMap((p) =>
-      "board" in p.view ? [p.view.board.length] : [],
-    );
-    expect(Math.max(...boards)).toBe(4);
+    const terminal = replay.positions.at(-1)?.view;
+    if (terminal?.phase !== "folded-out") {
+      throw new Error("expected a folded-out terminal view");
+    }
+    expect(terminal.board).toHaveLength(4);
   });
 
   it("refuses a hand whose recording could not be read", () => {

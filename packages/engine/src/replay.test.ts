@@ -115,8 +115,8 @@ describe("replayHand: the flipbook", () => {
     }
   });
 
-  it("reaches state the terminal view cannot express — a folded-out hand's board", () => {
-    // Seat 1 folds on the turn, leaving a board no `FoldedOutView` carries.
+  it("preserves a folded-out hand's board through replay", () => {
+    // Seat 1 folds on the turn, leaving a board the terminal view must carry.
     const start: EngineState = { seats: [0, 1], button: 0, hand: null };
     const { recording } = record(start, [
       { type: "startHand", seatId: 0, seed: "board-seed" },
@@ -138,6 +138,12 @@ describe("replayHand: the flipbook", () => {
         ? boardDealt.state.hand.board
         : [];
     expect(board).toHaveLength(3);
+
+    const terminal = outcome.positions.at(-1)?.state.hand;
+    if (terminal?.status !== "complete" || terminal.reason !== "folded-out") {
+      throw new Error("expected a folded-out terminal state");
+    }
+    expect(terminal.board).toHaveLength(4);
   });
 
   it("replays a burn with the street it opens already visible in state", () => {

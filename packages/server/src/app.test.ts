@@ -3569,9 +3569,10 @@ describe("hand replay over WebSocket", () => {
     await settle();
 
     const replay = table.messages.find((m) => m.type === "hand-replay");
-    // The terminal `folded-out` view carries no board, so the flop is only
-    // reachable from the positions before it.
-    expect(replay?.positions.at(-1)?.view.phase).toBe("folded-out");
+    const terminal = replay?.positions.at(-1)?.view;
+    expect(terminal?.phase).toBe("folded-out");
+    if (terminal?.phase !== "folded-out") throw new Error("expected fold-out");
+    expect(terminal.board).toHaveLength(3);
     const boards = (replay?.positions ?? []).flatMap((position) =>
       "board" in position.view ? [position.view.board.length] : [],
     );

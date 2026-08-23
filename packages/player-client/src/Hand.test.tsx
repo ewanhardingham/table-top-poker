@@ -550,6 +550,7 @@ describe("Hand", () => {
         bigBlind: 2,
         dealtSeatCount: 3,
         burnedCount: 0,
+        board: [],
         winner: 0,
       };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
@@ -569,6 +570,7 @@ describe("Hand", () => {
         bigBlind: 2,
         dealtSeatCount: 3,
         burnedCount: 0,
+        board: [],
         winner: 1,
       };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
@@ -586,6 +588,7 @@ describe("Hand", () => {
         bigBlind: 2,
         dealtSeatCount: 3,
         burnedCount: 0,
+        board: [],
         winner: 1,
       };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
@@ -680,6 +683,7 @@ describe("Hand", () => {
           bigBlind: 2,
           dealtSeatCount: 3,
           burnedCount: 0,
+          board: [],
           winner: 1,
         },
       ],

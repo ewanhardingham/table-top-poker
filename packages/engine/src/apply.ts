@@ -184,6 +184,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           seed: hand.seed,
           button: hand.button,
           ...handPositions(hand),
+          board: hand.board,
           winner: event.winner,
         },
       };

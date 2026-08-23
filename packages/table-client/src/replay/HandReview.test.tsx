@@ -111,6 +111,7 @@ const foldedOut: TableView = {
   bigBlind: 2,
   dealtSeatCount: 3,
   burnedCount: 0,
+  board: flop,
   winner: 2,
 };
 

@@ -25,7 +25,9 @@ The fix, settled on `prototype/replay-transport` (wayfinder #82, ticket #117):
 - Render one shape for every phase that has a hand, so `CommunityCards` keeps
   its position in the tree as the phase changes.
 
-A folded-out hand shows no board at all — nobody paid to see it.
+A folded-out hand keeps whatever community cards were already dealt. The table
+does not replace them with a winner banner: the player devices still show the
+winner in their own hand status.
 
 The remount behaviour is invisible in live play, where the board only ever
 grows one street at a time, and obvious the moment a replay is scrubbed

@@ -67,6 +67,7 @@ const completeHand: TableView = {
   bigBlind: 2,
   dealtSeatCount: 2,
   burnedCount: 0,
+  board: [],
   winner: 0,
 };
 

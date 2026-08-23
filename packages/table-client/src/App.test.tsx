@@ -55,6 +55,7 @@ const completeHand: TableView = {
   bigBlind: 2,
   dealtSeatCount: 2,
   burnedCount: 0,
+  board: [],
   winner: 0,
 };
 
@@ -236,11 +237,12 @@ describe("App", () => {
     expect(closed).toContain('data-testid="next-hand-button"');
   });
 
-  it("banners a fold-out ending", () => {
+  it("keeps the table board visible after a fold-out ending", () => {
     enterRoom(2, completeHand);
     const html = renderToStaticMarkup(<App />);
 
-    expect(html).toContain('data-testid="hand-complete-banner"');
+    expect(html).not.toContain('data-testid="hand-complete-banner"');
+    expect(html).toContain('data-testid="community-cards"');
   });
 
   it("moves the controls to the rail and shows the room code once a hand starts", () => {

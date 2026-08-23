@@ -39,7 +39,7 @@ describe("Board", () => {
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(3);
   });
 
-  it("names the winner in a hand-complete banner after everyone else folds", () => {
+  it("keeps the dealt community cards after everyone else folds", () => {
     const view: TableView = {
       phase: "folded-out",
       button: 0,
@@ -47,6 +47,11 @@ describe("Board", () => {
       bigBlind: 2,
       dealtSeatCount: 3,
       burnedCount: 0,
+      board: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "hearts" },
+        { rank: "2", suit: "clubs" },
+      ],
       winner: 1,
     };
     const html = renderToStaticMarkup(
@@ -73,9 +78,9 @@ describe("Board", () => {
     );
 
     expect(html).toMatch(/data-testid="board"[^>]*data-phase="folded-out"/);
-    expect(html).toContain('data-testid="hand-complete-banner"');
-    expect(html).toContain("Avery wins — everyone folded");
-    expect(html).not.toContain('data-testid="community-cards"');
+    expect(html).not.toContain('data-testid="hand-complete-banner"');
+    expect(html).toContain('data-testid="community-cards"');
+    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(3);
   });
 
   it("shows only the community cards at showdown, suppressing the banner the overlay now owns", () => {
@@ -175,13 +180,19 @@ describe("Board", () => {
       bigBlind: 2,
       dealtSeatCount: 3,
       burnedCount: 3,
+      board: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "hearts" },
+        { rank: "2", suit: "clubs" },
+      ],
       winner: 1,
     };
     const html = renderToStaticMarkup(<Board view={view} />);
 
-    expect(html).toContain('data-testid="hand-complete-banner"');
+    expect(html).not.toContain('data-testid="hand-complete-banner"');
     expect(html).toMatch(/data-testid="burn-pile"[^>]*data-burned="3"/);
     expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(3);
+    expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(3);
   });
 
   it("shows an empty pile before the first burn", () => {

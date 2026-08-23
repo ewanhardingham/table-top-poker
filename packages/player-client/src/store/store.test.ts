@@ -188,6 +188,7 @@ describe("usePlayerStore", () => {
       bigBlind: 0,
       dealtSeatCount: 1,
       burnedCount: 0,
+      board: [],
       winner: 0,
     });
 
@@ -223,6 +224,7 @@ describe("usePlayerStore", () => {
       bigBlind: 0,
       dealtSeatCount: 1,
       burnedCount: 0,
+      board: [],
       winner: 0,
     });
 
