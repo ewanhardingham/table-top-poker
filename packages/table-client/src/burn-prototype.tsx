@@ -145,33 +145,89 @@ function EmberEdge({ timing, reducedMotion }: VariantProps) {
   );
 }
 
-/** B: a flame blooms from under the card and collapses back. */
-function FlareUp({ timing, reducedMotion }: VariantProps) {
-  const { ignite, fade } = timing;
+const flameSpan = ({ ignite, fade }: BurnTiming) =>
+  ignite.duration + fade.duration;
+
+function Bloom({
+  timing,
+  size,
+  peak = 1,
+}: {
+  readonly timing: BurnTiming;
+  readonly size: number;
+  readonly peak?: number;
+}) {
+  const span = flameSpan(timing);
   return (
-    <Stage>
-      {!reducedMotion && (
+    <motion.div
+      style={{
+        position: "absolute",
+        width: `${String(size)}em`,
+        height: `${String(size)}em`,
+        borderRadius: "50%",
+        filter: "blur(6px)",
+        background:
+          "radial-gradient(circle, rgba(255,244,200,1) 0%, rgba(255,168,40,0.95) 38%, rgba(190,60,10,0.55) 62%, rgba(0,0,0,0) 75%)",
+        mixBlendMode: "screen",
+      }}
+      initial={{ scale: 0.2, opacity: 0 }}
+      animate={{ scale: [0.2, 1.25, 0.5], opacity: [0, peak, 0] }}
+      transition={{
+        duration: span,
+        delay: timing.ignite.delay,
+        times: [0, timing.ignite.duration / span, 1],
+        ease: "easeOut",
+      }}
+    />
+  );
+}
+
+const TONGUE_OFFSETS = [-0.9, 0, 0.9];
+
+function Tongues({
+  timing,
+  height = 2.6,
+}: {
+  readonly timing: BurnTiming;
+  readonly height?: number;
+}) {
+  return (
+    <>
+      {TONGUE_OFFSETS.map((offset, index) => (
         <motion.div
+          key={offset}
           style={{
             position: "absolute",
-            width: "5em",
-            height: "5em",
-            borderRadius: "50%",
-            filter: "blur(6px)",
+            bottom: "0.4em",
+            left: "50%",
+            width: "1.1em",
+            height: `${String(height)}em`,
+            x: `calc(-50% + ${String(offset)}em)`,
+            transformOrigin: "50% 100%",
+            borderRadius: "50% 50% 40% 40% / 65% 65% 35% 35%",
+            filter: "blur(3px)",
             background:
-              "radial-gradient(circle, rgba(255,244,200,1) 0%, rgba(255,168,40,0.95) 38%, rgba(190,60,10,0.55) 62%, rgba(0,0,0,0) 75%)",
+              "linear-gradient(to top, rgba(255,240,190,1), rgba(255,150,30,0.9) 45%, rgba(200,40,0,0) 100%)",
             mixBlendMode: "screen",
           }}
-          initial={{ scale: 0.2, opacity: 0 }}
-          animate={{ scale: [0.2, 1.25, 0.5], opacity: [0, 1, 0] }}
+          initial={{ scaleY: 0.05, opacity: 0 }}
+          animate={{ scaleY: [0.05, 1.15, 0.9, 0], opacity: [0, 1, 0.9, 0] }}
           transition={{
-            duration: ignite.duration + fade.duration,
-            delay: ignite.delay,
-            times: [0, ignite.duration / (ignite.duration + fade.duration), 1],
+            duration: flameSpan(timing),
+            delay: timing.ignite.delay + index * 0.04,
             ease: "easeOut",
           }}
         />
-      )}
+      ))}
+    </>
+  );
+}
+
+/** B: a flame blooms from under the card and collapses back. */
+function FlareUp({ timing, reducedMotion }: VariantProps) {
+  return (
+    <Stage>
+      {!reducedMotion && <Bloom timing={timing} size={5} />}
       <motion.div
         style={{ position: "absolute" }}
         {...arrival(timing, reducedMotion)}
@@ -190,8 +246,8 @@ function FlareUp({ timing, reducedMotion }: VariantProps) {
                 }
           }
           transition={{
-            duration: ignite.duration + fade.duration,
-            delay: ignite.delay,
+            duration: flameSpan(timing),
+            delay: timing.ignite.delay,
           }}
         >
           <Card faceDown />
@@ -203,8 +259,6 @@ function FlareUp({ timing, reducedMotion }: VariantProps) {
 
 /** C: tongues of flame climb the card's edge, then it curls flat. */
 function CurlAndLick({ timing, reducedMotion }: VariantProps) {
-  const { ignite, fade } = timing;
-  const tongues = [-0.9, 0, 0.9];
   return (
     <Stage>
       <motion.div
@@ -215,41 +269,49 @@ function CurlAndLick({ timing, reducedMotion }: VariantProps) {
           style={{ position: "relative", transformPerspective: 500 }}
           animate={reducedMotion ? {} : { rotateX: [0, -22, 0], y: [0, -4, 2] }}
           transition={{
-            duration: ignite.duration + fade.duration,
-            delay: ignite.delay,
+            duration: flameSpan(timing),
+            delay: timing.ignite.delay,
           }}
         >
           <Card faceDown />
-          {!reducedMotion &&
-            tongues.map((offset, index) => (
-              <motion.div
-                key={offset}
-                style={{
-                  position: "absolute",
-                  bottom: "0.4em",
-                  left: "50%",
-                  width: "1.1em",
-                  height: "2.6em",
-                  x: `calc(-50% + ${String(offset)}em)`,
-                  transformOrigin: "50% 100%",
-                  borderRadius: "50% 50% 40% 40% / 65% 65% 35% 35%",
-                  filter: "blur(3px)",
-                  background:
-                    "linear-gradient(to top, rgba(255,240,190,1), rgba(255,150,30,0.9) 45%, rgba(200,40,0,0) 100%)",
-                  mixBlendMode: "screen",
-                }}
-                initial={{ scaleY: 0.05, opacity: 0 }}
-                animate={{
-                  scaleY: [0.05, 1.15, 0.9, 0],
-                  opacity: [0, 1, 0.9, 0],
-                }}
-                transition={{
-                  duration: ignite.duration + fade.duration,
-                  delay: ignite.delay + index * 0.04,
-                  ease: "easeOut",
-                }}
-              />
-            ))}
+          {!reducedMotion && <Tongues timing={timing} />}
+        </motion.div>
+      </motion.div>
+    </Stage>
+  );
+}
+
+/** E: B's bloom and glow, with C's tongues and curl riding on top of it. */
+function FlareAndCurl({ timing, reducedMotion }: VariantProps) {
+  return (
+    <Stage>
+      {!reducedMotion && <Bloom timing={timing} size={4.2} peak={0.85} />}
+      <motion.div
+        style={{ position: "absolute" }}
+        {...arrival(timing, reducedMotion)}
+      >
+        <motion.div
+          style={{ position: "relative", transformPerspective: 500 }}
+          animate={
+            reducedMotion
+              ? {}
+              : {
+                  rotateX: [0, -18, 0],
+                  y: [0, -3, 2],
+                  filter: [
+                    "brightness(1)",
+                    "brightness(1.9)",
+                    "brightness(0.8)",
+                  ],
+                }
+          }
+          transition={{
+            duration: flameSpan(timing),
+            delay: timing.ignite.delay,
+          }}
+        >
+          <Card faceDown />
+          {!reducedMotion && <Tongues timing={timing} height={2.2} />}
         </motion.div>
       </motion.div>
     </Stage>
@@ -345,6 +407,12 @@ const VARIANTS = [
     name: "Smoulder",
     blurb: "No flame shape — the card heats through and cools to ash.",
     Render: Smoulder,
+  },
+  {
+    key: "E",
+    name: "Flare and curl (B+C)",
+    blurb: "B's bloom and glow, with C's tongues and curl on top of it.",
+    Render: FlareAndCurl,
   },
 ] as const;
 
