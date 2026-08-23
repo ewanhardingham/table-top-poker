@@ -253,7 +253,7 @@ function decideActionEvents(
     return finishAtShowdown(scratch, events);
   }
 
-  scratch = dealNextStreet(scratch, events);
+  scratch = burnAndDealNextStreet(scratch, events);
 
   const opened = asBetting(scratch);
   if (!canOpenABettingRound(opened)) {
@@ -298,8 +298,8 @@ function asBetting(state: EngineState): BettingHandState {
   return state.hand;
 }
 
-/** A card burns before every street is dealt — see Burn in `CONTEXT.md`. */
-function dealNextStreet(
+/** See Burn in `CONTEXT.md`. */
+function burnAndDealNextStreet(
   scratch: EngineState,
   events: HandEvent[],
 ): EngineState {
@@ -335,7 +335,7 @@ const FLOP_CARDS = 3;
 function runOut(scratch: EngineState, events: HandEvent[]): HandEvent[] {
   let current = scratch;
   while (asBetting(current).street !== "river") {
-    current = dealNextStreet(current, events);
+    current = burnAndDealNextStreet(current, events);
   }
   return finishAtShowdown(current, events);
 }

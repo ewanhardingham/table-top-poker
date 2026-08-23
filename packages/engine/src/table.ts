@@ -177,7 +177,7 @@ export function dealHoleCards(
   }));
 }
 
-const HOLE_CARDS = 2;
+export const HOLE_CARDS = 2;
 
 /** See Showing order in `CONTEXT.md`. */
 export function showingOrder(

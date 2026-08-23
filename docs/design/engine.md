@@ -77,7 +77,7 @@ confirms the street the board already moved to.
   popping the head: ordinary actions belong to `toAct[0]`, but an eviction can
   fold a live seat later in the queue while leaving the current actor at the
   head.
-- `resolvedBlinds` snapshots `smallBlind`/`bigBlind`/`dealtSeatCount` at hand
+- `handPositions` snapshots `smallBlind`/`bigBlind`/`dealtSeatCount`/`burnedCount` at hand
   completion, while `ring` is still in scope, so a completed hand (which drops
   `ring`) reports the same positions `view` derives during betting — and so the
   button's rotation on `HandComplete` can't reach back and change what the
@@ -89,10 +89,14 @@ confirms the street the board already moved to.
 
 ## Determinism
 
-Hole cards and board cards are all sliced from one seed-derived deck
-(`shuffledDeck(seed)`) by fixed position — no deck state is ever stored, so the
-remaining deck order is never reachable from engine state. `dealCommunityCards`
-starts at `numSeats * 2 + boardLenSoFar`.
+Hole cards, burns and board cards are all sliced from one seed-derived deck
+(`shuffledDeck(seed)`) by position, through the single reader `dealFromDeck`.
+The only deck state a hand keeps is `cardsDealt`, the count of positions it has
+consumed: `apply` advances it on `HoleCardsDealt`, `CardBurned` and
+`BoardDealt`, so it is derived from the event log like everything else, and the
+undealt deck order is still never reachable from engine state. Burns consume
+real positions, so the board a seed produces depends on how many cards have
+burnt (`CONTEXT.md`, Burn).
 
 ## Types and visibility
 

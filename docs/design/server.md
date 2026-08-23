@@ -12,7 +12,10 @@ in `view` (Phase 1 spec #130 §3/§4). The wire event carried alongside a view i
 a transport-level exception: `redactEventFor` strips `HoleCardsDealt` per
 recipient before it leaves the server (table gets none; a seat gets only its
 own), or the "raw event for audit/animation" allowance in §6 would leak every
-seat's cards to every socket.
+seat's cards to every socket. It nulls `CardBurned.card` for every recipient
+alike — a burnt card is nobody's to see, and its identity would tell anyone
+reading it what is no longer in the deck. The recorded event on disk keeps the
+card, so replay from the log can still surface it server-side.
 
 `fanOutHandUpdate` sends each socket `view(state, identity)` **only if that seat
 was dealt into the hand** (`state.seats.includes(identity)`) — a sitting-out

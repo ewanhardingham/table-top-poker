@@ -1,6 +1,7 @@
 import {
   bigBlindSeat,
   canStillAct,
+  HOLE_CARDS,
   initialToAct,
   isAllIn,
   nextButtonAfter,
@@ -18,8 +19,6 @@ import type {
   ShowdownCompleteHandState,
 } from "./types.js";
 import { must } from "./util.js";
-
-const HOLE_CARDS = 2;
 
 function asBetting(state: EngineState): BettingHandState {
   if (state.hand?.status !== "betting") {
