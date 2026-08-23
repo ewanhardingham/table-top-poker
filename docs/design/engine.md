@@ -67,9 +67,10 @@ A street *already* open ends the moment nobody left in `toAct` faces a bet
 opponents who cannot answer — while a lone seat that *does* face a shove still
 gets its fold-or-call.
 
-`BoardDealt` advances `hand.street`, so a run-out's intermediate states never
-pair a five-card board with a stale `preflop`, and `StreetStarted` only
-confirms the street the board already moved to.
+`CardBurned` advances `hand.street` before the burn is fanned out, so the
+table never renders a new burn against the prior street (including during an
+all-in run-out). `BoardDealt` then appends that street's board cards, and
+`StreetStarted` only confirms the street the burn and board already moved to.
 
 ## `apply` details
 

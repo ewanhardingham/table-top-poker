@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { apply } from "./apply.js";
 import { createInitialState } from "./room.js";
 import { dealFromDeck } from "./table.js";
 import { play, playAll } from "./test-utils.js";
@@ -58,6 +59,39 @@ describe("burning a card before each street", () => {
     ]);
     const burn = must(tail.find((event) => event.type === "CardBurned"));
     expect(burn).toMatchObject({ street: "flop" });
+  });
+
+  it("starts the next street before its burn reaches the table", () => {
+    const preflop = playAll(started("burn-street-state"), [
+      { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
+    ]);
+    const outcome = play(preflop, { type: "check", seatId: 2 });
+    if ("rejection" in outcome) throw new Error("unexpected rejection");
+
+    let state = preflop;
+    for (const event of outcome.events) {
+      state = apply(state, event);
+      if (event.type !== "CardBurned") continue;
+
+      if (state.hand?.status !== "betting") {
+        throw new Error("expected a betting hand after a burn");
+      }
+      expect(state.hand.street).toBe(event.street);
+      expect(state.hand.board).toHaveLength(0);
+      break;
+    }
+  });
+
+  it("does not burn a hand that folds out before the flop starts", () => {
+    const state = playAll(started("fold-out-preflop"), [
+      { type: "fold", seatId: 0 },
+      { type: "fold", seatId: 1 },
+    ]);
+
+    const table = tableView(state);
+    expect(table.phase).toBe("folded-out");
+    expect(table.burnedCount).toBe(0);
   });
 
   it("never burns before the preflop deal", () => {
@@ -137,6 +171,27 @@ describe("burning a card before each street", () => {
     const dealt = new Set([...hand.board, ...holeCards].map(key));
     for (const burnt of hand.burned) expect(dealt.has(key(burnt))).toBe(false);
     expect(hand.burned).toHaveLength(3);
+  });
+
+  it("starts each all-in run-out burn on the street it deals", () => {
+    let state = started("run-out-street-state");
+    state = playAll(state, [
+      { type: "allInRaise", seatId: 0 },
+      { type: "allInCall", seatId: 1 },
+    ]);
+    const outcome = play(state, { type: "call", seatId: 2 });
+    if ("rejection" in outcome) throw new Error("unexpected rejection");
+
+    let current = state;
+    for (const event of outcome.events) {
+      current = apply(current, event);
+      if (event.type !== "CardBurned") continue;
+
+      if (current.hand?.status !== "betting") {
+        throw new Error("expected a betting hand after a burn");
+      }
+      expect(current.hand.street).toBe(event.street);
+    }
   });
 });
 

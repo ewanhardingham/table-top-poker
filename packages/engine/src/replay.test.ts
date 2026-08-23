@@ -146,6 +146,31 @@ describe("replayHand: the flipbook", () => {
     expect(terminal.board).toHaveLength(4);
   });
 
+  it("replays a burn with the street it opens already visible in state", () => {
+    const start: EngineState = { seats: [0, 1, 2], button: 0, hand: null };
+    const { recording } = record(start, [
+      { type: "startHand", seatId: 0, seed: "burn-replay-seed" },
+      { type: "call", seatId: 0 },
+      { type: "call", seatId: 1 },
+      { type: "check", seatId: 2 },
+    ]);
+    const outcome = replayHand(inputFrom(recording));
+
+    expect(outcome.status).toBe("complete");
+    if (outcome.status !== "complete") return;
+    const burn = outcome.positions.find(
+      (position) => position.event?.type === "CardBurned",
+    );
+    if (burn?.event?.type !== "CardBurned") {
+      throw new Error("expected a flop burn");
+    }
+    if (burn.state.hand?.status !== "betting") {
+      throw new Error("expected a betting hand after a burn");
+    }
+    expect(burn.state.hand.street).toBe(burn.event.street);
+    expect(burn.state.hand.board).toHaveLength(0);
+  });
+
   it("is pure — the same input replays to the same flipbook", () => {
     const recording = foldOutHand();
     expect(replayHand(inputFrom(recording))).toEqual(
