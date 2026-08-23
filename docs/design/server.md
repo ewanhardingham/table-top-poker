@@ -98,6 +98,25 @@ Nothing is broadcast before it is recorded (Phase 2 spec #129 §3, issue #118).
   legitimately back on the clock a beat later. Every revision bump re-arms the
   clock, so discarding a stale fold never leaves a Room without one.
 
+## Run-out pacing
+
+The engine decides a whole all-in run-out in one Command — the shove's call
+returns the burns, the board and the Showdown together (see Run-out in
+`CONTEXT.md`). Fanning those Events out in one go lands the flop, turn, river
+and the winner on the table in the same frame, which is the least interesting
+way to watch the biggest pot of the night.
+
+`settleDispatch` therefore splits a run-out's steps into beats — the closing
+Action, then each Street, then the Showdown — and broadcasts one beat every
+three seconds (`runOutStreetDelayMs`, overridable in tests). A transaction that
+is not a run-out is one beat, so ordinary play is untouched.
+
+The wait runs inside the Room's operation queue, so nothing else — a queued
+`nextHand`, a joiner's catch-up — interleaves with a run-out mid-flight. Nobody
+is on the clock between Streets, so the clock is cancelled for the duration and
+armed again on the closing beat, where a showing window may open. A shutdown
+releases every outstanding wait rather than draining through it.
+
 ## Seat lifecycle at the transport
 
 - **Eviction** (ADR-0003) vs **leave** (ADR-0005) are twins: leave is the

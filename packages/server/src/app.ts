@@ -56,6 +56,7 @@ import {
   toRoomView,
 } from "./rooms.js";
 import { RoomRecordings, type PausedRoom } from "./room-recordings.js";
+import { runOutBeats } from "./run-out.js";
 
 const publicDir = fileURLToPath(new URL("../public", import.meta.url));
 const publicIndexPath = fileURLToPath(
@@ -89,6 +90,8 @@ export interface BuildAppOptions {
   readonly pingIntervalMs?: number;
   readonly missedPongLimit?: number;
   readonly graceWindowMs?: number;
+  /** Overridable for tests only; production paces a run-out at 3s a Street. */
+  readonly runOutStreetDelayMs?: number;
 }
 
 interface RoomCodeRoute {
@@ -248,7 +251,7 @@ export async function buildApp(
       clearBotActionTimer(code);
     },
     resume(code, paused) {
-      resumePausedTransaction(code, paused);
+      void resumePausedTransaction(code, paused);
     },
     announce(code, event) {
       broadcastToRoom(code, { type: RECORDING_EVENT[event] });
@@ -284,7 +287,28 @@ export async function buildApp(
   const evictedSockets = new WeakSet<WebSocket>();
   const tableGraceTimers = new Map<string, NodeJS.Timeout>();
   const botActionTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const runOutStreetDelayMs = options.runOutStreetDelayMs ?? 3_000;
+  const runOutWaits = new Set<{
+    readonly timer: ReturnType<typeof setTimeout>;
+    readonly release: () => void;
+  }>();
+  let draining = false;
   const app = Fastify();
+
+  /** A run-out beat's wait, released early so a shutdown never waits one out. */
+  function waitBetweenStreets(): Promise<void> {
+    if (draining || runOutStreetDelayMs <= 0) return Promise.resolve();
+    return new Promise((resolve) => {
+      const wait = {
+        timer: setTimeout(() => {
+          runOutWaits.delete(wait);
+          resolve();
+        }, runOutStreetDelayMs),
+        release: resolve,
+      };
+      runOutWaits.add(wait);
+    });
+  }
 
   function enqueue<T>(
     code: string,
@@ -590,6 +614,12 @@ export async function buildApp(
   // each Room: `systemctl restart poker` on a deploy closes the process, not
   // the Rooms, and an append in flight at that moment would otherwise be lost.
   app.addHook("onClose", async () => {
+    draining = true;
+    for (const wait of runOutWaits) {
+      clearTimeout(wait.timer);
+      wait.release();
+    }
+    runOutWaits.clear();
     clearInterval(pingTimer);
     for (const timer of tableGraceTimers.values()) clearTimeout(timer);
     for (const code of botActionTimers.keys()) clearBotActionTimer(code);
@@ -821,19 +851,27 @@ export async function buildApp(
   }
 
   /** The one place the live path and a resuming Retry both settle through. */
-  function settleDispatch(
+  async function settleDispatch(
     code: string,
     transaction: DispatchTransaction,
     policy: ActionClockPolicy,
-  ): void {
+  ): Promise<void> {
     transaction.commit();
 
     if (transaction.seatMoves !== undefined) {
       applySeatMoves(code, transaction.seatMoves);
     }
-    rescheduleActionClock(code, policy);
-    for (const step of transaction.steps) {
-      fanOutHandUpdate(code, step);
+    const beats = runOutBeats(transaction.steps);
+    // Nobody is on the clock between a run-out's Streets, and the Room's queue
+    // is held for the duration, so the clock is armed on the closing beat.
+    if (beats.length > 1) cancelActionClock(code);
+
+    for (const [index, beat] of beats.entries()) {
+      if (index > 0) await waitBetweenStreets();
+      if (index === beats.length - 1) rescheduleActionClock(code, policy);
+      for (const step of beat) {
+        fanOutHandUpdate(code, step);
+      }
     }
     // After the fan-out: the summary describes a hand the room has already
     // seen, so no table learns of a completed hand before its last Event.
@@ -867,15 +905,22 @@ export async function buildApp(
       });
       return false;
     }
-    settleDispatch(code, transaction, options.actionClock ?? "reschedule");
+    await settleDispatch(
+      code,
+      transaction,
+      options.actionClock ?? "reschedule",
+    );
     options.onSettled?.();
     return true;
   }
 
   /** The one place Retry and Continue share for resuming play. */
-  function resumePausedTransaction(code: string, paused: PausedRoom): void {
+  async function resumePausedTransaction(
+    code: string,
+    paused: PausedRoom,
+  ): Promise<void> {
     if (paused.transaction !== undefined) {
-      settleDispatch(code, paused.transaction, "reschedule");
+      await settleDispatch(code, paused.transaction, "reschedule");
       paused.onSettled?.();
     } else {
       rescheduleActionClock(code, "reschedule");

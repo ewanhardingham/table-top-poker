@@ -4668,3 +4668,128 @@ describe("the commit seam", () => {
     });
   });
 });
+
+describe("run-out pacing", () => {
+  const STREET_DELAY_MS = 80;
+  let app: FastifyInstance;
+  let rooms: RoomStore;
+  let port: number;
+
+  beforeEach(async () => {
+    rooms = new RoomStore();
+    app = await buildApp({
+      rooms,
+      recordings: testRecordings(),
+      runOutStreetDelayMs: STREET_DELAY_MS,
+    });
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const address = app.server.address();
+    if (address === null || typeof address === "string") {
+      throw new Error("expected a bound TCP address");
+    }
+    port = address.port;
+  });
+
+  afterEach(async () => {
+    await app.close();
+  });
+
+  interface TimedEvent {
+    readonly type: string;
+    readonly at: number;
+  }
+
+  function connect(query: string): {
+    socket: WebSocket;
+    events: TimedEvent[];
+  } {
+    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/ws?${query}`);
+    const events: TimedEvent[] = [];
+    socket.on("message", (data: Buffer) => {
+      const message = JSON.parse(data.toString()) as ServerMessage;
+      if (message.type === "hand-update") {
+        events.push({ type: message.event.type, at: Date.now() });
+      }
+    });
+    return { socket, events };
+  }
+
+  async function opened(socket: WebSocket): Promise<void> {
+    if (socket.readyState === WebSocket.OPEN) return;
+    await new Promise<void>((resolve, reject) => {
+      socket.on("open", resolve);
+      socket.on("error", reject);
+    });
+  }
+
+  async function settle(ms = 10): Promise<void> {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function shoveHeadsUpPreflop(): Promise<TimedEvent[]> {
+    const room = rooms.create(2);
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const seats = new Map<number, WebSocket>();
+    for (const seatId of [0, 1]) {
+      const claim = rooms.claimSeat(room.code, seatId, `P${String(seatId)}`);
+      if (!("seat" in claim)) throw new Error("expected a claimed seat");
+      const conn = connect(
+        `room=${room.code}&seat=${String(seatId)}&token=${claim.seat.token ?? ""}`,
+      );
+      await opened(conn.socket);
+      seats.set(seatId, conn.socket);
+    }
+    await settle();
+
+    table.socket.send(JSON.stringify({ type: "startHand" }));
+    await settle();
+
+    for (const type of ["allInRaise", "allInCall"]) {
+      const actor = rooms.currentActor(room.code);
+      if (actor === undefined) throw new Error("expected an actor to shove");
+      seats.get(actor)?.send(JSON.stringify({ type }));
+      await settle();
+    }
+
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (table.events.some((event) => event.type === "HandComplete")) break;
+      await settle(STREET_DELAY_MS / 2);
+    }
+
+    table.socket.close();
+    for (const socket of seats.values()) socket.close();
+    return table.events;
+  }
+
+  function timeOf(events: readonly TimedEvent[], type: string): number {
+    const found = events.find((event) => event.type === type);
+    if (found === undefined) throw new Error(`no ${type} was broadcast`);
+    return found.at;
+  }
+
+  it("deals each remaining street a beat apart, showdown last", async () => {
+    const events = await shoveHeadsUpPreflop();
+
+    const beats = events
+      .filter(
+        (event) =>
+          event.type === "BoardDealt" || event.type === "ShowdownReached",
+      )
+      .map((event) => event.at);
+    expect(beats).toHaveLength(4);
+
+    const gaps = beats.slice(1).map((at, index) => at - Number(beats[index]));
+    for (const gap of gaps) {
+      expect(gap).toBeGreaterThanOrEqual(STREET_DELAY_MS * 0.8);
+    }
+  });
+
+  it("holds the flop back from the action that closed the betting", async () => {
+    const events = await shoveHeadsUpPreflop();
+
+    expect(timeOf(events, "BoardDealt")).toBeGreaterThanOrEqual(
+      timeOf(events, "StreetClosed") + STREET_DELAY_MS * 0.8,
+    );
+  });
+});
