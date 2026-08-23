@@ -128,7 +128,7 @@ interface ClockedActor {
 
 type BotActionDelay = number | readonly [number, number];
 
-const DEFAULT_BOT_ACTION_DELAY_MS: readonly [number, number] = [250, 750];
+const DEFAULT_BOT_ACTION_DELAY_MS: readonly [number, number] = [2_000, 6_000];
 
 function assertBotActionDelay(delay: BotActionDelay): void {
   if (typeof delay === "number") {
