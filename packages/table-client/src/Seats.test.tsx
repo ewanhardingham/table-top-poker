@@ -437,6 +437,7 @@ describe("Seats", () => {
       bigBlind: 2,
       dealtSeatCount: 3,
       burnedCount: 0,
+      board: [],
       winner: 1,
     };
     const sittingOutWinnerSeats = seats.map((seat) =>
@@ -765,6 +766,7 @@ describe("Seats: position markers", () => {
       {
         ...headsUpPositions,
         phase: "folded-out",
+        board: [],
         winner: 0,
       } satisfies TableView,
     ],

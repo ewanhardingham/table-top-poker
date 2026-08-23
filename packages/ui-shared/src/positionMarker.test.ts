@@ -85,7 +85,7 @@ describe("positionMarkerFor", () => {
           winners: [0],
         },
       ],
-      ["folded-out", { phase: "folded-out", ...headsUp, winner: 0 }],
+      ["folded-out", { phase: "folded-out", ...headsUp, board: [], winner: 0 }],
     ];
 
     it.each(cases)("marks the button and nothing else (%s)", (_phase, view) => {

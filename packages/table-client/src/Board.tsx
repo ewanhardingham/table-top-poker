@@ -3,7 +3,7 @@ import type {
   SeatView,
   TableView,
 } from "@table-top-poker/protocol";
-import { Card, color, font } from "@table-top-poker/ui-shared";
+import { Card } from "@table-top-poker/ui-shared";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { BurnPile } from "./BurnPile.js";
@@ -57,48 +57,6 @@ function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
   );
 }
 
-function HandCompleteBanner({ text }: { readonly text: string }) {
-  return (
-    <div
-      data-testid="hand-complete-banner"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5em",
-        padding: "0.45em 1em",
-        borderRadius: "999px",
-        background: color.winBackground,
-        border: `1px solid ${color.winBorder}`,
-        fontSize: "0.9em",
-        whiteSpace: "nowrap",
-      }}
-    >
-      <span
-        style={{
-          width: "0.5em",
-          height: "0.5em",
-          borderRadius: "50%",
-          flex: "none",
-          background: color.winBright,
-          boxShadow: `0 0 0.5em ${color.winBright}`,
-        }}
-      />
-      <span
-        style={{
-          fontFamily: font.mono,
-          fontSize: "0.65em",
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          color: color.winKicker,
-        }}
-      >
-        Hand complete
-      </span>
-      <span style={{ color: color.winText, fontWeight: 600 }}>{text}</span>
-    </div>
-  );
-}
-
 export function Board({ view, seats = [] }: BoardProps) {
   if (view.phase === "no-hand") {
     return (
@@ -137,13 +95,7 @@ export function Board({ view, seats = [] }: BoardProps) {
         >
           <BurnPile count={view.burnedCount} />
         </div>
-        {view.phase === "folded-out" ? (
-          <HandCompleteBanner
-            text={`${seatLabel(view.winner, seats)} wins — everyone folded`}
-          />
-        ) : (
-          <CommunityCards board={view.board} />
-        )}
+        <CommunityCards board={view.board} />
       </div>
     </div>
   );

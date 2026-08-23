@@ -49,7 +49,7 @@ export interface ReplayInput {
 
 /**
  * See Replay position in `CONTEXT.md`. State is carried whole, never as a
- * view: `FoldedOutView` has no board, so a fold-out's board would be lost.
+ * view, so a fold-out's board remains available for the terminal table view.
  */
 export interface ReplayPosition {
   readonly position: number;

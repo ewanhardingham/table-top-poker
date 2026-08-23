@@ -114,6 +114,8 @@ export interface FoldedOutCompleteHandState extends HandPositions {
   readonly status: "complete";
   readonly reason: "folded-out";
   readonly seed: string;
+  /** Community cards dealt before the last opponents folded. */
+  readonly board: readonly Card[];
   readonly winner: SeatId;
 }
 
