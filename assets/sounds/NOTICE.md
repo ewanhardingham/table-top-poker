@@ -1,6 +1,6 @@
 # Sound asset provenance
 
-The canonical production sound set: six cue files, one per cue, as
+The canonical production sound set: seven cue files, one per cue, as
 **uncompressed PCM WAV** (`-c:a pcm_s16le`, 44.1 kHz stereo).
 
 The set was originally AAC/`.m4a` (the #183 format decision, on the belief that
@@ -28,6 +28,7 @@ here — the alternatives explored during prototyping live only on the
 | flip | `flip.wav` | Kenney "Casino Audio" — `flip/flip-b__card-place-2.ogg` | [Kenney CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) |
 | check | `check.wav` | Original project recording — `check-knock/check-knock__custom.m4a` (fist-on-wood knock) | Own recording — project holds the rights outright |
 | yourTurn | `your-turn.wav` | Pixabay sound #269292 — `your-turn/turn-notify__pixabay-269292.mp3` | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
+| burn | `burn.wav` | Pixabay sound #317280 — `burn/fire-whoosh__pixabay-317280.mp3` | [Pixabay Content License](https://pixabay.com/service/license-summary/) |
 
 ## Licence notes
 
@@ -46,6 +47,16 @@ here — the alternatives explored during prototyping live only on the
   file may not be redistributed or sold standalone**. That does not bite here:
   the asset ships transcoded and bundled inside the app, which the licence
   permits. It must not be published on its own as a downloadable sound file.
+- **Burn (Pixabay Content License)** — same terms as your-turn: royalty-free,
+  commercial use permitted, no attribution required, and the raw file must not
+  be redistributed standalone. Trimmed from 5.042s to 0.700s. The source is a
+  swell rather than a hit: it is silent until 0.71s, becomes audible around
+  0.85s and peaks between 1.24s and 1.47s, so there is no attack transient to
+  align to the cue's start. The cut runs 0.85s–1.55s, keeping the whole build
+  and its peak, with a 5ms fade in and 30ms fade out over the cuts. Level was
+  pulled 6dB below a naive peak-normalise, to -8dB peak / -21.7dB mean: a
+  sustained whoosh carries far more energy than the card cues' short hits, and
+  matching their -1.5dB peak made it blare against them.
 
 ## Serving path
 
