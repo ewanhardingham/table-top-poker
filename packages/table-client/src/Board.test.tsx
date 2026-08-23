@@ -142,6 +142,68 @@ describe("Board", () => {
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(5);
   });
 
+  it("piles one face-down card per burn, never revealing them", () => {
+    const view: TableView = {
+      phase: "betting",
+      turnEndsAt: null,
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      burnedCount: 2,
+      street: "turn",
+      board: [
+        { rank: "A", suit: "spades" },
+        { rank: "K", suit: "hearts" },
+        { rank: "2", suit: "clubs" },
+        { rank: "7", suit: "diamonds" },
+      ],
+      toAct: [1],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
+    };
+    const html = renderToStaticMarkup(<Board view={view} />);
+
+    expect(html).toMatch(/data-testid="burn-pile"[^>]*data-burned="2"/);
+    expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(2);
+  });
+
+  it("keeps the pile beside the banner when the hand folds out", () => {
+    const view: TableView = {
+      phase: "folded-out",
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      burnedCount: 3,
+      winner: 1,
+    };
+    const html = renderToStaticMarkup(<Board view={view} />);
+
+    expect(html).toContain('data-testid="hand-complete-banner"');
+    expect(html).toMatch(/data-testid="burn-pile"[^>]*data-burned="3"/);
+    expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(3);
+  });
+
+  it("shows an empty pile before the first burn", () => {
+    const view: TableView = {
+      phase: "betting",
+      turnEndsAt: null,
+      button: 0,
+      smallBlind: 1,
+      bigBlind: 2,
+      dealtSeatCount: 3,
+      burnedCount: 0,
+      street: "preflop",
+      board: [],
+      toAct: [1],
+      seats: [{ seatId: 0, folded: false, allIn: false }],
+    };
+    const html = renderToStaticMarkup(<Board view={view} />);
+
+    expect(html).toMatch(/data-testid="burn-pile"[^>]*data-burned="0"/);
+    expect(html).not.toContain('data-face-down="true"');
+  });
+
   it("renders the same shape for betting and showdown on an unchanged board", () => {
     const board: readonly Card[] = [
       { rank: "A", suit: "spades" },

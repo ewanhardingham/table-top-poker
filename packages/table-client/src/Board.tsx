@@ -6,6 +6,7 @@ import type {
 import { Card, color, font } from "@table-top-poker/ui-shared";
 import { motion } from "motion/react";
 import { useEffect, useRef } from "react";
+import { BurnPile } from "./BurnPile.js";
 import { boardKeys, dealBoard } from "./boardDeal.js";
 import { seatLabel } from "./seatLabel.js";
 
@@ -108,13 +109,31 @@ export function Board({ view, seats = [] }: BoardProps) {
         gap: "0.6em",
       }}
     >
-      {view.phase === "folded-out" ? (
-        <HandCompleteBanner
-          text={`${seatLabel(view.winner, seats)} wins — everyone folded`}
-        />
-      ) : (
-        <CommunityCards board={view.board} />
-      )}
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          justifyContent: "center",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            right: "100%",
+            top: 0,
+            marginRight: "1.2em",
+          }}
+        >
+          <BurnPile count={view.burnedCount} />
+        </div>
+        {view.phase === "folded-out" ? (
+          <HandCompleteBanner
+            text={`${seatLabel(view.winner, seats)} wins — everyone folded`}
+          />
+        ) : (
+          <CommunityCards board={view.board} />
+        )}
+      </div>
     </div>
   );
 }
