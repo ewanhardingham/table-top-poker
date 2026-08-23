@@ -47,7 +47,7 @@ export function streetDealDelay(reducedMotion = false): number {
   return reducedMotion ? 0 : BURN_BUDGET_S;
 }
 
-/** Variant E's tuning, pulled back where the bloom and the tongues fight — see `docs/design/burn-pile.md`. */
+/** Tuned by eye — see `docs/design/burn-pile.md`. */
 export const FLAME = {
   bloomSizeEm: 4.2,
   bloomPeakOpacity: 0.85,
@@ -63,8 +63,8 @@ export function flameSpan(timing: BurnTiming): number {
   return timing.ignite.duration + timing.fade.duration;
 }
 
-/** Keyframe positions for the bloom, so its brightest frame lands on `peakAt`. */
-export function bloomTimes(
+/** Fractions of the flame's span, placing its brightest frame on `peakAt`. */
+export function flameKeyframes(
   timing: BurnTiming,
 ): readonly [number, number, number] {
   const span = flameSpan(timing);

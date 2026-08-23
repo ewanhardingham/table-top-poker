@@ -66,6 +66,14 @@ are pulled back in `FLAME`:
 These were arrived at visually, against the real cue on the real felt. Treat
 them as a tuned starting point, not as derived constants.
 
+The bloom is a sibling of the flying card, not a child of it, and sits at the
+card's resting place from the start. Inside the travelling wrapper it would fly
+in from the deck and be faded up by the card's own entry — a fire that arrives
+with the card rather than one the card lands in. The card's brightness pulse
+and the bloom share `flameKeyframes`, so both are brightest at 500ms; without
+those keyframe stops the card's three-frame pulse would peak at the midpoint of
+its span, ~85ms ahead of the cue.
+
 The three tongues stagger 40ms apart but all end together on the budget
 (`tongueFlames` shortens each one's duration by its own delay), so the fire goes
 out at once instead of trailing a last tongue past the flame. The card's

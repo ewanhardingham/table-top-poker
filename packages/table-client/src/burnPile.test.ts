@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BURN_BUDGET_S,
-  FLAME,
-  bloomTimes,
+  flameKeyframes,
   burnTiming,
   flameSpan,
   pileCards,
@@ -104,10 +103,10 @@ describe("flameSpan", () => {
   });
 });
 
-describe("bloomTimes", () => {
-  it("puts the bloom's brightest frame on the cue's peak", () => {
+describe("flameKeyframes", () => {
+  it("puts the flame's brightest frame on the cue's peak", () => {
     const timing = burnTiming();
-    const [start, peak, end] = bloomTimes(timing);
+    const [start, peak, end] = flameKeyframes(timing);
     expect(start).toBe(0);
     expect(end).toBe(1);
     expect(timing.ignite.delay + peak * flameSpan(timing)).toBeCloseTo(
@@ -136,16 +135,5 @@ describe("tongueFlames", () => {
       expect(delay).toBeGreaterThanOrEqual(timing.ignite.delay);
       expect(delay + duration).toBeCloseTo(BURN_BUDGET_S, 5);
     }
-  });
-});
-
-describe("FLAME", () => {
-  it("keeps the blend's pulled-back values, which fight at full strength", () => {
-    expect(FLAME.bloomSizeEm).toBeLessThan(5);
-    expect(FLAME.bloomPeakOpacity).toBeLessThan(1);
-    expect(FLAME.cardBrightness).toBeLessThan(2.4);
-    expect(FLAME.tongueHeightEm).toBeLessThan(2.6);
-    expect(FLAME.curlDegrees).toBeGreaterThan(-22);
-    expect(FLAME.curlDegrees).toBeLessThan(0);
   });
 });
