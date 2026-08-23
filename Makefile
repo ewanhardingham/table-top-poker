@@ -4,22 +4,22 @@
 DEV_PROFILE ?= local
 
 dev dev-start:
-	@./scripts/dev-servers.sh start "$(DEV_PROFILE)"
+	@POKER_TEST_MODE=1 ./scripts/dev-servers.sh start "$(DEV_PROFILE)"
 
 dev-local:
-	@./scripts/dev-servers.sh start local
+	@POKER_TEST_MODE=1 ./scripts/dev-servers.sh start local
 
 dev-wsl dev-wsl2:
-	@./scripts/dev-servers.sh start wsl
+	@POKER_TEST_MODE=1 ./scripts/dev-servers.sh start wsl
 
 dev-tailscale:
-	@./scripts/dev-servers.sh start tailscale
+	@POKER_TEST_MODE=1 ./scripts/dev-servers.sh start tailscale
 
 dev-stop stop:
 	@./scripts/dev-servers.sh stop
 
 dev-restart:
-	@./scripts/dev-servers.sh restart "$(DEV_PROFILE)"
+	@POKER_TEST_MODE=1 ./scripts/dev-servers.sh restart "$(DEV_PROFILE)"
 
 dev-status:
 	@./scripts/dev-servers.sh status
