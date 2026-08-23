@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
@@ -16,19 +15,11 @@ export default defineConfig(({ command, mode }) => {
   const backendOrigin = env.BACKEND_ORIGIN ?? "http://localhost:3000";
   const backendWebSocketOrigin = backendOrigin.replace(/^http/, "ws");
 
-  const entries: Record<string, string> = {
-    main: fileURLToPath(new URL("index.html", import.meta.url)),
-  };
-  if (command !== "build") {
-    entries.burn = fileURLToPath(new URL("burn.html", import.meta.url));
-  }
-
   return {
     plugins: [react()],
     base: command === "build" ? "/table/" : "/",
     build: {
       outDir: "build",
-      rolldownOptions: { input: entries },
     },
     server: {
       port: 5173,

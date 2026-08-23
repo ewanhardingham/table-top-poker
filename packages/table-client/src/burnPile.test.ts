@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   BURN_BUDGET_S,
+  FLAME,
+  bloomTimes,
   burnTiming,
+  flameSpan,
   pileCards,
   streetDealDelay,
+  tongueFlames,
 } from "./burnPile.js";
 
 describe("burnTiming", () => {
@@ -83,5 +87,65 @@ describe("pileCards", () => {
 
   it("settles a pile rendered whole, as after a reconnect mid-hand", () => {
     expect(pileCards(2, 5).every((card) => !card.arriving)).toBe(true);
+  });
+});
+
+describe("flameSpan", () => {
+  it("runs from the catch to the end of the budget", () => {
+    const timing = burnTiming();
+    expect(flameSpan(timing)).toBeCloseTo(
+      BURN_BUDGET_S - timing.ignite.delay,
+      5,
+    );
+  });
+
+  it("has nothing to play under reduced motion", () => {
+    expect(flameSpan(burnTiming(true))).toBe(0);
+  });
+});
+
+describe("bloomTimes", () => {
+  it("puts the bloom's brightest frame on the cue's peak", () => {
+    const timing = burnTiming();
+    const [start, peak, end] = bloomTimes(timing);
+    expect(start).toBe(0);
+    expect(end).toBe(1);
+    expect(timing.ignite.delay + peak * flameSpan(timing)).toBeCloseTo(
+      timing.peakAt,
+      5,
+    );
+  });
+});
+
+describe("tongueFlames", () => {
+  it("gives each tongue its own place and a stagger behind the last", () => {
+    const tongues = tongueFlames(burnTiming());
+    expect(tongues.length).toBeGreaterThan(1);
+    const offsets = tongues.map((tongue) => tongue.offsetEm);
+    expect(new Set(offsets).size).toBe(offsets.length);
+    for (const [index, tongue] of tongues.entries()) {
+      const previous = tongues[index - 1];
+      if (previous === undefined) continue;
+      expect(tongue.delay).toBeGreaterThan(previous.delay);
+    }
+  });
+
+  it("holds every tongue inside the burn budget, all dying together", () => {
+    const timing = burnTiming();
+    for (const { delay, duration } of tongueFlames(timing)) {
+      expect(delay).toBeGreaterThanOrEqual(timing.ignite.delay);
+      expect(delay + duration).toBeCloseTo(BURN_BUDGET_S, 5);
+    }
+  });
+});
+
+describe("FLAME", () => {
+  it("keeps the blend's pulled-back values, which fight at full strength", () => {
+    expect(FLAME.bloomSizeEm).toBeLessThan(5);
+    expect(FLAME.bloomPeakOpacity).toBeLessThan(1);
+    expect(FLAME.cardBrightness).toBeLessThan(2.4);
+    expect(FLAME.tongueHeightEm).toBeLessThan(2.6);
+    expect(FLAME.curlDegrees).toBeGreaterThan(-22);
+    expect(FLAME.curlDegrees).toBeLessThan(0);
   });
 });

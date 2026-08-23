@@ -21,7 +21,7 @@ const STILL: BurnPhase = { delay: 0, duration: 0 };
 
 /**
  * The burn cue is a swell, not a hit: it peaks 400–600ms into its 700ms — so
- * the flame catches after the card lands and is brightest late (#265).
+ * the flame is brightest late — see `docs/design/burn-pile.md`.
  */
 export function burnTiming(reducedMotion = false): BurnTiming {
   if (reducedMotion) {
@@ -45,6 +45,49 @@ export function burnTiming(reducedMotion = false): BurnTiming {
 
 export function streetDealDelay(reducedMotion = false): number {
   return reducedMotion ? 0 : BURN_BUDGET_S;
+}
+
+/** Variant E's tuning, pulled back where the bloom and the tongues fight — see `docs/design/burn-pile.md`. */
+export const FLAME = {
+  bloomSizeEm: 4.2,
+  bloomPeakOpacity: 0.85,
+  cardBrightness: 1.9,
+  tongueHeightEm: 2.2,
+  curlDegrees: -18,
+} as const;
+
+const TONGUE_OFFSETS_EM = [-0.9, 0, 0.9];
+const TONGUE_STAGGER_S = 0.04;
+
+export function flameSpan(timing: BurnTiming): number {
+  return timing.ignite.duration + timing.fade.duration;
+}
+
+/** Keyframe positions for the bloom, so its brightest frame lands on `peakAt`. */
+export function bloomTimes(
+  timing: BurnTiming,
+): readonly [number, number, number] {
+  const span = flameSpan(timing);
+  return span === 0 ? [0, 0, 1] : [0, timing.ignite.duration / span, 1];
+}
+
+export interface TongueFlame {
+  readonly key: string;
+  readonly offsetEm: number;
+  readonly delay: number;
+  readonly duration: number;
+}
+
+export function tongueFlames(timing: BurnTiming): readonly TongueFlame[] {
+  return TONGUE_OFFSETS_EM.map((offsetEm, index) => {
+    const delay = timing.ignite.delay + index * TONGUE_STAGGER_S;
+    return {
+      key: `tongue-${String(index)}`,
+      offsetEm,
+      delay,
+      duration: Math.max(timing.total - delay, 0),
+    };
+  });
 }
 
 /** Offsets are pixels, as `motion`'s `x`/`y` take them. */
