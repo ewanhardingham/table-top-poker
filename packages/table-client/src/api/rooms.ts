@@ -1,5 +1,6 @@
 import type {
   RoomView,
+  RoomCreationSettings,
   SeatCountChange,
   ShotClockSettings,
   ShowdownClockSettings,
@@ -36,11 +37,15 @@ export async function fetchRoom(code: string): Promise<RoomView> {
   return (await response.json()) as RoomView;
 }
 
-export async function createRoom(seatCount: number): Promise<CreatedRoom> {
+export async function createRoom(
+  settings: RoomCreationSettings | number,
+): Promise<CreatedRoom> {
+  const body =
+    typeof settings === "number" ? { seatCount: settings } : settings;
   const response = await fetch("/rooms", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ seatCount }),
+    body: JSON.stringify(body),
   });
   if (!response.ok) {
     throw new Error(`failed to create room: ${String(response.status)}`);

@@ -16,12 +16,6 @@ export const MAX_DISPLAY_NAME_LENGTH = 10;
 
 export const SeatCountSchema = z.int().min(MIN_SEAT_COUNT).max(MAX_SEAT_COUNT);
 
-export const CreateRoomRequestSchema = z.strictObject({
-  seatCount: SeatCountSchema,
-});
-
-export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>;
-
 export const ClaimSeatRequestSchema = z.strictObject({
   displayName: z.string().trim().min(1).max(MAX_DISPLAY_NAME_LENGTH),
 });
@@ -133,6 +127,27 @@ export const ChangeShowdownClockRequestSchema = ShowdownClockSettingsSchema;
 export type ChangeShowdownClockRequest = z.infer<
   typeof ChangeShowdownClockRequestSchema
 >;
+
+/** The house rules that are fixed when a new room is confirmed. */
+export interface RoomCreationSettings {
+  readonly seatCount: number;
+  readonly soundSettings: SoundSettings;
+  readonly shotClockSettings: ShotClockSettings;
+  readonly showdownClockSettings: ShowdownClockSettings;
+}
+
+/**
+ * The settings are optional for backwards compatibility with older table
+ * clients; omitted values use the same defaults as a fresh Room.
+ */
+export const CreateRoomRequestSchema = z.strictObject({
+  seatCount: SeatCountSchema,
+  soundSettings: ChangeSoundSettingsRequestSchema.optional(),
+  shotClockSettings: ShotClockSettingsSchema.optional(),
+  showdownClockSettings: ChangeShowdownClockRequestSchema.optional(),
+});
+
+export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>;
 
 export type HandStateSource = EngineState | PlayerView | TableView | null;
 

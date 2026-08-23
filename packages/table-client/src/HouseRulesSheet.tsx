@@ -5,6 +5,7 @@ import {
   MIN_SEAT_COUNT,
   MIN_SHOT_CLOCK_SECONDS,
   MIN_SHOWDOWN_CLOCK_SECONDS,
+  type RoomCreationSettings,
   type SeatView,
   type SeatMove,
   type ShotClockSettings,
@@ -25,6 +26,7 @@ import { useState, type CSSProperties } from "react";
 import { seatLabel } from "./seatLabel.js";
 
 export interface HouseRulesSheetProps {
+  readonly mode?: "room" | "create";
   readonly seatCount: number;
   readonly pendingSeatCount: number | null;
   readonly pendingShotClock: ShotClockSettings | null;
@@ -33,14 +35,15 @@ export interface HouseRulesSheetProps {
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
   readonly showdownClockSettings: ShowdownClockSettings;
-  readonly onApply: (seatCount: number) => void | Promise<void>;
-  readonly onApplyShotClock: (
+  readonly onApply?: (seatCount: number) => void | Promise<void>;
+  readonly onApplyShotClock?: (
     settings: ShotClockSettings,
   ) => void | Promise<void>;
-  readonly onApplyShowdownClock: (
+  readonly onApplyShowdownClock?: (
     settings: ShowdownClockSettings,
   ) => void | Promise<void>;
-  readonly onChangeSoundSettings: (next: SoundSettings) => void;
+  readonly onChangeSoundSettings?: (next: SoundSettings) => void;
+  readonly onConfirm?: (settings: RoomCreationSettings) => void | Promise<void>;
   readonly onClose: () => void;
 }
 
@@ -208,6 +211,7 @@ function Toggle({
 }
 
 export function HouseRulesSheet({
+  mode = "room",
   seatCount,
   pendingSeatCount,
   pendingShotClock,
@@ -216,17 +220,19 @@ export function HouseRulesSheet({
   soundSettings,
   shotClockSettings,
   showdownClockSettings,
-  onApply,
-  onApplyShotClock,
-  onApplyShowdownClock,
-  onChangeSoundSettings,
+  onApply = () => undefined,
+  onApplyShotClock = () => undefined,
+  onApplyShowdownClock = () => undefined,
+  onChangeSoundSettings = () => undefined,
+  onConfirm,
   onClose,
 }: HouseRulesSheetProps) {
+  const isCreation = mode === "create";
   const [draft, setDraft] = useState(pendingSeatCount ?? seatCount);
   const seated = claimedSeats(seats).length;
   const floor = Math.max(MIN_SEAT_COUNT, seated);
   const atFloor = draft <= floor;
-  const moves = previewMoves(seats, draft);
+  const moves = isCreation ? [] : previewMoves(seats, draft);
   const shrinkIsQueued = handInProgress && draft < seatCount;
   const [shotClockDraft, setShotClockDraft] = useState(
     pendingShotClock ?? shotClockSettings,
@@ -247,6 +253,7 @@ export function HouseRulesSheet({
       String(showdownClockSettings.seconds),
     ),
   );
+  const [soundDraft, setSoundDraft] = useState(soundSettings);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const shotClockChanged =
@@ -265,6 +272,25 @@ export function HouseRulesSheet({
     setSaving(true);
     setSaveError(null);
     try {
+      if (isCreation) {
+        if (onConfirm === undefined) {
+          throw new Error("room-creation-confirmation-not-configured");
+        }
+        await onConfirm({
+          seatCount: draft,
+          soundSettings: soundDraft,
+          shotClockSettings: {
+            ...shotClockDraft,
+            seconds: shotClockSecondsDraft.seconds,
+          },
+          showdownClockSettings: {
+            enabled: true,
+            seconds: showdownSecondsDraft.seconds,
+          },
+        });
+        onClose();
+        return;
+      }
       const writes: Promise<void>[] = [
         Promise.resolve().then(() => onApply(draft)),
       ];
@@ -333,7 +359,9 @@ export function HouseRulesSheet({
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={kickerStyle}>Table settings</span>
+            <span style={kickerStyle}>
+              {isCreation ? "Set up your table" : "Table settings"}
+            </span>
             <span
               id="house-rules-title"
               style={{
@@ -349,7 +377,9 @@ export function HouseRulesSheet({
           </div>
           <button
             type="button"
-            aria-label="Close table settings"
+            aria-label={
+              isCreation ? "Back to landing page" : "Close table settings"
+            }
             data-testid="close-settings-button"
             disabled={saving}
             onClick={onClose}
@@ -473,7 +503,7 @@ export function HouseRulesSheet({
               color: color.textDim,
             }}
           >
-            {atFloor && (
+            {!isCreation && atFloor && (
               <div style={{ color: color.textMuted, marginBottom: 6 }}>
                 {String(seated)} seated — can&apos;t go lower without evicting
                 someone.
@@ -541,41 +571,74 @@ export function HouseRulesSheet({
           >
             <Toggle
               label="Sound"
-              checked={soundSettings.sounds}
+              checked={isCreation ? soundDraft.sounds : soundSettings.sounds}
               disabled={saving}
               testId="sound-master-toggle"
               onChange={(sounds) => {
-                onChangeSoundSettings({ ...soundSettings, sounds });
+                const next = {
+                  ...(isCreation ? soundDraft : soundSettings),
+                  sounds,
+                };
+                if (isCreation) setSoundDraft(next);
+                else onChangeSoundSettings(next);
               }}
             />
             <Toggle
               label="Cards"
               nested
-              checked={soundSettings.cards}
-              disabled={saving || !soundSettings.sounds}
+              checked={isCreation ? soundDraft.cards : soundSettings.cards}
+              disabled={
+                saving ||
+                !(isCreation ? soundDraft.sounds : soundSettings.sounds)
+              }
               testId="sound-cards-toggle"
               onChange={(cards) => {
-                onChangeSoundSettings({ ...soundSettings, cards });
+                const next = {
+                  ...(isCreation ? soundDraft : soundSettings),
+                  cards,
+                };
+                if (isCreation) setSoundDraft(next);
+                else onChangeSoundSettings(next);
               }}
             />
             <Toggle
               label="Actions"
               nested
-              checked={soundSettings.actions}
-              disabled={saving || !soundSettings.sounds}
+              checked={isCreation ? soundDraft.actions : soundSettings.actions}
+              disabled={
+                saving ||
+                !(isCreation ? soundDraft.sounds : soundSettings.sounds)
+              }
               testId="sound-actions-toggle"
               onChange={(actions) => {
-                onChangeSoundSettings({ ...soundSettings, actions });
+                const next = {
+                  ...(isCreation ? soundDraft : soundSettings),
+                  actions,
+                };
+                if (isCreation) setSoundDraft(next);
+                else onChangeSoundSettings(next);
               }}
             />
             <Toggle
               label="Notifications"
               nested
-              checked={soundSettings.notifications}
-              disabled={saving || !soundSettings.sounds}
+              checked={
+                isCreation
+                  ? soundDraft.notifications
+                  : soundSettings.notifications
+              }
+              disabled={
+                saving ||
+                !(isCreation ? soundDraft.sounds : soundSettings.sounds)
+              }
               testId="sound-notifications-toggle"
               onChange={(notifications) => {
-                onChangeSoundSettings({ ...soundSettings, notifications });
+                const next = {
+                  ...(isCreation ? soundDraft : soundSettings),
+                  notifications,
+                };
+                if (isCreation) setSoundDraft(next);
+                else onChangeSoundSettings(next);
               }}
             />
           </div>
@@ -778,12 +841,17 @@ export function HouseRulesSheet({
                 color: color.textFaint,
               }}
             >
-              {shrinkIsQueued
-                ? "Applies from the next hand"
-                : "Seat count: Applies immediately"}
+              {isCreation
+                ? "All settings apply when the room is created"
+                : shrinkIsQueued
+                  ? "Applies from the next hand"
+                  : "Seat count: Applies immediately"}
             </span>
             <PillButton
               data-testid="settings-done"
+              data-action={
+                isCreation ? "confirm-house-rules" : "save-house-rules"
+              }
               aria-busy={saving}
               disabled={
                 saving ||
@@ -794,7 +862,13 @@ export function HouseRulesSheet({
                 void applyHouseRules();
               }}
             >
-              {saving ? "Saving…" : "Done"}
+              {saving
+                ? isCreation
+                  ? "Creating…"
+                  : "Saving…"
+                : isCreation
+                  ? "Confirm house rules"
+                  : "Done"}
             </PillButton>
           </div>
         </div>

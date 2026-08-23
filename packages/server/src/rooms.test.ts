@@ -135,6 +135,23 @@ describe("RoomStore", () => {
     expect(toRoomView(room).shotClockSettings).toEqual(DEFAULT_SHOT_CLOCK);
   });
 
+  it("creates a room with the confirmed house rules", () => {
+    const store = new RoomStore();
+    const settings = {
+      soundSettings: {
+        sounds: false,
+        cards: true,
+        actions: false,
+        notifications: true,
+      },
+      shotClockSettings: { enabled: true, seconds: 45 },
+      showdownClockSettings: { enabled: true as const, seconds: 20 },
+    };
+    const room = store.create(4, settings);
+
+    expect(toRoomView(room)).toMatchObject(settings);
+  });
+
   it("creates a room with the seat count the creator chose", () => {
     const store = new RoomStore();
     for (

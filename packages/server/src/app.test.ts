@@ -145,6 +145,38 @@ describe("rooms HTTP routes", () => {
     }
   });
 
+  it("creates a room with all confirmed house rules", async () => {
+    const settings = {
+      seatCount: 4,
+      soundSettings: {
+        sounds: false,
+        cards: true,
+        actions: false,
+        notifications: true,
+      },
+      shotClockSettings: { enabled: true, seconds: 45 },
+      showdownClockSettings: { enabled: true, seconds: 20 },
+    };
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      payload: settings,
+    });
+    expect(created.statusCode).toBe(200);
+
+    const { code } = created.json<RoomCreatedBody>();
+    const joined = await app.inject({
+      method: "POST",
+      url: `/rooms/${code}/join`,
+    });
+    expect(joined.json<RoomView>()).toMatchObject({
+      soundSettings: settings.soundSettings,
+      shotClockSettings: settings.shotClockSettings,
+      showdownClockSettings: settings.showdownClockSettings,
+    });
+    expect(joined.json<RoomView>().seats).toHaveLength(settings.seatCount);
+  });
+
   it("rejects a seat count outside the 2-8 range", async () => {
     for (const seatCount of [0, 1, 9, 2.5, "4", null]) {
       const response = await app.inject({

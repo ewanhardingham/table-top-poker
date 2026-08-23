@@ -299,6 +299,57 @@ describe("HouseRulesSheet", () => {
     expect(html).toContain("Applies from the next hand");
   });
 
+  it("renders the full house-rules confirmation step for a new room", () => {
+    const html = renderToStaticMarkup(
+      <HouseRulesSheet
+        mode="create"
+        seatCount={8}
+        pendingSeatCount={null}
+        {...shotClockProps}
+        seats={[]}
+        handInProgress={false}
+        soundSettings={DEFAULT_SOUND_SETTINGS}
+        onApply={noop}
+        onChangeSoundSettings={noop}
+        onConfirm={noop}
+        onClose={noop}
+      />,
+    );
+
+    expect(html).toContain("House rules");
+    expect(html).toContain('data-testid="card-back-settings"');
+    expect(html).toContain('data-testid="sound-settings"');
+    expect(html).toContain('data-testid="shot-clock-settings"');
+    expect(html).toContain('data-testid="showdown-clock-settings"');
+    expect(html).toContain('data-testid="settings-done"');
+    expect(html).toContain('data-action="confirm-house-rules"');
+    expect(html).toContain("Confirm house rules");
+  });
+
+  it("submits the full settings draft when a new room is confirmed", async () => {
+    const onConfirm = vi.fn(() => Promise.resolve());
+    let renderer!: TestRenderer;
+
+    act(() => {
+      renderer = create(renderSheet({ mode: "create", onConfirm }));
+    });
+
+    await act(async () => {
+      findNode(renderer, "settings-done").props.onClick?.();
+      await settleReactUpdates();
+    });
+
+    expect(onConfirm).toHaveBeenCalledWith({
+      seatCount: 4,
+      soundSettings: DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: DEFAULT_SHOT_CLOCK,
+      showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
+    });
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
   it("accepts a valid seconds value typed one digit at a time", () => {
     let draft: ShotClockSecondsDraft = {
       input: "90",

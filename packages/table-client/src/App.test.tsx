@@ -1,4 +1,3 @@
-import { DEFAULT_SEAT_COUNT } from "@table-top-poker/protocol";
 import type { SeatView, TableView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -138,17 +137,15 @@ describe("App", () => {
     expect(html).not.toContain('data-testid="connection-status"');
   });
 
-  it("picks the table size before the room code or QR is shown", () => {
+  it("shows the centered landing title before a room exists", () => {
     const html = renderToStaticMarkup(<App />);
-    expect(html).toContain('data-testid="seat-count-picker"');
+    expect(html).toContain('data-testid="landing-page"');
+    expect(html).toContain('data-testid="landing-title"');
+    expect(html).toContain("TABLE TOP POKER");
+    expect(html).toContain("font-weight:800");
+    expect(html).toContain("color:#ffffff");
+    expect(html).not.toContain('data-testid="seat-count-picker"');
     expect(html).not.toContain('data-testid="join-panel"');
-  });
-
-  it("defaults the picker to a full eight-seat table", () => {
-    const html = renderToStaticMarkup(<App />);
-    expect(html).toContain(
-      `data-testid="seat-count-${String(DEFAULT_SEAT_COUNT)}-button" aria-pressed="true"`,
-    );
   });
 
   it("puts the lobby controls inside the join panel, with no rail and no room-code pill", () => {

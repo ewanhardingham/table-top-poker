@@ -1,6 +1,9 @@
 import {
   countDealInSeats,
   DEFAULT_SEAT_COUNT,
+  DEFAULT_SHOT_CLOCK,
+  DEFAULT_SHOWDOWN_CLOCK,
+  DEFAULT_SOUND_SETTINGS,
   isHandComplete,
   isHandLive,
   MIN_SEAT_COUNT,
@@ -31,8 +34,8 @@ import { Board } from "./Board.js";
 import { HandPicker } from "./HandPicker.js";
 import { HandReview } from "./replay/HandReview.js";
 import { HouseRulesSheet } from "./HouseRulesSheet.js";
+import { LandingPage } from "./LandingPage.js";
 import { NotRecordingBanner } from "./NotRecordingBanner.js";
-import { SeatCountPicker } from "./SeatCountPicker.js";
 import { JoinPanel } from "./JoinPanel.js";
 import { SeatMenu } from "./SeatMenu.js";
 import { Seats } from "./Seats.js";
@@ -127,6 +130,7 @@ export function App() {
 
   const [menuSeatId, setMenuSeatId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [roomSetupOpen, setRoomSetupOpen] = useState(false);
 
   const [handPickerOpen, setHandPickerOpen] = useState(false);
 
@@ -150,6 +154,7 @@ export function App() {
   const forgetRoom = useCallback(() => {
     clearHostedRoom(window.localStorage);
     setSettingsOpen(false);
+    setRoomSetupOpen(false);
     setHandPickerOpen(false);
     closeReview();
     clearRoom();
@@ -159,18 +164,25 @@ export function App() {
 
   const { send } = useWebSocket(roomCode, { onRoomEnded: forgetRoom });
 
-  const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
-  const handleCreateRoom = useCallback(() => {
+  const openRoomSetup = useCallback(() => {
     void unlockAudio();
-    createRoom(seatCount)
-      .then((room) => {
+    setRoomSetupOpen(true);
+  }, []);
+
+  const handleCreateRoom = useCallback(
+    async (settings: Parameters<typeof createRoom>[0]): Promise<void> => {
+      void unlockAudio();
+      try {
+        const room = await createRoom(settings);
         saveHostedRoom(window.localStorage, room);
         setRoomCreated(room);
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         console.error(error);
-      });
-  }, [seatCount, setRoomCreated]);
+        throw error;
+      }
+    },
+    [setRoomCreated],
+  );
 
   const handleEndSession = useCallback(() => {
     if (!roomCode) return;
@@ -269,25 +281,42 @@ export function App() {
 
   return (
     <div className="app-shell" data-testid="table-client-shell">
-      <StatusBar
-        roomCode={roomCode}
-        connectionStatus={connectionStatus}
-        showRoomCode={handInProgress && !joinOpen}
-        onOpenJoin={toggleJoin}
-        leading={
-          review === null ? undefined : (
-            <ReviewingHand handOrdinal={review.handOrdinal} />
-          )
-        }
-      />
+      {roomCode !== null && (
+        <StatusBar
+          roomCode={roomCode}
+          connectionStatus={connectionStatus}
+          showRoomCode={handInProgress && !joinOpen}
+          onOpenJoin={toggleJoin}
+          leading={
+            review === null ? undefined : (
+              <ReviewingHand handOrdinal={review.handOrdinal} />
+            )
+          }
+        />
+      )}
       {recordingStopped && <NotRecordingBanner />}
       <main className="felt">
         {roomCode === null ? (
-          <SeatCountPicker
-            seatCount={seatCount}
-            onSeatCountChange={setSeatCount}
-            onCreateRoom={handleCreateRoom}
-          />
+          <>
+            <LandingPage onCreateRoom={openRoomSetup} />
+            {roomSetupOpen && (
+              <HouseRulesSheet
+                mode="create"
+                seatCount={DEFAULT_SEAT_COUNT}
+                pendingSeatCount={null}
+                pendingShotClock={null}
+                seats={[]}
+                handInProgress={false}
+                soundSettings={DEFAULT_SOUND_SETTINGS}
+                shotClockSettings={DEFAULT_SHOT_CLOCK}
+                showdownClockSettings={DEFAULT_SHOWDOWN_CLOCK}
+                onConfirm={handleCreateRoom}
+                onClose={() => {
+                  setRoomSetupOpen(false);
+                }}
+              />
+            )}
+          </>
         ) : review !== null ? (
           <div style={feltSurfaceStyle}>
             <HandReview

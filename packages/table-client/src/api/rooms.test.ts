@@ -86,6 +86,35 @@ describe("createRoom", () => {
     expect(room).toEqual(body);
   });
 
+  it("posts all confirmed house rules when creating a room", async () => {
+    const body = {
+      code: "ABCD",
+      joinUrl: "http://localhost:3000/join/ABCD",
+      qrCodeDataUrl: "data:image/png;base64,xyz",
+    };
+    const settings = {
+      seatCount: 4,
+      soundSettings: {
+        sounds: false,
+        cards: true,
+        actions: false,
+        notifications: true,
+      },
+      shotClockSettings: { enabled: true, seconds: 45 },
+      showdownClockSettings: { enabled: true as const, seconds: 20 },
+    };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify(body), { status: 200 }),
+    );
+
+    await expect(createRoom(settings)).resolves.toEqual(body);
+    expect(fetch).toHaveBeenCalledWith("/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(settings),
+    });
+  });
+
   it("throws when the server rejects the request", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 500 }));
 

@@ -4,6 +4,7 @@ import type { RoomOperation } from "@table-top-poker/recording";
 import {
   apply,
   canStillAct,
+  ChangeSoundSettingsRequestSchema,
   createInitialState,
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
@@ -62,6 +63,12 @@ export interface Room {
   soundSettings: SoundSettings;
   shotClockSettings: ShotClockSettings;
   showdownClockSettings: ShowdownClockSettings;
+}
+
+export interface RoomCreationOptions {
+  readonly soundSettings?: SoundSettings | undefined;
+  readonly shotClockSettings?: ShotClockSettings | undefined;
+  readonly showdownClockSettings?: ShowdownClockSettings | undefined;
 }
 
 /** Staged, not yet joinable: Room creation is transactional with recording creation. */
@@ -389,11 +396,34 @@ export class RoomStore {
   }
 
   /** An out-of-range count is a caller bug and throws; the HTTP edge answers 400 first. */
-  stage(seatCount: number = DEFAULT_SEAT_COUNT): StagedRoom {
+  stage(
+    seatCount: number = DEFAULT_SEAT_COUNT,
+    settings: RoomCreationOptions = {},
+  ): StagedRoom {
     if (!SeatCountSchema.safeParse(seatCount).success) {
       throw new RangeError(
         `seat count must be an integer in ${String(MIN_SEAT_COUNT)}-${String(MAX_SEAT_COUNT)}, got ${String(seatCount)}`,
       );
+    }
+    if (
+      settings.soundSettings !== undefined &&
+      !ChangeSoundSettingsRequestSchema.safeParse(settings.soundSettings)
+        .success
+    ) {
+      throw new RangeError("invalid sound settings");
+    }
+    if (
+      settings.shotClockSettings !== undefined &&
+      !ShotClockSettingsSchema.safeParse(settings.shotClockSettings).success
+    ) {
+      throw new RangeError("invalid shot-clock settings");
+    }
+    if (
+      settings.showdownClockSettings !== undefined &&
+      !ShowdownClockSettingsSchema.safeParse(settings.showdownClockSettings)
+        .success
+    ) {
+      throw new RangeError("invalid showdown-clock settings");
     }
     const code = generateRoomCode(
       (c) => this.#rooms.has(c) || this.#stagedCodes.has(c),
@@ -409,9 +439,10 @@ export class RoomStore {
       pendingSeatCount: null,
       turnEndsAt: null,
       pendingShotClock: null,
-      soundSettings: DEFAULT_SOUND_SETTINGS,
-      shotClockSettings: DEFAULT_SHOT_CLOCK,
-      showdownClockSettings: DEFAULT_SHOWDOWN_CLOCK,
+      soundSettings: settings.soundSettings ?? DEFAULT_SOUND_SETTINGS,
+      shotClockSettings: settings.shotClockSettings ?? DEFAULT_SHOT_CLOCK,
+      showdownClockSettings:
+        settings.showdownClockSettings ?? DEFAULT_SHOWDOWN_CLOCK,
     };
     return {
       room,
@@ -427,8 +458,11 @@ export class RoomStore {
   }
 
   /** Only safe where nothing else has to succeed first; the HTTP route uses {@link stage}. */
-  create(seatCount: number = DEFAULT_SEAT_COUNT): Room {
-    return this.stage(seatCount).commit();
+  create(
+    seatCount: number = DEFAULT_SEAT_COUNT,
+    settings: RoomCreationOptions = {},
+  ): Room {
+    return this.stage(seatCount, settings).commit();
   }
 
   get(code: string): Room | undefined {
