@@ -3,6 +3,7 @@ import type { SoundSettings } from "@table-top-poker/protocol";
 export const CUE_FILES = {
   deal: "deal.wav",
   board: "board.wav",
+  burn: "burn.wav",
   fold: "fold.wav",
   check: "check.wav",
   flip: "flip.wav",
@@ -19,6 +20,7 @@ export const CUE_CATEGORY: Record<
 > = {
   deal: "cards",
   board: "cards",
+  burn: "cards",
   fold: "actions",
   check: "actions",
   flip: "cards",

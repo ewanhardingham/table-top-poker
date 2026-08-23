@@ -107,6 +107,9 @@ export function createSoundEngine(
         break;
 
       case "CardBurned":
+        if (surface === "table") playCue("burn");
+        break;
+
       case "StreetStarted":
       case "StreetClosed":
       case "ShowdownReached":

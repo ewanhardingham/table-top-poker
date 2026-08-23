@@ -65,6 +65,12 @@ const boardDealt = (
   cards: Array.from({ length: n }, () => CARD),
 });
 
+const cardBurned = (street: "flop" | "turn" | "river"): HandEvent => ({
+  type: "CardBurned",
+  street,
+  card: null,
+});
+
 const actionTaken = (
   seatId: number,
   action: "fold" | "check" | "call" | "raise",
@@ -178,6 +184,39 @@ describe("event → cue mapping", () => {
       surface: "player",
       seatId: 0,
       event: boardDealt("turn", 1),
+      view: noHandView,
+    });
+    r.flush();
+    expect(r.played).toEqual([]);
+  });
+
+  it("whooshes the burn on the table, ahead of the street's cards", () => {
+    const r = rig();
+    r.engine.onHandUpdate({
+      surface: "table",
+      event: cardBurned("flop"),
+      view: noHandView,
+    });
+    expect(r.played).toEqual(["burn"]);
+  });
+
+  it("stays silent on the burn on the player surface, which has no board", () => {
+    const r = rig();
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: cardBurned("turn"),
+      view: noHandView,
+    });
+    r.flush();
+    expect(r.played).toEqual([]);
+  });
+
+  it("mutes the burn with the rest of the card audio", () => {
+    const r = rig({ ...ALL_ON, cards: false });
+    r.engine.onHandUpdate({
+      surface: "table",
+      event: cardBurned("river"),
       view: noHandView,
     });
     r.flush();
