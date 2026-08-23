@@ -159,6 +159,12 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
         ...state,
         hand: {
           ...hand,
+          // The burn is the first event for the street it opens.  The server
+          // fans out each event separately, so leaving `street` on the prior
+          // round makes the table briefly render a new burn as preflop (or
+          // as the previous postflop street).  A hand that folds before this
+          // event is emitted therefore never gets a burn on its view.
+          street: event.street,
           burned: [
             ...hand.burned,
             must(event.card, "a burn is only applied with its card"),
