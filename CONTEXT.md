@@ -152,14 +152,15 @@ claim on the pot, and is revealed at Showdown. Side pots stay a
 physical-chips problem the humans settle at the table.
 
 **Tabling**:
-Turning a Seat's Hole cards face-up on the Table, irreversibly. An all-in Hand
-is tabled the moment the betting is over and a *Run-out* follows: it has no
-decision left to make, and the room watches the Streets it is waiting on with
-the Hands already face-up, the way a live table plays it. Every other
-contestant tables at the Showdown instead, by *Showdown show* or by the
-showing window's clock. A Seat that covers a shove and could still bet is not
-tabled by the Run-out — it keeps its Hand concealed and its choice at the
-Showdown (ADR-0008).
+Turning a Seat's Hole cards face-up on the Table, irreversibly. Every live Hand
+is tabled the moment the betting is over and a *Run-out* follows — the all-in
+Seats and whoever called them alike, since none of them has a decision left —
+and the room watches the remaining Streets with the Hands already face-up, the
+way a live table plays it. A tabled Hand is public from that instant, so it
+neither shows nor mucks at the Showdown: the showing window is left with
+nothing to ask, and the winners publish as the River resolves. Where betting
+ends without a Run-out, tabling happens at the Showdown instead, by *Showdown
+show* or by the showing window's clock.
 _Avoid_: Reading a tabled Hand as a Showdown result; a verdict is only ever
 the engine's to say, and only once the Hand is over.
 
@@ -211,9 +212,9 @@ is proof the cards are public.
 Publishing a contestant's Hole cards to the whole room, irreversibly, with the
 `show` Command. A Player sends it by revealing their Hole cards with the
 ordinary reveal gesture on their own Device — there is no separate control —
-and only on their turn at the head of the *Showing order*. Every all-in
-contestant is shown by the engine as the window opens: their Hands were decided
-streets ago and they have no decision to make. A Seat's verdict is withheld
+and only on their turn at the head of the *Showing order*. A contestant whose
+Hand is already *tabled* is shown by the engine as the window opens: it was
+face-up before the last Street landed and has no decision to make. A Seat's verdict is withheld
 from the table until that Seat's cards are public, so `wins` never sits over
 two face-down cards.
 _Avoid_: Confusing a show with *Hole-card reveal*, which stays local to one
@@ -424,8 +425,8 @@ Seats dealt in, which folding never reduces.
    RIVER (a Street)      — 1 board card dealt, betting round
         │ street closes (last-aggressor logic)
         ▼
-   SHOWDOWN               — contestants named, all-in Hands tabled,
-        │                   the rest queued to show or muck in turn
+   SHOWDOWN               — contestants named, an already-tabled Hand is
+        │                   shown, the rest queued to show or muck in turn
         ▼
    HAND_COMPLETE           — the showing window runs on a clock; winners
         │                    are published once the queue empties, and
@@ -440,7 +441,7 @@ remaining board cards are dealt, no hands are shown. All-in Seats count as
 live here, so a Seat that has shoved cannot be folded out of a pot it has
 already bought a claim to (ADR-0007).
 
-**Run-out**: once fewer than two Seats can still act, every all-in Hand is
+**Run-out**: once fewer than two Seats can still act, every live Hand is
 tabled and the remaining Streets deal without opening — board cards arrive, no
 betting round starts — through the River and on to Showdown. A Street already open ends as soon as nobody
 left to act faces a bet, for the same reason: there is no turn to take with

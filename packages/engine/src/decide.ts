@@ -332,15 +332,13 @@ function burnAndDealNextStreet(
 
 const FLOP_CARDS = 3;
 
-/** See Tabling in `CONTEXT.md`: a shove is face-up for the Streets it waits out. */
-function tableAllInHands(
+/** See Tabling in `CONTEXT.md`: betting is over, so every live Hand goes up. */
+function tableRemainingHands(
   scratch: EngineState,
   events: HandEvent[],
 ): EngineState {
   const hand = asBetting(scratch);
-  const seats = liveSeats(hand).filter(
-    (seat) => must(hand.players.get(seat)).allIn && !hand.tabled.includes(seat),
-  );
+  const seats = liveSeats(hand).filter((seat) => !hand.tabled.includes(seat));
   if (seats.length === 0) return scratch;
 
   const tabled: HandEvent = { type: "HoleCardsTabled", seats };
@@ -349,7 +347,7 @@ function tableAllInHands(
 }
 
 function runOut(scratch: EngineState, events: HandEvent[]): HandEvent[] {
-  let current = tableAllInHands(scratch, events);
+  let current = tableRemainingHands(scratch, events);
   while (asBetting(current).street !== "river") {
     current = burnAndDealNextStreet(current, events);
   }
@@ -360,6 +358,7 @@ function finishAtShowdown(
   scratch: EngineState,
   events: HandEvent[],
 ): HandEvent[] {
+  const tabled = asBetting(scratch).tabled;
   const showdownReached: HandEvent = {
     type: "ShowdownReached",
     contestants: liveSeats(asBetting(scratch)),
@@ -368,7 +367,10 @@ function finishAtShowdown(
   let current = apply(scratch, showdownReached);
 
   const opened = asShowdown(current);
-  for (const contestant of opened.contestants.filter((c) => c.allIn)) {
+  const compelled = opened.contestants.filter(
+    (contestant) => contestant.allIn || tabled.includes(contestant.seatId),
+  );
+  for (const contestant of compelled) {
     const shown: HandEvent = {
       type: "HoleCardsShown",
       result: revealedResultFor(opened.board, contestant),

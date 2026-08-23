@@ -120,15 +120,25 @@ for it.
 
 So the tabling moves to where the betting actually ended. When fewer than two
 seats can still act and a run-out follows, the engine emits `HoleCardsTabled`
-for every all-in live seat *before* it deals the remaining streets;
-`BettingHandState` gains `tabled` and the betting views carry those hands, so a
-tabled hand is public from that event on. A seat that covers a shove and is
-merely out of opponents is not tabled — it kept chips and keeps its choice, so
-it still shows or mucks at the showdown.
+for every live seat *before* it deals the remaining streets; `BettingHandState`
+gains `tabled` and the betting views carry those hands, so a tabled hand is
+public from that event on.
 
-What this ADR decided is otherwise untouched: the window still opens at river
-close, the queue still holds every contestant who has a decision left, and
-`HoleCardsShown` still publishes each contestant's `RevealedResult` — an all-in
-seat's cards are simply already on the felt when it does. The log gains an
-event type without changing the meaning of any existing one, so
-`ENGINE_LOG_VERSION` stays where it is and older recordings replay unchanged.
+Every live seat, not only the all-in ones. The seat that covers a shove and is
+merely out of opponents is in exactly the same position — it cannot bet again,
+and its cards decide the pot — and the rule at a real table is that all hands
+go up once someone is all-in and the betting is complete. Leaving it concealed
+also asks the room to sit through a showing window for a decision that no
+longer exists.
+
+That is this amendment's one departure from the Decision above: a tabled seat
+is not asked to show or muck. `finishAtShowdown` publishes a `RevealedResult`
+for every tabled contestant as the window opens, which empties the queue, so a
+run-out declares its winners as the river resolves rather than resting on a
+clock. Where the betting ends without a run-out nothing changes — the window
+opens at river close, the queue holds every contestant, and the compulsion
+rules are as decided.
+
+The log gains an event type without changing the meaning of any existing one,
+so `ENGINE_LOG_VERSION` stays where it is and older recordings replay
+unchanged.

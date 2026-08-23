@@ -920,27 +920,39 @@ describe("Seats through a run-out", () => {
           { rank: "3", suit: "hearts" },
         ],
       },
+      {
+        seatId: 1,
+        holeCards: [
+          { rank: "Q", suit: "spades" },
+          { rank: "Q", suit: "diamonds" },
+        ],
+      },
     ],
   };
 
-  it("lays a tabled hand face-up while the streets are still coming", () => {
+  it("lays every tabled hand face-up while the streets are still coming", () => {
     const html = renderToStaticMarkup(<Seats seats={seats} view={runOut} />);
 
-    expect(html).toMatch(
-      /data-testid="seat-pod-0-showdown"[^>]*data-shown="true"/,
-    );
-    expect(subtreeOf(html, "seat-pod-0-showdown-card-0")).toContain(
-      'data-face-down="false"',
-    );
-    expect(subtreeOf(html, "seat-pod-0-showdown-card-1")).toContain(
-      'data-face-down="false"',
-    );
+    for (const seatId of [0, 1]) {
+      expect(html).toMatch(
+        new RegExp(
+          `data-testid="seat-pod-${String(seatId)}-showdown"[^>]*data-shown="true"`,
+        ),
+      );
+      for (const index of [0, 1]) {
+        expect(
+          subtreeOf(
+            html,
+            `seat-pod-${String(seatId)}-showdown-card-${String(index)}`,
+          ),
+        ).toContain('data-face-down="false"');
+      }
+    }
   });
 
-  it("lays nothing on the felt for a seat that has not tabled", () => {
+  it("lays nothing on the felt for a seat that has folded", () => {
     const html = renderToStaticMarkup(<Seats seats={seats} view={runOut} />);
 
-    expect(html).not.toContain('data-testid="seat-pod-1-showdown"');
     expect(html).not.toContain('data-testid="seat-pod-2-showdown"');
   });
 

@@ -183,6 +183,8 @@ describe("all-in and the automatic run-out", () => {
       "ShowdownReached",
       "HoleCardsShown",
       "HoleCardsShown",
+      "HoleCardsShown",
+      "WinnersDeclared",
       "HandComplete",
     ]);
   });
@@ -246,21 +248,37 @@ describe("all-in and the automatic run-out", () => {
     throw new Error("the run-out tabled nothing");
   });
 
-  it("leaves a covering seat concealed — it still has a showdown choice", () => {
+  it("tables the caller who covers the shove — betting is over for it too", () => {
     let state = started([0, 1, 2], "run-out");
     state = playAll(state, [
       { type: "allInRaise", seatId: 0 },
       { type: "allInCall", seatId: 1 },
     ]);
 
-    const tabled = events(state, { type: "call", seatId: 2 }).find(
-      (event) => event.type === "HoleCardsTabled",
-    );
+    const tail = events(state, { type: "call", seatId: 2 });
+    const tabled = tail.find((event) => event.type === "HoleCardsTabled");
 
     expect(tabled?.type).toBe("HoleCardsTabled");
     expect(
       tabled?.type === "HoleCardsTabled" ? [...tabled.seats].sort() : [],
-    ).toEqual([0, 1]);
+    ).toEqual([0, 1, 2]);
+  });
+
+  it("leaves no showing window open behind a run-out", () => {
+    let state = started([0, 1, 2], "run-out");
+    state = playAll(state, [
+      { type: "allInRaise", seatId: 0 },
+      { type: "allInCall", seatId: 1 },
+    ]);
+
+    const final = showdown(playAll(state, [{ type: "call", seatId: 2 }]));
+
+    expect(final.queue).toEqual([]);
+    expect(final.mucked).toEqual([]);
+    expect(final.results.map((result) => result.seatId).sort()).toEqual([
+      0, 1, 2,
+    ]);
+    expect(final.winners).not.toBeNull();
   });
 
   it("still opens the flop normally when two seats can act", () => {
@@ -316,6 +334,8 @@ describe("all-in and fold-out", () => {
       "BoardDealt",
       "ShowdownReached",
       "HoleCardsShown",
+      "HoleCardsShown",
+      "WinnersDeclared",
       "HandComplete",
     ]);
 
