@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
@@ -20,6 +21,12 @@ export default defineConfig(({ command, mode }) => {
     base: command === "build" ? "/table/" : "/",
     build: {
       outDir: "build",
+      rolldownOptions: {
+        input: {
+          main: fileURLToPath(new URL("index.html", import.meta.url)),
+          burn: fileURLToPath(new URL("burn.html", import.meta.url)),
+        },
+      },
     },
     server: {
       port: 5173,
