@@ -106,6 +106,7 @@ export function createSoundEngine(
         if (surface === "player" && event.seatId === seatId) playCue("fold");
         break;
 
+      case "CardBurned":
       case "StreetStarted":
       case "StreetClosed":
       case "ShowdownReached":

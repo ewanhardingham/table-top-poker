@@ -68,6 +68,7 @@ function bettingView(board: readonly Card[]): TableView {
     smallBlind: 1,
     bigBlind: 2,
     dealtSeatCount: 3,
+    burnedCount: 0,
     street: board.length === 0 ? "preflop" : "flop",
     board,
     toAct: [1],
@@ -109,6 +110,7 @@ const foldedOut: TableView = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 3,
+  burnedCount: 0,
   winner: 2,
 };
 

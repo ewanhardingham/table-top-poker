@@ -172,8 +172,11 @@ describe("all-in and the automatic run-out", () => {
     expect(typesOf(tail)).toEqual([
       "ActionTaken",
       "StreetClosed",
+      "CardBurned",
       "BoardDealt",
+      "CardBurned",
       "BoardDealt",
+      "CardBurned",
       "BoardDealt",
       "ShowdownReached",
       "HoleCardsShown",
@@ -250,6 +253,7 @@ describe("all-in and fold-out", () => {
     expect(typesOf(events(state, { type: "fold", seatId: 2 }))).toEqual([
       "ActionTaken",
       "StreetClosed",
+      "CardBurned",
       "BoardDealt",
       "ShowdownReached",
       "HoleCardsShown",

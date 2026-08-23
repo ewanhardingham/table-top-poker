@@ -19,6 +19,7 @@ describe("Board", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "flop",
       board: [
         { rank: "A", suit: "spades" },
@@ -45,6 +46,7 @@ describe("Board", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       winner: 1,
     };
     const html = renderToStaticMarkup(
@@ -86,6 +88,7 @@ describe("Board", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       contestants: [0, 1],
       board: [
         { rank: "A", suit: "spades" },
@@ -153,6 +156,7 @@ describe("Board", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "river",
       turnEndsAt: null,
       board,
@@ -171,6 +175,7 @@ describe("Board", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       board,
       contestants: [0, 1],
       winners: [0],

@@ -66,6 +66,7 @@ const completeHand: TableView = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 2,
+  burnedCount: 0,
   winner: 0,
 };
 
@@ -76,6 +77,7 @@ const liveHand: TableView = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 2,
+  burnedCount: 0,
   street: "preflop",
   board: [],
   toAct: [1],

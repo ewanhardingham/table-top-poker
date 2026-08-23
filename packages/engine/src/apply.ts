@@ -19,6 +19,8 @@ import type {
 } from "./types.js";
 import { must } from "./util.js";
 
+const HOLE_CARDS = 2;
+
 function asBetting(state: EngineState): BettingHandState {
   if (state.hand?.status !== "betting") {
     throw new Error("expected an in-progress hand");
@@ -38,11 +40,12 @@ function asAwaitingShowdown(state: EngineState): ShowdownCompleteHandState {
   return hand;
 }
 
-function resolvedBlinds(hand: BettingHandState) {
+function handPositions(hand: BettingHandState) {
   return {
     smallBlind: smallBlindSeat(hand.ring, hand.button),
     bigBlind: bigBlindSeat(hand.ring, hand.button),
     dealtSeatCount: hand.ring.length,
+    burnedCount: hand.burned.length,
   };
 }
 
@@ -60,6 +63,8 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           ring,
           street: "preflop",
           board: [],
+          burned: [],
+          cardsDealt: 0,
           players: new Map(
             state.seats.map((seat) => [
               seat,
@@ -80,7 +85,14 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
         const prior = seatState(hand, deal.seatId);
         players.set(deal.seatId, { ...prior, holeCards: deal.cards });
       }
-      return { ...state, hand: { ...hand, players } };
+      return {
+        ...state,
+        hand: {
+          ...hand,
+          players,
+          cardsDealt: hand.cardsDealt + event.deals.length * HOLE_CARDS,
+        },
+      };
     }
 
     case "StreetStarted": {
@@ -136,7 +148,23 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           ...hand,
           street: event.street,
           board: [...hand.board, ...event.cards],
+          cardsDealt: hand.cardsDealt + event.cards.length,
           lastAggressor: null,
+        },
+      };
+    }
+
+    case "CardBurned": {
+      const hand = asBetting(state);
+      return {
+        ...state,
+        hand: {
+          ...hand,
+          burned: [
+            ...hand.burned,
+            must(event.card, "a burn is only applied with its card"),
+          ],
+          cardsDealt: hand.cardsDealt + 1,
         },
       };
     }
@@ -150,7 +178,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           reason: "folded-out",
           seed: hand.seed,
           button: hand.button,
-          ...resolvedBlinds(hand),
+          ...handPositions(hand),
           winner: event.winner,
         },
       };
@@ -176,7 +204,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           reason: "showdown",
           seed: hand.seed,
           button: hand.button,
-          ...resolvedBlinds(hand),
+          ...handPositions(hand),
           board: hand.board,
           contestants,
           lastAggressor: hand.lastAggressor,

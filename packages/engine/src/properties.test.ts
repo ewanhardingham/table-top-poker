@@ -4,7 +4,13 @@ import { apply } from "./apply.js";
 import { decide } from "./decide.js";
 import { createInitialState } from "./room.js";
 import { legalActions } from "./table.js";
-import type { ActionType, BettingHandState, EngineState } from "./types.js";
+import type {
+  ActionType,
+  BettingHandState,
+  Card,
+  EngineState,
+  HandEvent,
+} from "./types.js";
 import { must } from "./util.js";
 
 const seatsArb = fc
@@ -158,6 +164,122 @@ describe("property: decide/apply keep the betting invariants across a random han
             if (state.hand?.status === "betting") {
               assertBettingInvariants(state.hand);
             }
+          }
+        },
+      ),
+    );
+  });
+});
+
+function dealtCardsOf(events: readonly HandEvent[]): Card[] {
+  return events.flatMap((event) => {
+    if (event.type === "HoleCardsDealt") {
+      return event.deals.flatMap((deal) => [...deal.cards]);
+    }
+    if (event.type === "BoardDealt") return event.cards;
+    if (event.type === "CardBurned")
+      return event.card === null ? [] : [event.card];
+    return [];
+  });
+}
+
+describe("property: no card is ever dealt twice", () => {
+  it("hole cards, burns and the board are all distinct across a random hand", () => {
+    fc.assert(
+      fc.property(
+        seatsArb,
+        fc.string({ minLength: 1, maxLength: 10 }),
+        fc.array(fc.nat(4), { minLength: 0, maxLength: 60 }),
+        (seats, seed, choices) => {
+          let state: EngineState = createInitialState(seats);
+          const events: HandEvent[] = [];
+
+          const started = decide(state, {
+            type: "startHand",
+            seatId: must(seats[0]),
+            seed,
+          });
+          if (!Array.isArray(started)) throw new Error("unexpected rejection");
+          for (const event of started) {
+            events.push(event);
+            state = apply(state, event);
+          }
+
+          for (const choice of choices) {
+            if (state.hand?.status !== "betting") break;
+            const hand = state.hand;
+            const actor = must(hand.toAct[0]);
+            const options = legalActions(hand, actor);
+            const action = must(options[choice % options.length]);
+
+            const result = decide(state, { type: action, seatId: actor });
+            if (!Array.isArray(result)) {
+              throw new Error(`unexpected rejection: ${result.reason}`);
+            }
+            for (const event of result) {
+              events.push(event);
+              state = apply(state, event);
+            }
+          }
+
+          const dealt = dealtCardsOf(events);
+          const distinct = new Set(
+            dealt.map((card) => `${card.rank}-${card.suit}`),
+          );
+          expect(distinct.size).toBe(dealt.length);
+        },
+      ),
+    );
+  });
+});
+
+describe("property: a hand burns once per street dealt", () => {
+  it("the burn count always matches the streets the board reached", () => {
+    fc.assert(
+      fc.property(
+        seatsArb,
+        fc.string({ minLength: 1, maxLength: 10 }),
+        fc.array(fc.nat(4), { minLength: 0, maxLength: 60 }),
+        (seats, seed, choices) => {
+          let state: EngineState = createInitialState(seats);
+          const events: HandEvent[] = [];
+
+          const started = decide(state, {
+            type: "startHand",
+            seatId: must(seats[0]),
+            seed,
+          });
+          if (!Array.isArray(started)) throw new Error("unexpected rejection");
+          for (const event of started) {
+            events.push(event);
+            state = apply(state, event);
+          }
+
+          for (const choice of choices) {
+            if (state.hand?.status !== "betting") break;
+            const hand = state.hand;
+            const actor = must(hand.toAct[0]);
+            const options = legalActions(hand, actor);
+            const action = must(options[choice % options.length]);
+
+            const result = decide(state, { type: action, seatId: actor });
+            if (!Array.isArray(result)) {
+              throw new Error(`unexpected rejection: ${result.reason}`);
+            }
+            for (const event of result) {
+              events.push(event);
+              state = apply(state, event);
+            }
+          }
+
+          const burns = events.filter((event) => event.type === "CardBurned");
+          const boardDeals = events.filter(
+            (event) => event.type === "BoardDealt",
+          );
+          expect(burns.length).toBe(boardDeals.length);
+          expect(burns.length).toBeLessThanOrEqual(3);
+          for (const [index, burn] of burns.entries()) {
+            expect(burn.street).toBe(must(boardDeals[index]).street);
           }
         },
       ),

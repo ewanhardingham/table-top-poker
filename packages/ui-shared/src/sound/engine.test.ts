@@ -84,6 +84,7 @@ const bettingView = (myTurn: boolean): PlayerView => ({
   smallBlind: 0,
   bigBlind: 1,
   dealtSeatCount: 2,
+  burnedCount: 0,
 });
 
 const tableHoleCardsDealt = (): HandEvent => ({
@@ -106,6 +107,7 @@ const tableBettingView = (dealtSeatCount: number): TableView => ({
   smallBlind: 0,
   bigBlind: 1,
   dealtSeatCount,
+  burnedCount: 0,
 });
 
 const noHandView: TableView = { phase: "no-hand", button: 0 };

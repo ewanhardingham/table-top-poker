@@ -19,6 +19,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "flop",
       board: [],
       toAct: [1],
@@ -66,6 +67,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "flop",
       board: [
         { rank: "A", suit: "spades" },
@@ -98,6 +100,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "flop",
       board: [],
       toAct: [1],
@@ -124,6 +127,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "flop",
       board: [],
       toAct: [1],
@@ -148,6 +152,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "turn",
       board: [],
       toAct: [0],
@@ -174,6 +179,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "turn",
       board: [],
       toAct: [0],
@@ -196,6 +202,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "turn",
       board: [],
       toAct: [1],
@@ -220,6 +227,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "turn",
       board: [],
       toAct: [0],
@@ -249,6 +257,7 @@ describe("Hand", () => {
         smallBlind: 1,
         bigBlind: 2,
         dealtSeatCount: 3,
+        burnedCount: 0,
         street: "turn",
         board: [],
         toAct: [1],
@@ -301,6 +310,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       board: [
         { rank: "A", suit: "spades" },
         { rank: "K", suit: "hearts" },
@@ -539,6 +549,7 @@ describe("Hand", () => {
         smallBlind: 1,
         bigBlind: 2,
         dealtSeatCount: 3,
+        burnedCount: 0,
         winner: 0,
       };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
@@ -557,6 +568,7 @@ describe("Hand", () => {
         smallBlind: 1,
         bigBlind: 2,
         dealtSeatCount: 3,
+        burnedCount: 0,
         winner: 1,
       };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
@@ -573,6 +585,7 @@ describe("Hand", () => {
         smallBlind: 1,
         bigBlind: 2,
         dealtSeatCount: 3,
+        burnedCount: 0,
         winner: 1,
       };
       const html = renderToStaticMarkup(<Hand view={view} seatId={0} />);
@@ -591,6 +604,7 @@ describe("Hand", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 6,
+      burnedCount: 0,
       street: "flop",
       board: [],
       toAct: [3],
@@ -646,6 +660,7 @@ describe("Hand", () => {
           smallBlind: 1,
           bigBlind: 2,
           dealtSeatCount: 3,
+          burnedCount: 0,
           board: [],
           contestants: [0, 1],
           results: [],
@@ -664,6 +679,7 @@ describe("Hand", () => {
           smallBlind: 1,
           bigBlind: 2,
           dealtSeatCount: 3,
+          burnedCount: 0,
           winner: 1,
         },
       ],
@@ -684,6 +700,7 @@ describe("Hand", () => {
         smallBlind: 0,
         bigBlind: 1,
         dealtSeatCount: 2,
+        burnedCount: 0,
       };
 
       expect(
@@ -743,6 +760,7 @@ describe("Hand in the showing window", () => {
     smallBlind: 1,
     bigBlind: 0,
     dealtSeatCount: 2,
+    burnedCount: 0,
     board: [],
     contestants: [0, 1],
     results: [],

@@ -38,6 +38,7 @@ const liveHand: TableView = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 3,
+  burnedCount: 0,
   street: "flop",
   board: [],
   toAct: [1],
@@ -53,6 +54,7 @@ const completeHand: TableView = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 2,
+  burnedCount: 0,
   winner: 0,
 };
 
@@ -65,6 +67,7 @@ const showdownHand: TableView = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 2,
+  burnedCount: 0,
   board: [
     { rank: "A", suit: "spades" },
     { rank: "K", suit: "hearts" },

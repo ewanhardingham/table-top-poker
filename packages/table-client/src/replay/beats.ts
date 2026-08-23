@@ -37,6 +37,7 @@ const WEIGHTS: Record<HandEvent["type"], number> = {
   ActionTaken: 700,
   StreetClosed: 200,
   BoardDealt: 1600,
+  CardBurned: 700,
   HandFoldedOut: 2400,
   ShowdownReached: 3200,
   HoleCardsShown: 1600,
@@ -50,7 +51,11 @@ export function segmentOf(
   event: HandEvent,
   current: Segment | null,
 ): Segment | null {
-  if (event.type === "StreetStarted" || event.type === "BoardDealt") {
+  if (
+    event.type === "StreetStarted" ||
+    event.type === "BoardDealt" ||
+    event.type === "CardBurned"
+  ) {
     return event.street;
   }
   if (event.type === "ShowdownReached") return "showdown";

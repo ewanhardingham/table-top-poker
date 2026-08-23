@@ -7,6 +7,7 @@ const positions = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 6,
+  burnedCount: 0,
 } as const;
 
 const bettingTable: TableView = {
@@ -65,6 +66,7 @@ describe("positionMarkerFor", () => {
       smallBlind: 0,
       bigBlind: 1,
       dealtSeatCount: 2,
+      burnedCount: 0,
     } as const;
 
     const cases: readonly (readonly [string, TableView])[] = [
@@ -96,6 +98,7 @@ describe("positionMarkerFor", () => {
         ...bettingTable,
         ...headsUp,
         dealtSeatCount: 3,
+        burnedCount: 0,
       };
       expect(positionMarkerFor(1, threeHanded)).toBe("big-blind");
     });

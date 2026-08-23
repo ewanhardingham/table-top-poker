@@ -3,7 +3,7 @@ import { revealedResultFor, winnersOf } from "./evaluate.js";
 import {
   actingSeats,
   canStillAct,
-  dealCommunityCards,
+  dealFromDeck,
   facingBet,
   dealHoleCards,
   initialToAct,
@@ -153,7 +153,7 @@ function beginHand(state: EngineState, seed: string): HandEvent[] {
   events.push(handStarted);
   let scratch = apply(state, handStarted);
 
-  const deals = dealHoleCards(seed, state.seats, ring);
+  const deals = dealHoleCards(seed, ring);
   const holeCardsDealt: HandEvent = { type: "HoleCardsDealt", deals };
   events.push(holeCardsDealt);
   scratch = apply(scratch, holeCardsDealt);
@@ -253,11 +253,11 @@ function decideActionEvents(
     return finishAtShowdown(scratch, events);
   }
 
-  scratch = dealNextStreet(state, scratch, events);
+  scratch = dealNextStreet(scratch, events);
 
   const opened = asBetting(scratch);
   if (!canOpenABettingRound(opened)) {
-    return runOut(state, scratch, events);
+    return runOut(scratch, events);
   }
 
   const nextToAct = initialToAct(
@@ -298,8 +298,8 @@ function asBetting(state: EngineState): BettingHandState {
   return state.hand;
 }
 
+/** A card burns before every street is dealt — see Burn in `CONTEXT.md`. */
 function dealNextStreet(
-  state: EngineState,
   scratch: EngineState,
   events: HandEvent[],
 ): EngineState {
@@ -308,31 +308,34 @@ function dealNextStreet(
     nextStreetOf(hand.street),
     "a non-river street always has a next street",
   );
-  const cards = dealCommunityCards(
-    hand.seed,
-    state.seats.length,
-    hand.board.length,
-    nextStreet === "flop" ? FLOP_CARDS : 1,
-  );
+
+  const cardBurned: HandEvent = {
+    type: "CardBurned",
+    street: nextStreet,
+    card: must(dealFromDeck(hand.seed, hand.cardsDealt, 1)[0]),
+  };
+  events.push(cardBurned);
+  const burnt = apply(scratch, cardBurned);
+
   const boardDealt: HandEvent = {
     type: "BoardDealt",
     street: nextStreet,
-    cards,
+    cards: dealFromDeck(
+      hand.seed,
+      asBetting(burnt).cardsDealt,
+      nextStreet === "flop" ? FLOP_CARDS : 1,
+    ),
   };
   events.push(boardDealt);
-  return apply(scratch, boardDealt);
+  return apply(burnt, boardDealt);
 }
 
 const FLOP_CARDS = 3;
 
-function runOut(
-  state: EngineState,
-  scratch: EngineState,
-  events: HandEvent[],
-): HandEvent[] {
+function runOut(scratch: EngineState, events: HandEvent[]): HandEvent[] {
   let current = scratch;
   while (asBetting(current).street !== "river") {
-    current = dealNextStreet(state, current, events);
+    current = dealNextStreet(current, events);
   }
   return finishAtShowdown(current, events);
 }

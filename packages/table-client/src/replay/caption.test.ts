@@ -61,6 +61,15 @@ describe("captionFor", () => {
     ).toBe("The turn");
   });
 
+  it("names the burn without naming the card, which nobody may see", () => {
+    const caption = captionFor(
+      { type: "CardBurned", street: "flop", card: null },
+      seats,
+    );
+
+    expect(caption).toBe("A card burns");
+  });
+
   it("names the street whose betting just opened", () => {
     expect(
       captionFor({ type: "StreetStarted", street: "flop", actor: 1 }, seats),
@@ -94,6 +103,7 @@ describe("captionFor", () => {
       { type: "StreetStarted", street: "preflop", actor: 1 },
       { type: "ActionTaken", seatId: 1, action: "fold" },
       { type: "StreetClosed", street: "preflop" },
+      { type: "CardBurned", street: "flop", card: null },
       { type: "BoardDealt", street: "flop", cards: [card("2")] },
       { type: "HandFoldedOut", winner: 1 },
       { type: "ShowdownReached", contestants: [0, 1] },

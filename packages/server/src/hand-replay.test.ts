@@ -154,6 +154,17 @@ describe("tableReplayOf", () => {
     expect(JSON.stringify(replay.positions)).not.toContain("rank");
   });
 
+  it("never lets a burnt card's identity reach the table", async () => {
+    const replay = tableReplayOf(await record(foldOutOnTheTurn));
+
+    if (replay.status !== "replayed") throw new Error(replay.diagnostic);
+    const burns = replay.positions.flatMap((position) =>
+      position.event?.type === "CardBurned" ? [position.event] : [],
+    );
+    expect(burns.length).toBeGreaterThan(0);
+    for (const burn of burns) expect(burn.card).toBeNull();
+  });
+
   it("replays a hand that reached showdown", async () => {
     const replay = tableReplayOf(await record(checkedDown));
 

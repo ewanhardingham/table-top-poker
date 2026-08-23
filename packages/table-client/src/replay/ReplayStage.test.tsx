@@ -21,6 +21,7 @@ const view: TableView = {
   smallBlind: 1,
   bigBlind: 2,
   dealtSeatCount: 4,
+  burnedCount: 0,
   street: "flop",
   board: [
     { rank: "A", suit: "spades" },
@@ -77,6 +78,7 @@ describe("ReplayStage at showdown", () => {
     smallBlind: 1,
     bigBlind: 2,
     dealtSeatCount: 4,
+    burnedCount: 0,
     board: [
       { rank: "A", suit: "spades" },
       { rank: "K", suit: "hearts" },

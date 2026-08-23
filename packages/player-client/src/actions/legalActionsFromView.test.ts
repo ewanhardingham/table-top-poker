@@ -20,6 +20,7 @@ describe("legalActionsFromView", () => {
       smallBlind: 1,
       bigBlind: 2,
       dealtSeatCount: 3,
+      burnedCount: 0,
       street: "preflop",
       board: [],
       toAct: [0],

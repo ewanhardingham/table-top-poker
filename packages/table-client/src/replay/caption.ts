@@ -43,6 +43,8 @@ export function captionFor(
       return `${streetLabel[event.street]} betting complete`;
     case "BoardDealt":
       return boardName[event.street];
+    case "CardBurned":
+      return "A card burns";
     case "HandFoldedOut":
       return `${seatLabel(event.winner, seats)} wins, everyone else folded`;
     case "ShowdownReached":

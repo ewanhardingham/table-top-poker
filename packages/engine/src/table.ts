@@ -153,36 +153,31 @@ export function nextStreetOf(street: Street): "flop" | "turn" | "river" | null {
   return street === "river" ? null : STREET_AFTER[street];
 }
 
-export function dealHoleCards(
+/** The one place that reads the deck: everything dealt comes through the cursor. */
+export function dealFromDeck(
   seed: string,
-  seats: readonly SeatId[],
-  ring: readonly SeatId[],
-): { seatId: SeatId; cards: [Card, Card] }[] {
-  const deck = shuffledDeck(seed);
-  const bySeat = new Map<SeatId, Card[]>(seats.map((seat) => [seat, []]));
-  let pos = 0;
-  for (let round = 0; round < 2; round++) {
-    for (const seat of ring) {
-      must(bySeat.get(seat)).push(must(deck[pos]));
-      pos++;
-    }
-  }
-  return ring.map((seatId) => {
-    const cards = must(bySeat.get(seatId));
-    return { seatId, cards: [must(cards[0]), must(cards[1])] };
-  });
-}
-
-export function dealCommunityCards(
-  seed: string,
-  numSeats: number,
-  boardLenSoFar: number,
+  cardsDealt: number,
   count: number,
 ): Card[] {
-  const deck = shuffledDeck(seed);
-  const start = numSeats * 2 + boardLenSoFar;
-  return deck.slice(start, start + count);
+  const cards = shuffledDeck(seed).slice(cardsDealt, cardsDealt + count);
+  if (cards.length < count) {
+    throw new Error(`the deck cannot deal ${String(count)} more cards`);
+  }
+  return cards;
 }
+
+export function dealHoleCards(
+  seed: string,
+  ring: readonly SeatId[],
+): { seatId: SeatId; cards: [Card, Card] }[] {
+  const cards = dealFromDeck(seed, 0, ring.length * HOLE_CARDS);
+  return ring.map((seatId, index) => ({
+    seatId,
+    cards: [must(cards[index]), must(cards[ring.length + index])],
+  }));
+}
+
+const HOLE_CARDS = 2;
 
 /** See Showing order in `CONTEXT.md`. */
 export function showingOrder(

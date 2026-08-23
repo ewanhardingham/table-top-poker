@@ -7,7 +7,7 @@ describe("ENGINE_LOG_VERSION", () => {
     expect(ENGINE_LOG_VERSION).toBeGreaterThan(0);
   });
 
-  it("uses the next version for showing in turn, with mucking", () => {
-    expect(ENGINE_LOG_VERSION).toBe(6);
+  it("uses the next version for burn cards, which move every board offset", () => {
+    expect(ENGINE_LOG_VERSION).toBe(7);
   });
 });

@@ -5,6 +5,7 @@ export function redactEventFor(
   event: HandEvent,
   identity: SeatId | "table",
 ): HandEvent {
+  if (event.type === "CardBurned") return { ...event, card: null };
   if (event.type !== "HoleCardsDealt") return event;
   return {
     ...event,

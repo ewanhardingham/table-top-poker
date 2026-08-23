@@ -109,6 +109,7 @@ export function view(
       smallBlind: hand.smallBlind,
       bigBlind: hand.bigBlind,
       dealtSeatCount: hand.dealtSeatCount,
+      burnedCount: hand.burnedCount,
       winner: hand.winner,
     };
   }
@@ -121,6 +122,7 @@ export function view(
       smallBlind: hand.smallBlind,
       bigBlind: hand.bigBlind,
       dealtSeatCount: hand.dealtSeatCount,
+      burnedCount: hand.burnedCount,
       board: hand.board,
       contestants: hand.contestants.map((contestant) => contestant.seatId),
       results: hand.results,
@@ -159,6 +161,7 @@ export function view(
     smallBlind: smallBlindSeat(hand.ring, hand.button),
     bigBlind: bigBlindSeat(hand.ring, hand.button),
     dealtSeatCount: hand.ring.length,
+    burnedCount: hand.burned.length,
     street: hand.street,
     board: hand.board,
     toAct: hand.toAct,

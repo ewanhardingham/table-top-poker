@@ -78,6 +78,13 @@ last-aggressor closure logic as the others.
 The community cards, dealt progressively across Flop (3), Turn (1), and
 River (1).
 
+**Burn**:
+The card discarded from the deck immediately before each of the Flop, Turn
+and River is dealt — three per Hand, none Preflop, and only for a Street the
+Hand actually reaches. A Burn consumes a real deck position, so it moves the
+Board a seed produces. Its identity never leaves the server: the Table is
+told only how many cards have burnt.
+
 **Hole cards**:
 A Player's private two cards, dealt once at the start of a Hand and pushed
 to their Device at deal time (not fetched later at reveal).

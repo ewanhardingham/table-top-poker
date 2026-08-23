@@ -35,6 +35,12 @@ export type HandEvent =
   | { type: "ActionTaken"; seatId: SeatId; action: ActionType }
   | { type: "StreetClosed"; street: Street }
   | { type: "BoardDealt"; street: "flop" | "turn" | "river"; cards: Card[] }
+  | {
+      type: "CardBurned";
+      street: "flop" | "turn" | "river";
+      /** Null once redacted for a client: a burnt identity never leaves the server (#263). */
+      card: Card | null;
+    }
   | { type: "HandFoldedOut"; winner: SeatId }
   | { type: "ShowdownReached"; contestants: SeatId[] }
   | { type: "HoleCardsShown"; result: RevealedResult }
@@ -70,6 +76,9 @@ export interface BettingHandState {
   readonly ring: readonly SeatId[];
   readonly street: Street;
   readonly board: readonly Card[];
+  readonly burned: readonly Card[];
+  /** How far into the deck the hand has consumed — the one owner of that answer. */
+  readonly cardsDealt: number;
   readonly players: ReadonlyMap<SeatId, SeatHandState>;
   readonly toAct: readonly SeatId[];
   readonly raiseOccurred: boolean;
@@ -98,6 +107,7 @@ export interface HandPositions {
   readonly smallBlind: SeatId;
   readonly bigBlind: SeatId;
   readonly dealtSeatCount: number;
+  readonly burnedCount: number;
 }
 
 export interface FoldedOutCompleteHandState extends HandPositions {

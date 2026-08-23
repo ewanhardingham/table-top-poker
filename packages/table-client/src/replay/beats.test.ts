@@ -24,11 +24,12 @@ function positionsFor(
 
 const card = (rank: Card["rank"]): Card => ({ rank, suit: "clubs" });
 
-/** The engine's own cascade order: close, deal, start. */
+/** The engine's own cascade order: close, burn, deal, start. */
 function streetCascade(street: "flop" | "turn" | "river"): HandEvent[] {
   const previous = { flop: "preflop", turn: "flop", river: "turn" } as const;
   return [
     { type: "StreetClosed", street: previous[street] },
+    { type: "CardBurned", street, card: null },
     { type: "BoardDealt", street, cards: [card("2")] },
     { type: "StreetStarted", street, actor: 1 },
   ];
@@ -62,22 +63,23 @@ describe("toBeats", () => {
       beats
         .filter((beat) => beat.isSegmentBoundary)
         .map((beat) => beat.position),
-    ).toEqual([3, 6, 10]);
+    ).toEqual([3, 6, 11]);
   });
 
-  it("stamps a BoardDealt with the street it opens, not the one it ends", () => {
+  it("stamps a burn and its board with the street they open, not the one they end", () => {
     const beats = toBeats(positionsFor(toTheTurn));
 
-    // ordinal 5 is `StreetClosed preflop`, 6 is the flop's `BoardDealt`.
+    // ordinal 5 is `StreetClosed preflop`, 6 the flop's burn, 7 its `BoardDealt`.
     expect(beatAt(beats, 5)?.segment).toBe("preflop");
     expect(beatAt(beats, 6)?.segment).toBe("flop");
+    expect(beatAt(beats, 7)?.segment).toBe("flop");
   });
 
   it("holds the beats that change the felt longer than the bookkeeping", () => {
     const beats = toBeats(positionsFor(toTheTurn));
     const weightOf = (position: number) => beatAt(beats, position)?.weight ?? 0;
 
-    expect(weightOf(6)).toBeGreaterThan(weightOf(5));
+    expect(weightOf(7)).toBeGreaterThan(weightOf(5));
   });
 
   it("has no beat before the hand starts", () => {
@@ -86,13 +88,13 @@ describe("toBeats", () => {
 });
 
 describe("chaptersOf", () => {
-  it("anchors a street on its BoardDealt, so its cards are seen arriving", () => {
+  it("anchors a street on its burn, so the flame plays on a Chapter seek", () => {
     const chapters = chaptersOf(toBeats(positionsFor(toTheTurn)));
 
     expect(chapters).toEqual([
       { segment: "preflop", label: "Preflop", position: 3 },
       { segment: "flop", label: "Flop", position: 6 },
-      { segment: "turn", label: "Turn", position: 10 },
+      { segment: "turn", label: "Turn", position: 11 },
     ]);
   });
 
