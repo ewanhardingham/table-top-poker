@@ -2,6 +2,8 @@ import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
 const repoRoot = new URL("../..", import.meta.url).pathname;
+const uiSharedSource = new URL("../ui-shared/src/index.ts", import.meta.url)
+  .pathname;
 
 export default defineConfig(({ command, mode }) => {
   const env = loadEnv(mode, repoRoot, "");
@@ -17,6 +19,11 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     plugins: [react()],
+    resolve: {
+      alias: {
+        "@table-top-poker/ui-shared": uiSharedSource,
+      },
+    },
     base: command === "build" ? "/table/" : "/",
     build: {
       outDir: "build",
