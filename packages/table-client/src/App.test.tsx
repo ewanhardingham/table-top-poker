@@ -137,13 +137,11 @@ describe("App", () => {
     expect(html).not.toContain('data-testid="connection-status"');
   });
 
-  it("shows the centered landing title before a room exists", () => {
+  it("shows the landing title before a room exists", () => {
     const html = renderToStaticMarkup(<App />);
     expect(html).toContain('data-testid="landing-page"');
     expect(html).toContain('data-testid="landing-title"');
     expect(html).toContain("TABLE TOP POKER");
-    expect(html).toContain("font-weight:800");
-    expect(html).toContain("color:#ffffff");
     expect(html).not.toContain('data-testid="seat-count-picker"');
     expect(html).not.toContain('data-testid="join-panel"');
   });

@@ -62,12 +62,14 @@ export const DEFAULT_SOUND_SETTINGS: SoundSettings = {
   notifications: true,
 };
 
-export const ChangeSoundSettingsRequestSchema = z.strictObject({
+export const SoundSettingsSchema = z.strictObject({
   sounds: z.boolean(),
   cards: z.boolean(),
   actions: z.boolean(),
   notifications: z.boolean(),
 });
+
+export const ChangeSoundSettingsRequestSchema = SoundSettingsSchema;
 
 export type ChangeSoundSettingsRequest = z.infer<
   typeof ChangeSoundSettingsRequestSchema
@@ -128,7 +130,6 @@ export type ChangeShowdownClockRequest = z.infer<
   typeof ChangeShowdownClockRequestSchema
 >;
 
-/** The house rules that are fixed when a new room is confirmed. */
 export interface RoomCreationSettings {
   readonly seatCount: number;
   readonly soundSettings: SoundSettings;
@@ -136,15 +137,16 @@ export interface RoomCreationSettings {
   readonly showdownClockSettings: ShowdownClockSettings;
 }
 
-/**
- * The settings are optional for backwards compatibility with older table
- * clients; omitted values use the same defaults as a fresh Room.
- */
-export const CreateRoomRequestSchema = z.strictObject({
-  seatCount: SeatCountSchema,
-  soundSettings: ChangeSoundSettingsRequestSchema.optional(),
+export const RoomCreationOptionsSchema = z.strictObject({
+  soundSettings: SoundSettingsSchema.optional(),
   shotClockSettings: ShotClockSettingsSchema.optional(),
-  showdownClockSettings: ChangeShowdownClockRequestSchema.optional(),
+  showdownClockSettings: ShowdownClockSettingsSchema.optional(),
+});
+
+export type RoomCreationOptions = z.infer<typeof RoomCreationOptionsSchema>;
+
+export const CreateRoomRequestSchema = RoomCreationOptionsSchema.extend({
+  seatCount: SeatCountSchema,
 });
 
 export type CreateRoomRequest = z.infer<typeof CreateRoomRequestSchema>;

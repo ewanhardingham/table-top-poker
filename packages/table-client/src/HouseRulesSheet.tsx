@@ -25,8 +25,7 @@ import {
 import { useState, type CSSProperties } from "react";
 import { seatLabel } from "./seatLabel.js";
 
-export interface HouseRulesSheetProps {
-  readonly mode?: "room" | "create";
+interface HouseRulesBaseProps {
   readonly seatCount: number;
   readonly pendingSeatCount: number | null;
   readonly pendingShotClock: ShotClockSettings | null;
@@ -35,17 +34,27 @@ export interface HouseRulesSheetProps {
   readonly soundSettings: SoundSettings;
   readonly shotClockSettings: ShotClockSettings;
   readonly showdownClockSettings: ShowdownClockSettings;
-  readonly onApply?: (seatCount: number) => void | Promise<void>;
-  readonly onApplyShotClock?: (
-    settings: ShotClockSettings,
-  ) => void | Promise<void>;
-  readonly onApplyShowdownClock?: (
-    settings: ShowdownClockSettings,
-  ) => void | Promise<void>;
-  readonly onChangeSoundSettings?: (next: SoundSettings) => void;
-  readonly onConfirm?: (settings: RoomCreationSettings) => void | Promise<void>;
   readonly onClose: () => void;
 }
+
+interface RoomModeProps extends HouseRulesBaseProps {
+  readonly mode?: "room";
+  readonly onApply: (seatCount: number) => void | Promise<void>;
+  readonly onApplyShotClock: (
+    settings: ShotClockSettings,
+  ) => void | Promise<void>;
+  readonly onApplyShowdownClock: (
+    settings: ShowdownClockSettings,
+  ) => void | Promise<void>;
+  readonly onChangeSoundSettings: (next: SoundSettings) => void;
+}
+
+interface CreateModeProps extends HouseRulesBaseProps {
+  readonly mode: "create";
+  readonly onConfirm: (settings: RoomCreationSettings) => void | Promise<void>;
+}
+
+export type HouseRulesSheetProps = RoomModeProps | CreateModeProps;
 
 function claimedSeats(seats: readonly SeatView[]): readonly number[] {
   return seats
@@ -210,24 +219,19 @@ function Toggle({
   );
 }
 
-export function HouseRulesSheet({
-  mode = "room",
-  seatCount,
-  pendingSeatCount,
-  pendingShotClock,
-  seats,
-  handInProgress,
-  soundSettings,
-  shotClockSettings,
-  showdownClockSettings,
-  onApply = () => undefined,
-  onApplyShotClock = () => undefined,
-  onApplyShowdownClock = () => undefined,
-  onChangeSoundSettings = () => undefined,
-  onConfirm,
-  onClose,
-}: HouseRulesSheetProps) {
-  const isCreation = mode === "create";
+export function HouseRulesSheet(props: HouseRulesSheetProps) {
+  const {
+    seatCount,
+    pendingSeatCount,
+    pendingShotClock,
+    seats,
+    handInProgress,
+    soundSettings,
+    shotClockSettings,
+    showdownClockSettings,
+    onClose,
+  } = props;
+  const isCreation = props.mode === "create";
   const [draft, setDraft] = useState(pendingSeatCount ?? seatCount);
   const seated = claimedSeats(seats).length;
   const floor = Math.max(MIN_SEAT_COUNT, seated);
@@ -254,6 +258,9 @@ export function HouseRulesSheet({
     ),
   );
   const [soundDraft, setSoundDraft] = useState(soundSettings);
+  const sounds = isCreation ? soundDraft : soundSettings;
+  const setSounds =
+    props.mode === "create" ? setSoundDraft : props.onChangeSoundSettings;
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const shotClockChanged =
@@ -272,11 +279,8 @@ export function HouseRulesSheet({
     setSaving(true);
     setSaveError(null);
     try {
-      if (isCreation) {
-        if (onConfirm === undefined) {
-          throw new Error("room-creation-confirmation-not-configured");
-        }
-        await onConfirm({
+      if (props.mode === "create") {
+        await props.onConfirm({
           seatCount: draft,
           soundSettings: soundDraft,
           shotClockSettings: {
@@ -291,6 +295,7 @@ export function HouseRulesSheet({
         onClose();
         return;
       }
+      const { onApply, onApplyShotClock, onApplyShowdownClock } = props;
       const writes: Promise<void>[] = [
         Promise.resolve().then(() => onApply(draft)),
       ];
@@ -571,74 +576,41 @@ export function HouseRulesSheet({
           >
             <Toggle
               label="Sound"
-              checked={isCreation ? soundDraft.sounds : soundSettings.sounds}
+              checked={sounds.sounds}
               disabled={saving}
               testId="sound-master-toggle"
-              onChange={(sounds) => {
-                const next = {
-                  ...(isCreation ? soundDraft : soundSettings),
-                  sounds,
-                };
-                if (isCreation) setSoundDraft(next);
-                else onChangeSoundSettings(next);
+              onChange={(value) => {
+                setSounds({ ...sounds, sounds: value });
               }}
             />
             <Toggle
               label="Cards"
               nested
-              checked={isCreation ? soundDraft.cards : soundSettings.cards}
-              disabled={
-                saving ||
-                !(isCreation ? soundDraft.sounds : soundSettings.sounds)
-              }
+              checked={sounds.cards}
+              disabled={saving || !sounds.sounds}
               testId="sound-cards-toggle"
               onChange={(cards) => {
-                const next = {
-                  ...(isCreation ? soundDraft : soundSettings),
-                  cards,
-                };
-                if (isCreation) setSoundDraft(next);
-                else onChangeSoundSettings(next);
+                setSounds({ ...sounds, cards });
               }}
             />
             <Toggle
               label="Actions"
               nested
-              checked={isCreation ? soundDraft.actions : soundSettings.actions}
-              disabled={
-                saving ||
-                !(isCreation ? soundDraft.sounds : soundSettings.sounds)
-              }
+              checked={sounds.actions}
+              disabled={saving || !sounds.sounds}
               testId="sound-actions-toggle"
               onChange={(actions) => {
-                const next = {
-                  ...(isCreation ? soundDraft : soundSettings),
-                  actions,
-                };
-                if (isCreation) setSoundDraft(next);
-                else onChangeSoundSettings(next);
+                setSounds({ ...sounds, actions });
               }}
             />
             <Toggle
               label="Notifications"
               nested
-              checked={
-                isCreation
-                  ? soundDraft.notifications
-                  : soundSettings.notifications
-              }
-              disabled={
-                saving ||
-                !(isCreation ? soundDraft.sounds : soundSettings.sounds)
-              }
+              checked={sounds.notifications}
+              disabled={saving || !sounds.sounds}
               testId="sound-notifications-toggle"
               onChange={(notifications) => {
-                const next = {
-                  ...(isCreation ? soundDraft : soundSettings),
-                  notifications,
-                };
-                if (isCreation) setSoundDraft(next);
-                else onChangeSoundSettings(next);
+                setSounds({ ...sounds, notifications });
               }}
             />
           </div>
@@ -722,7 +694,7 @@ export function HouseRulesSheet({
                 {String(MAX_SHOT_CLOCK_SECONDS)} seconds.
               </span>
             ) : null}
-            {shotClockIsQueued ? (
+            {!isCreation && shotClockIsQueued ? (
               <span
                 style={{
                   ...kickerStyle,

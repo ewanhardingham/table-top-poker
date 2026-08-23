@@ -907,7 +907,8 @@ export async function buildApp(
     // Room is staged, `room.json` is written, and only a confirmed write
     // publishes it. A Room that cannot be recorded is never joinable and
     // never gets a code or a QR (Phase 2 spec #129 §3).
-    const staged = rooms.stage(body.data.seatCount, body.data);
+    const { seatCount, ...creationSettings } = body.data;
+    const staged = rooms.stage(seatCount, creationSettings);
     let recording: RoomRecording;
     try {
       recording = await options.recordings.create({

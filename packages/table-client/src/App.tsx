@@ -7,6 +7,7 @@ import {
   isHandComplete,
   isHandLive,
   MIN_SEAT_COUNT,
+  type RoomCreationSettings,
   type ShotClockSettings,
   type ShowdownClockSettings,
   type SoundSettings,
@@ -170,7 +171,7 @@ export function App() {
   }, []);
 
   const handleCreateRoom = useCallback(
-    async (settings: Parameters<typeof createRoom>[0]): Promise<void> => {
+    async (settings: RoomCreationSettings): Promise<void> => {
       void unlockAudio();
       try {
         const room = await createRoom(settings);

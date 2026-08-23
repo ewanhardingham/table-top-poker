@@ -38,14 +38,12 @@ export async function fetchRoom(code: string): Promise<RoomView> {
 }
 
 export async function createRoom(
-  settings: RoomCreationSettings | number,
+  settings: RoomCreationSettings,
 ): Promise<CreatedRoom> {
-  const body =
-    typeof settings === "number" ? { seatCount: settings } : settings;
   const response = await fetch("/rooms", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(settings),
   });
   if (!response.ok) {
     throw new Error(`failed to create room: ${String(response.status)}`);

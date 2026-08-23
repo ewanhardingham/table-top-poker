@@ -58,6 +58,18 @@ describe("fetchConfig", () => {
 });
 
 describe("createRoom", () => {
+  const settings = {
+    seatCount: 4,
+    soundSettings: {
+      sounds: false,
+      cards: true,
+      actions: false,
+      notifications: true,
+    },
+    shotClockSettings: { enabled: true, seconds: 45 },
+    showdownClockSettings: { enabled: true as const, seconds: 20 },
+  };
+
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
   });
@@ -66,42 +78,11 @@ describe("createRoom", () => {
     vi.unstubAllGlobals();
   });
 
-  it("posts to /rooms and returns the created room", async () => {
+  it("posts the confirmed house rules and returns the created room", async () => {
     const body = {
       code: "ABCD",
       joinUrl: "http://localhost:3000/join/ABCD",
       qrCodeDataUrl: "data:image/png;base64,xyz",
-    };
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(JSON.stringify(body), { status: 200 }),
-    );
-
-    const room = await createRoom(5);
-
-    expect(fetch).toHaveBeenCalledWith("/rooms", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ seatCount: 5 }),
-    });
-    expect(room).toEqual(body);
-  });
-
-  it("posts all confirmed house rules when creating a room", async () => {
-    const body = {
-      code: "ABCD",
-      joinUrl: "http://localhost:3000/join/ABCD",
-      qrCodeDataUrl: "data:image/png;base64,xyz",
-    };
-    const settings = {
-      seatCount: 4,
-      soundSettings: {
-        sounds: false,
-        cards: true,
-        actions: false,
-        notifications: true,
-      },
-      shotClockSettings: { enabled: true, seconds: 45 },
-      showdownClockSettings: { enabled: true as const, seconds: 20 },
     };
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(body), { status: 200 }),
@@ -118,7 +99,9 @@ describe("createRoom", () => {
   it("throws when the server rejects the request", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
-    await expect(createRoom(8)).rejects.toThrow("failed to create room: 500");
+    await expect(createRoom(settings)).rejects.toThrow(
+      "failed to create room: 500",
+    );
   });
 });
 

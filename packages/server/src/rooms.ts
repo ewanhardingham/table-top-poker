@@ -4,7 +4,6 @@ import type { RoomOperation } from "@table-top-poker/recording";
 import {
   apply,
   canStillAct,
-  ChangeSoundSettingsRequestSchema,
   createInitialState,
   DEFAULT_SEAT_COUNT,
   DEFAULT_SHOT_CLOCK,
@@ -14,6 +13,7 @@ import {
   MAX_SEAT_COUNT,
   MAX_DISPLAY_NAME_LENGTH,
   MIN_SEAT_COUNT,
+  RoomCreationOptionsSchema,
   ShotClockSettingsSchema,
   ShowdownClockSettingsSchema,
   SeatCountSchema,
@@ -25,6 +25,7 @@ import {
   isHandLive,
   type Rejection,
   type RejectionReason,
+  type RoomCreationOptions,
   type RoomView,
   type SeatId,
   type SeatCountChange,
@@ -63,12 +64,6 @@ export interface Room {
   soundSettings: SoundSettings;
   shotClockSettings: ShotClockSettings;
   showdownClockSettings: ShowdownClockSettings;
-}
-
-export interface RoomCreationOptions {
-  readonly soundSettings?: SoundSettings | undefined;
-  readonly shotClockSettings?: ShotClockSettings | undefined;
-  readonly showdownClockSettings?: ShowdownClockSettings | undefined;
 }
 
 /** Staged, not yet joinable: Room creation is transactional with recording creation. */
@@ -405,25 +400,8 @@ export class RoomStore {
         `seat count must be an integer in ${String(MIN_SEAT_COUNT)}-${String(MAX_SEAT_COUNT)}, got ${String(seatCount)}`,
       );
     }
-    if (
-      settings.soundSettings !== undefined &&
-      !ChangeSoundSettingsRequestSchema.safeParse(settings.soundSettings)
-        .success
-    ) {
-      throw new RangeError("invalid sound settings");
-    }
-    if (
-      settings.shotClockSettings !== undefined &&
-      !ShotClockSettingsSchema.safeParse(settings.shotClockSettings).success
-    ) {
-      throw new RangeError("invalid shot-clock settings");
-    }
-    if (
-      settings.showdownClockSettings !== undefined &&
-      !ShowdownClockSettingsSchema.safeParse(settings.showdownClockSettings)
-        .success
-    ) {
-      throw new RangeError("invalid showdown-clock settings");
+    if (!RoomCreationOptionsSchema.safeParse(settings).success) {
+      throw new RangeError("invalid room creation settings");
     }
     const code = generateRoomCode(
       (c) => this.#rooms.has(c) || this.#stagedCodes.has(c),

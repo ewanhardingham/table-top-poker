@@ -91,8 +91,12 @@ const shotClockProps = {
   onApplyShowdownClock: noop,
 };
 
+type SheetProps = React.ComponentProps<typeof HouseRulesSheet>;
+type CreateSheetProps = Extract<SheetProps, { mode: "create" }>;
+type RoomSheetProps = Exclude<SheetProps, CreateSheetProps>;
+
 function renderSheet(
-  overrides: Partial<React.ComponentProps<typeof HouseRulesSheet>> = {},
+  overrides: Partial<RoomSheetProps> = {},
 ): React.ReactElement {
   return (
     <HouseRulesSheet
@@ -104,6 +108,27 @@ function renderSheet(
       soundSettings={DEFAULT_SOUND_SETTINGS}
       onApply={noop}
       onChangeSoundSettings={noop}
+      onClose={noop}
+      {...overrides}
+    />
+  );
+}
+
+function renderCreateSheet(
+  overrides: Partial<CreateSheetProps> = {},
+): React.ReactElement {
+  return (
+    <HouseRulesSheet
+      mode="create"
+      seatCount={4}
+      pendingSeatCount={null}
+      pendingShotClock={null}
+      shotClockSettings={DEFAULT_SHOT_CLOCK}
+      showdownClockSettings={DEFAULT_SHOWDOWN_CLOCK}
+      seats={[]}
+      handInProgress={false}
+      soundSettings={DEFAULT_SOUND_SETTINGS}
+      onConfirm={noop}
       onClose={noop}
       {...overrides}
     />
@@ -136,6 +161,7 @@ interface TestRenderer {
   readonly root: {
     findByProps(props: Record<string, unknown>): InteractiveTestNode;
   };
+  readonly toJSON: () => unknown;
   readonly unmount: () => void;
 }
 
@@ -300,21 +326,7 @@ describe("HouseRulesSheet", () => {
   });
 
   it("renders the full house-rules confirmation step for a new room", () => {
-    const html = renderToStaticMarkup(
-      <HouseRulesSheet
-        mode="create"
-        seatCount={8}
-        pendingSeatCount={null}
-        {...shotClockProps}
-        seats={[]}
-        handInProgress={false}
-        soundSettings={DEFAULT_SOUND_SETTINGS}
-        onApply={noop}
-        onChangeSoundSettings={noop}
-        onConfirm={noop}
-        onClose={noop}
-      />,
-    );
+    const html = renderToStaticMarkup(renderCreateSheet({ seatCount: 8 }));
 
     expect(html).toContain("House rules");
     expect(html).toContain('data-testid="card-back-settings"');
@@ -326,12 +338,33 @@ describe("HouseRulesSheet", () => {
     expect(html).toContain("Confirm house rules");
   });
 
+  it("never promises a next hand while a new room is being set up", () => {
+    let renderer!: TestRenderer;
+
+    act(() => {
+      renderer = create(renderCreateSheet());
+    });
+
+    act(() => {
+      findNode(renderer, "shot-clock-seconds").props.onChange?.({
+        currentTarget: { value: "45" },
+      });
+    });
+
+    expect(JSON.stringify(renderer.toJSON())).not.toContain(
+      "Applies from the next hand",
+    );
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
   it("submits the full settings draft when a new room is confirmed", async () => {
     const onConfirm = vi.fn(() => Promise.resolve());
     let renderer!: TestRenderer;
 
     act(() => {
-      renderer = create(renderSheet({ mode: "create", onConfirm }));
+      renderer = create(renderCreateSheet({ onConfirm }));
     });
 
     await act(async () => {
