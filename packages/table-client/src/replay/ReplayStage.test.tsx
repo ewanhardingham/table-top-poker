@@ -16,6 +16,7 @@ const seats: readonly SeatView[] = [0, 1, 2, 3].map((id) => ({
 
 const view: TableView = {
   phase: "betting",
+  tabled: [],
   turnEndsAt: null,
   button: 0,
   smallBlind: 1,

@@ -121,6 +121,7 @@ export function createSoundEngine(
 
       case "StreetStarted":
       case "StreetClosed":
+      case "HoleCardsTabled":
       case "ShowdownReached":
       case "HoleCardsShown":
       case "WinnersDeclared":

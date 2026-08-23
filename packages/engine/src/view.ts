@@ -10,6 +10,12 @@ import type {
   Street,
 } from "./types.js";
 
+/** An all-in Hand turned face-up before the Showdown — see Tabling in `CONTEXT.md`. */
+export interface TabledHand {
+  readonly seatId: SeatId;
+  readonly holeCards: readonly [Card, Card];
+}
+
 export interface SeatSnapshot {
   readonly seatId: SeatId;
   readonly folded: boolean;
@@ -51,13 +57,7 @@ export interface PlayerShowdownView extends ShowdownView {
   readonly canMuck: boolean;
 }
 
-export interface PlayerViewBetting extends HandPositions {
-  readonly phase: "betting";
-  readonly turnEndsAt: number | null;
-  readonly street: Street;
-  readonly board: readonly Card[];
-  readonly toAct: readonly SeatId[];
-  readonly seats: readonly SeatSnapshot[];
+export interface PlayerViewBetting extends TableViewBetting {
   readonly yourSeatId: SeatId;
   readonly yourHoleCards: readonly [Card, Card] | null;
   readonly legalActions: readonly ActionType[];
@@ -70,6 +70,7 @@ export interface TableViewBetting extends HandPositions {
   readonly board: readonly Card[];
   readonly toAct: readonly SeatId[];
   readonly seats: readonly SeatSnapshot[];
+  readonly tabled: readonly TabledHand[];
 }
 
 export type PlayerView =
@@ -168,6 +169,12 @@ export function view(
     board: hand.board,
     toAct: hand.toAct,
     seats,
+    tabled: hand.tabled.flatMap((seat) => {
+      const holeCards = hand.players.get(seat)?.holeCards;
+      return holeCards === undefined || holeCards === null
+        ? []
+        : [{ seatId: seat, holeCards }];
+    }),
   };
 
   if (seatId === "table") return tableView;

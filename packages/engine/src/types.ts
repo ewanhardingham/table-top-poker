@@ -42,6 +42,7 @@ export type HandEvent =
       card: Card | null;
     }
   | { type: "HandFoldedOut"; winner: SeatId }
+  | { type: "HoleCardsTabled"; seats: SeatId[] }
   | { type: "ShowdownReached"; contestants: SeatId[] }
   | { type: "HoleCardsShown"; result: RevealedResult }
   | { type: "HoleCardsMucked"; seatId: SeatId }
@@ -80,6 +81,8 @@ export interface BettingHandState {
   /** How far into the deck the hand has consumed — the one owner of that answer. */
   readonly cardsDealt: number;
   readonly players: ReadonlyMap<SeatId, SeatHandState>;
+  /** Face-up before the Showdown — see Tabling in `CONTEXT.md`. */
+  readonly tabled: readonly SeatId[];
   readonly toAct: readonly SeatId[];
   readonly raiseOccurred: boolean;
   readonly lastAggressor: SeatId | null;

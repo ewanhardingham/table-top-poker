@@ -107,7 +107,7 @@ and the winner on the table in the same frame, which is the least interesting
 way to watch the biggest pot of the night.
 
 `settleDispatch` therefore splits a run-out's steps into beats — the closing
-Action, then each Street, then the Showdown — and broadcasts one beat every
+Action and the Tabling it triggers, then each Street, then the Showdown — and broadcasts one beat every
 three seconds (`runOutStreetDelayMs`, overridable in tests). A transaction that
 is not a run-out is one beat, so ordinary play is untouched.
 

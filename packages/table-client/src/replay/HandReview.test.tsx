@@ -63,6 +63,7 @@ const card = (rank: Card["rank"]): Card => ({ rank, suit: "clubs" });
 function bettingView(board: readonly Card[]): TableView {
   return {
     phase: "betting",
+    tabled: [],
     turnEndsAt: null,
     button: 0,
     smallBlind: 1,

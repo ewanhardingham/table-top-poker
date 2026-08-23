@@ -12,6 +12,7 @@ const positions = {
 
 const bettingTable: TableView = {
   phase: "betting",
+  tabled: [],
   turnEndsAt: null,
   ...positions,
   street: "flop",

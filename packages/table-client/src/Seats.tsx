@@ -1,6 +1,6 @@
 import type {
   ActionType,
-  RevealedResult,
+  Card as CardType,
   SeatId,
   SeatView,
   TableView,
@@ -91,15 +91,28 @@ const FAN_TUCK = "8%";
 
 const SHOWDOWN_CLOCK_VISIBLE_SECONDS = 5;
 
-interface ShowdownSeat {
-  readonly hand: RevealedResult | null;
+interface TabledSeat {
+  readonly holeCards: readonly [CardType, CardType] | null;
   readonly mucked: boolean;
   readonly isWinner: boolean;
   readonly splitting: boolean;
 }
 
-function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
-  const bySeat = new Map<SeatId, ShowdownSeat>();
+/** A Hand is on the felt from the moment it is tabled, run-out or Showdown. */
+function tabledSeats(view: TableView | null): Map<SeatId, TabledSeat> {
+  const bySeat = new Map<SeatId, TabledSeat>();
+
+  if (view?.phase === "betting") {
+    for (const { seatId, holeCards } of view.tabled) {
+      bySeat.set(seatId, {
+        holeCards,
+        mucked: false,
+        isWinner: false,
+        splitting: false,
+      });
+    }
+    return bySeat;
+  }
   if (view?.phase !== "showdown") return bySeat;
 
   const winners = view.winners ?? [];
@@ -108,7 +121,7 @@ function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
   );
   for (const seatId of view.contestants) {
     bySeat.set(seatId, {
-      hand: shown.get(seatId) ?? null,
+      holeCards: shown.get(seatId)?.holeCards ?? null,
       mucked: view.mucked.includes(seatId),
       isWinner: winners.includes(seatId) && shown.has(seatId),
       splitting: winners.length > 1,
@@ -121,9 +134,9 @@ function showdownSeats(view: TableView | null): Map<SeatId, ShowdownSeat> {
  * the result and the room reads them. Only the outcome is the engine's to say,
  * and only once the Seat's cards are public to say it over (#253).
  */
-function outcomeOf(showdown: ShowdownSeat): string | null {
-  if (!showdown.isWinner) return null;
-  return showdown.splitting ? "splits" : "wins";
+function outcomeOf(tabled: TabledSeat): string | null {
+  if (!tabled.isWinner) return null;
+  return tabled.splitting ? "splits" : "wins";
 }
 
 /**
@@ -132,15 +145,15 @@ function outcomeOf(showdown: ShowdownSeat): string | null {
  */
 function ShowdownBadges({
   seatId,
-  showdown,
+  tabled,
   isTopRow,
 }: {
   readonly seatId: SeatId;
-  readonly showdown: ShowdownSeat;
+  readonly tabled: TabledSeat;
   readonly isTopRow: boolean;
 }) {
   const testId = `seat-pod-${String(seatId)}-showdown`;
-  const outcome = outcomeOf(showdown);
+  const outcome = outcomeOf(tabled);
   if (outcome === null) return null;
 
   return (
@@ -193,24 +206,24 @@ function ShowdownBadges({
  */
 function ShowdownHand({
   seatId,
-  hand,
+  holeCards,
   mucked,
   isWinner,
   isTopRow,
 }: {
   readonly seatId: SeatId;
-  readonly hand: RevealedResult | null;
+  readonly holeCards: readonly [CardType, CardType] | null;
   readonly mucked: boolean;
   readonly isWinner: boolean;
   readonly isTopRow: boolean;
 }) {
   if (mucked) return null;
-  const faces = hand === null ? [null, null] : [...hand.holeCards];
+  const faces = holeCards === null ? [null, null] : [...holeCards];
 
   return (
     <div
       data-testid={`seat-pod-${String(seatId)}-showdown`}
-      data-shown={hand !== null}
+      data-shown={holeCards !== null}
       data-winner={isWinner}
       onClick={(event) => {
         event.stopPropagation();
@@ -335,15 +348,15 @@ export function Seats({
   onSeatClick,
   actionLabels,
 }: SeatsProps) {
-  const showdown = showdownSeats(view);
+  const tabled = tabledSeats(view);
 
   return (
     <div data-testid="seats" style={{ position: "absolute", inset: 0 }}>
       {seats.map((seat) => {
         const visual = deriveSeat(seat, view);
-        const seatShowdown = showdown.get(seat.id);
+        const seatTabled = tabled.get(seat.id);
         const acted = visual.isActor ? undefined : actionLabels?.get(seat.id);
-        const tabledHand = seatShowdown?.hand ?? null;
+        const tabledHoleCards = seatTabled?.holeCards ?? null;
         const pos = posFor(seat.id, seats.length);
         const isTopRow = pos.top < 50;
         const flipDegrees = isTopRow ? 180 : 0;
@@ -566,16 +579,16 @@ export function Seats({
               borderRadius: "1em",
               padding: "0.5em",
               display: "flex",
-              flexDirection: seatShowdown
+              flexDirection: seatTabled
                 ? isTopRow
                   ? "row-reverse"
                   : "row"
                 : "column",
               alignItems: "center",
-              gap: seatShowdown ? "0.7em" : "0.4em",
-              minWidth: seatShowdown ? "12.5em" : undefined,
+              gap: seatTabled ? "0.7em" : "0.4em",
+              minWidth: seatTabled ? "12.5em" : undefined,
               justifyContent: "center",
-              background: seatShowdown
+              background: seatTabled
                 ? visual.isWinner
                   ? `linear-gradient(${color.seatWinnerBackground},${color.seatWinnerBackground}),${color.seatTabledBackground}`
                   : color.seatTabledBackground
@@ -587,7 +600,7 @@ export function Seats({
                       ? color.seatSittingOutBackground
                       : "transparent",
               border: `1px solid ${
-                seatShowdown && !visual.isWinner
+                seatTabled && !visual.isWinner
                   ? color.seatTabledBorder
                   : visual.isWinner
                     ? color.seatWinnerBorder
@@ -605,10 +618,10 @@ export function Seats({
                     : 1,
             }}
           >
-            {seatShowdown && (
+            {seatTabled && (
               <ShowdownBadges
                 seatId={seat.id}
-                showdown={seatShowdown}
+                tabled={seatTabled}
                 isTopRow={isTopRow}
               />
             )}
@@ -647,13 +660,13 @@ export function Seats({
               cursor: seat.claimed && onSeatClick ? "pointer" : undefined,
             }}
           >
-            {seatShowdown ? (
+            {seatTabled ? (
               <div style={{ position: "relative", display: "flex" }}>
                 <ShowdownHand
                   seatId={seat.id}
-                  hand={tabledHand}
-                  mucked={seatShowdown.mucked}
-                  isWinner={seatShowdown.isWinner}
+                  holeCards={tabledHoleCards}
+                  mucked={seatTabled.mucked}
+                  isWinner={seatTabled.isWinner}
                   isTopRow={isTopRow}
                 />
                 {plate}

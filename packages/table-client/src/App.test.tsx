@@ -32,6 +32,7 @@ function seat(id: number, claimed: boolean): SeatView {
 
 const liveHand: TableView = {
   phase: "betting",
+  tabled: [],
   turnEndsAt: null,
   button: 0,
   smallBlind: 1,

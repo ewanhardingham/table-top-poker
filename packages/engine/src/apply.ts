@@ -70,6 +70,7 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
               { holeCards: null, folded: false, allIn: false },
             ]),
           ),
+          tabled: [],
           toAct: [],
           raiseOccurred: false,
           lastAggressor: null,
@@ -187,6 +188,15 @@ export function apply(state: EngineState, event: HandEvent): EngineState {
           board: hand.board,
           winner: event.winner,
         },
+      };
+    }
+
+    case "HoleCardsTabled": {
+      const hand = asBetting(state);
+      const tabled = event.seats.filter((seat) => !hand.tabled.includes(seat));
+      return {
+        ...state,
+        hand: { ...hand, tabled: [...hand.tabled, ...tabled] },
       };
     }
 

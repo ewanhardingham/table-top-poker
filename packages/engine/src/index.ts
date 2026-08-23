@@ -51,4 +51,5 @@ export type {
   SeatSnapshot,
   ShowdownView,
   TableView,
+  TabledHand,
 } from "./view.js";

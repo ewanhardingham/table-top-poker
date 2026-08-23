@@ -146,10 +146,22 @@ offers one wide "All in" while no Seat has shoved and splits it into
 "All-in call" and "All-in raise" once another Seat is all in, showing whichever
 arms are legal. Both take a confirm press, and once the Seat is all in its
 Action bar goes away and its Hole cards are *sealed* — held, inert, and still
-face-down until the showing window opens, which tables them at once.
+face-down until they are *tabled*.
 _Avoid_: Treating all-in as a folded Seat — an all-in Seat is live, keeps its
 claim on the pot, and is revealed at Showdown. Side pots stay a
 physical-chips problem the humans settle at the table.
+
+**Tabling**:
+Turning a Seat's Hole cards face-up on the Table, irreversibly. An all-in Hand
+is tabled the moment the betting is over and a *Run-out* follows: it has no
+decision left to make, and the room watches the Streets it is waiting on with
+the Hands already face-up, the way a live table plays it. Every other
+contestant tables at the Showdown instead, by *Showdown show* or by the
+showing window's clock. A Seat that covers a shove and could still bet is not
+tabled by the Run-out — it keeps its Hand concealed and its choice at the
+Showdown (ADR-0008).
+_Avoid_: Reading a tabled Hand as a Showdown result; a verdict is only ever
+the engine's to say, and only once the Hand is over.
 
 **Actor**:
 The Player whose turn it currently is. A derived property of Hand state,
@@ -428,9 +440,9 @@ remaining board cards are dealt, no hands are shown. All-in Seats count as
 live here, so a Seat that has shoved cannot be folded out of a pot it has
 already bought a claim to (ADR-0007).
 
-**Run-out**: once fewer than two Seats can still act, the remaining Streets
-deal without opening — board cards arrive, no betting round starts — through
-the River and on to Showdown. A Street already open ends as soon as nobody
+**Run-out**: once fewer than two Seats can still act, every all-in Hand is
+tabled and the remaining Streets deal without opening — board cards arrive, no
+betting round starts — through the River and on to Showdown. A Street already open ends as soon as nobody
 left to act faces a bet, for the same reason: there is no turn to take with
 nothing to bet against. A Seat facing a shove still gets its fold-or-call.
 

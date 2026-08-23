@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { apply } from "./apply.js";
 import { decide } from "./decide.js";
 import { createInitialState } from "./room.js";
 import { legalActions } from "./table.js";
@@ -172,6 +173,7 @@ describe("all-in and the automatic run-out", () => {
     expect(typesOf(tail)).toEqual([
       "ActionTaken",
       "StreetClosed",
+      "HoleCardsTabled",
       "CardBurned",
       "BoardDealt",
       "CardBurned",
@@ -203,6 +205,62 @@ describe("all-in and the automatic run-out", () => {
     expect(final.contestants.map((contestant) => contestant.seatId)).toEqual([
       1, 0,
     ]);
+  });
+
+  it("tables every all-in hand before the run-out deals a card", () => {
+    let state = started([0, 1], "heads-up-shove");
+    state = playAll(state, [{ type: "allInRaise", seatId: 0 }]);
+
+    const tail = typesOf(events(state, { type: "allInCall", seatId: 1 }));
+
+    expect(tail.indexOf("HoleCardsTabled")).toBeLessThan(
+      tail.indexOf("CardBurned"),
+    );
+    expect(tail.indexOf("HoleCardsTabled")).toBeLessThan(
+      tail.indexOf("BoardDealt"),
+    );
+  });
+
+  it("shows a tabled hand to the whole room from that event on", () => {
+    let state = started([0, 1], "heads-up-shove");
+    state = playAll(state, [{ type: "allInRaise", seatId: 0 }]);
+    const before = events(state, { type: "allInCall", seatId: 1 });
+
+    let scratch = state;
+    for (const event of before) {
+      scratch = apply(scratch, event);
+      if (event.type !== "HoleCardsTabled") continue;
+
+      const tabled = view(scratch, "table");
+      expect(tabled.phase).toBe("betting");
+      if (tabled.phase !== "betting") throw new Error("expected betting");
+      expect(tabled.board).toHaveLength(0);
+      expect([...tabled.tabled.map((hand) => hand.seatId)].sort()).toEqual([
+        0, 1,
+      ]);
+      for (const hand of tabled.tabled) {
+        expect(hand.holeCards).toHaveLength(2);
+      }
+      return;
+    }
+    throw new Error("the run-out tabled nothing");
+  });
+
+  it("leaves a covering seat concealed — it still has a showdown choice", () => {
+    let state = started([0, 1, 2], "run-out");
+    state = playAll(state, [
+      { type: "allInRaise", seatId: 0 },
+      { type: "allInCall", seatId: 1 },
+    ]);
+
+    const tabled = events(state, { type: "call", seatId: 2 }).find(
+      (event) => event.type === "HoleCardsTabled",
+    );
+
+    expect(tabled?.type).toBe("HoleCardsTabled");
+    expect(
+      tabled?.type === "HoleCardsTabled" ? [...tabled.seats].sort() : [],
+    ).toEqual([0, 1]);
   });
 
   it("still opens the flop normally when two seats can act", () => {
@@ -253,6 +311,7 @@ describe("all-in and fold-out", () => {
     expect(typesOf(events(state, { type: "fold", seatId: 2 }))).toEqual([
       "ActionTaken",
       "StreetClosed",
+      "HoleCardsTabled",
       "CardBurned",
       "BoardDealt",
       "ShowdownReached",

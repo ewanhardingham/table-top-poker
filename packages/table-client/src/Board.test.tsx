@@ -14,6 +14,7 @@ describe("Board", () => {
   it("renders the community cards for a live betting street", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -150,6 +151,7 @@ describe("Board", () => {
   it("piles one face-down card per burn, never revealing them", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -198,6 +200,7 @@ describe("Board", () => {
   it("shows an empty pile before the first burn", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -225,6 +228,7 @@ describe("Board", () => {
     ];
     const betting: TableView = {
       phase: "betting",
+      tabled: [],
       button: 0,
       smallBlind: 1,
       bigBlind: 2,

@@ -253,13 +253,13 @@ function decideActionEvents(
     return finishAtShowdown(scratch, events);
   }
 
-  scratch = burnAndDealNextStreet(scratch, events);
-
-  const opened = asBetting(scratch);
-  if (!canOpenABettingRound(opened)) {
+  if (!canOpenABettingRound(asBetting(scratch))) {
     return runOut(scratch, events);
   }
 
+  scratch = burnAndDealNextStreet(scratch, events);
+
+  const opened = asBetting(scratch);
   const nextToAct = initialToAct(
     opened.ring,
     actingSeats(opened),
@@ -332,8 +332,24 @@ function burnAndDealNextStreet(
 
 const FLOP_CARDS = 3;
 
+/** See Tabling in `CONTEXT.md`: a shove is face-up for the Streets it waits out. */
+function tableAllInHands(
+  scratch: EngineState,
+  events: HandEvent[],
+): EngineState {
+  const hand = asBetting(scratch);
+  const seats = liveSeats(hand).filter(
+    (seat) => must(hand.players.get(seat)).allIn && !hand.tabled.includes(seat),
+  );
+  if (seats.length === 0) return scratch;
+
+  const tabled: HandEvent = { type: "HoleCardsTabled", seats };
+  events.push(tabled);
+  return apply(scratch, tabled);
+}
+
 function runOut(scratch: EngineState, events: HandEvent[]): HandEvent[] {
-  let current = scratch;
+  let current = tableAllInHands(scratch, events);
   while (asBetting(current).street !== "river") {
     current = burnAndDealNextStreet(current, events);
   }

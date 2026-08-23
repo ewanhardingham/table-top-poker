@@ -78,6 +78,7 @@ const actionTaken = (
 
 const bettingView = (myTurn: boolean): PlayerView => ({
   phase: "betting",
+  tabled: [],
   turnEndsAt: null,
   street: "preflop",
   board: [],
@@ -100,6 +101,7 @@ const tableHoleCardsDealt = (): HandEvent => ({
 
 const tableBettingView = (dealtSeatCount: number): TableView => ({
   phase: "betting",
+  tabled: [],
   turnEndsAt: null,
   street: "preflop",
   board: [],

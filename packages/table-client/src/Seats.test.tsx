@@ -147,6 +147,7 @@ describe("Seats", () => {
   it("shows a claimed seat absent from a live hand as sitting out", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -185,6 +186,7 @@ describe("Seats", () => {
   it("does not describe a disconnected seat as sitting out", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -235,6 +237,7 @@ describe("Seats", () => {
   it("marks status, button and the current actor during betting", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -283,6 +286,7 @@ describe("Seats", () => {
   it("marks a folded seat", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -501,6 +505,7 @@ describe("Seats", () => {
   it("keeps the top-row action callout separate from the placard and upright", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -535,6 +540,7 @@ describe("Seats", () => {
   it("keeps a bottom-row action callout unrotated", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -603,6 +609,7 @@ describe("Seats", () => {
   it("keeps a folded top-row seat dimmed behind its flipped placard", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -662,6 +669,7 @@ function styleOf(html: string, testid: string): string | null {
 
 const threeHanded: Extract<TableView, { phase: "betting" }> = {
   phase: "betting",
+  tabled: [],
   turnEndsAt: null,
   button: 3,
   smallBlind: 0,
@@ -738,6 +746,7 @@ describe("Seats: position markers", () => {
       {
         ...headsUpPositions,
         phase: "betting",
+        tabled: [],
         street: "preflop",
         board: [],
         toAct: [0],
@@ -879,6 +888,67 @@ describe("Seats: action labels", () => {
     );
 
     expect(styleOf(html, "seat-pod-3-action")).toContain("rotate(180deg)");
+  });
+});
+
+describe("Seats through a run-out", () => {
+  const runOut: TableView & { phase: "betting" } = {
+    phase: "betting",
+    turnEndsAt: null,
+    button: 0,
+    smallBlind: 1,
+    bigBlind: 2,
+    dealtSeatCount: 3,
+    burnedCount: 0,
+    street: "flop",
+    board: [
+      { rank: "A", suit: "spades" },
+      { rank: "K", suit: "hearts" },
+      { rank: "2", suit: "clubs" },
+    ],
+    toAct: [],
+    seats: [
+      { seatId: 0, folded: false, allIn: true },
+      { seatId: 1, folded: false, allIn: true },
+      { seatId: 2, folded: true, allIn: false },
+    ],
+    tabled: [
+      {
+        seatId: 0,
+        holeCards: [
+          { rank: "A", suit: "clubs" },
+          { rank: "3", suit: "hearts" },
+        ],
+      },
+    ],
+  };
+
+  it("lays a tabled hand face-up while the streets are still coming", () => {
+    const html = renderToStaticMarkup(<Seats seats={seats} view={runOut} />);
+
+    expect(html).toMatch(
+      /data-testid="seat-pod-0-showdown"[^>]*data-shown="true"/,
+    );
+    expect(subtreeOf(html, "seat-pod-0-showdown-card-0")).toContain(
+      'data-face-down="false"',
+    );
+    expect(subtreeOf(html, "seat-pod-0-showdown-card-1")).toContain(
+      'data-face-down="false"',
+    );
+  });
+
+  it("lays nothing on the felt for a seat that has not tabled", () => {
+    const html = renderToStaticMarkup(<Seats seats={seats} view={runOut} />);
+
+    expect(html).not.toContain('data-testid="seat-pod-1-showdown"');
+    expect(html).not.toContain('data-testid="seat-pod-2-showdown"');
+  });
+
+  it("badges no outcome before the hand is over", () => {
+    const html = renderToStaticMarkup(<Seats seats={seats} view={runOut} />);
+
+    expect(html).not.toContain('data-testid="seat-pod-0-showdown-badges"');
+    expect(html).not.toContain("wins");
   });
 });
 
@@ -1202,6 +1272,7 @@ describe("Seats to-act glow", () => {
   it("glows only the seat that is to act", () => {
     const view: TableView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,

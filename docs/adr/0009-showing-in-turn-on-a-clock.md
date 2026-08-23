@@ -106,3 +106,29 @@ with nothing tabled.
 - If an untimed showdown is ever wanted, it arrives together with an extension
   of eviction into the showdown window as the manual out — not as an "off"
   position on this house rule.
+
+## Amendments
+
+### An all-in hand tables at the run-out, not at the window
+
+"Tabled by the engine at that instant" put every all-in hand face-up when the
+showing window opened — after the whole board was already out. At a real table
+the order is the other way round: the hands go face-up when the betting ends,
+and the room watches the remaining streets against cards it can already see.
+That is the entire drama of an all-in, and the window's opening is far too late
+for it.
+
+So the tabling moves to where the betting actually ended. When fewer than two
+seats can still act and a run-out follows, the engine emits `HoleCardsTabled`
+for every all-in live seat *before* it deals the remaining streets;
+`BettingHandState` gains `tabled` and the betting views carry those hands, so a
+tabled hand is public from that event on. A seat that covers a shove and is
+merely out of opponents is not tabled — it kept chips and keeps its choice, so
+it still shows or mucks at the showdown.
+
+What this ADR decided is otherwise untouched: the window still opens at river
+close, the queue still holds every contestant who has a decision left, and
+`HoleCardsShown` still publishes each contestant's `RevealedResult` — an all-in
+seat's cards are simply already on the felt when it does. The log gains an
+event type without changing the meaning of any existing one, so
+`ENGINE_LOG_VERSION` stays where it is and older recordings replay unchanged.

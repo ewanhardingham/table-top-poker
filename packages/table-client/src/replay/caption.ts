@@ -47,6 +47,10 @@ export function captionFor(
       return "A card burns";
     case "HandFoldedOut":
       return `${seatLabel(event.winner, seats)} wins, everyone else folded`;
+    case "HoleCardsTabled":
+      return `${joinNames(event.seats.map((seat) => seatLabel(seat, seats)))} ${
+        event.seats.length === 1 ? "tables" : "table"
+      }`;
     case "ShowdownReached":
       return "Showdown";
     case "HoleCardsShown":
