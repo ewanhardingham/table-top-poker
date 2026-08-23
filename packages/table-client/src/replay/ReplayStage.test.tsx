@@ -3,8 +3,14 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { CAPTION_BAND, FELT_LAYER } from "./CaptionStrip.js";
-import { TRANSPORT_HEIGHT } from "./ReplayTransport.js";
-import { BOTTOM_BAND, ReplayStage, TOP_BAND } from "./ReplayStage.js";
+import { CHROME_UNIT_PROPERTY } from "./chrome.js";
+import { TRANSPORT_BAND } from "./ReplayTransport.js";
+import {
+  BOTTOM_BAND,
+  ReplayStage,
+  STAGE_BOTTOM,
+  TOP_BAND,
+} from "./ReplayStage.js";
 
 const seats: readonly SeatView[] = [0, 1, 2, 3].map((id) => ({
   id,
@@ -44,18 +50,20 @@ describe("ReplayStage", () => {
     );
 
     expect(html).toContain(`top:${String(TOP_BAND)}em`);
-    expect(html).toContain(
-      `bottom:${String(TRANSPORT_HEIGHT + CAPTION_BAND + BOTTOM_BAND)}em`,
-    );
+    expect(html).toContain(`bottom:${STAGE_BOTTOM}`);
     expect(html).toContain(`z-index:${String(FELT_LAYER)}`);
   });
 
   it("reserves the Caption's band rather than letting a pod grow into it", () => {
-    const feltBottom = TRANSPORT_HEIGHT + CAPTION_BAND + BOTTOM_BAND;
-    const captionTop = TRANSPORT_HEIGHT + CAPTION_BAND;
+    expect(STAGE_BOTTOM).toContain(TRANSPORT_BAND);
+    expect(STAGE_BOTTOM).toContain(CAPTION_BAND);
+  });
 
-    expect(feltBottom).toBeGreaterThan(captionTop);
-    expect(feltBottom - captionTop).toBe(BOTTOM_BAND);
+  it("measures the chrome's bands in the chrome's scale, the pod's in the root's", () => {
+    expect(STAGE_BOTTOM).toContain(`var(${CHROME_UNIT_PROPERTY})`);
+    expect(STAGE_BOTTOM).toMatch(
+      new RegExp(`^calc\\(${String(BOTTOM_BAND)}em`),
+    );
   });
 
   it("renders the felt through the live Seats and Board, projected", () => {

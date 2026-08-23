@@ -1,8 +1,15 @@
 import type { SeatView } from "@table-top-poker/protocol";
 import { color, font, fontSize } from "@table-top-poker/ui-shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import type { HandReviewState } from "../store/replaySlice.js";
 import { actionLabelsAt } from "./actionLabels.js";
+import { chromeFontSize, chromeVariables, gutter } from "./chrome.js";
 import { beatAt, chaptersOf, holdAt, toBeats } from "./beats.js";
 import { captionFor } from "./caption.js";
 import { CaptionStrip } from "./CaptionStrip.js";
@@ -68,7 +75,7 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
 
   if (review.status !== "ready") {
     return (
-      <>
+      <Chrome>
         <BackToHands onClose={onClose} />
         <div
           data-testid="replay-notice"
@@ -89,7 +96,7 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
             ? "Loading the hand"
             : "That hand can't be replayed"}
         </div>
-      </>
+      </Chrome>
     );
   }
 
@@ -97,7 +104,7 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
   const event = positions[position]?.event ?? null;
 
   return (
-    <>
+    <Chrome>
       {view !== undefined && (
         <ReplayStage view={view} seats={seats} actionLabels={labels} />
       )}
@@ -114,7 +121,23 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
         onTogglePlay={togglePlay}
         currentSegment={beatAt(beats, position)?.segment ?? null}
       />
-    </>
+    </Chrome>
+  );
+}
+
+/** Holds the scale the replay's own chrome sizes against — see `chrome.ts`. */
+function Chrome({ children }: { readonly children: ReactNode }) {
+  return (
+    <div
+      data-testid="replay-chrome"
+      style={{
+        position: "absolute",
+        inset: 0,
+        ...chromeVariables,
+      }}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -123,9 +146,10 @@ function BackToHands({ onClose }: { readonly onClose: () => void }) {
     <div
       style={{
         position: "absolute",
-        top: "1.4em",
-        left: "1.8em",
-        right: "1.8em",
+        top: "1.2em",
+        left: gutter,
+        right: gutter,
+        fontSize: chromeFontSize,
         display: "flex",
         justifyContent: "flex-end",
         zIndex: 3,
@@ -137,14 +161,14 @@ function BackToHands({ onClose }: { readonly onClose: () => void }) {
         onClick={onClose}
         style={{
           fontFamily: font.mono,
-          fontSize: "0.62em",
+          fontSize: "0.8em",
           letterSpacing: "0.16em",
           textTransform: "uppercase",
           color: color.textDim,
           background: "transparent",
           border: `1px solid ${color.border}`,
           borderRadius: "999px",
-          padding: "0.7em 1.3em",
+          padding: "0.65em 1.2em",
           cursor: "pointer",
         }}
       >

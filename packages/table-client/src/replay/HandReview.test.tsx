@@ -12,9 +12,10 @@ import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import type { HandReviewState } from "../store/replaySlice.js";
 import { CAPTION_BAND } from "./CaptionStrip.js";
+import { CHROME_GUTTER_PROPERTY, CHROME_UNIT_PROPERTY } from "./chrome.js";
 import { HandReview } from "./HandReview.js";
 import type { ReplayStageProps } from "./ReplayStage.js";
-import { TRANSPORT_HEIGHT } from "./ReplayTransport.js";
+import { TRANSPORT_BAND } from "./ReplayTransport.js";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -342,8 +343,19 @@ describe("HandReview: the caption strip", () => {
     const style =
       /data-testid="replay-caption"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
 
-    expect(style).toContain(`bottom:${String(TRANSPORT_HEIGHT)}em`);
-    expect(style).toContain(`height:${String(CAPTION_BAND)}em`);
+    expect(style).toContain(`bottom:${TRANSPORT_BAND}`);
+    expect(style).toContain(`height:${CAPTION_BAND}`);
+  });
+
+  it("hands the chrome a scale of its own, so the felt keeps the table's", () => {
+    const html = renderToStaticMarkup(
+      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+    );
+    const style =
+      /data-testid="replay-chrome"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
+
+    expect(style).toContain(`${CHROME_UNIT_PROPERTY}:clamp(`);
+    expect(style).toContain(`${CHROME_GUTTER_PROPERTY}:clamp(`);
   });
 
   it("shows no Event ordinal anywhere on screen", () => {

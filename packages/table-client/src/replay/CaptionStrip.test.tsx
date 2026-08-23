@@ -6,7 +6,7 @@ import {
   CaptionStrip,
   FELT_LAYER,
 } from "./CaptionStrip.js";
-import { TRANSPORT_HEIGHT } from "./ReplayTransport.js";
+import { TRANSPORT_BAND } from "./ReplayTransport.js";
 
 describe("CaptionStrip", () => {
   it("names the beat in a band of its own, above the transport", () => {
@@ -15,8 +15,8 @@ describe("CaptionStrip", () => {
       /data-testid="replay-caption"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
 
     expect(html).toContain("The turn");
-    expect(style).toContain(`bottom:${String(TRANSPORT_HEIGHT)}em`);
-    expect(style).toContain(`height:${String(CAPTION_BAND)}em`);
+    expect(style).toContain(`bottom:${TRANSPORT_BAND}`);
+    expect(style).toContain(`height:${CAPTION_BAND}`);
   });
 
   it("renders an empty band when there is no beat to name", () => {

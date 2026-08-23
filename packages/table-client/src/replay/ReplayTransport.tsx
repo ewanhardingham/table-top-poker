@@ -1,6 +1,7 @@
 import { color, font } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import type { Beat, Chapter } from "./beats.js";
+import { chromeFontSize, chromeUnits, gutter } from "./chrome.js";
 import { positionAtRatio, ticksFor } from "./track.js";
 
 export interface ReplayTransportProps {
@@ -15,16 +16,21 @@ export interface ReplayTransportProps {
   readonly currentSegment: Chapter["segment"] | null;
 }
 
-/** Past the ~44px touch-target floor at the table device's root size. */
-const CHIP_HEIGHT = 3.4;
-const ROW_GAP = 0.8;
+const CHIP_HEIGHT = 3;
+const ROW_GAP = 0.7;
 /** The grab zone, deliberately far taller than the 6px rail it draws. */
-const TRACK_HEIGHT = 4.6;
-const BOTTOM_MARGIN = 1.4;
+const TRACK_HEIGHT = 3.4;
+const BOTTOM_MARGIN = 1.1;
+
+/** The touch-target floor a shrinking chrome unit is never allowed past. */
+const CHIP_MIN_HEIGHT = "2.75rem";
+
+const CHIP_BAND = `max(${CHIP_MIN_HEIGHT}, ${chromeUnits(CHIP_HEIGHT)})`;
 
 /** The band `ReplayStage` reserves, so the seat ring rides clear of it. */
-export const TRANSPORT_HEIGHT =
-  CHIP_HEIGHT + ROW_GAP + TRACK_HEIGHT + BOTTOM_MARGIN;
+export const TRANSPORT_BAND = `calc(${CHIP_BAND} + ${chromeUnits(
+  ROW_GAP + TRACK_HEIGHT + BOTTOM_MARGIN,
+)})`;
 
 /** The Scrub (`CONTEXT.md`), sized for a finger rather than a cursor. */
 export function ReplayTransport({
@@ -76,16 +82,25 @@ export function ReplayTransport({
       data-testid="replay-transport"
       style={{
         position: "absolute",
-        left: "1.8em",
-        right: "1.8em",
+        left: gutter,
+        right: gutter,
         bottom: `${String(BOTTOM_MARGIN)}em`,
+        fontSize: chromeFontSize,
         display: "flex",
         flexDirection: "column",
         gap: `${String(ROW_GAP)}em`,
         zIndex: 3,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "0.7em" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          flexWrap: "wrap",
+          gap: "0.6em",
+        }}
+      >
         <Chip
           active={playing}
           label={playing ? "Pause replay" : "Play replay"}
@@ -94,7 +109,7 @@ export function ReplayTransport({
         >
           {playing ? "❚❚ pause" : "▶ play"}
         </Chip>
-        <span style={{ flex: 1 }} />
+        <span style={{ flex: "1 0 0" }} />
         {chapters.map((chapter) => (
           <Chip
             key={chapter.segment}
@@ -207,9 +222,9 @@ function Chip({
         fontSize: "0.78em",
         letterSpacing: "0.12em",
         textTransform: "uppercase",
-        minHeight: `${String(CHIP_HEIGHT)}em`,
-        minWidth: "6em",
-        padding: "0.9em 1.6em",
+        minHeight: CHIP_BAND,
+        padding: "0.8em 1.3em",
+        whiteSpace: "nowrap",
         borderRadius: "999px",
         cursor: "pointer",
         background: active ? color.controlFill : "rgba(6,9,8,.5)",

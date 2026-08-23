@@ -1,12 +1,13 @@
-import { color, font, fontSize } from "@table-top-poker/ui-shared";
-import { TRANSPORT_HEIGHT } from "./ReplayTransport.js";
+import { color, font } from "@table-top-poker/ui-shared";
+import { chromeBand, chromeFontSize, gutter } from "./chrome.js";
+import { TRANSPORT_BAND } from "./ReplayTransport.js";
 
 export interface CaptionStripProps {
   readonly caption: string | null;
 }
 
 /** The band the Caption owns, which `ReplayStage` lays the felt out above. */
-export const CAPTION_BAND = 2.4;
+export const CAPTION_BAND = chromeBand(2.2);
 
 /**
  * `ReplayStage` reserves `BOTTOM_BAND` above this one, so a pod growing below
@@ -21,16 +22,16 @@ export function CaptionStrip({ caption }: CaptionStripProps) {
       data-testid="replay-caption"
       style={{
         position: "absolute",
-        left: "1.8em",
-        right: "1.8em",
-        bottom: `${String(TRANSPORT_HEIGHT)}em`,
-        height: `${String(CAPTION_BAND)}em`,
+        left: gutter,
+        right: gutter,
+        bottom: TRANSPORT_BAND,
+        height: CAPTION_BAND,
+        fontSize: chromeFontSize,
         zIndex: CAPTION_LAYER,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         fontFamily: font.mono,
-        fontSize: fontSize.sm,
         letterSpacing: "0.08em",
         color: color.textMuted,
         whiteSpace: "nowrap",

@@ -3,7 +3,7 @@ import { Board } from "../Board.js";
 import { Seats } from "../Seats.js";
 import type { SeatActionLabels } from "../actionWords.js";
 import { CAPTION_BAND, FELT_LAYER } from "./CaptionStrip.js";
-import { TRANSPORT_HEIGHT } from "./ReplayTransport.js";
+import { TRANSPORT_BAND } from "./ReplayTransport.js";
 
 export interface ReplayStageProps {
   readonly view: TableView;
@@ -11,11 +11,20 @@ export interface ReplayStageProps {
   readonly actionLabels: SeatActionLabels;
 }
 
-/** A pod grows around its avatar anchor, so it reaches past `posFor`'s 10%. */
-export const TOP_BAND = 4.5;
+/**
+ * A pod grows around its avatar anchor, so it reaches past `posFor`'s 10%.
+ * Measured in root units, like the pod it clears, rather than in the chrome's.
+ */
+export const TOP_BAND = 4;
 
 /** The mirror of {@link TOP_BAND}: what the bottom row needs to clear the Caption. */
 export const BOTTOM_BAND = TOP_BAND;
+
+/**
+ * The pod's clearance in root units and the chrome's in its own, so the felt
+ * keeps the room the chrome gives back as it shrinks — see `chrome.ts`.
+ */
+export const STAGE_BOTTOM = `calc(${String(BOTTOM_BAND)}em + ${TRANSPORT_BAND} + ${CAPTION_BAND})`;
 
 /**
  * The live `Seats` and `Board` fed one replay position — no parallel rendering
@@ -31,7 +40,7 @@ export function ReplayStage({ view, seats, actionLabels }: ReplayStageProps) {
         top: `${String(TOP_BAND)}em`,
         left: 0,
         right: 0,
-        bottom: `${String(TRANSPORT_HEIGHT + CAPTION_BAND + BOTTOM_BAND)}em`,
+        bottom: STAGE_BOTTOM,
         zIndex: FELT_LAYER,
       }}
     >
