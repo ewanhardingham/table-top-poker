@@ -12,7 +12,7 @@ const CARD_HEIGHT_EM = 5;
 
 export function BurnPile({ count }: BurnPileProps) {
   const reducedMotion = useReducedMotion();
-  const piledBefore = useRef(0);
+  const piledBefore = useRef(count);
   const cards = pileCards(count, piledBefore.current);
   const { travel } = burnTiming(reducedMotion === true);
 

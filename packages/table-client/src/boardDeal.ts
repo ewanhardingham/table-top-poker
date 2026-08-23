@@ -28,6 +28,7 @@ export function boardKeys(board: readonly Card[]): ReadonlySet<string> {
 export function dealBoard(
   board: readonly Card[],
   alreadyDealt: ReadonlySet<string>,
+  leadIn = 0,
 ): readonly DealtCard[] {
   let arrived = 0;
   return board.map((card) => {
@@ -35,7 +36,7 @@ export function dealBoard(
     if (alreadyDealt.has(key)) {
       return { card, key, initial: false, duration: 0, delay: 0 };
     }
-    const delay = arrived * 0.08;
+    const delay = leadIn + arrived * 0.08;
     arrived += 1;
     return { card, key, initial: arriving, duration: 0.4, delay };
   });

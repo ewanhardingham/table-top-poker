@@ -16,17 +16,19 @@ export default defineConfig(({ command, mode }) => {
   const backendOrigin = env.BACKEND_ORIGIN ?? "http://localhost:3000";
   const backendWebSocketOrigin = backendOrigin.replace(/^http/, "ws");
 
+  const entries: Record<string, string> = {
+    main: fileURLToPath(new URL("index.html", import.meta.url)),
+  };
+  if (command !== "build") {
+    entries.burn = fileURLToPath(new URL("burn.html", import.meta.url));
+  }
+
   return {
     plugins: [react()],
     base: command === "build" ? "/table/" : "/",
     build: {
       outDir: "build",
-      rolldownOptions: {
-        input: {
-          main: fileURLToPath(new URL("index.html", import.meta.url)),
-          burn: fileURLToPath(new URL("burn.html", import.meta.url)),
-        },
-      },
+      rolldownOptions: { input: entries },
     },
     server: {
       port: 5173,

@@ -4,10 +4,11 @@ import type {
   TableView,
 } from "@table-top-poker/protocol";
 import { Card, color, font } from "@table-top-poker/ui-shared";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { BurnPile } from "./BurnPile.js";
 import { boardKeys, dealBoard } from "./boardDeal.js";
+import { streetDealDelay } from "./burnPile.js";
 import { seatLabel } from "./seatLabel.js";
 
 export interface BoardProps {
@@ -17,11 +18,17 @@ export interface BoardProps {
 
 /**
  * The community cards, with a Motion deal-in for the cards that have just
- * arrived — see `docs/design/board-card-entry.md`.
+ * arrived — see `docs/design/board-card-entry.md`. The street waits out the
+ * burn that precedes it (#265).
  */
 function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
+  const reducedMotion = useReducedMotion();
   const dealtBefore = useRef<ReadonlySet<string>>(new Set());
-  const dealt = dealBoard(board, dealtBefore.current);
+  const dealt = dealBoard(
+    board,
+    dealtBefore.current,
+    streetDealDelay(reducedMotion === true),
+  );
 
   useEffect(() => {
     dealtBefore.current = boardKeys(board);

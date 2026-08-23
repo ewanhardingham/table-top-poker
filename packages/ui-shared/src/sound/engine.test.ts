@@ -197,7 +197,45 @@ describe("event → cue mapping", () => {
       event: cardBurned("flop"),
       view: noHandView,
     });
+    expect(r.scheduled.map((s) => s.delayMs)).toEqual([0]);
+    r.flush();
     expect(r.played).toEqual(["burn"]);
+  });
+
+  it("spaces the burns of an all-in run-out, which arrive in one batch", () => {
+    const r = rig();
+    for (const street of ["flop", "turn", "river"] as const) {
+      r.engine.onHandUpdate({
+        surface: "table",
+        event: cardBurned(street),
+        view: noHandView,
+      });
+    }
+    expect(r.scheduled.map((s) => s.delayMs)).toEqual([
+      0,
+      TIMINGS.burnLengthMs,
+      2 * TIMINGS.burnLengthMs,
+    ]);
+  });
+
+  it("does not hold a fresh hand's burn behind the last hand's run-out", () => {
+    const r = rig();
+    r.engine.onHandUpdate({
+      surface: "table",
+      event: cardBurned("river"),
+      view: noHandView,
+    });
+    r.engine.onHandUpdate({
+      surface: "table",
+      event: { type: "HandStarted", seed: "s", button: 0 },
+      view: noHandView,
+    });
+    r.engine.onHandUpdate({
+      surface: "table",
+      event: cardBurned("flop"),
+      view: noHandView,
+    });
+    expect(r.scheduled.map((s) => s.delayMs)).toEqual([0, 0]);
   });
 
   it("stays silent on the burn on the player surface, which has no board", () => {

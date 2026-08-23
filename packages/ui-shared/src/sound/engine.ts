@@ -33,6 +33,7 @@ export const TIMINGS = {
   boardStaggerMs: 250,
   turnAfterDealMs: 700,
   boardLeadInMs: 150,
+  burnLengthMs: 700,
 } as const;
 
 export function createSoundEngine(
@@ -44,6 +45,7 @@ export function createSoundEngine(
   let lastMyTurn = false;
   let turnToken = 0;
   let lastHoleCardAt = 0;
+  let nextBurnAt = 0;
 
   function playCue(cue: CueName): void {
     if (cueAllowed(settings, cue)) effects.play(cue);
@@ -72,6 +74,7 @@ export function createSoundEngine(
       case "HandStarted":
         lastMyTurn = false;
         lastHoleCardAt = 0;
+        nextBurnAt = 0;
         break;
 
       case "HoleCardsDealt": {
@@ -106,9 +109,15 @@ export function createSoundEngine(
         if (surface === "player" && event.seatId === seatId) playCue("fold");
         break;
 
-      case "CardBurned":
-        if (surface === "table") playCue("burn");
+      case "CardBurned": {
+        if (surface !== "table") break;
+        const at = Math.max(effects.now(), nextBurnAt);
+        nextBurnAt = at + TIMINGS.burnLengthMs;
+        effects.schedule(() => {
+          playCue("burn");
+        }, at - effects.now());
         break;
+      }
 
       case "StreetStarted":
       case "StreetClosed":

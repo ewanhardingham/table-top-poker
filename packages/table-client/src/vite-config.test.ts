@@ -19,15 +19,26 @@ describe("table-client Vite dev proxy", () => {
 });
 
 describe("table-client Vite entries", () => {
-  it("builds the burn prototype alongside the table app", async () => {
+  const entries = async (command: "serve" | "build") => {
     const loaded = await loadConfigFromFile(
-      { command: "build", mode: "test" },
+      { command, mode: "test" },
       fileURLToPath(new URL("../vite.config.ts", import.meta.url)),
     );
+    return loaded?.config.build?.rolldownOptions?.input;
+  };
 
-    expect(loaded?.config.build?.rolldownOptions?.input).toMatchObject({
+  it("serves the burn prototype alongside the table app in dev", async () => {
+    expect(await entries("serve")).toMatchObject({
       main: expect.stringContaining("index.html") as string,
       burn: expect.stringContaining("burn.html") as string,
     });
+  });
+
+  it("keeps the prototype out of the release the Pi serves to the LAN", async () => {
+    const input = await entries("build");
+    expect(input).toMatchObject({
+      main: expect.stringContaining("index.html") as string,
+    });
+    expect(input).not.toHaveProperty("burn");
   });
 });

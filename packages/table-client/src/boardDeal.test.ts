@@ -53,6 +53,23 @@ describe("dealBoard", () => {
     expect(dealt.map((card) => card.delay)).toEqual([0, 0.08, 0.16]);
   });
 
+  it("holds an arriving street behind the burn that precedes it", () => {
+    const dealt = dealBoard([...flop, turn], boardKeys(flop), 0.7);
+    expect(dealt.map((card) => card.delay)).toEqual([0, 0, 0, 0.7]);
+  });
+
+  it("staggers behind the lead-in rather than restarting after it", () => {
+    const dealt = dealBoard(flop, new Set(), 0.7);
+    expect(dealt[0]?.delay).toBeCloseTo(0.7, 5);
+    expect(dealt[1]?.delay).toBeCloseTo(0.78, 5);
+    expect(dealt[2]?.delay).toBeCloseTo(0.86, 5);
+  });
+
+  it("leaves settled cards on the felt untouched by the lead-in", () => {
+    const dealt = dealBoard(flop, boardKeys(flop), 0.7);
+    expect(dealt.map((card) => card.delay)).toEqual([0, 0, 0]);
+  });
+
   it("keys each card by rank and suit so its position on the board is irrelevant", () => {
     const dealt = dealBoard(flop, new Set());
     expect(dealt.map((card) => card.key)).toEqual([
