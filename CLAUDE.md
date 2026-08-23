@@ -36,9 +36,18 @@ Types in use: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `build`, `ci`,
 
 Whether this is enforced by tooling, and whether it drives versioning or a changelog, is still open — see [Development workflow, CI and testing strategy](https://github.com/ewanhardingham/table-top-poker/issues/4).
 
-## Pull requests
+## Branching and merging
 
-Do not wait for checks to complete on pull request. Hand this off to the human.
+This repository has a single contributor and does not use pull requests.
+
+- Do the work on a branch, in a worktree where it keeps parallel tasks isolated.
+  Name the branch for the change (`fix/keep-board-on-foldout`, `feat/147-coaching-hints`).
+  Never commit onto whatever branch happens to be checked out.
+- Where the work builds on an unmerged branch, branch off *that* branch.
+- Do not open pull requests, and do not push work-in-progress branches for review.
+  The human reviews the branch locally.
+- Once the human is happy, the commits go straight to `main`. Only the human
+  merges and pushes to `main` unless they explicitly ask you to do it.
 
 ## Planning
 
