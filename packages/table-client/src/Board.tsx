@@ -7,7 +7,7 @@ import { Card, color, font } from "@table-top-poker/ui-shared";
 import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { BurnPile } from "./BurnPile.js";
-import { boardKeys, dealBoard } from "./boardDeal.js";
+import { BOARD_CARD_EM, boardKeys, dealBoard } from "./boardDeal.js";
 import { streetDealDelay } from "./burnPile.js";
 import { seatLabel } from "./seatLabel.js";
 
@@ -37,7 +37,11 @@ function CommunityCards({ board }: { readonly board: readonly CardType[] }) {
   return (
     <div
       data-testid="community-cards"
-      style={{ display: "flex", gap: "0.4em", fontSize: "2.4em" }}
+      style={{
+        display: "flex",
+        gap: "0.4em",
+        fontSize: `${String(BOARD_CARD_EM)}em`,
+      }}
     >
       {dealt.map(({ card, key, initial, duration, delay }) => (
         <motion.div

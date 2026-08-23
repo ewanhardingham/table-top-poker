@@ -15,6 +15,9 @@ export interface DealtCard {
   readonly delay: number;
 }
 
+/** `Card` sizes off its font size, so the burn pile matches the board through this. */
+export const BOARD_CARD_EM = 2.4;
+
 const arriving = { opacity: 0, y: -18, rotate: -6, scale: 0.9 } as const;
 
 export function cardKey(card: Card): string {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   BURN_BUDGET_S,
   flameKeyframes,
+  justBurntIndex,
   burnTiming,
   flameSpan,
   pileCards,
@@ -86,6 +87,25 @@ describe("pileCards", () => {
 
   it("settles a pile rendered whole, as after a reconnect mid-hand", () => {
     expect(pileCards(2, 5).every((card) => !card.arriving)).toBe(true);
+  });
+});
+
+describe("justBurntIndex", () => {
+  it("names the card to set alight when the count grows", () => {
+    expect(justBurntIndex(1, 0)).toBe(0);
+    expect(justBurntIndex(3, 2)).toBe(2);
+  });
+
+  it("lights nothing when the count has not moved", () => {
+    expect(justBurntIndex(2, 2)).toBeNull();
+  });
+
+  it("lights nothing when a fresh hand clears the pile", () => {
+    expect(justBurntIndex(0, 3)).toBeNull();
+  });
+
+  it("lights only the last of several burns arriving at once", () => {
+    expect(justBurntIndex(3, 0)).toBe(2);
   });
 });
 

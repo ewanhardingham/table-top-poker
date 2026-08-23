@@ -1,12 +1,14 @@
 import { Card } from "@table-top-poker/ui-shared";
 import { motion, useReducedMotion } from "motion/react";
-import { Fragment, useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import { BOARD_CARD_EM } from "./boardDeal.js";
 import type { BurnTiming } from "./burnPile.js";
 import {
   FLAME,
-  flameKeyframes,
   burnTiming,
+  flameKeyframes,
   flameSpan,
+  justBurntIndex,
   pileCards,
   tongueFlames,
 } from "./burnPile.js";
@@ -119,12 +121,41 @@ function BurningCard({ timing }: { readonly timing: BurnTiming }) {
   );
 }
 
+/**
+ * Which card is alight, held for the burn's own duration. Deriving it per
+ * render loses the flame to the next hand update, which arrives in
+ * milliseconds — see `docs/design/burn-pile.md`.
+ */
+function useBurningIndex(count: number, durationMs: number): number | null {
+  const [burning, setBurning] = useState<number | null>(null);
+  const countBefore = useRef(count);
+
+  useEffect(() => {
+    const lit = justBurntIndex(count, countBefore.current);
+    countBefore.current = count;
+    if (lit === null || durationMs <= 0) {
+      setBurning(null);
+      return;
+    }
+    setBurning(lit);
+    const timer = setTimeout(() => {
+      setBurning(null);
+    }, durationMs);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [count, durationMs]);
+
+  return burning;
+}
+
 export function BurnPile({ count }: BurnPileProps) {
   const reducedMotion = useReducedMotion() === true;
   const piledBefore = useRef(count);
   const cards = pileCards(count, piledBefore.current);
   const timing = burnTiming(reducedMotion);
   const { travel } = timing;
+  const burningIndex = useBurningIndex(count, timing.total * 1000);
 
   useEffect(() => {
     piledBefore.current = count;
@@ -137,13 +168,13 @@ export function BurnPile({ count }: BurnPileProps) {
       aria-hidden="true"
       style={{
         position: "relative",
-        fontSize: "2em",
+        fontSize: `${String(BOARD_CARD_EM)}em`,
         width: `${String(CARD_WIDTH_EM)}em`,
         height: `${String(CARD_HEIGHT_EM)}em`,
       }}
     >
-      {cards.map(({ key, x, y, rotate, arriving }) => {
-        const burning = arriving && !reducedMotion;
+      {cards.map(({ key, index, x, y, rotate, arriving }) => {
+        const burning = index === burningIndex;
         return (
           <Fragment key={key}>
             {burning && <Bloom timing={timing} restX={x} restY={y} />}

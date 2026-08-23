@@ -90,6 +90,18 @@ export function tongueFlames(timing: BurnTiming): readonly TongueFlame[] {
   });
 }
 
+/**
+ * The card a growing count has just set alight, or null. The flame outlives the
+ * render that reveals it, so it cannot be derived per render — see
+ * `docs/design/burn-pile.md`.
+ */
+export function justBurntIndex(
+  burnedCount: number,
+  previousCount: number,
+): number | null {
+  return burnedCount > previousCount ? burnedCount - 1 : null;
+}
+
 /** Offsets are pixels, as `motion`'s `x`/`y` take them. */
 export interface PileCard {
   readonly key: string;

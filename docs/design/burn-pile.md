@@ -16,6 +16,10 @@ them deterministically — each card offset by its index, rotation from
 than a deck, and re-renders identically. The pile is `aria-hidden`: it is a
 count already carried by the state, drawn as cards.
 
+The pile matches the board's card size through `BOARD_CARD_EM`. `Card` sizes
+itself in `em`, so the two must share one font size or the burnt cards read as a
+different deck from the community cards.
+
 Only cards past `piledBefore` are `arriving`. A pile that mounts whole — a
 reconnect mid-hand, a replay seek landing after two burns — appears settled,
 with no cards flying in for burns that happened while nobody was looking.
@@ -65,6 +69,17 @@ are pulled back in `FLAME`:
 
 These were arrived at visually, against the real cue on the real felt. Treat
 them as a tuned starting point, not as derived constants.
+
+**The flame's lifetime is state, not a derivation.** `arriving` is computed by
+comparing the count against a ref updated on every render, so it is true for
+exactly one render pass. That is enough for the travel animation, which is a
+mount-time `initial` on an element that keeps its identity — and useless for the
+flame, which is a conditionally mounted subtree. The engine's cascade sends
+`CardBurned`, `BoardDealt` and `StreetStarted` within milliseconds of each
+other, and any one of those re-renders the table, so a flame gated on `arriving`
+unmounted almost the instant it appeared: the card landed on the pile, the cue
+played, and nothing burned. `useBurningIndex` holds the lit card in state for
+the burn's own duration instead.
 
 The bloom is a sibling of the flying card, not a child of it, and sits at the
 card's resting place from the start. Inside the travelling wrapper it would fly
