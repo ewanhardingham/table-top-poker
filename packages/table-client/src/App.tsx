@@ -54,30 +54,63 @@ const feltSurfaceStyle: CSSProperties = {
     "inset 0 0 12em 4em rgba(0,0,0,.62), inset 0 2px 0 rgba(255,255,255,.08)",
 };
 
-/** Which hand is under review — see Caption in `CONTEXT.md`. */
-function ReviewingHand({ handOrdinal }: { readonly handOrdinal: number }) {
+/**
+ * Which hand is under review, and the way out of it — see Caption in
+ * `CONTEXT.md`. Review chrome belongs in the status bar rather than over the
+ * felt, which the ring needs every pixel of.
+ */
+function ReviewingHand({
+  handOrdinal,
+  onClose,
+}: {
+  readonly handOrdinal: number;
+  readonly onClose: () => void;
+}) {
   return (
-    <span
-      data-testid="reviewing-hand"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "0.5em",
-        padding: "0.45em 0.9em",
-        borderRadius: radius.pill,
-        background: color.control,
-        border: `1px solid ${color.border}`,
-        fontFamily: font.mono,
-        fontSize: "0.62em",
-        fontWeight: 600,
-        letterSpacing: "0.16em",
-        textTransform: "uppercase",
-        color: color.textMuted,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {`Reviewing hand ${String(handOrdinal)}`}
-    </span>
+    <>
+      <span
+        data-testid="reviewing-hand"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "0.5em",
+          padding: "0.45em 0.9em",
+          borderRadius: radius.pill,
+          background: color.control,
+          border: `1px solid ${color.border}`,
+          fontFamily: font.mono,
+          fontSize: "0.62em",
+          fontWeight: 600,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          color: color.textMuted,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {`Reviewing hand ${String(handOrdinal)}`}
+      </span>
+      <button
+        type="button"
+        data-testid="back-to-hands-button"
+        onClick={onClose}
+        style={{
+          padding: "0.45em 0.9em",
+          borderRadius: radius.pill,
+          background: "transparent",
+          border: `1px solid ${color.border}`,
+          fontFamily: font.mono,
+          fontSize: "0.62em",
+          fontWeight: 600,
+          letterSpacing: "0.16em",
+          textTransform: "uppercase",
+          color: color.textDim,
+          whiteSpace: "nowrap",
+          cursor: "pointer",
+        }}
+      >
+        Back to hands
+      </button>
+    </>
   );
 }
 
@@ -284,7 +317,10 @@ export function App() {
           onOpenJoin={toggleJoin}
           leading={
             review === null ? undefined : (
-              <ReviewingHand handOrdinal={review.handOrdinal} />
+              <ReviewingHand
+                handOrdinal={review.handOrdinal}
+                onClose={handleBackToHands}
+              />
             )
           }
         />
@@ -313,12 +349,8 @@ export function App() {
             )}
           </>
         ) : review !== null ? (
-          <div style={feltSurfaceStyle}>
-            <HandReview
-              review={review}
-              seats={seats}
-              onClose={handleBackToHands}
-            />
+          <div className="felt-surface" style={feltSurfaceStyle}>
+            <HandReview review={review} seats={seats} />
             {showJoinPanel && (
               <JoinPanel
                 roomCode={roomCode}
@@ -331,7 +363,7 @@ export function App() {
             )}
           </div>
         ) : (
-          <div style={feltSurfaceStyle}>
+          <div className="felt-surface" style={feltSurfaceStyle}>
             <Seats
               seats={seats}
               view={handView}

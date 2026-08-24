@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { HandReviewState } from "../store/replaySlice.js";
 import { actionLabelsAt } from "./actionLabels.js";
-import { chromeFontSize, chromeVariables, gutter } from "./chrome.js";
+import { chromeVariables } from "./chrome.js";
 import { beatAt, chaptersOf, holdAt, toBeats } from "./beats.js";
 import { captionFor } from "./caption.js";
 import { CaptionStrip } from "./CaptionStrip.js";
@@ -19,7 +19,6 @@ import { ReplayTransport } from "./ReplayTransport.js";
 export interface HandReviewProps {
   readonly review: HandReviewState;
   readonly seats: readonly SeatView[];
-  readonly onClose: () => void;
 }
 
 /**
@@ -27,7 +26,7 @@ export interface HandReviewProps {
  * server sends every position in one message — so the track can lay out its
  * ticks and chapters before anything is touched (Phase 2 spec #129 §5).
  */
-export function HandReview({ review, seats, onClose }: HandReviewProps) {
+export function HandReview({ review, seats }: HandReviewProps) {
   const positions = review.status === "ready" ? review.positions : [];
   const beats = useMemo(() => toBeats(positions), [positions]);
   const chapters = useMemo(() => chaptersOf(beats), [beats]);
@@ -76,7 +75,6 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
   if (review.status !== "ready") {
     return (
       <Chrome>
-        <BackToHands onClose={onClose} />
         <div
           data-testid="replay-notice"
           style={{
@@ -108,7 +106,6 @@ export function HandReview({ review, seats, onClose }: HandReviewProps) {
       {view !== undefined && (
         <ReplayStage view={view} seats={seats} actionLabels={labels} />
       )}
-      <BackToHands onClose={onClose} />
       <CaptionStrip caption={captionFor(event, seats)} />
       <ReplayTransport
         beats={beats}
@@ -137,43 +134,6 @@ function Chrome({ children }: { readonly children: ReactNode }) {
       }}
     >
       {children}
-    </div>
-  );
-}
-
-function BackToHands({ onClose }: { readonly onClose: () => void }) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        top: "1.2em",
-        left: gutter,
-        right: gutter,
-        fontSize: chromeFontSize,
-        display: "flex",
-        justifyContent: "flex-end",
-        zIndex: 3,
-      }}
-    >
-      <button
-        type="button"
-        data-testid="back-to-hands-button"
-        onClick={onClose}
-        style={{
-          fontFamily: font.mono,
-          fontSize: "0.8em",
-          letterSpacing: "0.16em",
-          textTransform: "uppercase",
-          color: color.textDim,
-          background: "transparent",
-          border: `1px solid ${color.border}`,
-          borderRadius: "999px",
-          padding: "0.65em 1.2em",
-          cursor: "pointer",
-        }}
-      >
-        Back to hands
-      </button>
     </div>
   );
 }

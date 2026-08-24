@@ -23,7 +23,7 @@ const TRACK_HEIGHT = 3.4;
 const BOTTOM_MARGIN = 1.1;
 
 /** The touch-target floor, itself given way to on a felt with no room for it. */
-const CHIP_MIN_HEIGHT = "clamp(2.2rem, 4.6cqh, 2.75rem)";
+const CHIP_MIN_HEIGHT = "clamp(2.4rem, 5.6cqh, 2.75rem)";
 
 const CHIP_BAND = `max(${CHIP_MIN_HEIGHT}, ${chromeUnits(CHIP_HEIGHT)})`;
 

@@ -6,10 +6,10 @@ import { CAPTION_BAND, FELT_LAYER } from "./CaptionStrip.js";
 import { CHROME_UNIT_PROPERTY } from "./chrome.js";
 import { TRANSPORT_BAND } from "./ReplayTransport.js";
 import {
-  BOTTOM_BAND,
+  EDGE_BAND,
   ReplayStage,
   STAGE_BOTTOM,
-  TOP_BAND,
+  STAGE_TOP,
 } from "./ReplayStage.js";
 
 const seats: readonly SeatView[] = [0, 1, 2, 3].map((id) => ({
@@ -49,7 +49,7 @@ describe("ReplayStage", () => {
       <ReplayStage view={view} seats={seats} actionLabels={new Map()} />,
     );
 
-    expect(html).toContain(`top:${String(TOP_BAND)}em`);
+    expect(html).toContain(`top:${STAGE_TOP}`);
     expect(html).toContain(`bottom:${STAGE_BOTTOM}`);
     expect(html).toContain(`z-index:${String(FELT_LAYER)}`);
   });
@@ -59,11 +59,10 @@ describe("ReplayStage", () => {
     expect(STAGE_BOTTOM).toContain(CAPTION_BAND);
   });
 
-  it("measures the chrome's bands in the chrome's scale, the pod's in the root's", () => {
+  it("gives the ring the same margin top and bottom", () => {
+    expect(STAGE_TOP).toBe(EDGE_BAND);
+    expect(STAGE_BOTTOM).toContain(EDGE_BAND);
     expect(STAGE_BOTTOM).toContain(`var(${CHROME_UNIT_PROPERTY})`);
-    expect(STAGE_BOTTOM).toMatch(
-      new RegExp(`^calc\\(${String(BOTTOM_BAND)}em`),
-    );
   });
 
   it("renders the felt through the live Seats and Board, projected", () => {

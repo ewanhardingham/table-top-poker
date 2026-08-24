@@ -17,7 +17,7 @@ export const gutter = `var(${CHROME_GUTTER_PROPERTY})`;
 
 /** A chrome measurement, for the bands the felt is laid out against. */
 export function chromeUnits(units: number): string {
-  return `${String(units)} * var(${CHROME_UNIT_PROPERTY})`;
+  return `${units.toFixed(2)} * var(${CHROME_UNIT_PROPERTY})`;
 }
 
 export function chromeBand(units: number): string {

@@ -12,19 +12,17 @@ export interface ReplayStageProps {
 }
 
 /**
- * A pod grows around its avatar anchor, so it reaches past `posFor`'s 10%.
- * Measured in root units, like the pod it clears, rather than in the chrome's.
+ * The felt's own margin, top and bottom alike. `posFor` anchors the ring at
+ * 10% and 90% and a tabled Hand is dealt towards the Board, so the ring's
+ * slack at the felt's edge and the gap it leaves around the Board move
+ * together: this is what evens the two out on a felt with room to spare, and
+ * falls away to nothing on one without — see `docs/design/replay-layout.md`.
  */
-export const TOP_BAND = 4;
+export const EDGE_BAND = "max(0.25rem, 17.68cqh - 7.76rem)";
 
-/** The mirror of {@link TOP_BAND}: what the bottom row needs to clear the Caption. */
-export const BOTTOM_BAND = TOP_BAND;
+export const STAGE_TOP = EDGE_BAND;
 
-/**
- * The pod's clearance in root units and the chrome's in its own, so the felt
- * keeps the room the chrome gives back as it shrinks — see `chrome.ts`.
- */
-export const STAGE_BOTTOM = `calc(${String(BOTTOM_BAND)}em + ${TRANSPORT_BAND} + ${CAPTION_BAND})`;
+export const STAGE_BOTTOM = `calc(${EDGE_BAND} + ${TRANSPORT_BAND} + ${CAPTION_BAND})`;
 
 /**
  * The live `Seats` and `Board` fed one replay position — no parallel rendering
@@ -37,7 +35,7 @@ export function ReplayStage({ view, seats, actionLabels }: ReplayStageProps) {
       data-testid="replay-stage"
       style={{
         position: "absolute",
-        top: `${String(TOP_BAND)}em`,
+        top: STAGE_TOP,
         left: 0,
         right: 0,
         bottom: STAGE_BOTTOM,

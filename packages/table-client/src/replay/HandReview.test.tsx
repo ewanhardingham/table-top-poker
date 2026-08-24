@@ -144,9 +144,7 @@ interface Renderer {
 function render(review: HandReviewState = ready): Renderer {
   let renderer!: Renderer;
   act(() => {
-    renderer = create(
-      <HandReview review={review} seats={seats} onClose={() => undefined} />,
-    );
+    renderer = create(<HandReview review={review} seats={seats} />);
   });
   return renderer;
 }
@@ -160,14 +158,11 @@ const TRACK_WIDTH = 100;
 function renderScrubbable(): Renderer {
   let renderer!: Renderer;
   act(() => {
-    renderer = create(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
-      {
-        createNodeMock: () => ({
-          getBoundingClientRect: () => ({ left: 0, width: TRACK_WIDTH }),
-        }),
-      },
-    );
+    renderer = create(<HandReview review={ready} seats={seats} />, {
+      createNodeMock: () => ({
+        getBoundingClientRect: () => ({ left: 0, width: TRACK_WIDTH }),
+      }),
+    });
   });
   return renderer;
 }
@@ -197,7 +192,7 @@ function click(renderer: Renderer, testId: string): void {
 describe("HandReview", () => {
   it("ticks the track once per event ordinal, heavier at street boundaries", () => {
     const html = renderToStaticMarkup(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      <HandReview review={ready} seats={seats} />,
     );
 
     for (const position of events.map((_unused, index) => index + 1)) {
@@ -211,7 +206,7 @@ describe("HandReview", () => {
 
   it("offers a chapter for each street the hand reached, and no others", () => {
     const html = renderToStaticMarkup(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      <HandReview review={ready} seats={seats} />,
     );
 
     expect(html).toContain('data-testid="replay-chapter-preflop"');
@@ -287,13 +282,12 @@ describe("HandReview", () => {
     }
   });
 
-  it("offers a way back to the picker", () => {
+  it("leaves the way back to the status bar, off the felt", () => {
     const html = renderToStaticMarkup(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      <HandReview review={ready} seats={seats} />,
     );
 
-    expect(html).toContain('data-testid="back-to-hands-button"');
-    expect(html).toContain("Back to hands");
+    expect(html).not.toContain("Back to hands");
   });
 
   it("says so while the hand is on its way, and if it never arrives", () => {
@@ -301,20 +295,18 @@ describe("HandReview", () => {
       <HandReview
         review={{ status: "loading", handOrdinal: 7 }}
         seats={seats}
-        onClose={() => undefined}
       />,
     );
     const unavailable = renderToStaticMarkup(
       <HandReview
         review={{ status: "unavailable", handOrdinal: 7 }}
         seats={seats}
-        onClose={() => undefined}
       />,
     );
 
     expect(loading).toContain("Loading the hand");
     expect(unavailable).toContain("can&#x27;t be replayed");
-    expect(unavailable).toContain('data-testid="back-to-hands-button"');
+    expect(unavailable).not.toContain("Back to hands");
   });
 });
 
@@ -329,7 +321,7 @@ describe("HandReview: the caption strip", () => {
 
   it("has nothing to name before the first event", () => {
     const html = renderToStaticMarkup(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      <HandReview review={ready} seats={seats} />,
     );
 
     expect(html).toContain('data-testid="replay-caption"');
@@ -338,7 +330,7 @@ describe("HandReview: the caption strip", () => {
 
   it("keeps its own band, clear of the transport below it", () => {
     const html = renderToStaticMarkup(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      <HandReview review={ready} seats={seats} />,
     );
     const style =
       /data-testid="replay-caption"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
@@ -349,7 +341,7 @@ describe("HandReview: the caption strip", () => {
 
   it("hands the chrome a scale of its own, so the felt keeps the table's", () => {
     const html = renderToStaticMarkup(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      <HandReview review={ready} seats={seats} />,
     );
     const style =
       /data-testid="replay-chrome"[^>]*style="([^"]*)"/.exec(html)?.[1] ?? "";
@@ -360,7 +352,7 @@ describe("HandReview: the caption strip", () => {
 
   it("shows no Event ordinal anywhere on screen", () => {
     const html = renderToStaticMarkup(
-      <HandReview review={ready} seats={seats} onClose={() => undefined} />,
+      <HandReview review={ready} seats={seats} />,
     );
     const onScreen = html.replaceAll(/<[^>]*>/g, " ");
 

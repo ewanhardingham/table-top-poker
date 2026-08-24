@@ -323,7 +323,9 @@ is the corrupt case, and it is a hard failure.
 The table device's two surfaces for a finished Hand: a picker that chooses
 one from the session, and a Scrub that plays it back on the felt. Reachable
 only between Hands, and force-dismissed the moment a Hand starts — a review
-left open can never swallow the Board.
+left open can never swallow the Board. Its own chrome — which Hand, and the
+way back to the picker — sits in the status bar rather than over the felt,
+which the ring needs every pixel of (`docs/design/replay-layout.md`).
 
 **Scrub**:
 The table's replay transport: a timeline the width of the felt, ticked once

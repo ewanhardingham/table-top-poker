@@ -168,6 +168,25 @@ describe("App hand review", () => {
     ).toThrow();
   });
 
+  it("carries the review's own chrome in the status bar, not over the felt", () => {
+    inRoom(completeHand);
+    const renderer = render();
+    click(renderer, "review-hands-button");
+    act(() => {
+      picker.props?.onSelectHand(3);
+    });
+
+    const back = renderer.root.findByProps({
+      "data-testid": "back-to-hands-button",
+    });
+    const reviewing = renderer.root.findByProps({
+      "data-testid": "reviewing-hand",
+    });
+
+    expect(back).toBeDefined();
+    expect(reviewing).toBeDefined();
+  });
+
   it("returns to the picker from Back to hands", () => {
     inRoom(completeHand);
     const renderer = render();

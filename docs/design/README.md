@@ -30,5 +30,8 @@ decision graduates to an ADR, trim the note to a pointer.
 - [`burn-pile.md`](burn-pile.md) — the burn pile's layout and the 700ms the
   flame has: the budget the board deal waits out, why it peaks late against the
   cue, and the tuning of the chosen animation.
+- [`replay-layout.md`](replay-layout.md) — the felt's two scales and the
+  replay's bands: why the table sizes off the felt rather than the root, how
+  the even-gap band was fitted, and the measurements it was fitted to.
 - [`clients.md`](clients.md) — player/table client and `ui-shared` notes: the
   audio engine, viewport locking, reconnect, and rendering rationale.

@@ -53,6 +53,19 @@ body {
   background: linear-gradient(160deg, #1a1516, #0a0708 60%, #161011);
 }
 
+/*
+ * What one felt em is worth: the table sizes off the felt it is dealt on
+ * rather than the root, so the ring, the Board and the cards keep their
+ * proportions to each other and to the space they have. Capped at the root
+ * size, so a felt with room to spare looks exactly as it always has. The
+ * live table and the replay share the surface, so an element is the same
+ * size in both. It is a child of `.felt`: container units read the felt's
+ * own box only from inside it.
+ */
+.felt-surface {
+  font-size: clamp(0.72rem, min(2.547cqh - 0.18rem, 1.6cqw), 1rem);
+}
+
 /* The Seat plate's to-act glow. A CSS animation rather than an animated
  * box-shadow so it ends the moment the Seat stops being the actor. The colour
  * is ui-shared's `color.accent` (#e5443c), hard-coded here for the keyframe. */
