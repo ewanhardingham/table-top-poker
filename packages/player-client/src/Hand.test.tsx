@@ -14,6 +14,7 @@ describe("Hand", () => {
   it("uses the named seat in waiting copy", () => {
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -62,6 +63,7 @@ describe("Hand", () => {
   it("deals own hole cards in face-down, and never shows the shared board mid-hand", () => {
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -95,6 +97,7 @@ describe("Hand", () => {
   it("hides hole cards once folded, without a placeholder leak", () => {
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -122,6 +125,7 @@ describe("Hand", () => {
   it("shows the empty state, not the folded copy, when sitting out of the current hand", () => {
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -147,6 +151,7 @@ describe("Hand", () => {
   it("shows the turn banner announcing it's your turn when you have a legal action", () => {
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -174,6 +179,7 @@ describe("Hand", () => {
     const turnEndsAt = Date.now() + 30_000;
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt,
       button: 0,
       smallBlind: 1,
@@ -197,6 +203,7 @@ describe("Hand", () => {
   it("does not mirror the table countdown on another player's phone", () => {
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: Date.now() + 30_000,
       button: 0,
       smallBlind: 1,
@@ -222,6 +229,7 @@ describe("Hand", () => {
   it("shows a connection-aware banner instead of the turn state while reconnecting", () => {
     const view: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
@@ -252,6 +260,7 @@ describe("Hand", () => {
     function allInView(overrides: Partial<PlayerView> = {}): PlayerView {
       return {
         phase: "betting",
+        tabled: [],
         turnEndsAt: null,
         button: 0,
         smallBlind: 1,
@@ -602,6 +611,7 @@ describe("Hand", () => {
   describe("position marker (issue #207)", () => {
     const bettingView: PlayerView = {
       phase: "betting",
+      tabled: [],
       turnEndsAt: null,
       button: 0,
       smallBlind: 1,
