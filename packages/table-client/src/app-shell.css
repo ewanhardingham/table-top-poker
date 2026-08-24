@@ -24,6 +24,9 @@ body {
 }
 
 .app-shell {
+  /* The chrome outside the felt — status bar — sizes off this, so it gives
+   * way on a short screen while the table keeps the size it has. */
+  --chrome-unit: clamp(0.72rem, 0.44rem + 0.6svh, 1rem);
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -38,6 +41,9 @@ body {
 
 .felt {
   position: relative;
+  /* The replay chrome sizes against the felt it sits on, not the viewport,
+   * so a browser's own chrome counts against it too. */
+  container-type: size;
   flex: 1;
   overflow: hidden;
   display: flex;

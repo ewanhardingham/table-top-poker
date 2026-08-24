@@ -12,13 +12,7 @@ import {
   type ShowdownClockSettings,
   type SoundSettings,
 } from "@table-top-poker/protocol";
-import {
-  color,
-  font,
-  fontSize,
-  radius,
-  unlockAudio,
-} from "@table-top-poker/ui-shared";
+import { color, font, radius, unlockAudio } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import {
   changeSeatCount,
@@ -74,7 +68,7 @@ function ReviewingHand({ handOrdinal }: { readonly handOrdinal: number }) {
         background: color.control,
         border: `1px solid ${color.border}`,
         fontFamily: font.mono,
-        fontSize: fontSize.xs,
+        fontSize: "0.62em",
         fontWeight: 600,
         letterSpacing: "0.16em",
         textTransform: "uppercase",

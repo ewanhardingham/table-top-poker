@@ -8,7 +8,7 @@ export const CHROME_GUTTER_PROPERTY = "--replay-gutter";
 
 export const chromeVariables = {
   [CHROME_UNIT_PROPERTY]:
-    "clamp(0.62rem, min(0.3rem + 0.72vh, 0.1rem + 1vw), 1rem)",
+    "clamp(0.56rem, min(0.1rem + 1.05cqh, 0.1rem + 1vw), 1rem)",
   [CHROME_GUTTER_PROPERTY]: "clamp(0.7rem, 1.4vw, 1.8rem)",
 } as const;
 

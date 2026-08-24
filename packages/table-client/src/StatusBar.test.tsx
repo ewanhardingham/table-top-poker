@@ -37,7 +37,8 @@ describe("StatusBar", () => {
     expect(headerMatch).not.toBeNull();
     expect(headerMatch?.[0]).toContain('data-testid="join-code-toggle"');
     expect(headerMatch?.[0]).toContain('data-testid="connection-status"');
-    expect(headerMatch?.[0]).toContain("padding:16px 22px");
+    expect(headerMatch?.[0]).toContain("padding:1em 1.4em");
+    expect(headerMatch?.[0]).toContain("font-size:var(--chrome-unit)");
     expect(
       headerMatch?.[0].indexOf('data-testid="join-code-toggle"'),
     ).toBeLessThan(

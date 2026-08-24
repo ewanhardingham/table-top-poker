@@ -1,4 +1,4 @@
-import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
+import { color, font, radius } from "@table-top-poker/ui-shared";
 import type { CSSProperties } from "react";
 
 export interface JoinCodeToggleProps {
@@ -14,8 +14,8 @@ const wrapperStyle: CSSProperties = {
 const buttonStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 11,
-  padding: "10px 16px",
+  gap: "0.7em",
+  padding: "0.62em 1em",
   borderRadius: radius.pill,
   background: color.control,
   border: `1px solid ${color.accentBorder}`,
@@ -39,7 +39,7 @@ export function JoinCodeToggle({ roomCode, onOpen }: JoinCodeToggleProps) {
             flexShrink: 100,
             overflow: "hidden",
             fontFamily: font.mono,
-            fontSize: fontSize.xs,
+            fontSize: "0.62em",
             fontWeight: 600,
             letterSpacing: "0.2em",
             textTransform: "uppercase",
@@ -53,7 +53,7 @@ export function JoinCodeToggle({ roomCode, onOpen }: JoinCodeToggleProps) {
             flex: "none",
             fontFamily: font.mono,
             fontWeight: 700,
-            fontSize: fontSize.lg,
+            fontSize: "1.2em",
             letterSpacing: "0.14em",
             color: color.textBright,
           }}

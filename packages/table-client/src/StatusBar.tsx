@@ -1,4 +1,4 @@
-import { color, font, fontSize, radius } from "@table-top-poker/ui-shared";
+import { color, font, radius } from "@table-top-poker/ui-shared";
 import type { CSSProperties, ReactNode } from "react";
 import { JoinCodeToggle } from "./JoinCodeToggle.js";
 import type { ConnectionStatus } from "./store/connectionSlice.js";
@@ -20,6 +20,9 @@ const badgeTone: Record<
   connecting: { dot: color.accentBright, text: color.textBright },
   disconnected: { dot: color.accent, text: color.textBright },
 };
+
+/** The scale the shell hands its chrome — see `app-shell.css`. */
+export const CHROME_UNIT = "var(--chrome-unit)";
 
 const badgeStyle: CSSProperties = {
   display: "flex",
@@ -50,7 +53,8 @@ export function StatusBar({
         gap: "0.75em",
         width: "100%",
         minWidth: 0,
-        padding: "16px 22px",
+        fontSize: CHROME_UNIT,
+        padding: "1em 1.4em",
       }}
     >
       {leading}
@@ -79,7 +83,7 @@ export function StatusBar({
               overflow: "hidden",
               textOverflow: "ellipsis",
               fontFamily: font.mono,
-              fontSize: fontSize.xs,
+              fontSize: "0.62em",
               fontWeight: 600,
               letterSpacing: "0.16em",
               textTransform: "uppercase",
