@@ -48,6 +48,6 @@ node --input-type=module -e \
 
 echo "==> Verifying the packaged harness entrypoint"
 cat "$release_dir/node_modules/@table-top-poker/harness/fixtures/hand-1.commands.jsonl" |
-  "$release_dir/node_modules/.bin/harness" >/dev/null
+  node "$release_dir/node_modules/@table-top-poker/harness/dist/cli.js" >/dev/null
 
 echo "==> Release staged at .release/"

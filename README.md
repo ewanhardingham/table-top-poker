@@ -52,7 +52,8 @@ npm run build:release
 ```
 
 This produces `.release/`, a self-contained folder holding the server and both
-client bundles, served by a single process.
+client bundles, served by a single process behind the Pi's Caddy HTTPS front
+door.
 
 Copy that folder to the Pi and restart the service. The full walkthrough,
 including first-time Pi setup and how to roll back, is in

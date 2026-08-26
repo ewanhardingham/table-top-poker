@@ -9,6 +9,11 @@ Context: TypeScript Texas hold'em. Node server on a home LAN, one iPad as the "t
 central device, ~9 phones as player clients, websockets, ~10 concurrent connections,
 LAN-only, no public internet exposure.
 
+> Status note (2026-08-26): this document records the original option analysis. The project
+> now adopts the trusted HTTPS route described here as the DNS-01 option; see
+> [ADR-0011](../adr/0011-pi-https-with-duckdns-and-caddy.md), [issue #279](https://github.com/ewanhardingham/table-top-poker/issues/279),
+> and the operational source of truth in [`docs/deploy-pi.md`](../deploy-pi.md).
+
 ---
 
 ## TL;DR
@@ -917,7 +922,7 @@ Do all three. They're each five minutes and they fail independently.
 
 ---
 
-## 7. Recommended setup
+## 7. Original recommended setup (superseded by ADR-0011)
 
 ### The decision on HTTPS, stated plainly
 
@@ -947,7 +952,7 @@ Reasoning:
 **Cost of this decision:** no installable PWA, no push notifications, screens dim during
 long hands. Accept it, and put a big "keep your screen on" note in the join screen.
 
-**If you later change your mind**, the migration is: get a domain, run Caddy with a DNS-01
+**The migration described below is now implemented by #279.** It is: get a domain, run Caddy with a DNS-01
 ACME provider module, point Caddy at Node on `localhost:3000`, add a router DNS override so
 `poker.example.com` → `192.168.1.50` (dodging rebind protection), and switch the client from
 `ws://` to `wss://`. **Note:** once the page is HTTPS you **must** use `wss://` — plain

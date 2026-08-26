@@ -7,6 +7,12 @@ describe("joinUrl", () => {
       "http://192.168.1.50:3000/join/AB34",
     );
   });
+
+  it("preserves an HTTPS front door", () => {
+    expect(joinUrl("poker.duckdns.org", "AB34", "https")).toBe(
+      "https://poker.duckdns.org/join/AB34",
+    );
+  });
 });
 
 describe("roomQrCodeDataUrl", () => {

@@ -267,6 +267,30 @@ describe("rooms HTTP routes", () => {
     expect(body.dataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
+  it("uses the HTTPS proxy origin in a QR code", async () => {
+    const created = await app.inject({
+      method: "POST",
+      url: "/rooms",
+      headers: { host: "poker.duckdns.org", "x-forwarded-proto": "https" },
+      payload: { seatCount: DEFAULT_SEAT_COUNT },
+    });
+    const { code } = created.json<RoomCreatedBody>();
+    expect(created.json<RoomCreatedBody>().joinUrl).toBe(
+      `https://poker.duckdns.org/join/${code}`,
+    );
+
+    const response = await app.inject({
+      method: "GET",
+      url: `/rooms/${code}/qr`,
+      headers: { host: "poker.duckdns.org", "x-forwarded-proto": "https" },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json<RoomQrBody>().url).toBe(
+      `https://poker.duckdns.org/join/${code}`,
+    );
+  });
+
   it("ending a session discards the room's in-memory state", async () => {
     const created = await app.inject({
       method: "POST",

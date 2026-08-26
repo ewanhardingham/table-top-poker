@@ -293,7 +293,7 @@ export async function buildApp(
     readonly release: () => void;
   }>();
   let draining = false;
-  const app = Fastify();
+  const app = Fastify({ trustProxy: "127.0.0.1" });
 
   /** A run-out beat's wait, released early so a shutdown never waits one out. */
   function waitBetweenStreets(): Promise<void> {
@@ -969,7 +969,11 @@ export async function buildApp(
 
     const room = staged.commit();
     roomRecordings.open(room.code, recording);
-    const url = joinUrl(request.headers.host ?? "localhost", room.code);
+    const url = joinUrl(
+      request.headers.host ?? "localhost",
+      room.code,
+      request.protocol === "https" ? "https" : "http",
+    );
     const qrCodeDataUrl = await roomQrCodeDataUrl(url);
     return { code: room.code, joinUrl: url, qrCodeDataUrl };
   });
@@ -1009,7 +1013,11 @@ export async function buildApp(
   app.get<RoomCodeRoute>("/rooms/:code/qr", async (request, reply) => {
     const room = findRoomOrReject(rooms, request.params.code, reply);
     if (!room) return;
-    const url = joinUrl(request.headers.host ?? "localhost", room.code);
+    const url = joinUrl(
+      request.headers.host ?? "localhost",
+      room.code,
+      request.protocol === "https" ? "https" : "http",
+    );
     const dataUrl = await roomQrCodeDataUrl(url);
     return { url, dataUrl };
   });
