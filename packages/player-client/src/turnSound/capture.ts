@@ -224,7 +224,7 @@ export function reduceCapture<Take>(
         matchesSession(state, event.sessionId)
       ) {
         return {
-          state: idle(state.sessionId, state.playbackId),
+          state: idle(state.sessionId, state.playbackId, "hold-to-record"),
           effects: [{ type: "discard", sessionId: event.sessionId }],
         };
       }

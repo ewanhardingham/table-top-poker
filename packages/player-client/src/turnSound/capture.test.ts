@@ -225,7 +225,10 @@ describe("createCaptureMachine", () => {
     resolveStart(delayed);
     await Promise.resolve();
 
-    expect(machine.state.phase).toBe("idle");
+    expect(machine.state).toMatchObject({
+      phase: "idle",
+      hint: "hold-to-record",
+    });
     expect(delayed.discard).toHaveBeenCalledOnce();
   });
 });
