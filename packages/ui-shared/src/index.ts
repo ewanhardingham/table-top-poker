@@ -41,7 +41,14 @@ export type { ShotClockProps, ShotClockVariant } from "./ShotClock.js";
 export {
   applyRoomSoundSettings,
   onHandUpdate,
+  playAudioBuffer,
   playRevealFlip,
   unlockAudio,
 } from "./sound/webAudio.js";
-export type { HandUpdateArgs, Surface } from "./sound/webAudio.js";
+export type {
+  HandUpdateArgs,
+  PlaybackHandle,
+  PlaybackOptions,
+  SoundSource,
+  Surface,
+} from "./sound/webAudio.js";

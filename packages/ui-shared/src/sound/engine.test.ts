@@ -5,9 +5,14 @@ import type {
   SoundSettings,
   TableView,
 } from "@table-top-poker/protocol";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { CueName } from "./cues.js";
-import { createSoundEngine, type SoundEngine, TIMINGS } from "./engine.js";
+import {
+  createSoundEngine,
+  type PlaybackHandle,
+  type SoundEngine,
+  TIMINGS,
+} from "./engine.js";
 
 const ALL_ON: SoundSettings = {
   sounds: true,
@@ -22,16 +27,24 @@ const pair = (): [Card, Card] => [CARD, CARD];
 function rig(settings: SoundSettings = ALL_ON): {
   engine: SoundEngine;
   played: CueName[];
+  playbacks: PlaybackHandle[];
   scheduled: { fn: () => void; delayMs: number }[];
   setNow: (t: number) => void;
   flush: () => void;
 } {
   const played: CueName[] = [];
+  const playbacks: PlaybackHandle[] = [];
   const scheduled: { fn: () => void; delayMs: number }[] = [];
   let clock = 0;
   const engine = createSoundEngine(
     {
-      play: (cue) => played.push(cue),
+      play: (cue) => {
+        if (typeof cue !== "string") throw new Error("unexpected buffer");
+        played.push(cue);
+        const playback = { stop: vi.fn() };
+        playbacks.push(playback);
+        return playback;
+      },
       now: () => clock,
       schedule: (fn, delayMs) => scheduled.push({ fn, delayMs }),
     },
@@ -40,6 +53,7 @@ function rig(settings: SoundSettings = ALL_ON): {
   return {
     engine,
     played,
+    playbacks,
     scheduled,
     setNow: (t) => {
       clock = t;
@@ -419,6 +433,15 @@ describe("reveal/conceal flip", () => {
     r.engine.playRevealFlip();
     r.flush();
     expect(r.played).toEqual(["flip"]);
+  });
+
+  it("returns the playback handle from the effect sink", () => {
+    const r = rig();
+    const playback = r.engine.playRevealFlip();
+
+    expect(playback).toBe(r.playbacks[0]);
+    playback.stop();
+    expect(r.playbacks[0]?.stop).toHaveBeenCalledOnce();
   });
 });
 

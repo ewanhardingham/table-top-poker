@@ -9,6 +9,18 @@ import { type CueName, cueAllowed } from "./cues.js";
 
 export type Surface = "table" | "player";
 
+export interface PlaybackHandle {
+  readonly stop: () => void;
+}
+
+export interface PlaybackOptions {
+  readonly gain?: number;
+  readonly offset?: number;
+  readonly duration?: number;
+}
+
+export type SoundSource = CueName | AudioBuffer;
+
 export interface HandUpdateArgs {
   readonly surface: Surface;
   readonly event: HandEvent;
@@ -17,7 +29,10 @@ export interface HandUpdateArgs {
 }
 
 export interface SoundEffects {
-  readonly play: (cue: CueName) => void;
+  readonly play: (
+    source: SoundSource,
+    options?: PlaybackOptions,
+  ) => PlaybackHandle;
   readonly now: () => number;
   readonly schedule: (fn: () => void, delayMs: number) => void;
 }
@@ -25,7 +40,7 @@ export interface SoundEffects {
 export interface SoundEngine {
   readonly onHandUpdate: (args: HandUpdateArgs) => void;
   readonly applyRoomSoundSettings: (settings: SoundSettings) => void;
-  readonly playRevealFlip: () => void;
+  readonly playRevealFlip: () => PlaybackHandle;
 }
 
 export const TIMINGS = {
@@ -46,9 +61,11 @@ export function createSoundEngine(
   let turnToken = 0;
   let lastHoleCardAt = 0;
   let nextBurnAt = 0;
+  const silentPlayback: PlaybackHandle = { stop: () => undefined };
 
-  function playCue(cue: CueName): void {
-    if (cueAllowed(settings, cue)) effects.play(cue);
+  function playCue(cue: CueName): PlaybackHandle {
+    if (cueAllowed(settings, cue)) return effects.play(cue);
+    return silentPlayback;
   }
 
   function staggeredCue(
@@ -156,8 +173,8 @@ export function createSoundEngine(
     applyRoomSoundSettings(next: SoundSettings): void {
       settings = next;
     },
-    playRevealFlip(): void {
-      playCue("flip");
+    playRevealFlip(): PlaybackHandle {
+      return playCue("flip");
     },
   };
 }

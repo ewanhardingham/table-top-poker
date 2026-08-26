@@ -3,6 +3,9 @@ import { CUE_FILES, CUE_NAMES, type CueName } from "./cues.js";
 import {
   createSoundEngine,
   type HandUpdateArgs,
+  type PlaybackHandle,
+  type PlaybackOptions,
+  type SoundSource,
   type SoundEngine,
 } from "./engine.js";
 import { realClock } from "./realClock.js";
@@ -27,6 +30,8 @@ function audioAvailable(): boolean {
   return typeof AudioContext !== "undefined";
 }
 
+const silentPlayback: PlaybackHandle = { stop: () => undefined };
+
 async function loadBuffer(cue: CueName): Promise<AudioBuffer | undefined> {
   const cached = buffers.get(cue);
   if (cached) return cached;
@@ -44,24 +49,87 @@ async function loadBuffer(cue: CueName): Promise<AudioBuffer | undefined> {
   }
 }
 
-function playCueSound(cue: CueName): void {
-  if (!audioAvailable()) return;
+function startBuffer(
+  buffer: AudioBuffer,
+  options: PlaybackOptions = {},
+): PlaybackHandle {
+  const c = context();
+  const source = c.createBufferSource();
+  const gain = c.createGain();
+  let finished = false;
+
+  source.buffer = buffer;
+  gain.gain.value = options.gain ?? 1;
+  source.connect(gain);
+  gain.connect(c.destination);
+  source.onended = () => {
+    finished = true;
+  };
+
+  if (options.duration === undefined) {
+    if (options.offset === undefined) source.start();
+    else source.start(0, options.offset);
+  } else {
+    source.start(0, options.offset ?? 0, options.duration);
+  }
+
+  return {
+    stop(): void {
+      if (finished) return;
+      finished = true;
+      source.stop();
+    },
+  };
+}
+
+function playCueSound(cue: CueName, options?: PlaybackOptions): PlaybackHandle {
+  if (!audioAvailable()) return silentPlayback;
+
+  let stopped = false;
+  let active: PlaybackHandle | undefined;
+  const handle: PlaybackHandle = {
+    stop(): void {
+      stopped = true;
+      active?.stop();
+    },
+  };
+
   void loadBuffer(cue).then((buffer) => {
-    if (!buffer) return;
-    const c = context();
-    const source = c.createBufferSource();
-    source.buffer = buffer;
-    source.connect(c.destination);
-    source.start();
+    if (!buffer || stopped) return;
+    active = startBuffer(buffer, options);
   });
+
+  return handle;
+}
+
+export function playAudioBuffer(
+  buffer: AudioBuffer,
+  options?: PlaybackOptions,
+): PlaybackHandle {
+  if (!audioAvailable()) return silentPlayback;
+  return startBuffer(buffer, options);
+}
+
+function playSound(
+  source: SoundSource,
+  options?: PlaybackOptions,
+): PlaybackHandle {
+  if (typeof source === "string") return playCueSound(source, options);
+  return playAudioBuffer(source, options);
 }
 
 const engine = (soundGlobal.__ttpSoundEngine ??= createSoundEngine({
-  play: playCueSound,
+  play: playSound,
   ...realClock,
 }));
 
-export type { HandUpdateArgs, Surface } from "./engine.js";
+export type {
+  HandUpdateArgs,
+  PlaybackHandle,
+  PlaybackOptions,
+  SoundSource,
+  Surface,
+} from "./engine.js";
 
 export function onHandUpdate(args: HandUpdateArgs): void {
   engine.onHandUpdate(args);
@@ -71,8 +139,8 @@ export function applyRoomSoundSettings(settings: SoundSettings): void {
   engine.applyRoomSoundSettings(settings);
 }
 
-export function playRevealFlip(): void {
-  engine.playRevealFlip();
+export function playRevealFlip(): PlaybackHandle {
+  return engine.playRevealFlip();
 }
 
 export async function unlockAudio(): Promise<void> {

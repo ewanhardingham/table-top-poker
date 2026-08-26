@@ -34,7 +34,9 @@ unit-testable without Web Audio:
   context, so a cue would play through a context the gesture never unlocked.
   `unlockAudio` (idempotent, called from any gesture that might be first) resumes
   the context, arms the iOS workaround, and warm-decodes every cue so the first
-  real cue has no decode gap. Inert without Web Audio (jsdom/SSR).
+  real cue has no decode gap. The same adapter plays a supplied `AudioBuffer`
+  through a gain node with optional offset and duration in seconds, returning a
+  handle that can stop it. Inert without Web Audio (jsdom/SSR).
 - **iOS silent-switch workaround (#178):** the hardware ringer switch mutes Web
   Audio. A silently-looping `HTMLAudioElement` plays through the media channel
   (which the switch doesn't gate), and keeping one active routes Web Audio to
