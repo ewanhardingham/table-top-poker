@@ -21,6 +21,8 @@ import {
   saveSeatToken,
 } from "./storage/seatToken.js";
 import { usePlayerStore } from "./store/store.js";
+import { TurnSoundPrompt } from "./TurnSoundPrompt.js";
+import { microphoneRecordingAvailable } from "./turnSound/browser.js";
 import { useLobbyWebSocket } from "./ws/useLobbyWebSocket.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
@@ -54,6 +56,10 @@ export function App() {
   const [seatToken, setSeatToken] = useState<string | null>(null);
   const [evictionMessage, setEvictionMessage] = useState<string | null>(null);
   const [seatMoveMessage, setSeatMoveMessage] = useState<string | null>(null);
+  const [turnSoundPrompt, setTurnSoundPrompt] = useState(false);
+  const handleTurnSoundDone = useCallback(() => {
+    setTurnSoundPrompt(false);
+  }, []);
 
   useEffect(() => {
     const stored = loadSeatToken(window.localStorage);
@@ -85,6 +91,7 @@ export function App() {
   const dropSeat = useCallback(() => {
     clearSeatToken(window.localStorage);
     setSeatToken(null);
+    setTurnSoundPrompt(false);
     clearSeat();
     clearHand();
   }, [clearSeat, clearHand]);
@@ -175,6 +182,7 @@ export function App() {
         .then((view) => {
           setEvictionMessage(null);
           setSeatMoveMessage(null);
+          setTurnSoundPrompt(false);
           clearHand();
           setRoomView(view);
         })
@@ -201,6 +209,7 @@ export function App() {
             displayName: claim.displayName,
           });
           setSeatToken(claim.token);
+          setTurnSoundPrompt(microphoneRecordingAvailable());
           saveSeatToken(window.localStorage, {
             roomCode,
             seatId: claim.seatId,
@@ -233,6 +242,8 @@ export function App() {
         onClaim={handleClaim}
       />
     );
+  } else if (turnSoundPrompt) {
+    content = <TurnSoundPrompt onDone={handleTurnSoundDone} />;
   } else {
     content = (
       <>

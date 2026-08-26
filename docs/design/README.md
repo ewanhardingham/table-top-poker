@@ -33,5 +33,7 @@ decision graduates to an ADR, trim the note to a pointer.
 - [`replay-layout.md`](replay-layout.md) — the felt's two scales and the
   replay's bands: why the table sizes off the felt rather than the root, how
   the even-gap band was fitted, and the measurements it was fitted to.
+- [`turn-sound.md`](turn-sound.md) — the player's local turn-sound capture
+  flow, pure state machine, and browser adapter (#276).
 - [`clients.md`](clients.md) — player/table client and `ui-shared` notes: the
   audio engine, viewport locking, reconnect, and rendering rationale.
