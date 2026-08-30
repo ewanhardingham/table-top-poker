@@ -13,6 +13,10 @@ export interface StatusBarProps {
   readonly inLiveHand: boolean;
   readonly onToggleSittingOut: () => void;
   readonly onLeave: () => void;
+  readonly turnSoundRecorded: boolean;
+  readonly turnSoundDisabled: boolean;
+  readonly onEditTurnSound: () => void;
+  readonly onRemoveTurnSound: () => void;
   readonly seat: {
     readonly seatId: number;
     readonly displayName?: string | null;
@@ -54,6 +58,10 @@ export function StatusBar({
   inLiveHand,
   onToggleSittingOut,
   onLeave,
+  turnSoundRecorded,
+  turnSoundDisabled,
+  onEditTurnSound,
+  onRemoveTurnSound,
   seat,
 }: StatusBarProps) {
   const tone = badgeTone[connectionStatus];
@@ -139,6 +147,10 @@ export function StatusBar({
             inLiveHand={inLiveHand}
             onToggleSittingOut={onToggleSittingOut}
             onLeave={onLeave}
+            turnSoundRecorded={turnSoundRecorded}
+            turnSoundDisabled={turnSoundDisabled}
+            onEditTurnSound={onEditTurnSound}
+            onRemoveTurnSound={onRemoveTurnSound}
           />
         )}
       </div>

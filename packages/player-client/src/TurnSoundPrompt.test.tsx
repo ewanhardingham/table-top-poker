@@ -6,7 +6,11 @@ import { TurnSoundPrompt } from "./TurnSoundPrompt.js";
 describe("TurnSoundPrompt", () => {
   it("opens with the recording explanation and a skip path", () => {
     const html = renderToStaticMarkup(
-      <TurnSoundPrompt onDone={() => undefined} />,
+      <TurnSoundPrompt
+        onConfirmed={() => undefined}
+        onSkipped={() => undefined}
+        onPermissionDenied={() => undefined}
+      />,
     );
 
     expect(html).toContain('data-testid="turn-sound-prompt"');

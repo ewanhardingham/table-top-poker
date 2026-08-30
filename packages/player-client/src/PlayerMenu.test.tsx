@@ -12,6 +12,10 @@ const bodyHandlers = {
   onStartConfirm: noop,
   onCancelConfirm: noop,
   onConfirmLeave: noop,
+  turnSoundRecorded: false,
+  turnSoundDisabled: false,
+  onEditTurnSound: noop,
+  onRemoveTurnSound: noop,
 } as const;
 
 describe("PlayerMenu", () => {
@@ -23,6 +27,10 @@ describe("PlayerMenu", () => {
         inLiveHand={false}
         onToggleSittingOut={noop}
         onLeave={noop}
+        turnSoundRecorded={false}
+        turnSoundDisabled={false}
+        onEditTurnSound={noop}
+        onRemoveTurnSound={noop}
       />,
     );
 
@@ -72,6 +80,48 @@ describe("MenuBody", () => {
     expect(html).toContain('data-testid="player-card-back-settings"');
     expect(html.match(/data-testid="card-back-option-/g)).toHaveLength(9);
     expect(html).toContain("this device only");
+  });
+
+  it("offers recording, re-recording and removal from the device-only menu", () => {
+    const empty = renderToStaticMarkup(
+      <MenuBody
+        sittingOut={false}
+        sitOutDisabled={false}
+        inLiveHand={false}
+        confirmingLeave={false}
+        {...bodyHandlers}
+      />,
+    );
+    const recorded = renderToStaticMarkup(
+      <MenuBody
+        sittingOut={false}
+        sitOutDisabled={false}
+        inLiveHand={false}
+        confirmingLeave={false}
+        {...bodyHandlers}
+        turnSoundRecorded
+      />,
+    );
+
+    expect(empty).toContain("Record a turn sound");
+    expect(empty).not.toContain('data-testid="menu-remove-turn-sound"');
+    expect(recorded).toContain("Record again");
+    expect(recorded).toContain('data-testid="menu-remove-turn-sound"');
+    expect(recorded).toContain("Stored on this device only");
+  });
+
+  it("disables recording after microphone permission is denied", () => {
+    const html = renderToStaticMarkup(
+      <MenuBody
+        sittingOut={false}
+        sitOutDisabled={false}
+        inLiveHand={false}
+        confirmingLeave={false}
+        {...bodyHandlers}
+        turnSoundDisabled
+      />,
+    );
+    expect(html).toMatch(/data-testid="menu-turn-sound"[^>]*disabled/);
   });
 
   it("disables sit out when the socket is down, but never the leave action", () => {

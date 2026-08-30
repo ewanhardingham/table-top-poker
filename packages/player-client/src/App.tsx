@@ -1,6 +1,6 @@
 import type { SeatMove } from "@table-top-poker/protocol";
 import { unlockAudio } from "@table-top-poker/ui-shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionBar } from "./ActionBar.js";
 import { claimSeat, joinRoom, leaveSeat } from "./api/rooms.js";
 import { otherSeatIsAllIn } from "./actions/allIn.js";
@@ -23,6 +23,17 @@ import {
 import { usePlayerStore } from "./store/store.js";
 import { TurnSoundPrompt } from "./TurnSoundPrompt.js";
 import { microphoneRecordingAvailable } from "./turnSound/browser.js";
+import {
+  playbackValues,
+  type RecordedTurnSoundTake,
+  type TurnSoundPlayback,
+} from "./turnSound/model.js";
+import {
+  clearTurnSoundChoice,
+  loadTurnSoundChoice,
+  saveRecordedTurnSound,
+  saveTurnSoundChoice,
+} from "./turnSound/storage.js";
 import { useLobbyWebSocket } from "./ws/useLobbyWebSocket.js";
 import { useWebSocket } from "./ws/useWebSocket.js";
 
@@ -57,15 +68,18 @@ export function App() {
   const [evictionMessage, setEvictionMessage] = useState<string | null>(null);
   const [seatMoveMessage, setSeatMoveMessage] = useState<string | null>(null);
   const [turnSoundPrompt, setTurnSoundPrompt] = useState(false);
-  const handleTurnSoundDone = useCallback(() => {
-    setTurnSoundPrompt(false);
-  }, []);
+  const [turnSound, setTurnSound] = useState<TurnSoundPlayback | null>(null);
+  const [turnSoundChoice, setTurnSoundChoice] = useState<
+    "none" | "skipped" | "permission-denied" | "recorded"
+  >("none");
+  const claimGeneration = useRef(0);
 
   useEffect(() => {
     const stored = loadSeatToken(window.localStorage);
     if (stored === null) return;
     joinRoom(stored.roomCode)
       .then((view) => {
+        const generation = claimGeneration.current;
         setEvictionMessage(null);
         setRoomView(view);
         const seat = view.seats.find((s) => s.id === stored.seatId);
@@ -76,8 +90,29 @@ export function App() {
           displayName: seat?.displayName ?? stored.displayName ?? null,
         });
         setSeatToken(stored.token);
+        void loadTurnSoundChoice(
+          window.localStorage,
+          stored.roomCode,
+          async (bytes) => {
+            const audioContext = new AudioContext();
+            try {
+              return await audioContext.decodeAudioData(bytes);
+            } finally {
+              await audioContext.close();
+            }
+          },
+        ).then((choice) => {
+          if (generation !== claimGeneration.current) return;
+          if (choice === null) {
+            setTurnSoundPrompt(microphoneRecordingAvailable());
+            return;
+          }
+          setTurnSoundChoice(choice.type);
+          if (choice.type === "recorded") setTurnSound(choice.playback);
+        });
       })
       .catch(() => {
+        clearTurnSoundChoice(window.localStorage, stored.roomCode);
         clearSeatToken(window.localStorage);
       });
   }, [setRoomView, setSeat]);
@@ -89,12 +124,16 @@ export function App() {
   }, [roomCode]);
 
   const dropSeat = useCallback(() => {
+    claimGeneration.current += 1;
+    if (roomCode !== null) clearTurnSoundChoice(window.localStorage, roomCode);
     clearSeatToken(window.localStorage);
     setSeatToken(null);
     setTurnSoundPrompt(false);
+    setTurnSound(null);
+    setTurnSoundChoice("none");
     clearSeat();
     clearHand();
-  }, [clearSeat, clearHand]);
+  }, [clearSeat, clearHand, roomCode]);
 
   const handleRejected = useCallback(() => {
     dropSeat();
@@ -209,7 +248,9 @@ export function App() {
             displayName: claim.displayName,
           });
           setSeatToken(claim.token);
-          setTurnSoundPrompt(microphoneRecordingAvailable());
+          setTurnSoundPrompt(
+            turnSoundChoice === "none" && microphoneRecordingAvailable(),
+          );
           saveSeatToken(window.localStorage, {
             roomCode,
             seatId: claim.seatId,
@@ -221,8 +262,51 @@ export function App() {
           setClaimError(claimErrorCode(error));
         });
     },
-    [roomCode, setSeat],
+    [roomCode, setSeat, turnSoundChoice],
   );
+
+  const handleTurnSoundConfirmed = useCallback(
+    (take: RecordedTurnSoundTake) => {
+      if (roomCode === null) return;
+      const generation = claimGeneration.current;
+      const values = playbackValues(take.buffer);
+      setTurnSound({ buffer: take.buffer, ...values });
+      setTurnSoundChoice("recorded");
+      setTurnSoundPrompt(false);
+      void saveRecordedTurnSound(
+        window.localStorage,
+        roomCode,
+        take,
+        values,
+        () => generation === claimGeneration.current,
+      ).catch(() => undefined);
+    },
+    [roomCode],
+  );
+
+  const handleTurnSoundSkipped = useCallback(() => {
+    if (roomCode !== null) {
+      saveTurnSoundChoice(window.localStorage, roomCode, { type: "skipped" });
+    }
+    setTurnSound(null);
+    setTurnSoundChoice("skipped");
+    setTurnSoundPrompt(false);
+  }, [roomCode]);
+
+  const handleTurnSoundPermissionDenied = useCallback(() => {
+    if (roomCode !== null) {
+      saveTurnSoundChoice(window.localStorage, roomCode, {
+        type: "permission-denied",
+      });
+    }
+    setTurnSound(null);
+    setTurnSoundChoice("permission-denied");
+    setTurnSoundPrompt(false);
+  }, [roomCode]);
+
+  const handleRemoveTurnSound = useCallback(() => {
+    handleTurnSoundSkipped();
+  }, [handleTurnSoundSkipped]);
 
   let content;
   if (roomCode === null) {
@@ -243,7 +327,13 @@ export function App() {
       />
     );
   } else if (turnSoundPrompt) {
-    content = <TurnSoundPrompt onDone={handleTurnSoundDone} />;
+    content = (
+      <TurnSoundPrompt
+        onConfirmed={handleTurnSoundConfirmed}
+        onSkipped={handleTurnSoundSkipped}
+        onPermissionDenied={handleTurnSoundPermissionDenied}
+      />
+    );
   } else {
     content = (
       <>
@@ -284,6 +374,15 @@ export function App() {
         inLiveHand={inLiveHand}
         onToggleSittingOut={handleToggleSittingOut}
         onLeave={handleLeave}
+        turnSoundRecorded={turnSound !== null}
+        turnSoundDisabled={
+          turnSoundChoice === "permission-denied" ||
+          !microphoneRecordingAvailable()
+        }
+        onEditTurnSound={() => {
+          setTurnSoundPrompt(true);
+        }}
+        onRemoveTurnSound={handleRemoveTurnSound}
         seat={
           playerSeat
             ? {

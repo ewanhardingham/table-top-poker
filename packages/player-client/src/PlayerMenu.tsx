@@ -15,6 +15,10 @@ export interface PlayerMenuProps {
   readonly inLiveHand: boolean;
   readonly onToggleSittingOut: () => void;
   readonly onLeave: () => void;
+  readonly turnSoundRecorded: boolean;
+  readonly turnSoundDisabled: boolean;
+  readonly onEditTurnSound: () => void;
+  readonly onRemoveTurnSound: () => void;
 }
 
 export function leaveConfirmMessage(inLiveHand: boolean): string {
@@ -29,6 +33,10 @@ export function PlayerMenu({
   inLiveHand,
   onToggleSittingOut,
   onLeave,
+  turnSoundRecorded,
+  turnSoundDisabled,
+  onEditTurnSound,
+  onRemoveTurnSound,
 }: PlayerMenuProps) {
   const [open, setOpen] = useState(false);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
@@ -130,6 +138,13 @@ export function PlayerMenu({
                   setConfirmingLeave(false);
                 }}
                 onConfirmLeave={onLeave}
+                turnSoundRecorded={turnSoundRecorded}
+                turnSoundDisabled={turnSoundDisabled}
+                onEditTurnSound={() => {
+                  onEditTurnSound();
+                  close();
+                }}
+                onRemoveTurnSound={onRemoveTurnSound}
               />
             </motion.div>
           </motion.div>
@@ -149,6 +164,10 @@ export interface MenuBodyProps {
   readonly onStartConfirm: () => void;
   readonly onCancelConfirm: () => void;
   readonly onConfirmLeave: () => void;
+  readonly turnSoundRecorded: boolean;
+  readonly turnSoundDisabled: boolean;
+  readonly onEditTurnSound: () => void;
+  readonly onRemoveTurnSound: () => void;
 }
 
 export function MenuBody({
@@ -161,6 +180,10 @@ export function MenuBody({
   onStartConfirm,
   onCancelConfirm,
   onConfirmLeave,
+  turnSoundRecorded,
+  turnSoundDisabled,
+  onEditTurnSound,
+  onRemoveTurnSound,
 }: MenuBodyProps) {
   return (
     <>
@@ -228,6 +251,46 @@ export function MenuBody({
           </span>
         </div>
         <CardBackPicker />
+      </section>
+
+      <div style={{ height: 1, background: color.border, margin: "2px 0" }} />
+
+      <section
+        data-testid="player-turn-sound-settings"
+        style={{ display: "flex", flexDirection: "column", gap: 10 }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontSize: fontSize.md, fontWeight: 600 }}>
+            Turn sound
+          </span>
+          <span style={{ color: color.textDim, fontSize: fontSize.sm }}>
+            Stored on this device only.
+          </span>
+        </div>
+        <button
+          type="button"
+          data-testid="menu-turn-sound"
+          disabled={turnSoundDisabled}
+          onClick={onEditTurnSound}
+          style={{
+            ...itemStyle,
+            ...(turnSoundDisabled
+              ? { color: color.disabledText, cursor: "default" }
+              : {}),
+          }}
+        >
+          {turnSoundRecorded ? "Record again" : "Record a turn sound"}
+        </button>
+        {turnSoundRecorded && (
+          <button
+            type="button"
+            data-testid="menu-remove-turn-sound"
+            onClick={onRemoveTurnSound}
+            style={itemStyle}
+          >
+            Remove turn sound
+          </button>
+        )}
       </section>
 
       <div style={{ height: 1, background: color.border, margin: "2px 0" }} />

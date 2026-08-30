@@ -9,6 +9,10 @@ const handlers = {
   inLiveHand: false,
   onToggleSittingOut: noop,
   onLeave: noop,
+  turnSoundRecorded: false,
+  turnSoundDisabled: false,
+  onEditTurnSound: noop,
+  onRemoveTurnSound: noop,
 } as const;
 
 const seated = {

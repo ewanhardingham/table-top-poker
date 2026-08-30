@@ -24,9 +24,12 @@ import {
   microphoneRecordingAvailable,
   requestMicrophonePermission,
 } from "./turnSound/browser.js";
+import type { RecordedTurnSoundTake } from "./turnSound/model.js";
 
 export interface TurnSoundPromptProps {
-  readonly onDone: () => void;
+  readonly onConfirmed: (take: RecordedTurnSoundTake) => void;
+  readonly onSkipped: () => void;
+  readonly onPermissionDenied: () => void;
 }
 
 type PermissionState = "requesting" | "granted";
@@ -159,7 +162,7 @@ function durationLabel(durationMs: number): string {
   return `${(durationMs / 1000).toFixed(1)}s / 3.0s`;
 }
 
-function stateProgress(state: CaptureState<AudioBuffer>): number {
+function stateProgress(state: CaptureState<RecordedTurnSoundTake>): number {
   if (state.phase === "recording") {
     return clampProgress(state.elapsedMs / MAX_RECORDING_MS);
   }
@@ -169,15 +172,19 @@ function stateProgress(state: CaptureState<AudioBuffer>): number {
   return 0;
 }
 
-export function TurnSoundPrompt({ onDone }: TurnSoundPromptProps) {
+export function TurnSoundPrompt({
+  onConfirmed,
+  onSkipped,
+  onPermissionDenied,
+}: TurnSoundPromptProps) {
   const [permission, setPermission] = useState<PermissionState>("requesting");
-  const onDoneRef = useRef(onDone);
-  onDoneRef.current = onDone;
+  const onConfirmedRef = useRef(onConfirmed);
+  onConfirmedRef.current = onConfirmed;
 
   useEffect(() => {
     let active = true;
     if (!microphoneRecordingAvailable()) {
-      onDone();
+      onPermissionDenied();
       return () => {
         active = false;
       };
@@ -188,19 +195,19 @@ export function TurnSoundPrompt({ onDone }: TurnSoundPromptProps) {
         if (active) setPermission("granted");
       },
       () => {
-        if (active) onDone();
+        if (active) onPermissionDenied();
       },
     );
     return () => {
       active = false;
     };
-  }, [onDone]);
+  }, [onPermissionDenied]);
 
   const effects = useMemo(
     () =>
       permission === "granted"
-        ? createBrowserCaptureEffects(() => {
-            onDoneRef.current();
+        ? createBrowserCaptureEffects((take) => {
+            onConfirmedRef.current(take);
           })
         : null,
     [permission],
@@ -210,7 +217,7 @@ export function TurnSoundPrompt({ onDone }: TurnSoundPromptProps) {
     [effects],
   );
   const [captureState, setCaptureState] =
-    useState<CaptureState<AudioBuffer> | null>(null);
+    useState<CaptureState<RecordedTurnSoundTake> | null>(null);
 
   useEffect(() => {
     if (machine === null) return;
@@ -234,7 +241,9 @@ export function TurnSoundPrompt({ onDone }: TurnSoundPromptProps) {
   }, [machine]);
 
   const state =
-    captureState ?? machine?.state ?? initialCaptureState<AudioBuffer>();
+    captureState ??
+    machine?.state ??
+    initialCaptureState<RecordedTurnSoundTake>();
   const pointerId = useRef<number | null>(null);
   const progress = stateProgress(state);
   const recordingState = state.phase === "recording" ? state : null;
@@ -255,7 +264,7 @@ export function TurnSoundPrompt({ onDone }: TurnSoundPromptProps) {
 
   const skip = (): void => {
     machine?.cancel();
-    onDone();
+    onSkipped();
   };
 
   const pointerDown = (event: React.PointerEvent<HTMLButtonElement>): void => {

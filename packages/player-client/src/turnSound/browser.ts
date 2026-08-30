@@ -6,6 +6,7 @@ import {
   type CaptureEffects,
   type CaptureRecordingSession,
 } from "./capture.js";
+import type { RecordedTurnSoundTake } from "./model.js";
 
 type GetUserMedia = (
   constraints: MediaStreamConstraints,
@@ -64,7 +65,7 @@ function levelFrom(samples: Uint8Array): number {
 
 export async function startBrowserRecording(
   onLevel: (level: number) => void,
-): Promise<CaptureRecordingSession<AudioBuffer>> {
+): Promise<CaptureRecordingSession<RecordedTurnSoundTake>> {
   if (!microphoneRecordingAvailable()) {
     throw new Error("microphone recording is unavailable");
   }
@@ -147,11 +148,11 @@ export async function startBrowserRecording(
       await audioContext.close();
     };
 
-    let stopPromise: Promise<AudioBuffer> | null = null;
+    let stopPromise: Promise<RecordedTurnSoundTake> | null = null;
     let discarded = false;
 
     return {
-      stop(): Promise<AudioBuffer> {
+      stop(): Promise<RecordedTurnSoundTake> {
         if (stopPromise !== null) return stopPromise;
         if (discarded) {
           return Promise.reject(new Error("recording was discarded"));
@@ -161,7 +162,12 @@ export async function startBrowserRecording(
           try {
             if (recorder?.state !== "inactive") recorder?.stop();
             const blob = await data;
-            return await audioContext.decodeAudioData(await blob.arrayBuffer());
+            return {
+              audio: blob,
+              buffer: await audioContext.decodeAudioData(
+                await blob.arrayBuffer(),
+              ),
+            };
           } finally {
             await closeContext().catch(() => undefined);
           }
@@ -186,8 +192,8 @@ export async function startBrowserRecording(
 }
 
 export function createBrowserCaptureEffects(
-  onConfirm: (take: AudioBuffer) => void,
-): CaptureEffects<AudioBuffer> {
+  onConfirm: (take: RecordedTurnSoundTake) => void,
+): CaptureEffects<RecordedTurnSoundTake> {
   return {
     now: () => performance.now(),
     schedule: (fn, delayMs) => {
@@ -197,12 +203,12 @@ export function createBrowserCaptureEffects(
       };
     },
     start: startBrowserRecording,
-    play: (buffer, onEnded): PlaybackHandle => {
-      const playback = playAudioBuffer(buffer);
+    play: (take, onEnded): PlaybackHandle => {
+      const playback = playAudioBuffer(take.buffer);
       let stopped = false;
       const timer = window.setTimeout(
         onEnded,
-        Math.max(0, buffer.duration * 1000),
+        Math.max(0, take.buffer.duration * 1000),
       );
       return {
         stop(): void {
