@@ -4,7 +4,6 @@ import {
   font,
   fontSize,
   radius,
-  shadow,
 } from "@table-top-poker/ui-shared";
 import {
   useEffect,
@@ -13,6 +12,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { InlineError } from "./InlineError.js";
 import {
   createCaptureMachine,
   initialCaptureState,
@@ -40,49 +40,45 @@ const promptStyle: CSSProperties = {
   overflow: "auto",
   display: "flex",
   flexDirection: "column",
-  alignItems: "center",
-  gap: 18,
-  padding: "30px 20px 26px",
-  textAlign: "center",
-};
-
-const kickerStyle: CSSProperties = {
-  color: color.accentBright,
-  fontFamily: font.mono,
-  fontSize: fontSize.xs,
-  fontWeight: 700,
-  letterSpacing: "0.16em",
-  textTransform: "uppercase",
+  gap: 12,
+  padding: "0 22px 26px",
 };
 
 const headingStyle: CSSProperties = {
   margin: 0,
-  color: color.textBright,
+  color: color.text,
   fontFamily: font.display,
-  fontSize: fontSize.xl,
-  lineHeight: 1.1,
+  fontSize: fontSize.lg,
+  fontWeight: 800,
+  lineHeight: 1.15,
 };
 
 const descriptionStyle: CSSProperties = {
-  maxWidth: 350,
   margin: 0,
-  color: color.textMuted,
   fontSize: fontSize.md,
   lineHeight: 1.5,
+  color: color.textMuted,
+};
+
+const subStyle: CSSProperties = {
+  fontFamily: font.mono,
+  fontSize: fontSize.xs,
+  letterSpacing: "0.14em",
+  textTransform: "uppercase",
+  color: color.textDim,
+  lineHeight: 1.1,
 };
 
 const stageStyle: CSSProperties = {
-  width: "100%",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
   gap: 12,
-  marginTop: 8,
+  padding: "6px 0",
 };
 
 const meterStyle: CSSProperties = {
   width: "100%",
-  maxWidth: 310,
   height: 10,
   overflow: "hidden",
   border: `1px solid ${color.border}`,
@@ -97,58 +93,47 @@ const meterFillStyle: CSSProperties = {
   transition: "width 80ms linear",
 };
 
-const captionStyle: CSSProperties = {
-  color: color.textDim,
+const durationStyle: CSSProperties = {
   fontFamily: font.mono,
   fontSize: fontSize.sm,
   letterSpacing: "0.04em",
-};
-
-const hintStyle: CSSProperties = {
-  maxWidth: 310,
-  padding: "10px 14px",
-  border: `1px solid ${color.lossBorder}`,
-  borderRadius: radius.control,
-  background: color.lossBackground,
-  color: color.textBright,
-  fontSize: fontSize.caption,
-  lineHeight: 1.4,
+  color: color.textDim,
 };
 
 const actionsStyle: CSSProperties = {
-  width: "100%",
-  maxWidth: 340,
   display: "flex",
   flexDirection: "column",
   gap: 10,
-  marginTop: 4,
+  padding: "15px 16px 16px",
+  border: `1px solid ${color.accentBorder}`,
+  borderRadius: radius.control,
+  background: color.accentWash,
 };
 
 function ringStyle(progress: number): CSSProperties {
   return {
-    width: 174,
-    height: 174,
+    width: "min(174px, 60%)",
+    aspectRatio: "1",
     padding: 6,
-    borderRadius: "50%",
+    borderRadius: radius.pill,
     background: `conic-gradient(${color.accentBright} ${String(
       progress * 360,
-    )}deg, rgba(255,255,255,.1) 0deg)`,
-    boxShadow: `0 0 0 1px ${color.border}, 0 20px 50px -24px ${color.accent}`,
+    )}deg, ${color.border} 0deg)`,
+    boxShadow: `0 0 0 1px ${color.border}`,
   };
 }
 
 const recordButtonStyle: CSSProperties = {
   width: "100%",
   height: "100%",
-  border: `1px solid ${color.borderStrong}`,
-  borderRadius: "50%",
-  background: "radial-gradient(circle at 50% 36%, #3b171b, #16090b 72%)",
-  color: color.textBright,
-  fontFamily: font.display,
-  fontSize: fontSize.lg,
+  border: `1px solid ${color.accentBorder}`,
+  borderRadius: radius.pill,
+  background: color.surfaceGradient,
+  color: color.text,
+  fontFamily: font.body,
+  fontSize: fontSize.md,
   fontWeight: 700,
-  lineHeight: 1.1,
-  boxShadow: shadow.pill,
+  lineHeight: 1.2,
   cursor: "pointer",
   touchAction: "none",
   userSelect: "none",
@@ -293,16 +278,15 @@ export function TurnSoundPrompt({
 
   return (
     <section data-testid="turn-sound-prompt" style={promptStyle}>
-      <div style={kickerStyle}>Before you join the table</div>
       <h1 style={headingStyle}>Make your turn sound</h1>
       <p style={descriptionStyle}>
-        Hold the microphone button while you record. We&apos;ll play it back so
-        you can try again or keep it.
+        Hold the button while you record. The table plays it back when it&apos;s
+        your turn, and you can listen before you keep it.
       </p>
 
       {permission === "requesting" ? (
         <div data-testid="turn-sound-permission" style={stageStyle}>
-          <div style={captionStyle}>Setting up the microphone…</div>
+          <div style={subStyle}>Setting up the microphone</div>
         </div>
       ) : (
         <>
@@ -325,7 +309,11 @@ export function TurnSoundPrompt({
                 onPointerUp={pointerUp}
                 onPointerCancel={pointerCancelled}
                 onLostPointerCapture={pointerCancelled}
-                style={recordButtonStyle}
+                style={{
+                  ...recordButtonStyle,
+                  opacity: recordButtonDisabled ? 0.45 : 1,
+                  cursor: recordButtonDisabled ? "not-allowed" : "pointer",
+                }}
               >
                 {buttonLabel}
               </button>
@@ -343,7 +331,7 @@ export function TurnSoundPrompt({
                 style={{ ...meterFillStyle, width: `${String(level * 100)}%` }}
               />
             </div>
-            <div data-testid="turn-sound-progress" style={captionStyle}>
+            <div data-testid="turn-sound-progress" style={durationStyle}>
               {recordingState
                 ? durationLabel(recordingState.elapsedMs)
                 : reviewingState
@@ -353,26 +341,30 @@ export function TurnSoundPrompt({
           </div>
 
           {state.phase === "idle" && state.hint !== null && (
-            <div data-testid="turn-sound-hint" style={hintStyle}>
-              {state.hint === "hold-to-record"
-                ? "Hold to record a little longer."
-                : "We couldn't prepare that recording. Try again."}
-            </div>
+            <InlineError
+              testId="turn-sound-hint"
+              message={
+                state.hint === "hold-to-record"
+                  ? "Hold to record a little longer."
+                  : "We couldn't prepare that recording. Try again."
+              }
+            />
           )}
 
           {reviewingState !== null && !reviewingState.audible && (
-            <div data-testid="turn-sound-silence" style={hintStyle}>
-              We couldn&apos;t hear that. Try recording again.
-            </div>
+            <InlineError
+              testId="turn-sound-silence"
+              message="We couldn't hear that. Try recording again."
+            />
           )}
 
           {reviewingState !== null && (
             <div data-testid="turn-sound-review" style={actionsStyle}>
-              <div style={captionStyle}>
+              <span style={subStyle}>
                 {reviewingState.playing
-                  ? "Playing your take…"
-                  : "Listen back before you confirm."}
-              </div>
+                  ? "Playing your take"
+                  : "Listen back before you confirm"}
+              </span>
               <PillButton
                 data-testid="turn-sound-replay"
                 size="md"
@@ -395,7 +387,7 @@ export function TurnSoundPrompt({
               </PillButton>
               <PillButton
                 data-testid="turn-sound-confirm"
-                size="md"
+                size="lg"
                 disabled={!reviewingState.audible}
                 onClick={() => {
                   machine?.confirm();
