@@ -311,8 +311,9 @@ export function TurnSoundPrompt({
                 onLostPointerCapture={pointerCancelled}
                 style={{
                   ...recordButtonStyle,
-                  opacity: recordButtonDisabled ? 0.45 : 1,
-                  cursor: recordButtonDisabled ? "not-allowed" : "pointer",
+                  ...(recordButtonDisabled
+                    ? { color: color.disabledText, cursor: "default" }
+                    : {}),
                 }}
               >
                 {buttonLabel}
@@ -405,6 +406,7 @@ export function TurnSoundPrompt({
         tone="outline"
         size="md"
         onClick={skip}
+        style={{ marginTop: "auto" }}
       >
         Skip — use the standard sound
       </PillButton>
