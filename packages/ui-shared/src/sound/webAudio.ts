@@ -139,6 +139,13 @@ export function applyRoomSoundSettings(settings: SoundSettings): void {
   engine.applyRoomSoundSettings(settings);
 }
 
+export function setPlayerTurnSound(
+  buffer: AudioBuffer | null,
+  options?: PlaybackOptions,
+): void {
+  engine.setPlayerTurnSound(buffer, options);
+}
+
 export function playRevealFlip(): PlaybackHandle {
   return engine.playRevealFlip();
 }

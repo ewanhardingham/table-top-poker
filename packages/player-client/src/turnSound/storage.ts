@@ -80,10 +80,17 @@ export async function loadTurnSoundChoice(
     )
       return null;
     const bytes = base64ToBytes(record.audio);
+    let buffer: AudioBuffer;
+    try {
+      buffer = await decode(bytes.buffer);
+    } catch {
+      storage.removeItem(key(roomCode));
+      return null;
+    }
     return {
       type: "recorded",
       playback: {
-        buffer: await decode(bytes.buffer),
+        buffer,
         gain: record.gain,
         offset: record.offset,
         duration: record.duration,

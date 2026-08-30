@@ -6,11 +6,12 @@ import type {
   TableView,
 } from "@table-top-poker/protocol";
 import { describe, expect, it, vi } from "vitest";
-import type { CueName } from "./cues.js";
 import {
   createSoundEngine,
   type PlaybackHandle,
+  type PlaybackOptions,
   type SoundEngine,
+  type SoundSource,
   TIMINGS,
 } from "./engine.js";
 
@@ -26,21 +27,23 @@ const pair = (): [Card, Card] => [CARD, CARD];
 
 function rig(settings: SoundSettings = ALL_ON): {
   engine: SoundEngine;
-  played: CueName[];
+  played: SoundSource[];
+  playbackOptions: (PlaybackOptions | undefined)[];
   playbacks: PlaybackHandle[];
   scheduled: { fn: () => void; delayMs: number }[];
   setNow: (t: number) => void;
   flush: () => void;
 } {
-  const played: CueName[] = [];
+  const played: SoundSource[] = [];
+  const playbackOptions: (PlaybackOptions | undefined)[] = [];
   const playbacks: PlaybackHandle[] = [];
   const scheduled: { fn: () => void; delayMs: number }[] = [];
   let clock = 0;
   const engine = createSoundEngine(
     {
-      play: (cue) => {
-        if (typeof cue !== "string") throw new Error("unexpected buffer");
-        played.push(cue);
+      play: (source, options) => {
+        played.push(source);
+        playbackOptions.push(options);
         const playback = { stop: vi.fn() };
         playbacks.push(playback);
         return playback;
@@ -53,6 +56,7 @@ function rig(settings: SoundSettings = ALL_ON): {
   return {
     engine,
     played,
+    playbackOptions,
     playbacks,
     scheduled,
     setNow: (t) => {
@@ -413,6 +417,20 @@ describe("room-settings gate", () => {
     expect(r.played).toEqual([]);
   });
 
+  it("silences a recorded turn prompt when notifications is off", () => {
+    const r = rig({ ...ALL_ON, notifications: false });
+    r.engine.setPlayerTurnSound({} as AudioBuffer);
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: boardDealt("flop", 3),
+      view: bettingView(true),
+    });
+    r.flush();
+
+    expect(r.played).toEqual([]);
+  });
+
   it("applies a live room-settings change to the gate", () => {
     const r = rig(ALL_ON);
     r.engine.applyRoomSoundSettings({
@@ -446,6 +464,60 @@ describe("reveal/conceal flip", () => {
 });
 
 describe("your-turn prompt", () => {
+  it("uses the player's prepared recording with its stored playback values", () => {
+    const r = rig();
+    const buffer = {} as AudioBuffer;
+    const options = { gain: 2, offset: 0.1, duration: 0.7 };
+    r.engine.setPlayerTurnSound(buffer, options);
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: { type: "StreetStarted", street: "preflop", actor: 0 },
+      view: bettingView(true),
+    });
+    r.flush();
+
+    expect(r.played).toEqual([buffer]);
+    expect(r.playbackOptions).toEqual([options]);
+  });
+
+  it("stops a recorded cue as soon as the turn ends", () => {
+    const r = rig();
+    r.engine.setPlayerTurnSound({} as AudioBuffer);
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: { type: "StreetStarted", street: "preflop", actor: 0 },
+      view: bettingView(true),
+    });
+    r.flush();
+    const playback = r.playbacks[0];
+
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: actionTaken(0, "check"),
+      view: bettingView(false),
+    });
+
+    expect(playback?.stop).toHaveBeenCalledOnce();
+  });
+
+  it("falls back to the standard cue after the recording is removed", () => {
+    const r = rig();
+    r.engine.setPlayerTurnSound({} as AudioBuffer);
+    r.engine.setPlayerTurnSound(null);
+    r.engine.onHandUpdate({
+      surface: "player",
+      seatId: 0,
+      event: { type: "StreetStarted", street: "preflop", actor: 0 },
+      view: bettingView(true),
+    });
+    r.flush();
+
+    expect(r.played).toEqual(["yourTurn"]);
+  });
+
   it("defers the prompt a beat past the last hole card, then fires it", () => {
     const r = rig();
     r.setNow(0);

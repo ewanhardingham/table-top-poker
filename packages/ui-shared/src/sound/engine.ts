@@ -40,6 +40,10 @@ export interface SoundEffects {
 export interface SoundEngine {
   readonly onHandUpdate: (args: HandUpdateArgs) => void;
   readonly applyRoomSoundSettings: (settings: SoundSettings) => void;
+  readonly setPlayerTurnSound: (
+    buffer: AudioBuffer | null,
+    options?: PlaybackOptions,
+  ) => void;
   readonly playRevealFlip: () => PlaybackHandle;
 }
 
@@ -61,11 +65,28 @@ export function createSoundEngine(
   let turnToken = 0;
   let lastHoleCardAt = 0;
   let nextBurnAt = 0;
+  let playerTurnSound: {
+    buffer: AudioBuffer;
+    options: PlaybackOptions;
+  } | null = null;
+  let activeTurnPlayback: PlaybackHandle | null = null;
   const silentPlayback: PlaybackHandle = { stop: () => undefined };
 
   function playCue(cue: CueName): PlaybackHandle {
     if (cueAllowed(settings, cue)) return effects.play(cue);
     return silentPlayback;
+  }
+
+  function playTurnCue(): void {
+    if (!cueAllowed(settings, "yourTurn")) return;
+    activeTurnPlayback = playerTurnSound
+      ? effects.play(playerTurnSound.buffer, playerTurnSound.options)
+      : effects.play("yourTurn");
+  }
+
+  function stopTurnCue(): void {
+    activeTurnPlayback?.stop();
+    activeTurnPlayback = null;
   }
 
   function staggeredCue(
@@ -154,6 +175,7 @@ export function createSoundEngine(
         "legalActions" in view &&
         view.legalActions.length > 0;
       if (myTurn !== lastMyTurn) turnToken++;
+      if (!myTurn) stopTurnCue();
       if (myTurn && !lastMyTurn) {
         const token = turnToken;
         const wait = Math.max(
@@ -161,7 +183,7 @@ export function createSoundEngine(
           lastHoleCardAt + TIMINGS.turnAfterDealMs - effects.now(),
         );
         effects.schedule(() => {
-          if (token === turnToken) playCue("yourTurn");
+          if (token === turnToken) playTurnCue();
         }, wait);
       }
       lastMyTurn = myTurn;
@@ -172,6 +194,11 @@ export function createSoundEngine(
     onHandUpdate,
     applyRoomSoundSettings(next: SoundSettings): void {
       settings = next;
+      if (!cueAllowed(settings, "yourTurn")) stopTurnCue();
+    },
+    setPlayerTurnSound(buffer, options = {}): void {
+      stopTurnCue();
+      playerTurnSound = buffer === null ? null : { buffer, options };
     },
     playRevealFlip(): PlaybackHandle {
       return playCue("flip");

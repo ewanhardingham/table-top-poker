@@ -43,6 +43,7 @@ export {
   onHandUpdate,
   playAudioBuffer,
   playRevealFlip,
+  setPlayerTurnSound,
   unlockAudio,
 } from "./sound/webAudio.js";
 export type {

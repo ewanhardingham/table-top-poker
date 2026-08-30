@@ -1,5 +1,5 @@
 import type { SeatMove } from "@table-top-poker/protocol";
-import { unlockAudio } from "@table-top-poker/ui-shared";
+import { setPlayerTurnSound, unlockAudio } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActionBar } from "./ActionBar.js";
 import { claimSeat, joinRoom, leaveSeat } from "./api/rooms.js";
@@ -73,6 +73,21 @@ export function App() {
     "none" | "skipped" | "permission-denied" | "recorded"
   >("none");
   const claimGeneration = useRef(0);
+
+  useEffect(() => {
+    if (turnSound === null) {
+      setPlayerTurnSound(null);
+      return;
+    }
+    setPlayerTurnSound(turnSound.buffer, {
+      gain: turnSound.gain,
+      offset: turnSound.offset,
+      duration: turnSound.duration,
+    });
+    return () => {
+      setPlayerTurnSound(null);
+    };
+  }, [turnSound]);
 
   useEffect(() => {
     const stored = loadSeatToken(window.localStorage);
