@@ -8,7 +8,11 @@ import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { BurnPile } from "./BurnPile.js";
 import { BOARD_CARD_EM, boardKeys, dealBoard } from "./boardDeal.js";
-import { streetDealDelay } from "./burnPile.js";
+import {
+  ASH_PILE_RIGHT_EM,
+  ASH_PILE_TOP_EM,
+  streetDealDelay,
+} from "./burnPile.js";
 import { seatLabel } from "./seatLabel.js";
 
 export interface BoardProps {
@@ -89,8 +93,8 @@ export function Board({ view, seats = [] }: BoardProps) {
           style={{
             position: "absolute",
             right: "100%",
-            top: 0,
-            marginRight: "1.2em",
+            top: `${String(ASH_PILE_TOP_EM)}em`,
+            marginRight: `${String(ASH_PILE_RIGHT_EM)}em`,
           }}
         >
           <BurnPile count={view.burnedCount} />

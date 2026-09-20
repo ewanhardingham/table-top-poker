@@ -148,7 +148,7 @@ describe("Board", () => {
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(5);
   });
 
-  it("piles one face-down card per burn, never revealing them", () => {
+  it("leaves ash on the felt for each burn, never revealing a card", () => {
     const view: TableView = {
       phase: "betting",
       tabled: [],
@@ -171,7 +171,8 @@ describe("Board", () => {
     const html = renderToStaticMarkup(<Board view={view} />);
 
     expect(html).toMatch(/data-testid="burn-pile"[^>]*data-burned="2"/);
-    expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(2);
+    expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(0);
+    expect(html).toContain('data-testid="burn-ash"');
   });
 
   it("keeps the pile beside the banner when the hand folds out", () => {
@@ -193,7 +194,7 @@ describe("Board", () => {
 
     expect(html).not.toContain('data-testid="hand-complete-banner"');
     expect(html).toMatch(/data-testid="burn-pile"[^>]*data-burned="3"/);
-    expect((html.match(/data-face-down="true"/g) ?? []).length).toBe(3);
+    expect(html).toContain('data-testid="burn-ash"');
     expect((html.match(/data-face-down="false"/g) ?? []).length).toBe(3);
   });
 
