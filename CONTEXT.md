@@ -86,10 +86,10 @@ Board a seed produces. Its identity never leaves the server: the Table is
 told only how many cards have been burned.
 
 **Burn pile**:
-The stack of face-down cards on the Table's felt, left of the Board, holding one
-card per Burn of the current Hand. It is the room's running count of Burns, not
-a place cards are stored: it is drawn from `burnedCount` and clears with the
-Hand.
+The ash on the Table's felt, left of the Board, left by the Burns of the current
+Hand — each burnt card is eaten by fire on screen rather than stacked. It is the
+room's running count of Burns, not a place cards are stored: it is drawn from
+`burnedCount` and clears with the Hand.
 
 **Hole cards**:
 A Player's private two cards, dealt once at the start of a Hand and pushed

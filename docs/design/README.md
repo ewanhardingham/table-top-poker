@@ -27,9 +27,9 @@ decision graduates to an ADR, trim the note to a pointer.
   trust-boundary schema pattern, room-wide settings, seat-state predicates.
 - [`server.md`](server.md) — transport layer: view secrecy/redaction, the
   connection-independent action clock, seat lifecycle, caching, and bots.
-- [`burn-pile.md`](burn-pile.md) — the burn pile's layout and the 700ms the
-  flame has: the budget the board deal waits out, why it peaks late against the
-  cue, and the tuning of the chosen animation.
+- [`burn-pile.md`](burn-pile.md) — the burn pile's layout and the 700ms the fire
+  has: the budget the board deal waits out, why it peaks late against the cue,
+  how the front and the ash share one field, and what runs where WebGL cannot.
 - [`replay-layout.md`](replay-layout.md) — the felt's two scales and the
   replay's bands: why the table sizes off the felt rather than the root, how
   the even-gap band was fitted, and the measurements it was fitted to.
