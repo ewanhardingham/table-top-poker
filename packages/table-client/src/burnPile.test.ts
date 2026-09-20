@@ -9,12 +9,17 @@ import {
   HEAP_MAX_EM,
   ashFootprint,
   burnTiming,
+  burnTransition,
+  clearSpan,
   cueHeat,
+  emptySpan,
   heapIndex,
   heapSurfaceY,
-  justBurntIndex,
+  markSpan,
   phaseProgress,
   raiseHeap,
+  settleFlake,
+  spanRange,
   streetDealDelay,
 } from "./burnPile.js";
 
@@ -112,22 +117,28 @@ describe("phaseProgress", () => {
   });
 });
 
-describe("justBurntIndex", () => {
-  it("names the card to set alight when the count grows", () => {
-    expect(justBurntIndex(1, 0)).toBe(0);
-    expect(justBurntIndex(3, 2)).toBe(2);
+describe("burnTransition", () => {
+  it("sets a card alight when the count steps by one", () => {
+    expect(burnTransition(1, 0)).toBe("burn");
+    expect(burnTransition(3, 2)).toBe("burn");
   });
 
-  it("lights nothing when the count has not moved", () => {
-    expect(justBurntIndex(2, 2)).toBeNull();
+  it("does nothing when the count has not moved", () => {
+    expect(burnTransition(2, 2)).toBe("none");
   });
 
-  it("lights nothing when a fresh hand clears the pile", () => {
-    expect(justBurntIndex(0, 3)).toBeNull();
+  // Burning once for a jump of three would leave one card's worth of ash for
+  // three burns; clearing the felt for a step backwards would show none at all.
+  it("rebuilds the pile when several burns arrive at once", () => {
+    expect(burnTransition(3, 0)).toBe("resettle");
   });
 
-  it("lights only the last of several burns arriving at once", () => {
-    expect(justBurntIndex(3, 0)).toBe(2);
+  it("rebuilds the pile when a seek moves the count backwards", () => {
+    expect(burnTransition(1, 3)).toBe("resettle");
+  });
+
+  it("rebuilds the pile when a fresh hand clears it", () => {
+    expect(burnTransition(0, 3)).toBe("resettle");
   });
 });
 
@@ -199,5 +210,69 @@ describe("the heap", () => {
     const heap = new Float32Array(HEAP_COLUMNS);
     for (let i = 0; i < 10_000; i += 1) raiseHeap(heap, restX);
     expect(heap[heapIndex(restX)]).toBeCloseTo(HEAP_MAX_EM, 5);
+  });
+
+  /**
+   * `tanh` is the identity at `restX`, so a test that only lands ash in the
+   * middle of the pile passes whether or not the squash is applied twice.
+   * These land it where the two disagree.
+   */
+  describe("away from the middle, where the squash bites", () => {
+    const drifted = restX + ASH_HALF_W * 1.2;
+
+    it("settles a flake where the surface was read for it", () => {
+      const heap = new Float32Array(HEAP_COLUMNS);
+      expect(settleFlake(heap, drifted)).toBeCloseTo(ashFootprint(drifted), 5);
+    });
+
+    it("mounds the column a drifting flake actually lands in", () => {
+      const heap = new Float32Array(HEAP_COLUMNS);
+      const felt = heapSurfaceY(heap, drifted);
+      for (let i = 0; i < 200; i += 1) settleFlake(heap, drifted);
+      expect(heapSurfaceY(heap, drifted)).toBeLessThan(felt);
+    });
+
+    // Squashing on the way in raises a column nothing reads back, and leaves
+    // the flake's own column flat: ash off-centre never mounds.
+    it("is not idempotent, so a caller must not footprint first", () => {
+      expect(heapIndex(ashFootprint(drifted))).not.toBe(heapIndex(drifted));
+    });
+  });
+});
+
+describe("the dirty span", () => {
+  it("has nothing to upload until something is touched", () => {
+    expect(spanRange(emptySpan())).toBeNull();
+  });
+
+  /**
+   * The bug this exists to prevent: hundreds of points land in one frame, and
+   * `three` drains an attribute's ranges once per render. Keeping only the last
+   * would leave the rest zero-initialised — sized 0, alpha 0 — and invisible,
+   * with the draw range still counting them.
+   */
+  it("covers every point touched between two uploads", () => {
+    const span = emptySpan();
+    for (const index of [7, 3, 11, 4]) markSpan(span, index);
+    expect(spanRange(span)).toEqual({ start: 3, count: 9 });
+  });
+
+  it("covers a run marked in one go", () => {
+    const span = emptySpan();
+    markSpan(span, 0, 120);
+    expect(spanRange(span)).toEqual({ start: 0, count: 120 });
+  });
+
+  it("ignores an empty run", () => {
+    const span = emptySpan();
+    markSpan(span, 4, 0);
+    expect(spanRange(span)).toBeNull();
+  });
+
+  it("starts over once uploaded", () => {
+    const span = emptySpan();
+    markSpan(span, 5);
+    clearSpan(span);
+    expect(spanRange(span)).toBeNull();
   });
 });

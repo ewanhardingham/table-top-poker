@@ -28,15 +28,19 @@ import {
   ASH_FLOOR_Y,
   ASH_STAGE,
   HEAP_COLUMNS,
-  ashFootprint,
   burnTiming,
+  clearSpan,
   clamp01,
   cueHeat,
   easeOut,
+  emptySpan,
   heapSurfaceY,
+  markSpan,
   phaseProgress,
-  raiseHeap,
+  settleFlake,
+  spanRange,
   type BurnTiming,
+  type DirtySpan,
 } from "./burnPile.js";
 import { dissolveField, fieldAt, fieldToBytes } from "./burnField.js";
 
@@ -241,6 +245,8 @@ interface PointCloud {
   readonly colour: BufferAttribute;
   readonly size: BufferAttribute;
   readonly alpha: BufferAttribute;
+  /** Points touched since the last flush, coalesced into one span. */
+  readonly dirty: DirtySpan;
 }
 
 function makePointCloud(
@@ -275,22 +281,28 @@ function makePointCloud(
     colour,
     size,
     alpha,
+    dirty: emptySpan(),
   };
 }
 
 /** Uploads only the slice that changed, not the whole preallocated buffer. */
-function uploadRange(
-  attribute: BufferAttribute,
-  start: number,
-  count: number,
-): void {
-  if (count <= 0) return;
-  attribute.clearUpdateRanges();
-  attribute.addUpdateRange(
-    start * attribute.itemSize,
-    count * attribute.itemSize,
-  );
-  attribute.needsUpdate = true;
+function flushDirty(cloud: PointCloud): void {
+  const range = spanRange(cloud.dirty);
+  if (!range) return;
+  for (const attribute of [
+    cloud.position,
+    cloud.colour,
+    cloud.size,
+    cloud.alpha,
+  ]) {
+    attribute.clearUpdateRanges();
+    attribute.addUpdateRange(
+      range.start * attribute.itemSize,
+      range.count * attribute.itemSize,
+    );
+    attribute.needsUpdate = true;
+  }
+  clearSpan(cloud.dirty);
 }
 
 export function createAshScene(options: AshSceneOptions): AshScene | null {
@@ -414,24 +426,26 @@ export function createAshScene(options: AshSceneOptions): AshScene | null {
   let clock = 0;
   let timing: BurnTiming = burnTiming();
   let sizeScale = 1;
+  /** Settled ash in em, so a resize can restate it in the new pixel scale. */
+  const ashSizeEm = new Float32Array(MAX_FLAKES);
 
   const emberColour = new Color();
   const ashColour = new Color();
 
   const pushAsh = (x: number, y: number, size: number, seed: number) => {
     if (ashCount >= MAX_FLAKES) return;
-    const settledX = ashFootprint(x);
+    const settledX = settleFlake(heap, x);
     ash.position.setXYZ(ashCount, settledX, worldY(y), 0);
     const tone = 0.2 + seed * 0.14;
     ash.colour.setXYZ(ashCount, tone, tone * 0.96, tone * 0.9);
+    // Kept in em as well as pixels: a resize has to restate every settled
+    // point, or the pile stays at the scale it landed at while the embers
+    // falling into it follow the new one.
+    ashSizeEm[ashCount] = size;
     ash.size.setX(ashCount, size * sizeScale);
     ash.alpha.setX(ashCount, 0.75 + seed * 0.2);
-    raiseHeap(heap, settledX);
 
-    uploadRange(ash.position, ashCount, 1);
-    uploadRange(ash.colour, ashCount, 1);
-    uploadRange(ash.size, ashCount, 1);
-    uploadRange(ash.alpha, ashCount, 1);
+    markSpan(ash.dirty, ashCount);
     ashCount += 1;
     ash.points.geometry.setDrawRange(0, ashCount);
   };
@@ -514,6 +528,8 @@ export function createAshScene(options: AshSceneOptions): AshScene | null {
       heap.fill(0);
       ash.points.geometry.setDrawRange(0, 0);
       embers.points.geometry.setDrawRange(0, 0);
+      clearSpan(ash.dirty);
+      clearSpan(embers.dirty);
       card.visible = false;
       stainMaterial.opacity = 0;
       glowMaterial.opacity = 0;
@@ -524,6 +540,10 @@ export function createAshScene(options: AshSceneOptions): AshScene | null {
       renderer.setSize(widthPx, heightPx, false);
       // Point size is a pixel quantity; the rest of the scene is in em.
       sizeScale = (widthPx / ASH_STAGE.width) * renderer.getPixelRatio();
+      for (let i = 0; i < ashCount; i += 1) {
+        ash.size.setX(i, (ashSizeEm[i] ?? 0) * sizeScale);
+      }
+      markSpan(ash.dirty, 0, ashCount);
     },
 
     setCardArtwork(url: string) {
@@ -628,10 +648,9 @@ export function createAshScene(options: AshSceneOptions): AshScene | null {
       }
 
       embers.points.geometry.setDrawRange(0, live);
-      uploadRange(embers.position, 0, live);
-      uploadRange(embers.colour, 0, live);
-      uploadRange(embers.size, 0, live);
-      uploadRange(embers.alpha, 0, live);
+      markSpan(embers.dirty, 0, live);
+      flushDirty(embers);
+      flushDirty(ash);
 
       const target = Math.min(EMBER.stainPeakOpacity, burns * 0.3);
       stainMaterial.opacity += (target - stainMaterial.opacity) * delta * 2.4;

@@ -1,13 +1,13 @@
 import { cardBackDesigns, useCardBackDesign } from "@table-top-poker/ui-shared";
 import { useReducedMotion } from "motion/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BOARD_CARD_EM } from "./boardDeal.js";
 import type { AshScene } from "./burnAshScene.js";
 import {
   ASH_FLOOR_Y,
   ASH_HALF_W,
   ASH_STAGE,
-  justBurntIndex,
+  burnTransition,
 } from "./burnPile.js";
 
 export interface BurnPileProps {
@@ -78,7 +78,9 @@ function SettledAsh({ count }: BurnPileProps) {
 export function BurnPile({ count }: BurnPileProps) {
   const reducedMotion = useReducedMotion() === true;
   const design = useCardBackDesign();
-  const animated = !reducedMotion && supportsWebGL();
+  /** A scene that cannot be loaded or built is the fallback's third reason. */
+  const [sceneFailed, setSceneFailed] = useState(false);
+  const animated = !reducedMotion && !sceneFailed && supportsWebGL();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<AshScene | null>(null);
@@ -98,37 +100,46 @@ export function BurnPile({ count }: BurnPileProps) {
 
     // `three` is a third of a megabyte gzipped, so it is fetched after the
     // table is on screen rather than bundled into the first paint.
-    void import("./burnAshScene.js").then(({ createAshScene }) => {
-      if (disposed) return;
-      scene = createAshScene({
-        canvas,
-        cardArtwork: cardArtwork(design),
-        pixelRatio: Math.min(window.devicePixelRatio, 2),
-      });
-      if (!scene) return;
-      const running = scene;
-      sceneRef.current = running;
+    import("./burnAshScene.js")
+      .then(({ createAshScene }) => {
+        if (disposed) return;
+        scene = createAshScene({
+          canvas,
+          cardArtwork: cardArtwork(design),
+          pixelRatio: Math.min(window.devicePixelRatio, 2),
+        });
+        if (!scene) {
+          setSceneFailed(true);
+          return;
+        }
+        const running = scene;
+        sceneRef.current = running;
 
-      observer = new ResizeObserver(([entry]) => {
-        const box = entry?.contentRect;
-        if (box) running.resize(box.width, box.height);
-      });
-      observer.observe(canvas);
-      running.resize(canvas.clientWidth, canvas.clientHeight);
+        observer = new ResizeObserver(([entry]) => {
+          const box = entry?.contentRect;
+          if (box) running.resize(box.width, box.height);
+        });
+        observer.observe(canvas);
+        running.resize(canvas.clientWidth, canvas.clientHeight);
 
-      // Burns that happened before the scene existed are already over.
-      if (countRef.current > 0) running.settleWhole(countRef.current);
-      countBefore.current = countRef.current;
+        // Burns that happened before the scene existed are already over.
+        if (countRef.current > 0) running.settleWhole(countRef.current);
+        countBefore.current = countRef.current;
 
-      let previous = performance.now();
-      const tick = (now: number) => {
+        let previous = performance.now();
+        const tick = (now: number) => {
+          frame = requestAnimationFrame(tick);
+          const delta = Math.min((now - previous) / 1000, MAX_FRAME_S);
+          previous = now;
+          running.advance(delta);
+        };
         frame = requestAnimationFrame(tick);
-        const delta = Math.min((now - previous) / 1000, MAX_FRAME_S);
-        previous = now;
-        running.advance(delta);
-      };
-      frame = requestAnimationFrame(tick);
-    });
+      })
+      // A stale chunk hash after a deploy, or a dropped connection: fall back
+      // to the settled pile rather than leaving an empty canvas on the felt.
+      .catch(() => {
+        if (!disposed) setSceneFailed(true);
+      });
 
     return () => {
       disposed = true;
@@ -141,9 +152,10 @@ export function BurnPile({ count }: BurnPileProps) {
   }, [animated, design]);
 
   /**
-   * Only a count that grows under a running scene sets a card alight. A pile
-   * that arrives whole — a reconnect mid-hand, a replay seek landing after two
-   * burns — is settled by the effect above instead.
+   * Only a count that steps by exactly one under a running scene sets a card
+   * alight. Anything else is a seek, and rebuilds the pile at the size the
+   * count asks for — rather than burning once for a jump of three, or emptying
+   * the felt for a step backwards.
    */
   useEffect(() => {
     const scene = sceneRef.current;
@@ -152,11 +164,17 @@ export function BurnPile({ count }: BurnPileProps) {
     const before = countBefore.current;
     countBefore.current = count;
 
-    if (count < before) {
-      scene.reset();
-      return;
+    switch (burnTransition(count, before)) {
+      case "none":
+        return;
+      case "burn":
+        scene.burn();
+        return;
+      case "resettle":
+        scene.reset();
+        if (count > 0) scene.settleWhole(count);
+        return;
     }
-    if (justBurntIndex(count, before) !== null) scene.burn();
   }, [count]);
 
   return (
@@ -175,7 +193,14 @@ export function BurnPile({ count }: BurnPileProps) {
         <canvas
           ref={canvasRef}
           data-testid="burn-canvas"
-          style={{ display: "block", width: "100%", height: "100%" }}
+          style={{
+            display: "block",
+            width: "100%",
+            height: "100%",
+            // The stage overhangs the community row; embers may drift over the
+            // flop, but the canvas must not take its clicks.
+            pointerEvents: "none",
+          }}
         />
       ) : (
         <SettledAsh count={count} />

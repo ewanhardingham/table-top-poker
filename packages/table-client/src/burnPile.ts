@@ -104,18 +104,6 @@ export function cueHeat(timing: BurnTiming, elapsed: number): number {
 }
 
 /**
- * The card a growing count has just set alight, or null. The burn outlives the
- * render that reveals it, so it cannot be derived per render — see
- * `docs/design/burn-pile.md`.
- */
-export function justBurntIndex(
-  burnedCount: number,
-  previousCount: number,
-): number | null {
-  return burnedCount > previousCount ? burnedCount - 1 : null;
-}
-
-/**
  * The pile's geometry, in the pile's own em — which `BOARD_CARD_EM` sets, so
  * the burnt card matches the community cards beside it. The stage is far wider
  * than the card because embers leave it and ash falls below it.
@@ -135,9 +123,11 @@ export const ASH_STAGE = {
 export const ASH_FLOOR_Y = ASH_STAGE.restY + ASH_STAGE.cardHeight / 2;
 
 /**
- * Felt between the ash and the community row. `Board` shipped 1.2em of the
- * outer em (~19px), which was sized for a neat stack of cards; ash is a loose
- * scatter and needs more room to read as separate from the street.
+ * Felt between the ash and the community row, in the *pile's* em — so the gap
+ * on the felt is `BOARD_GAP_EM * BOARD_CARD_EM`, about 3.2 of `Board`'s own em
+ * (~52px). `Board` shipped 1.2 of its em (~19px), sized for a neat stack of
+ * cards; ash is a loose scatter and needs the felt around it to read as
+ * separate from the street, so this is a little under three times that.
  */
 export const BOARD_GAP_EM = 1.35;
 
@@ -178,18 +168,87 @@ export const HEAP_COLUMNS = 64;
 export const HEAP_RISE_EM = 0.0026;
 export const HEAP_MAX_EM = 0.36;
 
+/**
+ * The column a flake arriving at the raw stage `x` comes to rest in. It takes
+ * the raw x and squashes internally, so every heap function must be handed the
+ * coordinate at the same stage of the squash — footprint it first and the flake
+ * raises one column while being read back against another.
+ */
 export function heapIndex(x: number): number {
   const offset = (ashFootprint(x) - ASH_STAGE.restX) / ASH_HALF_W;
   const column = Math.round((offset + 1) * 0.5 * (HEAP_COLUMNS - 1));
   return Math.min(HEAP_COLUMNS - 1, Math.max(0, column));
 }
 
-/** The felt, or the top of what has already landed there. */
+/** The felt, or the top of what has already landed there. Takes a raw x. */
 export function heapSurfaceY(heap: Readonly<Float32Array>, x: number): number {
   return ASH_FLOOR_Y - Math.min(HEAP_MAX_EM, heap[heapIndex(x)] ?? 0);
 }
 
+/** Raises the column a flake arriving at the raw stage `x` lands in. */
 export function raiseHeap(heap: Float32Array, x: number): void {
   const index = heapIndex(x);
   heap[index] = Math.min(HEAP_MAX_EM, (heap[index] ?? 0) + HEAP_RISE_EM);
+}
+
+/**
+ * Lands a flake that arrived at the raw stage `x`: raises the column it comes
+ * to rest in, and returns where that is. The squash and the raise are one step
+ * so they cannot drift apart — footprinting before raising mounds a column
+ * nothing reads back, and leaves the flake's own column flat.
+ */
+export function settleFlake(heap: Float32Array, x: number): number {
+  raiseHeap(heap, x);
+  return ashFootprint(x);
+}
+
+/**
+ * Which points of a preallocated buffer have changed since the last upload.
+ *
+ * `three` drains an attribute's update ranges once per render, so every point
+ * touched between two renders has to be coalesced into one span and handed over
+ * together. Queueing a range per point and clearing as you go keeps only the
+ * last: the rest of the frame's points stay at their zero-initialised size and
+ * alpha, counted by the draw range and invisible.
+ */
+export interface DirtySpan {
+  from: number;
+  to: number;
+}
+
+export function emptySpan(): DirtySpan {
+  return { from: Infinity, to: -1 };
+}
+
+export function markSpan(span: DirtySpan, start: number, count = 1): void {
+  if (count <= 0) return;
+  if (start < span.from) span.from = start;
+  const end = start + count - 1;
+  if (end > span.to) span.to = end;
+}
+
+export function clearSpan(span: DirtySpan): void {
+  span.from = Infinity;
+  span.to = -1;
+}
+
+/** The slice to upload, or null when nothing has been touched. */
+export function spanRange(
+  span: DirtySpan,
+): { readonly start: number; readonly count: number } | null {
+  if (span.to < span.from) return null;
+  return { start: span.from, count: span.to - span.from + 1 };
+}
+
+export type BurnTransition = "none" | "burn" | "resettle";
+
+/**
+ * What a change in `burnedCount` means to a scene that is already running. Only
+ * a step of exactly one is a card catching fire: a replay seek can move the
+ * count backwards, or forward by a whole street at once, and both have to land
+ * as a pile that is simply already the right size.
+ */
+export function burnTransition(count: number, before: number): BurnTransition {
+  if (count === before) return "none";
+  return count === before + 1 ? "burn" : "resettle";
 }
