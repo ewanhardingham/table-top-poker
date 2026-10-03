@@ -425,6 +425,13 @@ export async function buildApp(
     });
   }
 
+  function hasSeatSocket(code: string, seatId: SeatId): boolean {
+    for (const socket of roomSockets.get(code) ?? []) {
+      if (socketIdentity.get(socket) === seatId) return true;
+    }
+    return false;
+  }
+
   /** Presence decides deal-in eligibility, so it takes its turn in the queue. */
   function setPresence(
     code: string,
@@ -1547,6 +1554,7 @@ export async function buildApp(
             }
           } else if (isSeat(currentIdentity)) {
             enqueueDetached(code, () => {
+              if (hasSeatSocket(code, currentIdentity)) return;
               setPresence(code, currentIdentity, true);
             });
           }
