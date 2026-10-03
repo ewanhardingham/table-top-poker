@@ -5,11 +5,11 @@ import type {
 } from "@table-top-poker/protocol";
 import {
   applyRoomSoundSettings,
+  getWebSocketUrl,
   onHandUpdate,
 } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useRef } from "react";
 import { useTableStore } from "../store/store.js";
-import { getWebSocketUrl } from "./getWebSocketUrl.js";
 
 export interface UseWebSocketOptions {
   readonly onRoomEnded?: () => void;

@@ -6,11 +6,11 @@ import type {
 } from "@table-top-poker/protocol";
 import {
   applyRoomSoundSettings,
+  getWebSocketUrl,
   onHandUpdate,
 } from "@table-top-poker/ui-shared";
 import { useCallback, useEffect, useRef } from "react";
 import { usePlayerStore } from "../store/store.js";
-import { getWebSocketUrl } from "./getWebSocketUrl.js";
 
 export interface SeatConnectionParams {
   readonly roomCode: string;

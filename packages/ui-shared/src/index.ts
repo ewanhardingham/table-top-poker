@@ -21,6 +21,7 @@ export {
   useStoredCardBackDesign,
 } from "./cardBackDesign.js";
 export type { CardBackDesign, CardBackDesignId } from "./cardBackDesign.js";
+export { getWebSocketUrl } from "./getWebSocketUrl.js";
 export { PillButton } from "./PillButton.js";
 export type {
   PillButtonProps,

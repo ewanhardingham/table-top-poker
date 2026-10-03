@@ -1,7 +1,7 @@
 import type { ServerMessage } from "@table-top-poker/protocol";
+import { getWebSocketUrl } from "@table-top-poker/ui-shared";
 import { useEffect, useRef } from "react";
 import { usePlayerStore } from "../store/store.js";
-import { getWebSocketUrl } from "./getWebSocketUrl.js";
 
 export interface LobbyWebSocketOptions {
   readonly onRoomEnded?: () => void;

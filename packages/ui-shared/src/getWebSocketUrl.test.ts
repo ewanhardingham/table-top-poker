@@ -14,12 +14,12 @@ describe("getWebSocketUrl", () => {
     );
   });
 
-  it("appends query params for room-scoped connections", () => {
+  it("appends connection params as the query string", () => {
     expect(
       getWebSocketUrl(
         { protocol: "http:", host: "localhost:3000" },
-        { room: "ABCD", role: "table" },
+        { room: "ABCD", seat: "2", token: "tok" },
       ),
-    ).toBe("ws://localhost:3000/ws?room=ABCD&role=table");
+    ).toBe("ws://localhost:3000/ws?room=ABCD&seat=2&token=tok");
   });
 });
