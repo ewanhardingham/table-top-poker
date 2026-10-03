@@ -1,7 +1,11 @@
 import type { RoomView } from "@table-top-poker/protocol";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RoomRequestError } from "../api/rooms.js";
-import { openSeatSocket, probeSeatGone } from "./openSeatSocket.js";
+import {
+  openSeatSocket,
+  PROBE_TIMEOUT_MS,
+  probeSeatGone,
+} from "./openSeatSocket.js";
 
 class FakeSocket {
   readonly listeners = new Map<string, () => void>();
@@ -93,28 +97,42 @@ function viewWithSeat(claimed: boolean) {
 }
 
 describe("probeSeatGone", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("is gone when the room is 404", async () => {
     const join = vi.fn().mockRejectedValue(new RoomRequestError(404));
-    await expect(probeSeatGone(join, "ABCD", 0)).resolves.toBe(true);
+    await expect(probeSeatGone(join, "ABCD")).resolves.toBe(true);
   });
 
-  it("is gone when the seat is no longer claimed", async () => {
+  it("is present when the seat reads unclaimed after a repack", async () => {
     const join = vi.fn().mockResolvedValue(viewWithSeat(false));
-    await expect(probeSeatGone(join, "ABCD", 0)).resolves.toBe(true);
+    await expect(probeSeatGone(join, "ABCD")).resolves.toBe(false);
   });
 
-  it("is present when the seat is still claimed", async () => {
+  it("is present when the room answers", async () => {
     const join = vi.fn().mockResolvedValue(viewWithSeat(true));
-    await expect(probeSeatGone(join, "ABCD", 0)).resolves.toBe(false);
+    await expect(probeSeatGone(join, "ABCD")).resolves.toBe(false);
   });
 
   it("is present when the network is down", async () => {
     const join = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
-    await expect(probeSeatGone(join, "ABCD", 0)).resolves.toBe(false);
+    await expect(probeSeatGone(join, "ABCD")).resolves.toBe(false);
   });
 
   it("is present on a server error", async () => {
     const join = vi.fn().mockRejectedValue(new RoomRequestError(502));
-    await expect(probeSeatGone(join, "ABCD", 0)).resolves.toBe(false);
+    await expect(probeSeatGone(join, "ABCD")).resolves.toBe(false);
+  });
+
+  it("is present when the probe hangs past the timeout", async () => {
+    vi.useFakeTimers();
+    const join = vi.fn().mockReturnValue(new Promise(() => undefined));
+
+    const result = probeSeatGone(join, "ABCD");
+    await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS);
+
+    await expect(result).resolves.toBe(false);
   });
 });

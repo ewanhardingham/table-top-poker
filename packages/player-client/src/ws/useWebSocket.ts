@@ -101,12 +101,7 @@ export function useWebSocket(
         scheduleRetry: () => {
           retryTimer = setTimeout(connect, RETRY_DELAY_MS);
         },
-        probeSeatGone: () =>
-          probeSeatGone(
-            joinRoom,
-            activeConnection.roomCode,
-            activeConnection.seatId,
-          ),
+        probeSeatGone: () => probeSeatGone(joinRoom, activeConnection.roomCode),
         onSeatGone: () => optionsRef.current.onSeatGone?.(),
       });
       socket.addEventListener("message", (event: MessageEvent<string>) => {

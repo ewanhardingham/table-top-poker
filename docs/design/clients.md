@@ -76,10 +76,14 @@ authenticates.
 A seat socket that closes before it ever opens is retried every 1.5 s with no
 cap (a locked phone can stay offline for long), because the browser cannot tell
 a local network failure from a server rejection (#283). Each such close first
-probes the room with the same `joinRoom` GET the reload path uses: a 404 (room
-gone) or a seat that is no longer claimed (evicted or freed) drops the seat
-and its stored token; any other outcome, including a failed probe, keeps
-retrying.
+probes the room with the same read-only `POST /rooms/:code/join` the reload
+path uses, under a 5 s timeout. Only a 404 (room gone) drops the seat and its
+stored token; a timeout, network failure, or any other status keeps retrying.
+The probe deliberately ignores the seat's `claimed` flag: after a positional
+repack (ADR-0004) the stored seat id is stale and reads unclaimed while the
+token is still valid. The cost is that an evicted seat whose id has been
+reclaimed keeps retrying until the server exposes a token-validity signal
+(follow-up).
 
 ## Rendering (`ui-shared`)
 

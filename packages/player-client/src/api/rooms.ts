@@ -6,8 +6,14 @@ export class RoomRequestError extends Error {
   }
 }
 
-export async function joinRoom(code: string): Promise<RoomView> {
-  const response = await fetch(`/rooms/${code}/join`, { method: "POST" });
+export async function joinRoom(
+  code: string,
+  signal?: AbortSignal,
+): Promise<RoomView> {
+  const response = await fetch(`/rooms/${code}/join`, {
+    method: "POST",
+    ...(signal === undefined ? {} : { signal }),
+  });
   if (!response.ok) {
     throw new RoomRequestError(response.status);
   }

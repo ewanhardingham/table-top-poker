@@ -10,16 +10,29 @@ export interface SeatSocketHandlers {
   readonly onSeatGone: () => void;
 }
 
+export const PROBE_TIMEOUT_MS = 5000;
+
 export async function probeSeatGone(
-  join: (code: string) => Promise<RoomView>,
+  join: (code: string, signal?: AbortSignal) => Promise<RoomView>,
   roomCode: string,
-  seatId: number,
 ): Promise<boolean> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<false>((resolve) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      resolve(false);
+    }, PROBE_TIMEOUT_MS);
+  });
+  const probe = join(roomCode, controller.signal).then(
+    () => false,
+    (error: unknown) =>
+      error instanceof RoomRequestError && error.status === 404,
+  );
   try {
-    const view = await join(roomCode);
-    return view.seats.find((seat) => seat.id === seatId)?.claimed !== true;
-  } catch (error) {
-    return error instanceof RoomRequestError && error.status === 404;
+    return await Promise.race([probe, timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
