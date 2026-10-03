@@ -3,7 +3,7 @@
 Rationale that used to live in code comments. The code documents *what* it does
 through names and types; these notes hold the *why* — the non-obvious decisions,
 invariants, and trade-offs — so the source can stay comment-light (see the
-"Code comments" standard in `CLAUDE.md`).
+"Code comments" standard in `AGENTS.md`).
 
 These are a companion to, not a replacement for, the canonical specs and
 decisions:

@@ -79,5 +79,5 @@ A few things that make a change easy to accept:
 - Keep comments rare. Prefer a clearer name or a smaller function. Design
   decisions belong in `CONTEXT.md` or `docs/adr/`, not inline.
 
-The conventions are described in full in [CLAUDE.md](CLAUDE.md). Issues and
+The conventions are described in full in [AGENTS.md](AGENTS.md). Issues and
 plans are tracked as GitHub issues.
