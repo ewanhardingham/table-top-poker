@@ -80,7 +80,7 @@ function cardActionsFrom(
 }
 
 /** A persistent prompt, not `coaching.ts`'s one-shot teaching — see ADR-0009. */
-export function showdownPrompt(turn: ShowdownTurn): string | null {
+function showdownPrompt(turn: ShowdownTurn): string | null {
   if (!turn.showLegal) return null;
   return turn.muckLegal
     ? "Show your hand, or drag up to muck"

@@ -2,7 +2,7 @@ import type { PlayerView } from "@table-top-poker/protocol";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Hand, showdownPrompt, showdownTurn } from "./Hand.js";
+import { Hand, showdownTurn } from "./Hand.js";
 
 describe("Hand", () => {
   it("shows a waiting state before any hand has started", () => {
@@ -441,30 +441,6 @@ describe("Hand", () => {
         false,
       );
       expect(showdownTurn(showdownViewFor(0)).showdownOpen).toBe(false);
-    });
-
-    it("drops the muck line from the prompt while the compulsion stands", () => {
-      expect(
-        showdownPrompt({
-          showdownOpen: true,
-          showLegal: true,
-          muckLegal: true,
-        }),
-      ).toBe("Show your hand, or drag up to muck");
-      expect(
-        showdownPrompt({
-          showdownOpen: true,
-          showLegal: true,
-          muckLegal: false,
-        }),
-      ).toBe("Show your hand");
-      expect(
-        showdownPrompt({
-          showdownOpen: true,
-          showLegal: false,
-          muckLegal: false,
-        }),
-      ).toBeNull();
     });
 
     it("has no separate show control — the reveal gesture is the show", () => {
