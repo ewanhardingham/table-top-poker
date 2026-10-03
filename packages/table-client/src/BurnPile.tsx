@@ -30,7 +30,7 @@ function cardArtwork(design: string): string {
  */
 let webglSupport: boolean | null = null;
 
-export function supportsWebGL(): boolean {
+function supportsWebGL(): boolean {
   if (webglSupport !== null) return webglSupport;
   if (typeof document === "undefined") return false;
   try {

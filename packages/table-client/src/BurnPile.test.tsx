@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { BurnPile, supportsWebGL } from "./BurnPile.js";
+import { BurnPile } from "./BurnPile.js";
 
 /**
  * These render without a DOM, which is also the shape of the no-WebGL
@@ -11,12 +11,6 @@ describe("BurnPile", () => {
     const html = renderToStaticMarkup(<BurnPile count={0} />);
     expect(html).toMatch(/data-burned="0"/);
     expect(html).not.toContain('data-testid="burn-ash"');
-  });
-
-  it("shows the ash left by the burns so far", () => {
-    expect(renderToStaticMarkup(<BurnPile count={2} />)).toContain(
-      'data-testid="burn-ash"',
-    );
   });
 
   it("reports the count it was given, whatever it can render", () => {
@@ -45,11 +39,5 @@ describe("BurnPile", () => {
     const html = renderToStaticMarkup(<BurnPile count={2} />);
     expect(html).not.toContain('data-testid="burn-canvas"');
     expect(html).toContain('data-testid="burn-ash"');
-  });
-});
-
-describe("supportsWebGL", () => {
-  it("says no where there is no document to probe", () => {
-    expect(supportsWebGL()).toBe(false);
   });
 });
