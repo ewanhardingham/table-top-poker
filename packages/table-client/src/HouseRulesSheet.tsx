@@ -93,7 +93,7 @@ const stepperButtonStyle: CSSProperties = {
   cursor: "pointer",
 };
 
-export interface ShotClockSecondsDraft {
+interface ShotClockSecondsDraft {
   readonly input: string;
   readonly seconds: number;
   readonly valid: boolean;
@@ -117,7 +117,7 @@ function updateSecondsDraft(
   return { ...draft, input, valid: false };
 }
 
-export function updateShotClockSecondsDraft(
+function updateShotClockSecondsDraft(
   draft: ShotClockSecondsDraft,
   input: string,
 ): ShotClockSecondsDraft {
@@ -129,7 +129,7 @@ export function updateShotClockSecondsDraft(
   );
 }
 
-export function updateShowdownClockSecondsDraft(
+function updateShowdownClockSecondsDraft(
   draft: ShotClockSecondsDraft,
   input: string,
 ): ShotClockSecondsDraft {

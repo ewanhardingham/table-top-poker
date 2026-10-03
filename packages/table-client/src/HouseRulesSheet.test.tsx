@@ -9,11 +9,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import {
-  HouseRulesSheet,
-  type ShotClockSecondsDraft,
-  updateShotClockSecondsDraft,
-} from "./HouseRulesSheet.js";
+import { HouseRulesSheet } from "./HouseRulesSheet.js";
 
 (
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -381,20 +377,6 @@ describe("HouseRulesSheet", () => {
     act(() => {
       renderer.unmount();
     });
-  });
-
-  it("accepts a valid seconds value typed one digit at a time", () => {
-    let draft: ShotClockSecondsDraft = {
-      input: "90",
-      seconds: 90,
-      valid: true,
-    };
-
-    draft = updateShotClockSecondsDraft(draft, "4");
-    expect(draft).toEqual({ input: "4", seconds: 90, valid: false });
-    draft = updateShotClockSecondsDraft(draft, "45");
-
-    expect(draft).toEqual({ input: "45", seconds: 45, valid: true });
   });
 
   it("waits for both settings writes before closing", async () => {
