@@ -485,13 +485,24 @@ export class RoomStore {
     code: string,
     seatId: SeatId,
     displayName: string,
+    resumeToken?: string,
   ): ClaimSeatResult {
     const room = this.#rooms.get(code);
     if (!room) return { error: "room-not-found" };
 
     const seat = room.seats[seatId];
     if (!seat) return { error: "seat-not-found" };
-    if (seat.claimed) return { error: "seat-already-claimed" };
+    if (seat.claimed) {
+      if (
+        seat.disconnected &&
+        resumeToken !== undefined &&
+        seat.token === resumeToken
+      ) {
+        seat.disconnected = false;
+        return { seat };
+      }
+      return { error: "seat-already-claimed" };
+    }
     const trimmedName = displayName.trim();
     if (trimmedName === "" || trimmedName.length > MAX_DISPLAY_NAME_LENGTH) {
       return { error: "invalid-display-name" };

@@ -1171,7 +1171,12 @@ export async function buildApp(
         if (roomRecordings.isPaused(code)) {
           return { error: "recording-paused" as const };
         }
-        const claim = rooms.claimSeat(code, seatId, body.data.displayName);
+        const claim = rooms.claimSeat(
+          code,
+          seatId,
+          body.data.displayName,
+          body.data.token,
+        );
         if (!("error" in claim)) broadcastRoomView(code);
         return claim;
       });
