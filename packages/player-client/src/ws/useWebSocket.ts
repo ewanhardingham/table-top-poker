@@ -11,6 +11,7 @@ import {
 import { useCallback, useEffect, useRef } from "react";
 import { usePlayerStore } from "../store/store.js";
 import { getWebSocketUrl } from "./getWebSocketUrl.js";
+import { openSeatSocket } from "./openSeatSocket.js";
 
 export interface SeatConnectionParams {
   readonly roomCode: string;
@@ -19,7 +20,6 @@ export interface SeatConnectionParams {
 }
 
 export interface UseWebSocketOptions {
-  readonly onRejected?: () => void;
   readonly onRoomEnded?: () => void;
   readonly onEvicted?: () => void;
   readonly onSeatMoved?: (move: SeatMove) => void;
@@ -84,7 +84,6 @@ export function useWebSocket(
     function connect(): void {
       if (!active) return;
       setConnectionStatus("connecting");
-      let openedOnce = false;
       const socket = new WebSocket(
         getWebSocketUrl(window.location, {
           room: activeConnection.roomCode,
@@ -94,18 +93,12 @@ export function useWebSocket(
       );
       socketRef.current = socket;
 
-      socket.addEventListener("open", () => {
-        openedOnce = true;
-        if (active) setConnectionStatus("connected");
-      });
-      socket.addEventListener("close", () => {
-        if (!active) return;
-        setConnectionStatus("disconnected");
-        if (!openedOnce) {
-          optionsRef.current.onRejected?.();
-          return;
-        }
-        retryTimer = setTimeout(connect, RETRY_DELAY_MS);
+      openSeatSocket(socket, {
+        isActive: () => active,
+        onStatus: setConnectionStatus,
+        scheduleRetry: () => {
+          retryTimer = setTimeout(connect, RETRY_DELAY_MS);
+        },
       });
       socket.addEventListener("message", (event: MessageEvent<string>) => {
         if (!active) return;
