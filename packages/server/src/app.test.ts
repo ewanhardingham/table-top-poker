@@ -3006,6 +3006,50 @@ describe("presence and reconnection", () => {
     expect(seatDisconnected(table.messages, 0)).toBe(false);
   });
 
+  it("marks a seat disconnected when every socket on it misses its pongs", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
+    if (!("seat" in claim)) throw new Error("expected a claimed seat");
+    const token = claim.seat.token ?? "";
+    const first = connect(`room=${room.code}&seat=0&token=${token}`, {
+      autoPong: false,
+    });
+    await opened(first.socket);
+    const second = connect(`room=${room.code}&seat=0&token=${token}`, {
+      autoPong: false,
+    });
+    await opened(second.socket);
+
+    await settle(80);
+
+    expect(rooms.get(room.code)?.seats[0]?.disconnected).toBe(true);
+    expect(seatDisconnected(table.messages, 0)).toBe(true);
+  });
+
+  it("marks a seat disconnected when its live socket closes and only a half-dead one remains", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
+    if (!("seat" in claim)) throw new Error("expected a claimed seat");
+    const token = claim.seat.token ?? "";
+    const halfDead = connect(`room=${room.code}&seat=0&token=${token}`, {
+      autoPong: false,
+    });
+    await opened(halfDead.socket);
+    const live = connect(`room=${room.code}&seat=0&token=${token}`);
+    await opened(live.socket);
+    await settle(80);
+
+    live.socket.close();
+    await settle();
+
+    expect(rooms.get(room.code)?.seats[0]?.disconnected).toBe(true);
+    expect(seatDisconnected(table.messages, 0)).toBe(true);
+  });
+
   it("delivers a fresh view-snapshot (not event replay) on reconnect mid-hand", async () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);

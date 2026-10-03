@@ -420,18 +420,23 @@ export async function buildApp(
     const code = socketRoomCode.get(socket);
     if (!isSeat(identity) || code === undefined) return;
     enqueueDetached(code, () => {
-      if (disconnected && hasOtherSeatSocket(code, identity, socket)) return;
+      if (disconnected && hasOtherLiveSeatSocket(code, identity, socket))
+        return;
       setPresence(code, identity, disconnected);
     });
   }
 
-  function hasOtherSeatSocket(
+  function hasOtherLiveSeatSocket(
     code: string,
     seatId: SeatId,
     except: WebSocket,
   ): boolean {
     for (const socket of roomSockets.get(code) ?? []) {
-      if (socket !== except && socketIdentity.get(socket) === seatId) {
+      if (
+        socket !== except &&
+        socketIdentity.get(socket) === seatId &&
+        (pingMissed.get(socket) ?? 0) < missedPongLimit
+      ) {
         return true;
       }
     }
@@ -1560,7 +1565,7 @@ export async function buildApp(
             }
           } else if (isSeat(currentIdentity)) {
             enqueueDetached(code, () => {
-              if (hasOtherSeatSocket(code, currentIdentity, socket)) return;
+              if (hasOtherLiveSeatSocket(code, currentIdentity, socket)) return;
               setPresence(code, currentIdentity, true);
             });
           }
