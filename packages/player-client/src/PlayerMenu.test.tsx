@@ -2,7 +2,7 @@ import { color } from "@table-top-poker/ui-shared";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { MenuBody, PlayerMenu, leaveConfirmMessage } from "./PlayerMenu.js";
+import { MenuBody, PlayerMenu } from "./PlayerMenu.js";
 
 const noop = () => undefined;
 
@@ -182,6 +182,7 @@ describe("MenuBody", () => {
     expect(inHand).toContain('data-testid="leave-confirm-cancel"');
     expect(inHand).not.toContain('data-testid="menu-leave"');
     expect(outOfHand).toContain("Leave the game?");
+    expect(outOfHand).not.toContain("forfeit");
   });
 
   it("styles the leave action against the accent, not the neutral fill", () => {
@@ -197,12 +198,5 @@ describe("MenuBody", () => {
 
     const leaveButton = /<button[^>]*data-testid="menu-leave"[^>]*>/.exec(html);
     expect(leaveButton?.[0]).toContain(color.accentWash);
-  });
-});
-
-describe("leaveConfirmMessage", () => {
-  it("warns about forfeiting only while in a live hand", () => {
-    expect(leaveConfirmMessage(true)).toContain("forfeit");
-    expect(leaveConfirmMessage(false)).toBe("Leave the game?");
   });
 });

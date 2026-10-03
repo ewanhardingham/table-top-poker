@@ -43,7 +43,7 @@ const badgeStyle: CSSProperties = {
   border: `1px solid ${color.border}`,
 };
 
-export function connectionBadgeVisible(
+function connectionBadgeVisible(
   showBadge: boolean,
   connectionStatus: ConnectionStatus,
   hasEverConnected: boolean,

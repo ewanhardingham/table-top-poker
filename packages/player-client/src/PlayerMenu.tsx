@@ -21,7 +21,7 @@ export interface PlayerMenuProps {
   readonly onRemoveTurnSound: () => void;
 }
 
-export function leaveConfirmMessage(inLiveHand: boolean): string {
+function leaveConfirmMessage(inLiveHand: boolean): string {
   return inLiveHand
     ? "Leave now? You'll forfeit the current hand."
     : "Leave the game?";

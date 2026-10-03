@@ -1,7 +1,7 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { StatusBar, connectionBadgeVisible } from "./StatusBar.js";
+import { StatusBar } from "./StatusBar.js";
 
 const noop = () => undefined;
 
@@ -64,15 +64,23 @@ describe("StatusBar", () => {
   });
 
   it("does not warn about a connection never yet made", () => {
+    const badgeShown = (
+      connectionStatus: "disconnected" | "connecting",
+      hasEverConnected: boolean,
+    ) =>
+      renderToStaticMarkup(
+        <StatusBar
+          showBadge={true}
+          connectionStatus={connectionStatus}
+          hasEverConnected={hasEverConnected}
+          {...handlers}
+          seat={seated}
+        />,
+      ).includes('data-testid="connection-status"');
+
     for (const connectionStatus of ["disconnected", "connecting"] as const) {
-      expect(
-        connectionBadgeVisible(true, connectionStatus, false),
-        connectionStatus,
-      ).toBe(false);
-      expect(
-        connectionBadgeVisible(true, connectionStatus, true),
-        connectionStatus,
-      ).toBe(true);
+      expect(badgeShown(connectionStatus, false), connectionStatus).toBe(false);
+      expect(badgeShown(connectionStatus, true), connectionStatus).toBe(true);
     }
   });
 
