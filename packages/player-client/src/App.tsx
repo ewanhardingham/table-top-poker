@@ -150,6 +150,11 @@ export function App() {
     clearHand();
   }, [clearSeat, clearHand, roomCode]);
 
+  const handleSeatGone = useCallback(() => {
+    dropSeat();
+    setSeatMoveMessage(null);
+  }, [dropSeat]);
+
   const handleEvicted = useCallback(() => {
     dropSeat();
     setEvictionMessage("You have been evicted from the room");
@@ -190,6 +195,7 @@ export function App() {
     onRoomEnded: handleRoomEnded,
   });
   const { send } = useWebSocket(wsParams, {
+    onSeatGone: handleSeatGone,
     onEvicted: handleEvicted,
     onRoomEnded: handleRoomEnded,
     onSeatMoved: handleSeatMoved,

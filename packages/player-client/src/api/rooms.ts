@@ -1,9 +1,15 @@
 import type { RoomView, SittingOutReason } from "@table-top-poker/protocol";
 
+export class RoomRequestError extends Error {
+  constructor(readonly status: number) {
+    super(`failed to join room: ${String(status)}`);
+  }
+}
+
 export async function joinRoom(code: string): Promise<RoomView> {
   const response = await fetch(`/rooms/${code}/join`, { method: "POST" });
   if (!response.ok) {
-    throw new Error(`failed to join room: ${String(response.status)}`);
+    throw new RoomRequestError(response.status);
   }
   return (await response.json()) as RoomView;
 }

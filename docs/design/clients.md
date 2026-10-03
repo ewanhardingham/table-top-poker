@@ -73,6 +73,14 @@ clears its presence badge. A player reconnecting after a positional repack
 handles a `seat-moved` resync notice; the token, not the stored position,
 authenticates.
 
+A seat socket that closes before it ever opens is retried every 1.5 s with no
+cap (a locked phone can stay offline for long), because the browser cannot tell
+a local network failure from a server rejection (#283). Each such close first
+probes the room with the same `joinRoom` GET the reload path uses: a 404 (room
+gone) or a seat that is no longer claimed (evicted or freed) drops the seat
+and its stored token; any other outcome, including a failed probe, keeps
+retrying.
+
 ## Rendering (`ui-shared`)
 
 `ui-shared` deliberately holds **no gesture concepts** — bend/turn/peel live in
