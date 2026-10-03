@@ -207,40 +207,6 @@ describe("RoomStore", () => {
   });
 
   describe("seat claiming", () => {
-    it("resumes a disconnected seat when the join presents its own token", () => {
-      const store = new RoomStore(Math.random, () => "token-0");
-      const room = store.create();
-      store.claimSeat(room.code, 0, "Avery");
-      store.setSeatDisconnected(room.code, 0, true);
-
-      const result = store.claimSeat(room.code, 0, "Avery", "token-0");
-
-      expect(result).toMatchObject({
-        seat: { id: 0, token: "token-0", disconnected: false },
-      });
-    });
-
-    it("rejects a join for a claimed seat presenting a different token", () => {
-      const store = new RoomStore(Math.random, () => "token-0");
-      const room = store.create();
-      store.claimSeat(room.code, 0, "Avery");
-      store.setSeatDisconnected(room.code, 0, true);
-
-      expect(store.claimSeat(room.code, 0, "Avery", "other")).toEqual({
-        error: "seat-already-claimed",
-      });
-    });
-
-    it("rejects a same-token join while the seat is still connected", () => {
-      const store = new RoomStore(Math.random, () => "token-0");
-      const room = store.create();
-      store.claimSeat(room.code, 0, "Avery");
-
-      expect(store.claimSeat(room.code, 0, "Avery", "token-0")).toEqual({
-        error: "seat-already-claimed",
-      });
-    });
-
     it("claims a free seat, issuing an opaque token", () => {
       let calls = 0;
       const store = new RoomStore(

@@ -18,7 +18,6 @@ export const SeatCountSchema = z.int().min(MIN_SEAT_COUNT).max(MAX_SEAT_COUNT);
 
 export const ClaimSeatRequestSchema = z.strictObject({
   displayName: z.string().trim().min(1).max(MAX_DISPLAY_NAME_LENGTH),
-  token: z.string().min(1).optional(),
 });
 
 export type ClaimSeatRequest = z.infer<typeof ClaimSeatRequestSchema>;
