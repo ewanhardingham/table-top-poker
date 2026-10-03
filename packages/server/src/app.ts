@@ -414,20 +414,26 @@ export async function buildApp(
     }
   }
 
-  /** Closing releases the writer; what is on disk stays there. */
   /** Cosmetic presence toggle for a seat's socket — never touches `rooms.dispatch`. */
   function markPresence(socket: WebSocket, disconnected: boolean): void {
     const identity = socketIdentity.get(socket);
     const code = socketRoomCode.get(socket);
     if (!isSeat(identity) || code === undefined) return;
     enqueueDetached(code, () => {
+      if (disconnected && hasOtherSeatSocket(code, identity, socket)) return;
       setPresence(code, identity, disconnected);
     });
   }
 
-  function hasSeatSocket(code: string, seatId: SeatId): boolean {
+  function hasOtherSeatSocket(
+    code: string,
+    seatId: SeatId,
+    except: WebSocket,
+  ): boolean {
     for (const socket of roomSockets.get(code) ?? []) {
-      if (socketIdentity.get(socket) === seatId) return true;
+      if (socket !== except && socketIdentity.get(socket) === seatId) {
+        return true;
+      }
     }
     return false;
   }
@@ -1554,7 +1560,7 @@ export async function buildApp(
             }
           } else if (isSeat(currentIdentity)) {
             enqueueDetached(code, () => {
-              if (hasSeatSocket(code, currentIdentity)) return;
+              if (hasOtherSeatSocket(code, currentIdentity, socket)) return;
               setPresence(code, currentIdentity, true);
             });
           }

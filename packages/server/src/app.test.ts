@@ -2986,6 +2986,26 @@ describe("presence and reconnection", () => {
     expect(seatDisconnected(table.messages, 0)).toBe(false);
   });
 
+  it("keeps a seat connected when a replaced socket misses its pongs after the reconnect", async () => {
+    const room = rooms.create();
+    const table = connect(`room=${room.code}&role=table`);
+    await opened(table.socket);
+    const claim = rooms.claimSeat(room.code, 0, "P0");
+    if (!("seat" in claim)) throw new Error("expected a claimed seat");
+    const token = claim.seat.token ?? "";
+    const stale = connect(`room=${room.code}&seat=0&token=${token}`, {
+      autoPong: false,
+    });
+    await opened(stale.socket);
+    const current = connect(`room=${room.code}&seat=0&token=${token}`);
+    await opened(current.socket);
+
+    await settle(80);
+
+    expect(rooms.get(room.code)?.seats[0]?.disconnected).toBe(false);
+    expect(seatDisconnected(table.messages, 0)).toBe(false);
+  });
+
   it("delivers a fresh view-snapshot (not event replay) on reconnect mid-hand", async () => {
     const room = rooms.create();
     const table = connect(`room=${room.code}&role=table`);
